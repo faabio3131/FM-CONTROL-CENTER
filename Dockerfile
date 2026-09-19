@@ -8,7 +8,12 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# Next evaluates server modules while collecting route metadata. Use non-secret,
+# unreachable build-only values so real Render credentials remain runtime-only.
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build \
+    BETTER_AUTH_URL=http://localhost:3000 \
+    BETTER_AUTH_SECRET=build-only-not-a-runtime-secret-000000000000000000000000 \
+    npm run build
 
 FROM node:24-alpine AS runner
 WORKDIR /app
