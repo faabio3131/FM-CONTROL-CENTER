@@ -53,5 +53,7 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+      - name: Build Docker image without runtime secrets
+        run: docker build --tag fmcc-render-smoke:${{ github.sha }} .
       - name: Runtime dependency audit
         run: npm audit --omit=dev --audit-level=high
