@@ -1,15 +1,17 @@
+import type { CoreOperationalContext } from "@/domain/core/contracts";
+
 export interface CognitiveModel {
   plan(input: {
     question: string;
     metricCatalog: readonly { metricId: string; displayName: string; description: string }[];
-    operationalContext: readonly Record<string, unknown>[];
+    operationalContext: readonly CoreOperationalContext[];
   }): Promise<{ metricIds: readonly string[] }>;
 
   synthesize(input: {
     question: string;
     facts: readonly Record<string, unknown>[];
     evidence: readonly Record<string, unknown>[];
-    operationalContext: readonly Record<string, unknown>[];
+    operationalContext: readonly CoreOperationalContext[];
   }): Promise<string>;
 }
 
