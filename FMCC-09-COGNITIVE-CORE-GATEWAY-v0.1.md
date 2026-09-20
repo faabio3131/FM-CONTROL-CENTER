@@ -1,23 +1,46 @@
 # FM CONTROL CENTER — F09 FM COGNITIVE CORE
 
-**Status:** EM EXECUÇÃO / INTEGRAÇÃO EXTERNA A VALIDAR
+**Status:** BOUNDARY IMPLEMENTADO E TESTADO / GATE DE INTEGRAÇÃO REAL BLOQUEADO  
+**HEAD verificado:** `8d2fee2d4db989cabcc19e485dcf0eb6d0ad48f7`  
+**CI:** FMCC Foundation Gate #82 — SUCCESS
 
 ## Current comprovado
 Foi revisado o Current do Kordena em `faabio3131/fm-ai-platform`, PR #118 (OPEN/DRAFT). O Gerente IA/Core existente possui allowlist estrita, contexto autenticado, RBAC, previews, confirmação humana, fingerprint, idempotência, auditoria e AI router. Esse código continua vertical/acoplado ao Kordena e não constitui um serviço compartilhado canônico comprovado.
 
 ## Decisão aplicada
-ADR-001 é preservado: o FMCC não copia o Core do Kordena e não cria segundo Core. Foi implementado um Core Gateway que consome um serviço canônico versionado por HTTP quando `FM_CORE_BASE_URL` e `FM_CORE_SERVICE_TOKEN` existirem no ambiente seguro.
+ADR-001 é preservado: o FMCC não copia o Core do Kordena e não cria segundo Core.
 
-## Capabilities FMCC
-Allowlist implementada nesta fase:
-- `metric.query`.
+Foi implementado:
+- Core Gateway;
+- `CanonicalCoreClient`;
+- cliente HTTP para serviço canônico versionado;
+- injeção server-side de tenant, user e correlation;
+- allowlist de capabilities;
+- capability `metric.query`;
+- consulta exclusiva ao MetricService governado;
+- resposta indisponível quando a métrica não existe;
+- audit de consultas;
+- timeout e erro seguro;
+- degradação fail-closed quando o Core canônico não está configurado.
 
-`source.status` permanece fora da allowlist até existir uma capability governada e fonte autorizada correspondente; não é anunciada como implementada.
+## Segurança e autoridade
+O modelo não escolhe tenant e não recebe autoridade para executar operação crítica. A cadeia permanece:
 
-O Gateway injeta tenant/user/correlation server-side; o modelo não escolhe tenant. `metric.query` consulta somente o MetricService governado. Métrica ausente retorna indisponível sem síntese inventada.
+Core → capability governada → serviço determinístico → tenant/autorização → evidência/provenance → resposta/auditoria.
 
-## Limite atual
-Nenhum endpoint/credencial real do serviço Core canônico foi comprovado nesta missão até este ponto. Portanto não se declara integração externa Live antes de smoke real.
+## Evidência de teste
+O caminho F07 → F08 → F09 foi testado com cliente canônico substituto explicitamente de teste, usando o mesmo MetricService e provenance governados. O Gate #82 ficou integralmente verde.
+
+## Bloqueio real
+Não existe evidência disponível nesta missão de:
+- endpoint Live do serviço compartilhado canônico do FM Cognitive Core;
+- `FM_CORE_BASE_URL` real;
+- `FM_CORE_SERVICE_TOKEN` real/configurado em Preview;
+- smoke autenticado contra esse serviço real.
+
+Portanto **não é permitido declarar a integração externa do Core como integrada/homologada**.
 
 ## Gate
-Implementação e testes de boundary podem ficar verdes; integração real permanece condicionada à existência comprovada do serviço canônico e credencial segura.
+**F09 — BLOQUEADA EXCLUSIVAMENTE NA INTEGRAÇÃO REAL COM O CORE CANÔNICO.**
+
+A implementação do boundary e seus testes estão verdes. A ausência de endpoint/credencial externa necessária constitui STOP condition da missão para merge/certificação final, conforme o Prompt Mestre.
