@@ -4,6 +4,9 @@ import { requirePermission, type TenantContext } from "@/domain/security/tenant-
 export class InvalidSecretReferenceError extends Error {
   constructor() { super("integration.secret_reference_invalid"); }
 }
+export class ConfigSecretForbiddenError extends Error {
+  constructor(path: string) { super(`integration.config_secret_forbidden:${path}`); }
+}
 
 const SENSITIVE_CONFIG_KEY = /(secret|password|passwd|token|api[_-]?key|private[_-]?key|credential)/i;
 
@@ -19,7 +22,7 @@ function assertConfigContainsNoSecrets(value: unknown, path = "config"): void {
   }
   if (!value || typeof value !== "object") return;
   for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-    if (SENSITIVE_CONFIG_KEY.test(key)) throw new Error(`integration.config_secret_forbidden:${path}.${key}`);
+    if (SENSITIVE_CONFIG_KEY.test(key)) throw new ConfigSecretForbiddenError(`${path}.${key}`);
     assertConfigContainsNoSecrets(nested, `${path}.${key}`);
   }
 }
