@@ -3,6 +3,18 @@ import { computeMetric } from "@/domain/metrics/metric-engine";
 import { getMetricDefinition } from "@/domain/metrics/registry";
 
 describe("F08 deterministic Metric Engine", () => {
+  it("mantém contrato governado completo para cada definição", () => {
+    for (const definition of ["trial.starts.count", "subscription.active.count", "subscription.cancelled.count", "billing.gross_billed", "revenue.cash_collected"].map((id) => getMetricDefinition(id)!)) {
+      expect(definition.calculationVersion).toBeTruthy();
+      expect(definition.description).toBeTruthy();
+      expect(["period", "as_of"]).toContain(definition.grain);
+      expect(Array.isArray(definition.dimensions)).toBe(true);
+      expect(["bounded_period", "as_of"]).toContain(definition.timeWindow);
+      expect(definition.freshnessPolicy).toBe("source_governed");
+      expect(definition.sourceAuthority).toBeTruthy();
+    }
+  });
+
   it("mantém missing diferente de zero", () => {
     const definition = getMetricDefinition("trial.starts.count")!;
     expect(computeMetric(definition, [])).toMatchObject({ status: "missing", value: null, qualityStatus: "missing" });
