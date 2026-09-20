@@ -1,4 +1,5 @@
 import { CognitiveModelContractError, CognitiveModelUnavailableError, type CognitiveModel } from "@/domain/core/cognitive-model";
+import type { CoreEvidence, CoreOperationalContext } from "@/domain/core/contracts";
 
 interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string } }>;
@@ -17,7 +18,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
   async plan(input: {
     question: string;
     metricCatalog: readonly { metricId: string; displayName: string; description: string }[];
-    operationalContext: readonly Record<string, unknown>[];
+    operationalContext: readonly CoreOperationalContext[];
   }): Promise<{ metricIds: readonly string[] }> {
     const content = await this.complete([
       { role: "system", content: [
@@ -45,8 +46,8 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
   async synthesize(input: {
     question: string;
     facts: readonly Record<string, unknown>[];
-    evidence: readonly Record<string, unknown>[];
-    operationalContext: readonly Record<string, unknown>[];
+    evidence: readonly CoreEvidence[];
+    operationalContext: readonly CoreOperationalContext[];
   }): Promise<string> {
     const content = await this.complete([
       { role: "system", content: [
