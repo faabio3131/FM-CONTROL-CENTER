@@ -6,8 +6,9 @@ import { canonicalFacts, sourceDefinitions, syncExecutions } from "@/infrastruct
 function mapSource(row: typeof sourceDefinitions.$inferSelect): SourceDefinition {
   return {
     id: row.id, tenantId: row.tenantId, name: row.name, sourceType: row.sourceType,
-    authoritativeDomain: row.authoritativeDomain, syncMode: row.syncMode as SourceDefinition["syncMode"],
-    secretRef: row.secretRef ?? undefined, mappingVersion: row.mappingVersion,
+    authoritativeDomain: row.authoritativeDomain, status: row.status as SourceDefinition["status"],
+    syncMode: row.syncMode as SourceDefinition["syncMode"], secretRef: row.secretRef ?? undefined,
+    config: row.config, freshnessSeconds: row.freshnessSeconds ?? undefined, mappingVersion: row.mappingVersion,
   };
 }
 
