@@ -1,4 +1,4 @@
-import type { CanonicalCoreClient, CoreAnswer, CorePlan, FmccCapability } from "@/domain/core/contracts";
+import type { CanonicalCoreClient, CoreAnswer, CoreEvidence, CorePlan, FmccCapability } from "@/domain/core/contracts";
 
 export class CanonicalCoreUnavailableError extends Error {
   constructor() { super("core.canonical_service_unavailable"); }
@@ -14,7 +14,7 @@ export class HttpCanonicalCoreClient implements CanonicalCoreClient {
     return this.post<CorePlan>("/v1/fmcc/plan", input);
   }
 
-  async synthesize(input: { question: string; tenantId: string; userId: string; correlationId: string; facts: readonly Record<string, unknown>[]; evidence: readonly { kind: "metric" | "source"; ref: string; sourceAuthority?: string; freshnessStatus?: string; qualityStatus?: string }[] }): Promise<CoreAnswer> {
+  async synthesize(input: { question: string; tenantId: string; userId: string; correlationId: string; facts: readonly Record<string, unknown>[]; evidence: readonly CoreEvidence[] }): Promise<CoreAnswer> {
     return this.post<CoreAnswer>("/v1/fmcc/synthesize", input);
   }
 
