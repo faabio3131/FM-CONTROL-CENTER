@@ -36,9 +36,9 @@ Dashboard e Core usam a mesma autoridade determinística de métricas.
 - lint/typecheck/test/build/Docker/audit verdes no Gate #82.
 
 ## Dependência de gate
-A UI está implementada e testada. O Core compartilhado canônico e o runtime dedicado já foram construídos. Falta apenas a prova operacional do fluxo completo em Preview, seguida do smoke pós-merge do FMCC.
+A UI está implementada. A arquitetura cognitiva foi reconciliada para o FMCC Cognitive Vertical Core próprio do produto. Falta recertificar o novo HEAD e provar o fluxo real no Preview com model provider configurado.
 
 ## Gate
 **F10 — IMPLEMENTADA/TESTADA, MAS NÃO CERTIFICADA COMO INTEGRADA EM PREVIEW.**
 
-Não promover a homologada enquanto o smoke E2E Preview e o smoke pós-merge não existirem.
+Não promover a homologada enquanto o novo Core vertical próprio não estiver com CI verde, smoke E2E Preview e smoke pós-merge.
