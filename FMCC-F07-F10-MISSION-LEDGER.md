@@ -54,16 +54,35 @@ Workflow conclusivo correspondente:
 - gaps de KPI aparecem como indisponíveis/semântica pendente, nunca como valor inventado;
 - regressão técnica do HEAD `8d2fee2d...` 100% verde.
 
-## Pendência operacional remanescente
-A lacuna de implementação foi resolvida: endpoint compartilhado, runtime dedicado e autenticação M2M existem no Core canônico.
+## Reconciliação arquitetural do Core — 20/09/2026
 
-Para promover F09 de IMPLEMENTADA/TESTADA para INTEGRADA EM PREVIEW ainda faltam evidências externas:
-- serviço `fm-cognitive-core-preview` implantado e saudável;
-- segredo M2M configurado apenas no ambiente;
-- `FM_CORE_BASE_URL` e `FM_CORE_SERVICE_TOKEN` configurados no FMCC Preview;
-- smoke real FMCC → Core → MetricService → synthesis.
+A dependência de runtime cognitivo compartilhado com outro SaaS foi removida.
 
-Isso não autoriza fabricar valores ou registrar integração antes da execução real.
+Decisão vigente:
+- ADR-001: SUPERSEDED;
+- ADR-013: ACCEPTED;
+- FMCC possui seu próprio FM Cognitive Vertical Core;
+- model providers são infraestrutura, não autoridade cognitiva do produto;
+- memória/contexto permanecem tenant/user scoped;
+- Metric Engine permanece autoridade factual;
+- nenhuma dependência operacional obrigatória do `fm-ai-platform`.
+
+Implementação atual da PR #9:
+- `FmccVerticalCognitiveCore`;
+- Cognitive Model Port;
+- adapter OpenAI-compatible;
+- planejamento single/multi-métrica;
+- contexto operacional;
+- grounding por facts/evidence;
+- análise executiva, correlação, anomalia, risco e recomendação;
+- fail-closed sem provider configurado.
+
+Pendências reais:
+- CI do novo HEAD;
+- provider cognitivo configurado no Preview;
+- smoke real;
+- regressão F06–F10;
+- merge e smoke pós-merge.
 
 ## Estado de governança
 - PR #9 permanece Draft;
@@ -71,6 +90,6 @@ Isso não autoriza fabricar valores ou registrar integração antes da execuçã
 - nenhuma produção utilizada;
 - nenhum provider externo falsamente declarado;
 - F07/F08 tecnicamente aprovadas;
-- F09 implementada/testada com Core compartilhado canônico construído; Preview E2E pendente;
-- F10 implementada/testada, incluindo contexto e análise multi-métrica, porém não certificada em Preview;
+- F09 reconciliada para Core vertical próprio do FMCC; novo HEAD ainda precisa recertificação;
+- F10 alinhada ao Core próprio; certificação Preview pendente;
 - próximo avanço: deployment/configuração segura do Core Preview, smoke E2E, regressão final, merge e smoke pós-merge.
