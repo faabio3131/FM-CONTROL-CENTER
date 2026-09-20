@@ -1,4 +1,4 @@
-export type FmccCapability = "metric.query" | "source.status";
+export type FmccCapability = "metric.query";
 
 export interface CorePlan {
   readonly capability: FmccCapability;
