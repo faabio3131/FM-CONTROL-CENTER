@@ -28,6 +28,14 @@ describe("F07 Source Registry", () => {
     })).rejects.toThrow("integration.secret_reference_invalid");
   });
 
+  it("rejeita segredo bruto escondido no config", async () => {
+    await expect(new SourceRegistryService(repo()).register(owner, {
+      name: "Billing", sourceType: "billing-fixture", authoritativeDomain: "billing", syncMode: "pull",
+      secretRef: "render:billing-api",
+      config: { endpoint: "https://example.test", nested: { apiKey: "should-not-be-persisted" } },
+    })).rejects.toThrow("integration.config_secret_forbidden");
+  });
+
   it("aplica RBAC server-side", async () => {
     const viewer: TenantContext = { ...owner, role: "viewer" };
     await expect(new SourceRegistryService(repo()).register(viewer, {
