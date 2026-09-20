@@ -12,3 +12,5 @@ services:
         sync: false
       - key: BETTER_AUTH_URL
         sync: false
+      - key: RUN_MIGRATIONS_ON_STARTUP
+        value: "false"
