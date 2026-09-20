@@ -1,18 +1,34 @@
 import { and, eq } from "drizzle-orm";
-import type { CanonicalFactRepository, SourceDefinition, SourceRepository, SyncRepository } from "@/domain/integration/contracts";
+import type { CanonicalFactRepository, NewSourceDefinition, SourceDefinition, SourceRepository, SyncRepository } from "@/domain/integration/contracts";
 import { db } from "@/infrastructure/db/client";
 import { canonicalFacts, sourceDefinitions, syncExecutions } from "@/infrastructure/db/platform-schema";
+
+function mapSource(row: typeof sourceDefinitions.$inferSelect): SourceDefinition {
+  return {
+    id: row.id, tenantId: row.tenantId, name: row.name, sourceType: row.sourceType,
+    authoritativeDomain: row.authoritativeDomain, syncMode: row.syncMode as SourceDefinition["syncMode"],
+    secretRef: row.secretRef ?? undefined, mappingVersion: row.mappingVersion,
+  };
+}
 
 export class PostgresSourceRepository implements SourceRepository {
   async findById(tenantId: string, sourceId: string): Promise<SourceDefinition | null> {
     const rows = await db.select().from(sourceDefinitions).where(and(eq(sourceDefinitions.tenantId, tenantId), eq(sourceDefinitions.id, sourceId))).limit(1);
-    const row = rows[0];
-    if (!row) return null;
-    return {
-      id: row.id, tenantId: row.tenantId, name: row.name, sourceType: row.sourceType,
-      authoritativeDomain: row.authoritativeDomain, syncMode: row.syncMode as SourceDefinition["syncMode"],
-      secretRef: row.secretRef ?? undefined, mappingVersion: row.mappingVersion,
-    };
+    return rows[0] ? mapSource(rows[0]) : null;
+  }
+
+  async list(tenantId: string): Promise<readonly SourceDefinition[]> {
+    const rows = await db.select().from(sourceDefinitions).where(eq(sourceDefinitions.tenantId, tenantId));
+    return rows.map(mapSource);
+  }
+
+  async create(tenantId: string, input: NewSourceDefinition): Promise<SourceDefinition> {
+    const rows = await db.insert(sourceDefinitions).values({
+      tenantId, name: input.name, sourceType: input.sourceType, authoritativeDomain: input.authoritativeDomain,
+      syncMode: input.syncMode, secretRef: input.secretRef, mappingVersion: input.mappingVersion ?? "v1",
+      freshnessSeconds: input.freshnessSeconds, config: input.config ?? {},
+    }).returning();
+    return mapSource(rows[0]);
   }
 }
 
