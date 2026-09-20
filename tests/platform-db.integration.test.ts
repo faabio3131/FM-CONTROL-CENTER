@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { canonicalFacts, metricValues, sourceDefinitions, syncExecutions } from "@/infrastructure/db/platform-schema";
-import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
+import { PostgresSourceRepository, PostgresSyncRepository } from "@/infrastructure/integration/postgres-repositories";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 
 const TENANTS = ["it-tenant-a", "it-tenant-b"];
@@ -26,6 +26,31 @@ describe("F07/F08 PostgreSQL tenant isolation", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].tenantId).toBe(TENANTS[0]);
     expect(rows[0].name).toBe("A");
+  });
+
+  it("coordena idempotência concorrente e permite retry após falha", async () => {
+    const sources = new PostgresSourceRepository();
+    const syncs = new PostgresSyncRepository();
+    const source = await sources.create(TENANTS[0], {
+      name: "Idempotency", sourceType: "fixture", authoritativeDomain: "billing", syncMode: "pull",
+    });
+    const input = {
+      tenantId: TENANTS[0], sourceId: source.id, idempotencyKey: "idem-db-1", correlationId: "corr-db-1",
+    };
+
+    const first = await syncs.begin(input);
+    expect(first.state).toBe("started");
+
+    const concurrent = await syncs.begin(input);
+    expect(concurrent).toMatchObject({ id: first.id, state: "running" });
+
+    await syncs.fail({ id: first.id, tenantId: TENANTS[0], errorCode: "transient", errorMessage: "retry" });
+    const restarted = await syncs.begin({ ...input, correlationId: "corr-db-2" });
+    expect(restarted).toMatchObject({ id: first.id, state: "restarted" });
+
+    await syncs.complete({ id: first.id, tenantId: TENANTS[0], cursorAfter: "done" });
+    const completed = await syncs.begin(input);
+    expect(completed).toMatchObject({ id: first.id, state: "completed" });
   });
 
   it("Metric Store não retorna MetricValue de outro tenant", async () => {
