@@ -4,7 +4,7 @@ Status em 18/09/2026:
 
 | ADR | Assunto | Status |
 |---|---|---|
-| ADR-001 | Core distribution/reuse | ACCEPTED |
+| ADR-001 | Core distribution/reuse | SUPERSEDED by ADR-013 |
 | ADR-002 | Multi-tenancy | ACCEPTED |
 | ADR-003 | Persistence/data platform | ACCEPTED |
 | ADR-004 | Sync architecture | ACCEPTED |
@@ -18,3 +18,5 @@ Status em 18/09/2026:
 | ADR-012 | Currency/FX | DEFERRED |
 
 ADRs substituídos não devem ser apagados; devem ser marcados SUPERSEDED.
+
+| ADR-013 | Product-owned FM Cognitive Vertical Core | ACCEPTED |
