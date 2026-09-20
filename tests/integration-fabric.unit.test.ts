@@ -34,8 +34,10 @@ function runtimeFor(sourceResult: SourceDefinition | null = source, connectorOve
   const runtime = new ConnectorRuntime(
     sourceRepo(sourceResult),
     {
-      async findCompletedByIdempotencyKey(_tenant, key) { const id=completed.get(key); return id ? { id } : null; },
-      async start() { return "exec-1"; },
+      async begin(input) {
+        const id = completed.get(input.idempotencyKey);
+        return id ? { id, state: "completed" as const } : { id: "exec-1", state: "started" as const };
+      },
       async complete(input) { completed.set("idem-1", input.id); },
       async fail() {},
     },
