@@ -1,5 +1,5 @@
 import { computeMetric, type MetricFact } from "@/domain/metrics/metric-engine";
-import { getMetricDefinition, METRIC_REGISTRY } from "@/domain/metrics/registry";
+import { EXECUTIVE_METRIC_TARGETS, getMetricDefinition } from "@/domain/metrics/registry";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 
 export type MetricFreshnessStatus = "fresh" | "delayed" | "stale" | "unknown" | "unavailable";
@@ -61,8 +61,15 @@ export class MetricService {
     return this.store.latestValue(context.tenantId, metricId);
   }
 
-  async overview(context: TenantContext): Promise<Array<{ definition: (typeof METRIC_REGISTRY)[number]; value: MetricView | null }>> {
+  async overview(context: TenantContext) {
     requirePermission(context, "metric:read");
-    return Promise.all(METRIC_REGISTRY.map(async (definition) => ({ definition, value: await this.store.latestValue(context.tenantId, definition.metricId) })));
+    return Promise.all(EXECUTIVE_METRIC_TARGETS.map(async (target) => {
+      const definition = getMetricDefinition(target.metricId);
+      return {
+        target,
+        definition,
+        value: definition ? await this.store.latestValue(context.tenantId, definition.metricId) : null,
+      };
+    }));
   }
 }
