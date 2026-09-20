@@ -46,7 +46,18 @@ jobs:
       - name: Verify migration matches schema
         run: |
           npm run db:generate
-          git diff --exit-code -- drizzle
+          if ! git diff --exit-code -- drizzle; then
+            echo "::group::Generated migration diagnostics"
+            git status --short drizzle
+            for file in $(git ls-files --others --exclude-standard drizzle); do
+              echo "===GENERATED_FILE:${file}==="
+              cat "${file}"
+              echo
+              echo "===END_GENERATED_FILE:${file}==="
+            done
+            echo "::endgroup::"
+            exit 1
+          fi
       - name: Apply versioned migration
         run: npm run db:migrate
       - name: Tests
