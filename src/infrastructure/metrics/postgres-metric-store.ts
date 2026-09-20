@@ -18,13 +18,13 @@ export class PostgresMetricStore implements MetricStore {
   async saveValue(input: {
     tenantId: string; metricId: string; metricVersion: number; value: string | null; unit: string; currency?: string;
     periodStart?: Date; periodEnd?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: string;
-    qualityStatus: string; sourceAuthority: string; provenanceRefs: string[];
+    qualityStatus: string; sourceAuthority: string; provenanceRefs: readonly string[];
   }) {
     await db.insert(metricValues).values({
       tenantId: input.tenantId, metricId: input.metricId, metricVersion: input.metricVersion, value: input.value,
       unit: input.unit, currency: input.currency, periodStart: input.periodStart, periodEnd: input.periodEnd,
       computedAt: input.computedAt, sourceTimestamp: input.sourceTimestamp, freshnessStatus: input.freshnessStatus,
-      qualityStatus: input.qualityStatus, sourceAuthority: input.sourceAuthority, provenanceRefs: input.provenanceRefs,
+      qualityStatus: input.qualityStatus, sourceAuthority: input.sourceAuthority, provenanceRefs: [...input.provenanceRefs],
     });
   }
 
