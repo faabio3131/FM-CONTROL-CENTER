@@ -18,7 +18,7 @@
 
 Não foi encontrada implementação estrutural posterior à F04.
 
-## 2. Decisões de stack e arquitetura
+## 2. Decisões de stack e arquitetura — reconciliadas em 20/09/2026
 
 - Runtime: Node.js 24 LTS.
 - Aplicação: Next.js 16.3.x + TypeScript, modular monolith.
@@ -27,7 +27,7 @@ Não foi encontrada implementação estrutural posterior à F04.
 - Auth: Better Auth + Organization plugin.
 - CI: GitHub Actions.
 - Cloud target inicial: Render.
-- Core: serviço interno versionado, integração somente na F09.
+- Core: **FMCC Cognitive Vertical Core próprio do produto**, conforme ADR-013; model providers ficam atrás de boundary de infraestrutura.
 - Queue: deferred.
 - FX: deferred.
 - Observability vendor: deferred; logs/health/correlation desde F06.
@@ -91,11 +91,15 @@ Secret-by-reference. Valores somente em runtime secret/environment store autoriz
 
 Ledger lógico append-only, tenant-scoped, metadata sanitizada, correlation id e actor/service identity.
 
-## 8. Limites do Core
+## 8. Limites e ownership do Core
 
-Core/IA → intenção/recomendação → política → serviço determinístico → validação → execução → auditoria.
+A decisão original de runtime cognitivo compartilhado entre produtos foi substituída pelo ADR-013.
 
-Nenhuma integração operacional do Core é permitida nesta fase.
+O FMCC possui seu próprio FM Cognitive Vertical Core, no mesmo lifecycle comercial do produto. Reutilização institucional deve ocorrer em primitives/contracts/adapters comuns, não por dependência operacional de outro SaaS.
+
+Core/IA → intenção/recomendação → capability governada → serviço determinístico → validação → execução → auditoria.
+
+O Core não substitui Metric Engine, Auth/Tenant, Connector Runtime ou Audit Ledger.
 
 ## 9. Autoridades determinísticas
 
@@ -111,7 +115,7 @@ Nenhuma integração operacional do Core é permitida nesta fase.
 - stack container-compatible;
 - migrations versionadas;
 - providers atrás de boundaries;
-- Core atrás de API;
+- Core vertical encapsulado no produto; model providers atrás de adapters/boundaries;
 - queue/FX não antecipados;
 - alterações estruturais via ADR.
 
@@ -136,7 +140,7 @@ Essas pendências não bloqueiam F06 code foundation, mas credencial de cloud é
 [x] secrets decididos  
 [x] observability mínima decidida  
 [x] CI target definido  
-[x] Core ADR definido sem integração antecipada  
+[x] Core ADR reconciliado: ADR-001 SUPERSEDED por ADR-013  
 [x] data governance mínima definida  
 [x] rollback/reversibilidade considerada  
 [x] nenhum conflito de autoridade aberto  
