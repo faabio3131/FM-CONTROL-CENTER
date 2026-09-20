@@ -1,0 +1,50 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/infrastructure/db/client";
+import { canonicalFacts, metricValues, sourceDefinitions, syncExecutions } from "@/infrastructure/db/platform-schema";
+import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
+import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
+
+const TENANTS = ["it-tenant-a", "it-tenant-b"];
+
+afterEach(async () => {
+  for (const tenantId of TENANTS) {
+    await db.delete(metricValues).where(eq(metricValues.tenantId, tenantId));
+    await db.delete(canonicalFacts).where(eq(canonicalFacts.tenantId, tenantId));
+    await db.delete(syncExecutions).where(eq(syncExecutions.tenantId, tenantId));
+    await db.delete(sourceDefinitions).where(eq(sourceDefinitions.tenantId, tenantId));
+  }
+});
+
+describe("F07/F08 PostgreSQL tenant isolation", () => {
+  it("Source Registry lista somente registros do tenant solicitado", async () => {
+    const repository = new PostgresSourceRepository();
+    await repository.create(TENANTS[0], { name: "A", sourceType: "fixture", authoritativeDomain: "billing", syncMode: "pull" });
+    await repository.create(TENANTS[1], { name: "B", sourceType: "fixture", authoritativeDomain: "billing", syncMode: "pull" });
+
+    const rows = await repository.list(TENANTS[0]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].tenantId).toBe(TENANTS[0]);
+    expect(rows[0].name).toBe("A");
+  });
+
+  it("Metric Store não retorna MetricValue de outro tenant", async () => {
+    const store = new PostgresMetricStore();
+    const now = new Date();
+    await store.saveValue({
+      tenantId: TENANTS[0], metricId: "trial.starts.count", metricVersion: 1, value: "3", unit: "count",
+      computedAt: now, freshnessStatus: "current", qualityStatus: "verified", sourceAuthority: "fixture-a", provenanceRefs: [],
+    });
+    await store.saveValue({
+      tenantId: TENANTS[1], metricId: "trial.starts.count", metricVersion: 1, value: "99", unit: "count",
+      computedAt: new Date(now.getTime() + 1), freshnessStatus: "current", qualityStatus: "verified", sourceAuthority: "fixture-b", provenanceRefs: [],
+    });
+
+    const value = await store.latestValue(TENANTS[0], "trial.starts.count");
+    expect(value?.value).toBe("3");
+    expect(value?.sourceAuthority).toBe("fixture-a");
+
+    const leaked = await db.select().from(metricValues).where(and(eq(metricValues.tenantId, TENANTS[0]), eq(metricValues.value, "99")));
+    expect(leaked).toHaveLength(0);
+  });
+});
