@@ -38,11 +38,25 @@ export class CoreGateway {
       const evidence: CoreEvidence[] = [{
         kind: "metric", ref: metricId, sourceAuthority: value.sourceAuthority,
         freshnessStatus: value.freshnessStatus, qualityStatus: value.qualityStatus,
+        provenanceRefs: value.provenanceRefs,
+        periodStart: value.periodStart?.toISOString(),
+        periodEnd: value.periodEnd?.toISOString(),
+        asOf: value.asOf?.toISOString(),
       }];
       return this.core.synthesize({
         question: normalized, tenantId: context.tenantId, userId: context.userId,
         correlationId: context.correlationId,
-        facts: [{ metricId, value: value.value, unit: value.unit, currency: value.currency ?? null, computedAt: value.computedAt.toISOString() }],
+        facts: [{
+          metricId, value: value.value, unit: value.unit, currency: value.currency ?? null,
+          periodStart: value.periodStart?.toISOString() ?? null,
+          periodEnd: value.periodEnd?.toISOString() ?? null,
+          asOf: value.asOf?.toISOString() ?? null,
+          computedAt: value.computedAt.toISOString(),
+          sourceTimestamp: value.sourceTimestamp?.toISOString() ?? null,
+          freshnessStatus: value.freshnessStatus,
+          qualityStatus: value.qualityStatus,
+          provenanceRefs: value.provenanceRefs,
+        }],
         evidence,
       });
     }
