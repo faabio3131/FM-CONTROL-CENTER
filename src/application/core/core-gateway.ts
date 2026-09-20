@@ -1,6 +1,6 @@
 import type { MetricService } from "@/application/metrics/metric-service";
 import type { CanonicalCoreClient, CoreAnswer, CoreEvidence, FmccCapability } from "@/domain/core/contracts";
-import type { TenantContext } from "@/domain/security/tenant-context";
+import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 
 const ALLOWED_CAPABILITIES: readonly FmccCapability[] = ["metric.query"];
 
@@ -15,6 +15,7 @@ export class CoreGateway {
   constructor(private readonly core: CanonicalCoreClient, private readonly metrics: MetricService) {}
 
   async ask(context: TenantContext, question: string): Promise<CoreAnswer> {
+    requirePermission(context, "metric:read");
     const normalized = question.trim();
     if (!normalized || normalized.length > 4000) throw new CoreArgumentError();
 
