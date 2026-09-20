@@ -14,8 +14,9 @@
 - F07 had no competing implementation in the repository tree;
 - ADR-001, ADR-004, ADR-007 and ADR-012 reviewed;
 - Current of reusable Core reviewed in `faabio3131/fm-ai-platform` PR #118: Kordena has a mature vertical Core/Gerente IA implementation, but it remains coupled to that vertical and PR #118 is OPEN/DRAFT;
-- no canonical shared Core service endpoint/credential was proven;
-- therefore F09 must preserve the service boundary and cannot be declared Live without external evidence.
+- o Core canônico foi investigado e a lacuna de serviço compartilhado foi corrigida no `fm-ai-platform`;
+- PRs #121, #122 e #123 criaram API compartilhada, runtime dedicado e contexto/inteligência analítica governada;
+- permanece pendente somente a prova operacional em Preview, sem declarar Live antes da evidência.
 
 ## Pipeline executado
 A missão foi executada com commits incrementais e CI assíncrono. A workflow recebeu configuração de concurrency para cancelar execuções obsoletas quando um HEAD mais novo era publicado. Isso evitou espera ociosa sem permitir que um workflow pendente fosse tratado como aprovado.
@@ -53,16 +54,16 @@ Workflow conclusivo correspondente:
 - gaps de KPI aparecem como indisponíveis/semântica pendente, nunca como valor inventado;
 - regressão técnica do HEAD `8d2fee2d...` 100% verde.
 
-## STOP condition ativa
-Para concluir F09 de forma real são necessários endpoint e credencial segura do serviço compartilhado canônico do FM Cognitive Core.
+## Pendência operacional remanescente
+A lacuna de implementação foi resolvida: endpoint compartilhado, runtime dedicado e autenticação M2M existem no Core canônico.
 
-Não existe evidência desta missão de:
-- `FM_CORE_BASE_URL` real;
-- `FM_CORE_SERVICE_TOKEN` real;
-- serviço compartilhado canônico Live;
-- smoke real do FMCC contra esse serviço.
+Para promover F09 de IMPLEMENTADA/TESTADA para INTEGRADA EM PREVIEW ainda faltam evidências externas:
+- serviço `fm-cognitive-core-preview` implantado e saudável;
+- segredo M2M configurado apenas no ambiente;
+- `FM_CORE_BASE_URL` e `FM_CORE_SERVICE_TOKEN` configurados no FMCC Preview;
+- smoke real FMCC → Core → MetricService → synthesis.
 
-A missão proíbe criar segundo Core, copiar o Core do Kordena ou inventar integração. A ausência dessa dependência externa necessária impede a promoção automática da PR #9 para merge final.
+Isso não autoriza fabricar valores ou registrar integração antes da execução real.
 
 ## Estado de governança
 - PR #9 permanece Draft;
@@ -70,6 +71,6 @@ A missão proíbe criar segundo Core, copiar o Core do Kordena ou inventar integ
 - nenhuma produção utilizada;
 - nenhum provider externo falsamente declarado;
 - F07/F08 tecnicamente aprovadas;
-- F09 bloqueada em integração externa;
-- F10 implementada/testada, porém não certificada em Preview;
-- próximo avanço exige resolver a STOP condition F09, depois regressão final, merge e smoke Preview pós-merge.
+- F09 implementada/testada com Core compartilhado canônico construído; Preview E2E pendente;
+- F10 implementada/testada, incluindo contexto e análise multi-métrica, porém não certificada em Preview;
+- próximo avanço: deployment/configuração segura do Core Preview, smoke E2E, regressão final, merge e smoke pós-merge.
