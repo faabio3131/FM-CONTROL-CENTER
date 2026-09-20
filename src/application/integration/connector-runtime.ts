@@ -1,6 +1,7 @@
 import type { CanonicalFactRepository, Connector, SourceRepository, SyncRepository } from "@/domain/integration/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 import { CrossTenantAccessError } from "@/domain/security/tenant-context";
+import { logEvent } from "@/infrastructure/observability/logger";
 
 export class ConnectorNotRegisteredError extends Error {
   constructor(sourceType: string) { super(`integration.connector_not_registered:${sourceType}`); }
@@ -57,6 +58,9 @@ export class ConnectorRuntime {
       tenantId: context.tenantId, sourceId: source.id, idempotencyKey: input.idempotencyKey,
       correlationId: context.correlationId, cursorBefore: input.cursor,
     });
+    logEvent("info", "connector_sync_started", {
+      tenantId: context.tenantId, sourceId: source.id, executionId, correlationId: context.correlationId,
+    });
 
     try {
       const result = await this.pullWithRetry(connector, source, context, input.cursor);
@@ -67,6 +71,10 @@ export class ConnectorRuntime {
         });
       }
       await this.syncs.complete({ id: executionId, tenantId: context.tenantId, cursorAfter: result.nextCursor });
+      logEvent("info", "connector_sync_completed", {
+        tenantId: context.tenantId, sourceId: source.id, executionId, correlationId: context.correlationId,
+        ingested: result.facts.length, rateLimitRemaining: result.rateLimitRemaining,
+      });
       return {
         status: "completed" as const, executionId, ingested: result.facts.length,
         nextCursor: result.nextCursor, rateLimitRemaining: result.rateLimitRemaining,
@@ -74,6 +82,10 @@ export class ConnectorRuntime {
     } catch (error) {
       const normalized = error instanceof Error ? error : new Error("integration.unknown_error");
       await this.syncs.fail({ id: executionId, tenantId: context.tenantId, errorCode: normalized.name, errorMessage: normalized.message });
+      logEvent("error", "connector_sync_failed", {
+        tenantId: context.tenantId, sourceId: source.id, executionId, correlationId: context.correlationId,
+        errorCode: normalized.name, errorMessage: normalized.message,
+      });
       throw error;
     }
   }
@@ -90,6 +102,10 @@ export class ConnectorRuntime {
         lastError = error;
         const retryable = error instanceof RetryableConnectorError || error instanceof ConnectorTimeoutError;
         if (!retryable || attempt === this.maxAttempts) throw error;
+        logEvent("warn", "connector_sync_retry", {
+          tenantId: context.tenantId, sourceId: source.id, correlationId: context.correlationId,
+          attempt, maxAttempts: this.maxAttempts,
+        });
         if (this.retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs * 2 ** (attempt - 1)));
       }
     }
