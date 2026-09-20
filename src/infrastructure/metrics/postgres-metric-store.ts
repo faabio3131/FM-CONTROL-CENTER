@@ -17,12 +17,12 @@ export class PostgresMetricStore implements MetricStore {
 
   async saveValue(input: {
     tenantId: string; metricId: string; metricVersion: number; value: string | null; unit: string; currency?: string;
-    periodStart?: Date; periodEnd?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: string;
+    periodStart?: Date; periodEnd?: Date; asOf?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: string;
     qualityStatus: string; sourceAuthority: string; provenanceRefs: readonly string[];
   }) {
     await db.insert(metricValues).values({
       tenantId: input.tenantId, metricId: input.metricId, metricVersion: input.metricVersion, value: input.value,
-      unit: input.unit, currency: input.currency, periodStart: input.periodStart, periodEnd: input.periodEnd,
+      unit: input.unit, currency: input.currency, periodStart: input.periodStart, periodEnd: input.periodEnd, asOf: input.asOf,
       computedAt: input.computedAt, sourceTimestamp: input.sourceTimestamp, freshnessStatus: input.freshnessStatus,
       qualityStatus: input.qualityStatus, sourceAuthority: input.sourceAuthority, provenanceRefs: [...input.provenanceRefs],
     });
@@ -34,7 +34,8 @@ export class PostgresMetricStore implements MetricStore {
     if (!row) return null;
     return {
       metricId: row.metricId, metricVersion: row.metricVersion, value: row.value, unit: row.unit,
-      currency: row.currency ?? undefined, computedAt: row.computedAt, sourceTimestamp: row.sourceTimestamp ?? undefined,
+      currency: row.currency ?? undefined, periodStart: row.periodStart ?? undefined, periodEnd: row.periodEnd ?? undefined,
+      asOf: row.asOf ?? undefined, computedAt: row.computedAt, sourceTimestamp: row.sourceTimestamp ?? undefined,
       freshnessStatus: row.freshnessStatus, qualityStatus: row.qualityStatus, sourceAuthority: row.sourceAuthority,
       provenanceRefs: row.provenanceRefs,
     };
