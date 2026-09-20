@@ -59,8 +59,9 @@ export interface SourceRepository {
 }
 
 export interface SyncRepository {
-  findCompletedByIdempotencyKey(tenantId: string, idempotencyKey: string): Promise<{ id: string } | null>;
-  start(input: { tenantId: string; sourceId: string; idempotencyKey: string; correlationId: string; cursorBefore?: string }): Promise<string>;
+  begin(input: {
+    tenantId: string; sourceId: string; idempotencyKey: string; correlationId: string; cursorBefore?: string;
+  }): Promise<{ id: string; state: "started" | "restarted" | "running" | "completed" }>;
   complete(input: { id: string; tenantId: string; cursorAfter?: string }): Promise<void>;
   fail(input: { id: string; tenantId: string; errorCode: string; errorMessage: string }): Promise<void>;
 }
