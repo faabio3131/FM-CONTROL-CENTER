@@ -17,10 +17,34 @@ export class MultiCurrencyAggregationError extends Error {
   constructor() { super("metrics.fx_policy_required"); }
 }
 
-function decimal(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
-  return null;
+interface DecimalValue {
+  readonly units: bigint;
+  readonly scale: number;
+}
+
+function decimal(value: unknown): DecimalValue | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  if (typeof value === "number" && !Number.isFinite(value)) return null;
+  const raw = String(value).trim();
+  if (!/^-?\d+(?:\.\d+)?$/.test(raw)) return null;
+  const negative = raw.startsWith("-");
+  const unsigned = negative ? raw.slice(1) : raw;
+  const [whole, fraction = ""] = unsigned.split(".");
+  const units = BigInt(`${whole}${fraction}`) * (negative ? -1n : 1n);
+  return { units, scale: fraction.length };
+}
+
+function sumDecimals(values: readonly DecimalValue[]): string {
+  const scale = Math.max(0, ...values.map((value) => value.scale));
+  const total = values.reduce((sum, value) => sum + value.units * 10n ** BigInt(scale - value.scale), 0n);
+  if (scale === 0) return total.toString();
+
+  const negative = total < 0n;
+  const digits = (negative ? -total : total).toString().padStart(scale + 1, "0");
+  const whole = digits.slice(0, -scale);
+  const fraction = digits.slice(-scale).replace(/0+$/, "");
+  const normalized = fraction ? `${whole}.${fraction}` : whole;
+  return negative ? `-${normalized}` : normalized;
 }
 
 export function computeMetric(definition: MetricDefinition, facts: readonly MetricFact[]): MetricComputation {
@@ -45,9 +69,8 @@ export function computeMetric(definition: MetricDefinition, facts: readonly Metr
   const currencies = new Set(relevant.map((fact) => definition.currencyField ? fact.payload[definition.currencyField] : undefined).filter((value): value is string => typeof value === "string" && value.length > 0));
   if (currencies.size > 1) throw new MultiCurrencyAggregationError();
 
-  const sum = (values as number[]).reduce((total, value) => total + value, 0);
   return {
-    status: "available", value: String(sum), unit: definition.unit,
+    status: "available", value: sumDecimals(values as DecimalValue[]), unit: definition.unit,
     currency: currencies.size === 1 ? [...currencies][0] : undefined,
     sourceTimestamp, provenanceRefs, qualityStatus: "verified",
   };
