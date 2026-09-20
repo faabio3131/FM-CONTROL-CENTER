@@ -2,8 +2,14 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { ConfigSecretForbiddenError, InvalidSecretReferenceError, SourceRegistryService } from "@/application/integration/source-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
+import type { SourceDefinition } from "@/domain/integration/contracts";
 import { AuthenticationRequiredError, PermissionDeniedError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
+
+function publicSource(source: SourceDefinition) {
+  const { secretRef: _secretRef, ...safe } = source;
+  return { ...safe, hasSecretReference: Boolean(source.secretRef) };
+}
 
 function securityResponse(error: unknown) {
   if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: error.message }, { status: 401 });
@@ -15,7 +21,7 @@ export async function GET() {
   try {
     const context = await resolveTenantContext(await headers());
     const sources = await new SourceRegistryService(new PostgresSourceRepository()).list(context);
-    return NextResponse.json(sources);
+    return NextResponse.json(sources.map(publicSource));
   } catch (error) {
     const response = securityResponse(error);
     if (response) return response;
@@ -43,7 +49,7 @@ export async function POST(request: Request) {
       freshnessSeconds: typeof body.freshnessSeconds === "number" ? body.freshnessSeconds : undefined,
       config: body.config && typeof body.config === "object" && !Array.isArray(body.config) ? body.config as Record<string, unknown> : undefined,
     });
-    return NextResponse.json(source, { status: 201 });
+    return NextResponse.json(publicSource(source), { status: 201 });
   } catch (error) {
     const response = securityResponse(error);
     if (response) return response;
