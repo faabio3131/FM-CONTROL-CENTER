@@ -1,4 +1,4 @@
-import type { CoreOperationalContext } from "@/domain/core/contracts";
+import type { CoreEvidence, CoreOperationalContext } from "@/domain/core/contracts";
 
 export interface CognitiveModel {
   plan(input: {
@@ -10,7 +10,7 @@ export interface CognitiveModel {
   synthesize(input: {
     question: string;
     facts: readonly Record<string, unknown>[];
-    evidence: readonly Record<string, unknown>[];
+    evidence: readonly CoreEvidence[];
     operationalContext: readonly CoreOperationalContext[];
   }): Promise<string>;
 }
