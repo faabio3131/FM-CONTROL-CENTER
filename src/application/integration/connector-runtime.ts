@@ -49,18 +49,22 @@ export class ConnectorRuntime {
     if (source.tenantId !== context.tenantId) throw new CrossTenantAccessError();
     if (source.syncMode === "webhook") throw new ConnectorUnsupportedModeError();
 
-    const completed = await this.syncs.findCompletedByIdempotencyKey(context.tenantId, input.idempotencyKey);
-    if (completed) return { status: "duplicate" as const, executionId: completed.id, ingested: 0 };
-
     const connector = this.connectors.get(source.sourceType);
     if (!connector) throw new ConnectorNotRegisteredError(source.sourceType);
     if (!connector.pull) throw new ConnectorUnsupportedModeError();
 
-    const executionId = await this.syncs.start({
+    const execution = await this.syncs.begin({
       tenantId: context.tenantId, sourceId: source.id, idempotencyKey: input.idempotencyKey,
       correlationId: context.correlationId, cursorBefore: input.cursor,
     });
-    logEvent("info", "connector_sync_started", {
+    if (execution.state === "completed") {
+      return { status: "duplicate" as const, executionId: execution.id, ingested: 0 };
+    }
+    if (execution.state === "running") {
+      return { status: "in_progress" as const, executionId: execution.id, ingested: 0 };
+    }
+    const executionId = execution.id;
+    logEvent("info", execution.state === "restarted" ? "connector_sync_restarted" : "connector_sync_started", {
       tenantId: context.tenantId, sourceId: source.id, executionId, correlationId: context.correlationId,
     });
 
