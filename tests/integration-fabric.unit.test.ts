@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ConnectorRuntime } from "@/application/integration/connector-runtime";
-import type { Connector, SourceDefinition } from "@/domain/integration/contracts";
+import { ConnectorRuntime, RetryableConnectorError } from "@/application/integration/connector-runtime";
+import type { Connector, SourceDefinition, SourceRepository } from "@/domain/integration/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
 const context: TenantContext = { tenantId: "tenant-a", userId: "u1", role: "owner", correlationId: "corr-1" };
@@ -9,16 +9,30 @@ const source: SourceDefinition = {
   authoritativeDomain: "billing", syncMode: "pull", mappingVersion: "v1", secretRef: "render:fixture",
 };
 
-function runtimeFor(sourceResult: SourceDefinition | null = source) {
+function sourceRepo(sourceResult: SourceDefinition | null): SourceRepository {
+  return {
+    async findById() { return sourceResult; },
+    async list() { return sourceResult ? [sourceResult] : []; },
+    async create(tenantId, input) {
+      return {
+        id: "created", tenantId, name: input.name, sourceType: input.sourceType,
+        authoritativeDomain: input.authoritativeDomain, syncMode: input.syncMode,
+        secretRef: input.secretRef, mappingVersion: input.mappingVersion ?? "v1",
+      };
+    },
+  };
+}
+
+function runtimeFor(sourceResult: SourceDefinition | null = source, connectorOverride?: Connector) {
   const completed = new Map<string, string>();
   const facts: unknown[] = [];
-  const connector: Connector = {
+  const connector: Connector = connectorOverride ?? {
     sourceType: "fixture", capabilities: ["billing.read"],
     async health() { return "healthy"; },
     async pull() { return { facts: [{ externalId: "invoice-1", factType: "billing.invoice", payload: { amount: 10 }, sourceTimestamp: new Date("2026-09-20T00:00:00Z") }], nextCursor: "next" }; },
   };
   const runtime = new ConnectorRuntime(
-    { async findById() { return sourceResult; } },
+    sourceRepo(sourceResult),
     {
       async findCompletedByIdempotencyKey(_tenant, key) { const id=completed.get(key); return id ? { id } : null; },
       async start() { return "exec-1"; },
@@ -28,6 +42,8 @@ function runtimeFor(sourceResult: SourceDefinition | null = source) {
     { async ingest(input) { facts.push(input); } },
     [connector],
     100,
+    3,
+    0,
   );
   return { runtime, facts };
 }
@@ -46,5 +62,27 @@ describe("F07 integration fabric", () => {
     const { runtime } = runtimeFor(null);
     await expect(runtime.syncPull(context, { sourceId: "other", idempotencyKey: "idem-x" }))
       .rejects.toThrow("security.cross_tenant_access_denied");
+  });
+
+  it("aplica retry apenas a falhas classificadas como transitórias", async () => {
+    let attempts = 0;
+    const connector: Connector = {
+      sourceType: "fixture", capabilities: ["billing.read"],
+      async health() { return "healthy"; },
+      async pull() {
+        attempts += 1;
+        if (attempts < 3) throw new RetryableConnectorError();
+        return { facts: [], nextCursor: "done", rateLimitRemaining: 10 };
+      },
+    };
+    const { runtime } = runtimeFor(source, connector);
+    const result = await runtime.syncPull(context, { sourceId: "source-1", idempotencyKey: "idem-1" });
+    expect(attempts).toBe(3);
+    expect(result).toMatchObject({ status: "completed", nextCursor: "done", rateLimitRemaining: 10 });
+  });
+
+  it("expõe health pelo connector boundary", async () => {
+    const { runtime } = runtimeFor();
+    await expect(runtime.health(context, "source-1")).resolves.toBe("healthy");
   });
 });
