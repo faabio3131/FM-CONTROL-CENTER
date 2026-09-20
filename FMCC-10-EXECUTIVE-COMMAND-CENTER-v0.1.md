@@ -1,6 +1,6 @@
 # FM CONTROL CENTER — F10 EXECUTIVE COMMAND CENTER
 
-**Status:** IMPLEMENTADA E TESTADA NA PR / CERTIFICAÇÃO FINAL PENDENTE DE F09 + PREVIEW PÓS-MERGE  
+**Status:** IMPLEMENTADA E TESTADA NA PR / PREVIEW E2E PENDENTE  
 **HEAD verificado:** `8d2fee2d4db989cabcc19e485dcf0eb6d0ad48f7`  
 **CI:** FMCC Foundation Gate #82 — SUCCESS
 
@@ -16,6 +16,8 @@ Construir a primeira superfície executiva real usando as mesmas autoridades de 
 - período/as-of quando existente;
 - tenant autenticado;
 - painel do Core via `/api/core/query`;
+- continuidade contextual tenant/user via audit ledger;
+- suporte a análise multi-métrica para explicação, correlação, padrões, anomalia, risco e recomendação;
 - Core indisponível degrada com segurança e não derruba o dashboard;
 - responsividade básica;
 - acessibilidade semântica básica;
@@ -34,9 +36,9 @@ Dashboard e Core usam a mesma autoridade determinística de métricas.
 - lint/typecheck/test/build/Docker/audit verdes no Gate #82.
 
 ## Dependência de gate
-A UI está implementada e testada, porém o painel cognitivo real depende da conclusão do gate F09. Além disso, o smoke Preview pós-merge só pode ocorrer depois do merge final autorizado.
+A UI está implementada e testada. O Core compartilhado canônico e o runtime dedicado já foram construídos. Falta apenas a prova operacional do fluxo completo em Preview, seguida do smoke pós-merge do FMCC.
 
 ## Gate
 **F10 — IMPLEMENTADA/TESTADA, MAS NÃO CERTIFICADA COMO INTEGRADA EM PREVIEW.**
 
-Não promover a concluída/homologada enquanto F09 estiver bloqueada e o smoke pós-merge não existir.
+Não promover a homologada enquanto o smoke E2E Preview e o smoke pós-merge não existirem.
