@@ -1,6 +1,6 @@
 # ADR-001 — Distribuição e reuso do FM Cognitive Vertical Core
 
-**Status:** ACCEPTED  
+**Status:** SUPERSEDED by ADR-013  
 **Data:** 18/09/2026  
 **Autoridade:** FM Solution Architect / FM SaaS Tech Lead  
 **Produto:** FM Control Center
@@ -41,3 +41,8 @@ A decisão deve permanecer reversível por contratos/boundaries e migrations con
 
 Revisar quando volume, SLA, custo, compliance, necessidade de segundo provider ou evidência operacional invalidarem as premissas atuais.
 
+
+
+## Supersession — 20/09/2026
+
+A premissa de um runtime cognitivo único compartilhado entre produtos foi revista após reconciliação com a natureza comercial independente do FM Control Center e com o requisito institucional de Vertical Core por produto. O histórico é preservado; novas implementações devem seguir o ADR-013.
