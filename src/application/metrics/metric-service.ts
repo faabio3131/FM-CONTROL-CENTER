@@ -40,7 +40,7 @@ export class MetricService {
       metricId: definition.metricId, metricVersion: definition.version, value: computed.value,
       unit: computed.unit, currency: computed.status === "available" ? computed.currency : undefined,
       computedAt: now, sourceTimestamp: computed.status === "available" ? computed.sourceTimestamp : undefined,
-      freshnessStatus: computed.status === "available" ? "current" : "unavailable",
+      freshnessStatus: computed.status === "available" ? "unknown" : "unavailable",
       qualityStatus: computed.qualityStatus, sourceAuthority: definition.sourceAuthority,
       provenanceRefs: computed.provenanceRefs,
     };
