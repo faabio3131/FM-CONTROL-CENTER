@@ -25,6 +25,8 @@ export async function POST(request: Request) {
     if (typeof body.question !== "string") throw new CoreArgumentError();
     const answer = await buildCoreGateway().ask(context, body.question);
     await auditCoreQuery(context, "success", {
+      question: body.question,
+      answer: answer.answer,
       factualStatus: answer.factualStatus,
       evidenceRefs: answer.evidence.map((item) => item.ref),
     });
