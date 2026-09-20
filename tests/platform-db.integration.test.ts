@@ -2,8 +2,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { canonicalFacts, metricValues, sourceDefinitions, syncExecutions } from "@/infrastructure/db/platform-schema";
-import { PostgresSourceRepository, PostgresSyncRepository } from "@/infrastructure/integration/postgres-repositories";
+import { PostgresCanonicalFactRepository, PostgresSourceRepository, PostgresSyncRepository } from "@/infrastructure/integration/postgres-repositories";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
+import { MetricService } from "@/application/metrics/metric-service";
+import { CoreGateway } from "@/application/core/core-gateway";
+import type { CanonicalCoreClient } from "@/domain/core/contracts";
+import type { TenantContext } from "@/domain/security/tenant-context";
 
 const TENANTS = ["it-tenant-a", "it-tenant-b"];
 
@@ -51,6 +55,49 @@ describe("F07/F08 PostgreSQL tenant isolation", () => {
     await syncs.complete({ id: first.id, tenantId: TENANTS[0], cursorAfter: "done" });
     const completed = await syncs.begin(input);
     expect(completed).toMatchObject({ id: first.id, state: "completed" });
+  });
+
+  it("prova F07 → F08 → F09 sobre o mesmo dado governado", async () => {
+    const tenantId = TENANTS[0];
+    const context: TenantContext = { tenantId, userId: "it-user", role: "owner", correlationId: "it-corr" };
+    const sources = new PostgresSourceRepository();
+    const source = await sources.create(tenantId, {
+      name: "Billing governed", sourceType: "fixture", authoritativeDomain: "billing", syncMode: "pull",
+    });
+
+    await new PostgresCanonicalFactRepository().ingest({
+      tenantId, sourceId: source.id, mappingVersion: source.mappingVersion, correlationId: context.correlationId,
+      fact: {
+        externalId: "invoice-it-1", factType: "billing.invoice",
+        payload: { amount: "12.34", currency: "BRL" },
+        sourceTimestamp: new Date("2026-09-20T00:00:00Z"),
+      },
+    });
+
+    const metrics = new MetricService(new PostgresMetricStore());
+    const metric = await metrics.recompute(context, {
+      metricId: "billing.gross_billed",
+      periodStart: new Date("2026-09-20T00:00:00Z"),
+      periodEnd: new Date("2026-09-20T23:59:59Z"),
+    });
+    expect(metric).toMatchObject({
+      metricId: "billing.gross_billed", value: "12.34", currency: "BRL",
+      freshnessStatus: "unknown", qualityStatus: "unknown",
+    });
+    expect(metric.provenanceRefs).toHaveLength(1);
+
+    const core: CanonicalCoreClient = {
+      async plan(input) {
+        expect(input.tenantId).toBe(tenantId);
+        return { capability: "metric.query", arguments: { metricId: "billing.gross_billed" } };
+      },
+      async synthesize(input) {
+        expect(input.evidence[0].provenanceRefs).toHaveLength(1);
+        return { answer: "Valor governado disponível.", evidence: input.evidence, factualStatus: "grounded" };
+      },
+    };
+    const answer = await new CoreGateway(core, metrics).ask(context, "Qual o faturamento bruto emitido?");
+    expect(answer).toMatchObject({ factualStatus: "grounded", evidence: [{ ref: "billing.gross_billed" }] });
   });
 
   it("Metric Store não retorna MetricValue de outro tenant", async () => {
