@@ -7,6 +7,14 @@ import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-st
 import { CoreQueryForm } from "./core-query-form";
 import { SignOutButton } from "./sign-out-button";
 
+function formatTemporalContext(value: { periodStart?: Date; periodEnd?: Date; asOf?: Date }) {
+  if (value.asOf) return `As-of: ${value.asOf.toISOString()}`;
+  if (value.periodStart || value.periodEnd) {
+    return `Período: ${value.periodStart?.toISOString() ?? "?"} → ${value.periodEnd?.toISOString() ?? "?"}`;
+  }
+  return "Período: não informado pela fonte";
+}
+
 function formatMetric(value: string | null, unit: string, currency?: string) {
   if (value === null) return "Indisponível";
   if (unit === "currency" && currency) {
@@ -60,6 +68,7 @@ export default async function DashboardPage() {
               <div className="metric-meta">
                 <span>{value ? `Qualidade: ${value.qualityStatus}` : "Sem valor governado"}</span>
                 <span>{value ? `Freshness: ${value.freshnessStatus}` : "Fonte ainda não conectada"}</span>
+                <span>{value ? formatTemporalContext(value) : "Período indisponível"}</span>
               </div>
               <small className="metric-provenance">
                 {value ? `Fonte: ${value.sourceAuthority} · v${value.metricVersion}` : `Métrica: ${definition.metricId}`}
