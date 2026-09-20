@@ -1,4 +1,5 @@
 export type ConnectorSyncMode = "pull" | "webhook" | "hybrid";
+export type SourceStatus = "configured" | "healthy" | "degraded" | "unavailable";
 
 export interface SourceDefinition {
   readonly id: string;
@@ -6,8 +7,11 @@ export interface SourceDefinition {
   readonly name: string;
   readonly sourceType: string;
   readonly authoritativeDomain: string;
+  readonly status: SourceStatus;
   readonly syncMode: ConnectorSyncMode;
   readonly secretRef?: string;
+  readonly config: Readonly<Record<string, unknown>>;
+  readonly freshnessSeconds?: number;
   readonly mappingVersion: string;
 }
 
