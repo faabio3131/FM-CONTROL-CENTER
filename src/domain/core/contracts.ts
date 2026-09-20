@@ -11,6 +11,10 @@ export interface CoreEvidence {
   readonly sourceAuthority?: string;
   readonly freshnessStatus?: string;
   readonly qualityStatus?: string;
+  readonly provenanceRefs?: readonly string[];
+  readonly periodStart?: string;
+  readonly periodEnd?: string;
+  readonly asOf?: string;
 }
 
 export interface CoreAnswer {
