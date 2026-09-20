@@ -2,7 +2,7 @@ import type { MetricService } from "@/application/metrics/metric-service";
 import type { CanonicalCoreClient, CoreAnswer, CoreEvidence, FmccCapability } from "@/domain/core/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
-const ALLOWED_CAPABILITIES: readonly FmccCapability[] = ["metric.query", "source.status"];
+const ALLOWED_CAPABILITIES: readonly FmccCapability[] = ["metric.query"];
 
 export class CoreCapabilityDeniedError extends Error {
   constructor() { super("core.capability_denied"); }
@@ -24,7 +24,7 @@ export class CoreGateway {
     });
     if (!ALLOWED_CAPABILITIES.includes(plan.capability)) throw new CoreCapabilityDeniedError();
 
-    if (plan.capability === "metric.query") {
+    {
       const metricId = plan.arguments.metricId?.trim();
       if (!metricId) throw new CoreArgumentError();
       const value = await this.metrics.query(context, metricId);
@@ -46,7 +46,5 @@ export class CoreGateway {
         evidence,
       });
     }
-
-    return { answer: "A capability solicitada ainda não possui uma fonte autorizada configurada.", evidence: [], factualStatus: "unavailable" };
   }
 }
