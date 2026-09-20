@@ -8,7 +8,7 @@ function repo(): SourceRepository {
     async findById() { return null; },
     async list() { return []; },
     async create(tenantId, input) {
-      return { id: "s1", tenantId, name: input.name, sourceType: input.sourceType, authoritativeDomain: input.authoritativeDomain, syncMode: input.syncMode, secretRef: input.secretRef, mappingVersion: input.mappingVersion ?? "v1" };
+      return { id: "s1", tenantId, name: input.name, sourceType: input.sourceType, authoritativeDomain: input.authoritativeDomain, status: "configured" as const, syncMode: input.syncMode, secretRef: input.secretRef, config: input.config ?? {}, freshnessSeconds: input.freshnessSeconds, mappingVersion: input.mappingVersion ?? "v1" };
     },
   };
 }
