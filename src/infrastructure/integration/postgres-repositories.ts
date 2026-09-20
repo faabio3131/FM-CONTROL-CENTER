@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { CanonicalFactRepository, NewSourceDefinition, SourceDefinition, SourceRepository, SyncRepository } from "@/domain/integration/contracts";
 import { db } from "@/infrastructure/db/client";
 import { canonicalFacts, sourceDefinitions, syncExecutions } from "@/infrastructure/db/platform-schema";
@@ -34,18 +34,43 @@ export class PostgresSourceRepository implements SourceRepository {
 }
 
 export class PostgresSyncRepository implements SyncRepository {
-  async findCompletedByIdempotencyKey(tenantId: string, idempotencyKey: string) {
-    const rows = await db.select({ id: syncExecutions.id }).from(syncExecutions).where(and(
-      eq(syncExecutions.tenantId, tenantId), eq(syncExecutions.idempotencyKey, idempotencyKey), eq(syncExecutions.status, "completed")
-    )).limit(1);
-    return rows[0] ?? null;
-  }
-  async start(input: { tenantId: string; sourceId: string; idempotencyKey: string; correlationId: string; cursorBefore?: string }) {
-    const rows = await db.insert(syncExecutions).values({
+  async begin(input: { tenantId: string; sourceId: string; idempotencyKey: string; correlationId: string; cursorBefore?: string }) {
+    const inserted = await db.insert(syncExecutions).values({
       tenantId: input.tenantId, sourceId: input.sourceId, idempotencyKey: input.idempotencyKey,
       correlationId: input.correlationId, cursorBefore: input.cursorBefore, status: "running",
+    }).onConflictDoNothing({
+      target: [syncExecutions.tenantId, syncExecutions.idempotencyKey],
     }).returning({ id: syncExecutions.id });
-    return rows[0].id;
+
+    if (inserted[0]) return { id: inserted[0].id, state: "started" as const };
+
+    const existingRows = await db.select({ id: syncExecutions.id, status: syncExecutions.status }).from(syncExecutions).where(and(
+      eq(syncExecutions.tenantId, input.tenantId), eq(syncExecutions.idempotencyKey, input.idempotencyKey)
+    )).limit(1);
+    const existing = existingRows[0];
+    if (!existing) throw new Error("integration.idempotency_state_missing");
+    if (existing.status === "completed") return { id: existing.id, state: "completed" as const };
+    if (existing.status === "running") return { id: existing.id, state: "running" as const };
+
+    if (existing.status === "failed") {
+      const restarted = await db.update(syncExecutions).set({
+        status: "running", cursorBefore: input.cursorBefore, cursorAfter: null,
+        correlationId: input.correlationId, errorCode: null, errorMessage: null, completedAt: null,
+        attempt: sql`${syncExecutions.attempt} + 1`,
+      }).where(and(
+        eq(syncExecutions.id, existing.id), eq(syncExecutions.tenantId, input.tenantId), eq(syncExecutions.status, "failed")
+      )).returning({ id: syncExecutions.id });
+      if (restarted[0]) return { id: restarted[0].id, state: "restarted" as const };
+
+      const racedRows = await db.select({ id: syncExecutions.id, status: syncExecutions.status }).from(syncExecutions).where(and(
+        eq(syncExecutions.tenantId, input.tenantId), eq(syncExecutions.idempotencyKey, input.idempotencyKey)
+      )).limit(1);
+      const raced = racedRows[0];
+      if (raced?.status === "completed") return { id: raced.id, state: "completed" as const };
+      if (raced?.status === "running") return { id: raced.id, state: "running" as const };
+    }
+
+    throw new Error("integration.idempotency_state_invalid");
   }
   async complete(input: { id: string; tenantId: string; cursorAfter?: string }) {
     await db.update(syncExecutions).set({ status: "completed", cursorAfter: input.cursorAfter, completedAt: new Date() }).where(and(
