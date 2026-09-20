@@ -1,6 +1,6 @@
 import { computeMetric, type MetricFact } from "@/domain/metrics/metric-engine";
 import { getMetricDefinition, METRIC_REGISTRY } from "@/domain/metrics/registry";
-import type { TenantContext } from "@/domain/security/tenant-context";
+import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 
 export interface MetricStore {
   factsForMetric(input: { tenantId: string; factType: string; periodStart?: Date; periodEnd?: Date }): Promise<readonly MetricFact[]>;
@@ -30,6 +30,7 @@ export class MetricService {
   constructor(private readonly store: MetricStore) {}
 
   async recompute(context: TenantContext, input: { metricId: string; periodStart?: Date; periodEnd?: Date }): Promise<MetricView> {
+    requirePermission(context, "metric:read");
     const definition = getMetricDefinition(input.metricId);
     if (!definition) throw new Error(`metrics.definition_not_found:${input.metricId}`);
     const facts = await this.store.factsForMetric({ tenantId: context.tenantId, factType: definition.factType, periodStart: input.periodStart, periodEnd: input.periodEnd });
@@ -48,11 +49,13 @@ export class MetricService {
   }
 
   async query(context: TenantContext, metricId: string): Promise<MetricView | null> {
+    requirePermission(context, "metric:read");
     if (!getMetricDefinition(metricId)) throw new Error(`metrics.definition_not_found:${metricId}`);
     return this.store.latestValue(context.tenantId, metricId);
   }
 
   async overview(context: TenantContext): Promise<Array<{ definition: (typeof METRIC_REGISTRY)[number]; value: MetricView | null }>> {
+    requirePermission(context, "metric:read");
     return Promise.all(METRIC_REGISTRY.map(async (definition) => ({ definition, value: await this.store.latestValue(context.tenantId, definition.metricId) })));
   }
 }
