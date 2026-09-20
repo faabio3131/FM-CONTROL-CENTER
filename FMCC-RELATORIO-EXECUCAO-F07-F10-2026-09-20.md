@@ -116,3 +116,21 @@ A próxima ação necessária é implantar o serviço compartilhado canônico j�
 6. merge;
 7. smoke pós-merge no Render Preview;
 8. certificar F07–F10 conforme evidência real.
+
+
+## Reconciliação arquitetural posterior — Core vertical próprio
+
+Em 20/09/2026, a arquitetura cognitiva foi revisada contra Documento Mestre, Padrões de Construção e Documento 00 do FMCC.
+
+A decisão de consumir obrigatoriamente um runtime cognitivo hospedado em outro produto foi substituída.
+
+Estado vigente:
+- ADR-001 SUPERSEDED;
+- ADR-013 ACCEPTED;
+- FMCC Cognitive Vertical Core pertence ao próprio produto;
+- `FM_CORE_BASE_URL`/`FM_CORE_SERVICE_TOKEN` removidos do desenho do FMCC;
+- Core próprio composto por policies verticais + contexto + capabilities + grounding + model adapter;
+- model provider externo não é o Core, apenas infraestrutura de inferência;
+- Kordena/IRON não são dependências operacionais do FMCC.
+
+A implementação alterada exige nova certificação de CI e Preview antes de promover F09/F10.
