@@ -59,19 +59,19 @@ export default async function DashboardPage() {
           <p>Ausência de fonte é exibida como indisponível — nunca como zero.</p>
         </div>
         <div className="metric-grid">
-          {metrics.map(({ definition, value }) => (
-            <article className="metric-card" key={definition.metricId}>
-              <span className="metric-label">{definition.displayName}</span>
+          {metrics.map(({ target, definition, value }) => (
+            <article className="metric-card" key={target.metricId}>
+              <span className="metric-label">{target.displayName}</span>
               <strong className={value?.value === null || !value ? "metric-value unavailable" : "metric-value"}>
                 {value ? formatMetric(value.value, value.unit, value.currency) : "Indisponível"}
               </strong>
               <div className="metric-meta">
-                <span>{value ? `Qualidade: ${value.qualityStatus}` : "Sem valor governado"}</span>
-                <span>{value ? `Freshness: ${value.freshnessStatus}` : "Fonte ainda não conectada"}</span>
+                <span>{value ? `Qualidade: ${value.qualityStatus}` : definition ? "Sem valor governado" : "Definição semântica pendente"}</span>
+                <span>{value ? `Freshness: ${value.freshnessStatus}` : definition ? "Fonte ainda não conectada" : "Métrica ainda não implementada"}</span>
                 <span>{value ? formatTemporalContext(value) : "Período indisponível"}</span>
               </div>
               <small className="metric-provenance">
-                {value ? `Fonte: ${value.sourceAuthority} · v${value.metricVersion}` : `Métrica: ${definition.metricId}`}
+                {value ? `Fonte: ${value.sourceAuthority} · v${value.metricVersion}` : `Métrica: ${target.metricId} · ${target.definitionStatus}`}
               </small>
             </article>
           ))}
