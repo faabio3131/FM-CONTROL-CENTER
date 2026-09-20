@@ -1,10 +1,3 @@
-export type FmccCapability = "metric.query" | "metrics.query_many";
-
-export interface CorePlan {
-  readonly capability: FmccCapability;
-  readonly arguments: Readonly<Record<string, unknown>>;
-}
-
 export interface CoreEvidence {
   readonly kind: "metric" | "source";
   readonly ref: string;
@@ -29,24 +22,4 @@ export interface CoreAnswer {
   readonly answer: string;
   readonly evidence: readonly CoreEvidence[];
   readonly factualStatus: "grounded" | "unavailable";
-}
-
-export interface CanonicalCoreClient {
-  plan(input: {
-    question: string;
-    tenantId: string;
-    userId: string;
-    correlationId: string;
-    allowedCapabilities: readonly FmccCapability[];
-    operationalContext?: readonly CoreOperationalContext[];
-  }): Promise<CorePlan>;
-  synthesize(input: {
-    question: string;
-    tenantId: string;
-    userId: string;
-    correlationId: string;
-    facts: readonly Record<string, unknown>[];
-    evidence: readonly CoreEvidence[];
-    operationalContext?: readonly CoreOperationalContext[];
-  }): Promise<CoreAnswer>;
 }
