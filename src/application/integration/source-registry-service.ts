@@ -5,9 +5,23 @@ export class InvalidSecretReferenceError extends Error {
   constructor() { super("integration.secret_reference_invalid"); }
 }
 
+const SENSITIVE_CONFIG_KEY = /(secret|password|passwd|token|api[_-]?key|private[_-]?key|credential)/i;
+
 function validateSecretRef(secretRef?: string): void {
   if (!secretRef) return;
   if (!/^[a-z][a-z0-9+.-]*:[^\s]+$/i.test(secretRef)) throw new InvalidSecretReferenceError();
+}
+
+function assertConfigContainsNoSecrets(value: unknown, path = "config"): void {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertConfigContainsNoSecrets(item, `${path}[${index}]`));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (SENSITIVE_CONFIG_KEY.test(key)) throw new Error(`integration.config_secret_forbidden:${path}.${key}`);
+    assertConfigContainsNoSecrets(nested, `${path}.${key}`);
+  }
 }
 
 export class SourceRegistryService {
@@ -21,6 +35,7 @@ export class SourceRegistryService {
   async register(context: TenantContext, input: NewSourceDefinition): Promise<SourceDefinition> {
     requirePermission(context, "source:write");
     validateSecretRef(input.secretRef);
+    assertConfigContainsNoSecrets(input.config);
     if (!input.name.trim() || !input.sourceType.trim() || !input.authoritativeDomain.trim()) {
       throw new Error("integration.source_definition_invalid");
     }
