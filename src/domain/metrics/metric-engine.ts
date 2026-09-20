@@ -10,7 +10,7 @@ export interface MetricFact {
 }
 
 export type MetricComputation =
-  | { status: "available"; value: string; unit: string; currency?: string; sourceTimestamp: Date; provenanceRefs: string[]; qualityStatus: "verified" }
+  | { status: "available"; value: string; unit: string; currency?: string; sourceTimestamp: Date; provenanceRefs: string[]; qualityStatus: "unknown" }
   | { status: "missing"; value: null; unit: string; sourceTimestamp: null; provenanceRefs: []; qualityStatus: "missing" };
 
 export class MultiCurrencyAggregationError extends Error {
@@ -57,7 +57,7 @@ export function computeMetric(definition: MetricDefinition, facts: readonly Metr
   if (definition.kind === "count") {
     return {
       status: "available", value: String(new Set(relevant.map((fact) => fact.externalId)).size),
-      unit: definition.unit, sourceTimestamp, provenanceRefs, qualityStatus: "verified",
+      unit: definition.unit, sourceTimestamp, provenanceRefs, qualityStatus: "unknown",
     };
   }
 
@@ -72,6 +72,6 @@ export function computeMetric(definition: MetricDefinition, facts: readonly Metr
   return {
     status: "available", value: sumDecimals(values as DecimalValue[]), unit: definition.unit,
     currency: currencies.size === 1 ? [...currencies][0] : undefined,
-    sourceTimestamp, provenanceRefs, qualityStatus: "verified",
+    sourceTimestamp, provenanceRefs, qualityStatus: "unknown",
   };
 }
