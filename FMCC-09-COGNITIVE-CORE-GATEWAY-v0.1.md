@@ -9,9 +9,10 @@ Foi revisado o Current do Kordena em `faabio3131/fm-ai-platform`, PR #118 (OPEN/
 ADR-001 é preservado: o FMCC não copia o Core do Kordena e não cria segundo Core. Foi implementado um Core Gateway que consome um serviço canônico versionado por HTTP quando `FM_CORE_BASE_URL` e `FM_CORE_SERVICE_TOKEN` existirem no ambiente seguro.
 
 ## Capabilities FMCC
-Allowlist inicial:
-- `metric.query`;
-- `source.status`.
+Allowlist implementada nesta fase:
+- `metric.query`.
+
+`source.status` permanece fora da allowlist até existir uma capability governada e fonte autorizada correspondente; não é anunciada como implementada.
 
 O Gateway injeta tenant/user/correlation server-side; o modelo não escolhe tenant. `metric.query` consulta somente o MetricService governado. Métrica ausente retorna indisponível sem síntese inventada.
 
