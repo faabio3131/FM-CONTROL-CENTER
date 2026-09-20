@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/infrastructure/auth/auth-client";
+import { ORGANIZATION_SLUG_PATTERN } from "@/domain/organization/slug";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -103,7 +104,7 @@ export default function OnboardingPage() {
             </label>
             <label>
               Identificador
-              <input name="slug" required pattern="[a-z0-9-]+" />
+              <input name="slug" required pattern={ORGANIZATION_SLUG_PATTERN} />
             </label>
             <button className="button primary" disabled={busyAction !== null} type="submit">
               {busyAction === "create" ? "Criando…" : "Criar organização"}
