@@ -7,7 +7,7 @@
 **Produção:** não utilizada
 
 ## Resumo executivo
-F07 e F08 atingiram gate técnico verde. F09 teve seu boundary governado implementado e testado, sem duplicar o Core, porém a integração real depende de um serviço canônico compartilhado e credencial segura ainda não comprovados. F10 foi implementada e testada sobre as mesmas autoridades determinísticas, mas sua certificação final depende da conclusão de F09 e do smoke Preview pós-merge.
+F07 e F08 atingiram gate técnico verde. A lacuna estrutural de F09 foi resolvida no Core canônico: API compartilhada, runtime dedicado, autenticação M2M, contexto operacional e síntese analítica governada foram construídos sem duplicar o Core. F10 foi ampliada para contexto tenant/user e análise multi-métrica. A certificação final permanece dependente apenas da prova operacional em Preview e do smoke pós-merge.
 
 ## F07 — Integration Fabric
 Implementado:
@@ -53,12 +53,19 @@ Implementado:
 - timeout/fail-closed;
 - testes de capability, tenant e grounding.
 
-Não comprovado:
-- endpoint compartilhado real do Core;
-- credencial de serviço em Preview;
-- smoke real contra Core compartilhado.
+Comprovado em código canônico:
+- endpoint compartilhado `/v1/fmcc/plan` e `/v1/fmcc/synthesize`;
+- runtime FastAPI dedicado;
+- service-auth por secret reference;
+- contexto operacional governado;
+- análise multi-métrica para explicação/correlação/padrões/anomalias/risco/recomendação.
 
-**Status:** boundary implementado/testado; gate de integração real bloqueado.
+Ainda não comprovado operacionalmente:
+- serviço Core Live em Preview;
+- segredo M2M configurado no ambiente;
+- smoke real FMCC → Core.
+
+**Status:** implementação e testes concluídos; integração Preview pendente.
 
 ## F10 — Executive Command Center
 Implementado:
@@ -100,7 +107,7 @@ A execução incremental corrigiu, entre outros:
 ## Governança final desta rodada
 A PR permanece Draft e não deve ser mergeada enquanto a STOP condition F09 estiver ativa.
 
-A próxima ação necessária é definir/prover o serviço compartilhado canônico do FM Cognitive Core e suas referências seguras de runtime. Depois:
+A próxima ação necessária é implantar o serviço compartilhado canônico já construído no ambiente Preview e configurar suas referências seguras. Depois:
 1. configurar Preview sem expor segredo;
 2. executar smoke autenticado do Core;
 3. reexecutar regressão final;
