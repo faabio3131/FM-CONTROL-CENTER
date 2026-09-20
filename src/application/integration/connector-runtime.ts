@@ -1,6 +1,6 @@
 import type { CanonicalFactRepository, Connector, SourceRepository, SyncRepository } from "@/domain/integration/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
-import { CrossTenantAccessError } from "@/domain/security/tenant-context";
+import { CrossTenantAccessError, requirePermission } from "@/domain/security/tenant-context";
 import { logEvent } from "@/infrastructure/observability/logger";
 
 export class ConnectorNotRegisteredError extends Error {
@@ -32,6 +32,7 @@ export class ConnectorRuntime {
   }
 
   async health(context: TenantContext, sourceId: string) {
+    requirePermission(context, "integration:read");
     const source = await this.sources.findById(context.tenantId, sourceId);
     if (!source || source.tenantId !== context.tenantId) throw new CrossTenantAccessError();
     const connector = this.connectors.get(source.sourceType);
@@ -42,6 +43,7 @@ export class ConnectorRuntime {
   }
 
   async syncPull(context: TenantContext, input: { sourceId: string; cursor?: string; idempotencyKey: string }) {
+    requirePermission(context, "integration:write");
     const source = await this.sources.findById(context.tenantId, input.sourceId);
     if (!source) throw new CrossTenantAccessError();
     if (source.tenantId !== context.tenantId) throw new CrossTenantAccessError();
