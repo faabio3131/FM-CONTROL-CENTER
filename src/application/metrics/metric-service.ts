@@ -6,7 +6,7 @@ export interface MetricStore {
   factsForMetric(input: { tenantId: string; factType: string; periodStart?: Date; periodEnd?: Date }): Promise<readonly MetricFact[]>;
   saveValue(input: {
     tenantId: string; metricId: string; metricVersion: number; value: string | null; unit: string; currency?: string;
-    periodStart?: Date; periodEnd?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: string;
+    periodStart?: Date; periodEnd?: Date; asOf?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: string;
     qualityStatus: string; sourceAuthority: string; provenanceRefs: readonly string[];
   }): Promise<void>;
   latestValue(tenantId: string, metricId: string): Promise<MetricView | null>;
@@ -18,6 +18,9 @@ export interface MetricView {
   readonly value: string | null;
   readonly unit: string;
   readonly currency?: string;
+  readonly periodStart?: Date;
+  readonly periodEnd?: Date;
+  readonly asOf?: Date;
   readonly computedAt: Date;
   readonly sourceTimestamp?: Date;
   readonly freshnessStatus: string;
@@ -29,7 +32,7 @@ export interface MetricView {
 export class MetricService {
   constructor(private readonly store: MetricStore) {}
 
-  async recompute(context: TenantContext, input: { metricId: string; periodStart?: Date; periodEnd?: Date }): Promise<MetricView> {
+  async recompute(context: TenantContext, input: { metricId: string; periodStart?: Date; periodEnd?: Date; asOf?: Date }): Promise<MetricView> {
     requirePermission(context, "metric:read");
     const definition = getMetricDefinition(input.metricId);
     if (!definition) throw new Error(`metrics.definition_not_found:${input.metricId}`);
@@ -39,12 +42,13 @@ export class MetricService {
     const value: MetricView = {
       metricId: definition.metricId, metricVersion: definition.version, value: computed.value,
       unit: computed.unit, currency: computed.status === "available" ? computed.currency : undefined,
+      periodStart: input.periodStart, periodEnd: input.periodEnd, asOf: input.asOf,
       computedAt: now, sourceTimestamp: computed.status === "available" ? computed.sourceTimestamp : undefined,
       freshnessStatus: computed.status === "available" ? "unknown" : "unavailable",
       qualityStatus: computed.qualityStatus, sourceAuthority: definition.sourceAuthority,
       provenanceRefs: computed.provenanceRefs,
     };
-    await this.store.saveValue({ tenantId: context.tenantId, ...value, periodStart: input.periodStart, periodEnd: input.periodEnd });
+    await this.store.saveValue({ tenantId: context.tenantId, ...value });
     return value;
   }
 
