@@ -81,6 +81,13 @@ describe("F07 integration fabric", () => {
     expect(result).toMatchObject({ status: "completed", nextCursor: "done", rateLimitRemaining: 10 });
   });
 
+  it("nega sync para papel sem integration:write", async () => {
+    const viewer: TenantContext = { ...context, role: "viewer" };
+    const { runtime } = runtimeFor();
+    await expect(runtime.syncPull(viewer, { sourceId: "source-1", idempotencyKey: "idem-viewer" }))
+      .rejects.toThrow("security.permission_denied:integration:write");
+  });
+
   it("expõe health pelo connector boundary", async () => {
     const { runtime } = runtimeFor();
     await expect(runtime.health(context, "source-1")).resolves.toBe("healthy");
