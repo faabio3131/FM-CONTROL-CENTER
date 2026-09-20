@@ -3,6 +3,7 @@ import { CoreGateway } from "@/application/core/core-gateway";
 import { FmccVerticalCognitiveCore } from "@/application/core/fmcc-vertical-cognitive-core";
 import type { MetricService } from "@/application/metrics/metric-service";
 import type { CognitiveModel } from "@/domain/core/cognitive-model";
+import type { CoreOperationalContext } from "@/domain/core/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
 const context: TenantContext = { tenantId: "tenant-b", userId: "user-b", role: "owner", correlationId: "corr-b" };
@@ -61,7 +62,7 @@ describe("F09 FMCC Vertical Cognitive Core", () => {
   });
 
   it("usa memória operacional tenant/user scoped apenas como continuidade", async () => {
-    let receivedContext: readonly Record<string, unknown>[] = [];
+    let receivedContext: readonly CoreOperationalContext[] = [];
     const cognitiveModel: CognitiveModel = {
       async plan(input) {
         receivedContext = input.operationalContext;
