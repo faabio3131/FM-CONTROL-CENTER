@@ -25,9 +25,25 @@ O Core próprio:
 - não depende do runtime cognitivo do Kordena ou de qualquer outro SaaS;
 - não importa regras, memória, tenant state ou ciclo de release de outro produto.
 
+## Relação com o Documento Mestre e exceção formal
+
+O Documento Mestre v2.0 usa a formulação **CORE COGNITIVO COMPARTILHADO + CAPACIDADES ESPECÍFICAS DO PRODUTO/VERTICAL**.
+
+Para o FM Control Center, a direção do produto aprovou uma exceção arquitetural explícita à interpretação de "compartilhado" como runtime operacional único entre SaaS.
+
+A necessidade é comercial e arquitetural:
+- o FMCC é produto SaaS independente;
+- precisa de lifecycle, memória, contexto, SLA e evolução cognitiva próprios;
+- não pode depender operacionalmente de Kordena/IRON ou de outro produto para funcionar;
+- o Tenant Zero e clientes externos devem executar a mesma arquitetura.
+
+A compatibilidade institucional será preservada por uma **FM Cognitive Foundation reutilizável**, formada por primitives, contratos, padrões e adapters comuns. Essa fundação pode ser compartilhada; o cérebro operacional vertical permanece product-owned.
+
+Esta exceção está registrada também em `docs/architecture/EXCEPTION-001-product-owned-vertical-core.md`.
+
 ## Reutilização institucional
 
-O Documento Mestre exige reaproveitamento de capacidades cognitivas comuns. Isso será atendido por **primitives, contratos, padrões, bibliotecas e adapters reutilizáveis**, quando apropriado, e não por compartilhamento obrigatório do cérebro operacional de produtos diferentes.
+O reaproveitamento de capacidades cognitivas comuns será atendido por **primitives, contratos, padrões, bibliotecas e adapters reutilizáveis**, quando apropriado, e não por compartilhamento obrigatório do cérebro operacional de produtos diferentes.
 
 Reutilização permitida:
 - contracts de model provider;
