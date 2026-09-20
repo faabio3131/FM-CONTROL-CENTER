@@ -6,7 +6,7 @@ import type { TenantContext } from "@/domain/security/tenant-context";
 const context: TenantContext = { tenantId: "tenant-a", userId: "u1", role: "owner", correlationId: "corr-1" };
 const source: SourceDefinition = {
   id: "source-1", tenantId: "tenant-a", name: "fixture", sourceType: "fixture",
-  authoritativeDomain: "billing", syncMode: "pull", mappingVersion: "v1", secretRef: "render:fixture",
+  authoritativeDomain: "billing", status: "configured", syncMode: "pull", config: {}, mappingVersion: "v1", secretRef: "render:fixture",
 };
 
 function sourceRepo(sourceResult: SourceDefinition | null): SourceRepository {
@@ -16,8 +16,8 @@ function sourceRepo(sourceResult: SourceDefinition | null): SourceRepository {
     async create(tenantId, input) {
       return {
         id: "created", tenantId, name: input.name, sourceType: input.sourceType,
-        authoritativeDomain: input.authoritativeDomain, syncMode: input.syncMode,
-        secretRef: input.secretRef, mappingVersion: input.mappingVersion ?? "v1",
+        authoritativeDomain: input.authoritativeDomain, status: "configured" as const, syncMode: input.syncMode,
+        secretRef: input.secretRef, config: input.config ?? {}, freshnessSeconds: input.freshnessSeconds, mappingVersion: input.mappingVersion ?? "v1",
       };
     },
   };
