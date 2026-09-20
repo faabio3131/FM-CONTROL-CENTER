@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { InvalidSecretReferenceError, SourceRegistryService } from "@/application/integration/source-registry-service";
+import { ConfigSecretForbiddenError, InvalidSecretReferenceError, SourceRegistryService } from "@/application/integration/source-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { AuthenticationRequiredError, PermissionDeniedError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const response = securityResponse(error);
     if (response) return response;
-    if (error instanceof InvalidSecretReferenceError) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof InvalidSecretReferenceError || error instanceof ConfigSecretForbiddenError) return NextResponse.json({ error: error.message }, { status: 400 });
     throw error;
   }
 }
