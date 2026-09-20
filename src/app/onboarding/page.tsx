@@ -100,11 +100,11 @@ export default function OnboardingPage() {
           <form onSubmit={createOrganization}>
             <label>
               Nome da organização
-              <input name="name" required minLength={2} />
+              <input name="name" required minLength={2} autoComplete="organization" />
             </label>
             <label>
               Identificador
-              <input name="slug" required pattern={ORGANIZATION_SLUG_PATTERN} />
+              <input name="slug" required pattern={ORGANIZATION_SLUG_PATTERN} autoComplete="off" />
             </label>
             <button className="button primary" disabled={busyAction !== null} type="submit">
               {busyAction === "create" ? "Criando…" : "Criar organização"}
