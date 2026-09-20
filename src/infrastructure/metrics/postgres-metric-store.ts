@@ -1,7 +1,17 @@
 import { and, desc, eq, gte, lte } from "drizzle-orm";
-import type { MetricStore, MetricView } from "@/application/metrics/metric-service";
+import type { MetricFreshnessStatus, MetricQualityStatus, MetricStore, MetricView } from "@/application/metrics/metric-service";
 import { db } from "@/infrastructure/db/client";
 import { canonicalFacts, metricValues } from "@/infrastructure/db/platform-schema";
+
+function normalizeFreshness(value: string): MetricFreshnessStatus {
+  if (value === "fresh" || value === "delayed" || value === "stale" || value === "unavailable") return value;
+  return "unknown";
+}
+
+function normalizeQuality(value: string): MetricQualityStatus {
+  if (value === "verified" || value === "reconciled" || value === "partial" || value === "estimated" || value === "missing") return value;
+  return "unknown";
+}
 
 export class PostgresMetricStore implements MetricStore {
   async factsForMetric(input: { tenantId: string; factType: string; periodStart?: Date; periodEnd?: Date }) {
@@ -17,8 +27,8 @@ export class PostgresMetricStore implements MetricStore {
 
   async saveValue(input: {
     tenantId: string; metricId: string; metricVersion: number; value: string | null; unit: string; currency?: string;
-    periodStart?: Date; periodEnd?: Date; asOf?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: string;
-    qualityStatus: string; sourceAuthority: string; provenanceRefs: readonly string[];
+    periodStart?: Date; periodEnd?: Date; asOf?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: MetricFreshnessStatus;
+    qualityStatus: MetricQualityStatus; sourceAuthority: string; provenanceRefs: readonly string[];
   }) {
     await db.insert(metricValues).values({
       tenantId: input.tenantId, metricId: input.metricId, metricVersion: input.metricVersion, value: input.value,
@@ -36,7 +46,7 @@ export class PostgresMetricStore implements MetricStore {
       metricId: row.metricId, metricVersion: row.metricVersion, value: row.value, unit: row.unit,
       currency: row.currency ?? undefined, periodStart: row.periodStart ?? undefined, periodEnd: row.periodEnd ?? undefined,
       asOf: row.asOf ?? undefined, computedAt: row.computedAt, sourceTimestamp: row.sourceTimestamp ?? undefined,
-      freshnessStatus: row.freshnessStatus, qualityStatus: row.qualityStatus, sourceAuthority: row.sourceAuthority,
+      freshnessStatus: normalizeFreshness(row.freshnessStatus), qualityStatus: normalizeQuality(row.qualityStatus), sourceAuthority: row.sourceAuthority,
       provenanceRefs: row.provenanceRefs,
     };
   }
