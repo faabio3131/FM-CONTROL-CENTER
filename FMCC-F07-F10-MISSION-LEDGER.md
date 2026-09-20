@@ -84,6 +84,30 @@ Pendências reais:
 - regressão F06–F10;
 - merge e smoke pós-merge.
 
+## STOP operacional de CI — 20/09/2026
+
+A recertificação do Core próprio foi tentada sobre o HEAD `62405d16c262a880971d1287f979317d906c6b73`.
+
+Evidência:
+- FMCC Foundation Gate #119, run `35510973426`, attempt 1: FAILURE antes de qualquer step, com `steps=[]`, `runner_id=0` e nenhum runner alocado;
+- o job foi reexecutado de forma explícita;
+- attempt 2 criou o job `106087696116` e reproduziu o mesmo comportamento: FAILURE em aproximadamente 2 segundos, `steps=[]`, `runner_id=0`, sem logs de job disponíveis;
+- o arquivo `.github/workflows/fmcc-foundation-gate.yml` tem o mesmo blob SHA `85bfd11d004bf47daaa2911840f7f08f6fe1b51b` no run #86, que executou com sucesso, e no run #89, que já apresentava falha sem execução normal;
+- FMCC Foundation Gate #86, HEAD `ec3bf035fc557890577d3ce0a86309c97b6057de`, concluiu SUCCESS com 17 steps;
+- portanto não há evidência de regressão do YAML entre a última execução normal verde e o início das falhas sem runner.
+
+Classificação:
+- bloqueio operacional externo/runner allocation ainda sem causa administrativa específica comprovada;
+- não há evidência de falha de lint, typecheck, migration, testes, build, Docker ou audit no HEAD corrigido porque esses steps não chegaram a executar;
+- não é permitido declarar o HEAD corrigido certificado.
+
+Consequência de governança:
+- PR #9 permanece Draft;
+- F09/F10 permanecem não certificadas no novo HEAD;
+- merge permanece proibido;
+- F11–F15 NÃO foram iniciadas, conforme gate sequencial do Plano Mestre;
+- o avanço depende de restaurar execução real do GitHub-hosted runner e obter CI conclusivo, seguido do Preview cognitivo e smoke E2E.
+
 ## Estado de governança
 - PR #9 permanece Draft;
 - nenhum merge realizado;
@@ -92,4 +116,4 @@ Pendências reais:
 - F07/F08 tecnicamente aprovadas;
 - F09 reconciliada para Core vertical próprio do FMCC; novo HEAD ainda precisa recertificação;
 - F10 alinhada ao Core próprio; certificação Preview pendente;
-- próximo avanço: deployment/configuração segura do Core Preview, smoke E2E, regressão final, merge e smoke pós-merge.
+- próximo avanço: resolver a indisponibilidade de runner/Actions no escopo da conta ou repositório, recertificar o HEAD, configurar o provider cognitivo no Preview, executar smoke E2E, regressão final, merge e smoke pós-merge.

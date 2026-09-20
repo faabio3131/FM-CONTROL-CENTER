@@ -7,7 +7,7 @@
 **Produção:** não utilizada
 
 ## Resumo executivo
-F07 e F08 atingiram gate técnico verde. A lacuna estrutural de F09 foi resolvida no Core canônico: API compartilhada, runtime dedicado, autenticação M2M, contexto operacional e síntese analítica governada foram construídos sem duplicar o Core. F10 foi ampliada para contexto tenant/user e análise multi-métrica. A certificação final permanece dependente apenas da prova operacional em Preview e do smoke pós-merge.
+F07 e F08 atingiram gate técnico verde. A arquitetura de F09 foi posteriormente reconciliada para um **FMCC Cognitive Vertical Core próprio do produto**, removendo a dependência cognitiva operacional de outro SaaS. F10 permanece alinhada ao mesmo Core próprio. A recertificação do novo HEAD está bloqueada antes da execução dos steps do GitHub Actions por ausência de runner alocado; portanto F09/F10 não foram promovidas e F11–F15 não foram iniciadas.
 
 ## F07 — Integration Fabric
 Implementado:
@@ -42,30 +42,24 @@ Implementado:
 **Status:** gate técnico aprovado.
 
 ## F09 — Cognitive Core
-Implementado:
-- Core Gateway;
-- contrato de cliente canônico;
-- cliente HTTP;
-- allowlist `metric.query`;
-- tenant/user/correlation server-side;
-- MetricService como autoridade;
-- audit;
-- timeout/fail-closed;
-- testes de capability, tenant e grounding.
+Estado arquitetural vigente:
+- `FmccVerticalCognitiveCore` pertence ao próprio FM Control Center;
+- Cognitive Model Port;
+- adapter OpenAI-compatible;
+- contexto e memória tenant/user scoped;
+- Metric Engine como autoridade factual;
+- grounding/provenance;
+- planejamento single/multi-métrica;
+- explicação, correlação, anomalia, risco e recomendação;
+- fail-closed sem provider.
 
-Comprovado em código canônico:
-- endpoint compartilhado `/v1/fmcc/plan` e `/v1/fmcc/synthesize`;
-- runtime FastAPI dedicado;
-- service-auth por secret reference;
-- contexto operacional governado;
-- análise multi-métrica para explicação/correlação/padrões/anomalias/risco/recomendação.
+Removido do desenho vigente:
+- `FM_CORE_BASE_URL`;
+- `FM_CORE_SERVICE_TOKEN`;
+- `HttpCanonicalCoreClient`;
+- dependência operacional cognitiva do Kordena/`fm-ai-platform`.
 
-Ainda não comprovado operacionalmente:
-- serviço Core Live em Preview;
-- segredo M2M configurado no ambiente;
-- smoke real FMCC → Core.
-
-**Status:** implementação e testes concluídos; integração Preview pendente.
+**Status:** implementado/reconciliado em código; recertificação CI e Preview pendentes.
 
 ## F10 — Executive Command Center
 Implementado:
@@ -73,15 +67,16 @@ Implementado:
 - cards governados;
 - estados indisponível/semântica pendente;
 - provenance/source/freshness/quality;
-- painel de consulta Core;
-- degradação segura quando Core não configurado;
+- painel de consulta ao Core próprio;
+- degradação segura quando provider cognitivo não está configurado;
 - responsividade/acessibilidade básica;
 - dados não inventados.
 
-**Status:** implementado/testado; certificação Preview pendente de F09 + merge/smoke.
+**Status:** implementado; certificação do HEAD corrigido e Preview E2E pendentes.
 
-## Evidência de CI
-Último HEAD funcional consolidado anterior à reconciliação documental: `8d2fee2d4db989cabcc19e485dcf0eb6d0ad48f7`.
+## Evidência verde histórica
+Último HEAD funcional consolidado anterior à reconciliação do Core próprio:
+`8d2fee2d4db989cabcc19e485dcf0eb6d0ad48f7`.
 
 FMCC Foundation Gate #82:
 - Install — SUCCESS
@@ -94,43 +89,43 @@ FMCC Foundation Gate #82:
 - Build Docker image without runtime secrets — SUCCESS
 - Runtime dependency audit — SUCCESS
 
-## Correções relevantes durante a execução
-A execução incremental corrigiu, entre outros:
-- concorrência/idempotência de sync;
-- respostas seguras de API para configurações com segredo;
-- remoção de `secretRef` das respostas públicas;
-- estados de freshness/quality para não declarar qualidade não comprovada;
-- cobertura PostgreSQL tenant-scoped;
-- caminho governado F07 → F08 → F09;
-- gaps dos KPIs executivos sem fabricar valores.
+Essa evidência não certifica automaticamente os commits posteriores.
 
-## Governança final desta rodada
-A PR permanece Draft e não deve ser mergeada enquanto a STOP condition F09 estiver ativa.
+## STOP operacional de CI — evidência atual
 
-A próxima ação necessária é implantar o serviço compartilhado canônico já construído no ambiente Preview e configurar suas referências seguras. Depois:
-1. configurar Preview sem expor segredo;
-2. executar smoke autenticado do Core;
-3. reexecutar regressão final;
-4. revisar diff;
-5. promover PR a Ready;
-6. merge;
-7. smoke pós-merge no Render Preview;
-8. certificar F07–F10 conforme evidência real.
+HEAD investigado:
+`62405d16c262a880971d1287f979317d906c6b73`
 
+FMCC Foundation Gate #119:
+- run id: `35510973426`;
+- attempt 1: FAILURE antes de qualquer step;
+- reexecução explícita autorizada executada;
+- attempt 2: job `106087696116`;
+- resultado novamente FAILURE;
+- `steps=[]`;
+- `runner_id=0`;
+- nenhum runner alocado;
+- nenhum log de execução disponível.
 
-## Reconciliação arquitetural posterior — Core vertical próprio
+Comparação de workflow:
+- run #86 SUCCESS no HEAD `ec3bf035fc557890577d3ce0a86309c97b6057de`, com 17 steps;
+- run #89 já falhava sem execução normal;
+- o workflow usado nos dois pontos possui o mesmo blob SHA: `85bfd11d004bf47daaa2911840f7f08f6fe1b51b`.
 
-Em 20/09/2026, a arquitetura cognitiva foi revisada contra Documento Mestre, Padrões de Construção e Documento 00 do FMCC.
+Conclusão suportada pela evidência:
+- a transição de execução normal para falha pré-runner não foi causada por alteração do arquivo de workflow;
+- não é possível afirmar a causa administrativa específica apenas pela API disponível;
+- não existe evidência para atribuir a falha atual ao código de F09/F10, pois lint/test/build/migrations não chegaram a rodar;
+- também não é permitido chamar o HEAD corrigido de certificado.
 
-A decisão de consumir obrigatoriamente um runtime cognitivo hospedado em outro produto foi substituída.
+## Governança atual
+- PR #9 permanece OPEN/DRAFT;
+- nenhum merge realizado;
+- nenhum deploy de produção realizado;
+- arquitetura do Core próprio preservada;
+- F11–F15 não iniciadas;
+- merge e progressão permanecem bloqueados até execução real do CI obrigatório;
+- após restaurar runner/Actions: recertificar HEAD → configurar provider cognitivo no Preview → smoke E2E → regressão F06–F10 → revisão final → merge condicionado → smoke pós-merge.
 
-Estado vigente:
-- ADR-001 SUPERSEDED;
-- ADR-013 ACCEPTED;
-- FMCC Cognitive Vertical Core pertence ao próprio produto;
-- `FM_CORE_BASE_URL`/`FM_CORE_SERVICE_TOKEN` removidos do desenho do FMCC;
-- Core próprio composto por policies verticais + contexto + capabilities + grounding + model adapter;
-- model provider externo não é o Core, apenas infraestrutura de inferência;
-- Kordena/IRON não são dependências operacionais do FMCC.
-
-A implementação alterada exige nova certificação de CI e Preview antes de promover F09/F10.
+## Pendência externa
+É necessário restaurar a capacidade de alocação de GitHub-hosted runner para este repositório/conta. Possíveis causas administrativas como quota, billing/spending limit, políticas de Actions ou disponibilidade específica da conta devem ser verificadas no GitHub; nenhuma delas é declarada como causa raiz sem evidência administrativa.
