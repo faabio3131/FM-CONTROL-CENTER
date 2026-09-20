@@ -57,3 +57,29 @@ export const METRIC_REGISTRY: readonly MetricDefinition[] = [
 export function getMetricDefinition(metricId: string): MetricDefinition | null {
   return METRIC_REGISTRY.find((item) => item.metricId === metricId) ?? null;
 }
+
+
+export interface ExecutiveMetricTarget {
+  readonly metricId: string;
+  readonly displayName: string;
+  readonly definitionStatus: "implemented" | "pending_semantics";
+}
+
+export const EXECUTIVE_METRIC_TARGETS: readonly ExecutiveMetricTarget[] = [
+  { metricId: "trial.starts.count", displayName: "Trials iniciados", definitionStatus: "implemented" },
+  { metricId: "trial.active.count", displayName: "Trials ativos", definitionStatus: "pending_semantics" },
+  { metricId: "trial.conversion.rate", displayName: "Conversão trial → assinatura", definitionStatus: "pending_semantics" },
+  { metricId: "subscription.active.count", displayName: "Assinaturas ativas", definitionStatus: "implemented" },
+  { metricId: "subscription.cancelled.count", displayName: "Cancelamentos", definitionStatus: "implemented" },
+  { metricId: "subscription.logo_churn.rate", displayName: "Churn de clientes", definitionStatus: "pending_semantics" },
+  { metricId: "revenue.mrr", displayName: "MRR", definitionStatus: "pending_semantics" },
+  { metricId: "revenue.arr", displayName: "ARR", definitionStatus: "pending_semantics" },
+  { metricId: "billing.gross_billed", displayName: "Faturamento bruto emitido", definitionStatus: "implemented" },
+  { metricId: "revenue.cash_collected", displayName: "Caixa recebido", definitionStatus: "implemented" },
+  { metricId: "receivable.delinquent_amount", displayName: "Inadimplência", definitionStatus: "pending_semantics" },
+  { metricId: "lead.created.count", displayName: "Leads criados", definitionStatus: "pending_semantics" },
+  { metricId: "incident.count", displayName: "Incidentes", definitionStatus: "pending_semantics" },
+  { metricId: "service.error.rate", displayName: "Taxa de erro", definitionStatus: "pending_semantics" },
+  { metricId: "usage.active_users.dau", displayName: "Usuários ativos (DAU)", definitionStatus: "pending_semantics" },
+  { metricId: "support.ticket.open.count", displayName: "Tickets abertos", definitionStatus: "pending_semantics" },
+] as const;
