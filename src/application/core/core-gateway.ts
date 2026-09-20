@@ -1,20 +1,8 @@
+import type { FmccVerticalCognitiveCore } from "@/application/core/fmcc-vertical-cognitive-core";
 import type { MetricService, MetricView } from "@/application/metrics/metric-service";
-import type {
-  CanonicalCoreClient,
-  CoreAnswer,
-  CoreEvidence,
-  CoreOperationalContext,
-  FmccCapability,
-} from "@/domain/core/contracts";
+import type { CoreAnswer, CoreEvidence, CoreOperationalContext } from "@/domain/core/contracts";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 import type { CoreContextReader } from "@/infrastructure/core/audit-core-context-reader";
-
-const ALLOWED_CAPABILITIES: readonly FmccCapability[] = ["metric.query", "metrics.query_many"];
-const MAX_METRICS_PER_QUERY = 8;
-
-export class CoreCapabilityDeniedError extends Error {
-  constructor() { super("core.capability_denied"); }
-}
 
 export class CoreArgumentError extends Error {
   constructor() { super("core.argument_invalid"); }
@@ -51,23 +39,9 @@ function metricFact(metricId: string, value: MetricView): Record<string, unknown
   };
 }
 
-function oneMetricId(arguments_: Readonly<Record<string, unknown>>): string {
-  const metricId = arguments_.metricId;
-  if (typeof metricId !== "string" || !metricId.trim()) throw new CoreArgumentError();
-  return metricId.trim();
-}
-
-function manyMetricIds(arguments_: Readonly<Record<string, unknown>>): readonly string[] {
-  const metricIds = arguments_.metricIds;
-  if (!Array.isArray(metricIds)) throw new CoreArgumentError();
-  const normalized = [...new Set(metricIds.map((value) => typeof value === "string" ? value.trim() : "").filter(Boolean))];
-  if (normalized.length < 2 || normalized.length > MAX_METRICS_PER_QUERY) throw new CoreArgumentError();
-  return normalized;
-}
-
 export class CoreGateway {
   constructor(
-    private readonly core: CanonicalCoreClient,
+    private readonly core: FmccVerticalCognitiveCore,
     private readonly metrics: MetricService,
     private readonly contextReader?: CoreContextReader,
   ) {}
@@ -78,19 +52,8 @@ export class CoreGateway {
     if (!normalized || normalized.length > 4000) throw new CoreArgumentError();
 
     const operationalContext = await this.loadOperationalContext(context);
-    const plan = await this.core.plan({
-      question: normalized,
-      tenantId: context.tenantId,
-      userId: context.userId,
-      correlationId: context.correlationId,
-      allowedCapabilities: ALLOWED_CAPABILITIES,
-      operationalContext,
-    });
-    if (!ALLOWED_CAPABILITIES.includes(plan.capability)) throw new CoreCapabilityDeniedError();
-
-    const metricIds = plan.capability === "metric.query"
-      ? [oneMetricId(plan.arguments)]
-      : manyMetricIds(plan.arguments);
+    const metricIds = await this.core.plan({ question: normalized, operationalContext });
+    if (metricIds.length < 1 || metricIds.length > 8) throw new CoreArgumentError();
 
     const resolved = await Promise.all(metricIds.map(async (metricId) => {
       try {
@@ -117,9 +80,6 @@ export class CoreGateway {
 
     return this.core.synthesize({
       question: normalized,
-      tenantId: context.tenantId,
-      userId: context.userId,
-      correlationId: context.correlationId,
       facts,
       evidence,
       operationalContext,
@@ -131,8 +91,6 @@ export class CoreGateway {
     try {
       return await this.contextReader.recent({ tenantId: context.tenantId, userId: context.userId, limit: 6 });
     } catch {
-      // Context is continuity aid, never factual authority. A memory-read failure
-      // must not silently elevate or fabricate information, nor block governed facts.
       return [];
     }
   }
