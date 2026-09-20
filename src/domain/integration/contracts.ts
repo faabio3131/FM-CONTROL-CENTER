@@ -1,0 +1,53 @@
+export type ConnectorSyncMode = "pull" | "webhook" | "hybrid";
+
+export interface SourceDefinition {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly name: string;
+  readonly sourceType: string;
+  readonly authoritativeDomain: string;
+  readonly syncMode: ConnectorSyncMode;
+  readonly secretRef?: string;
+  readonly mappingVersion: string;
+}
+
+export interface ConnectorFact {
+  readonly externalId: string;
+  readonly factType: string;
+  readonly payload: Record<string, unknown>;
+  readonly sourceTimestamp: Date;
+}
+
+export interface ConnectorPullResult {
+  readonly facts: readonly ConnectorFact[];
+  readonly nextCursor?: string;
+  readonly rateLimitRemaining?: number;
+}
+
+export interface ConnectorContext {
+  readonly tenantId: string;
+  readonly correlationId: string;
+  readonly timeoutMs: number;
+}
+
+export interface Connector {
+  readonly sourceType: string;
+  readonly capabilities: readonly string[];
+  health(context: ConnectorContext, source: SourceDefinition): Promise<"healthy" | "degraded" | "unavailable">;
+  pull?(context: ConnectorContext, source: SourceDefinition, cursor?: string): Promise<ConnectorPullResult>;
+}
+
+export interface SourceRepository {
+  findById(tenantId: string, sourceId: string): Promise<SourceDefinition | null>;
+}
+
+export interface SyncRepository {
+  findCompletedByIdempotencyKey(tenantId: string, idempotencyKey: string): Promise<{ id: string } | null>;
+  start(input: { tenantId: string; sourceId: string; idempotencyKey: string; correlationId: string; cursorBefore?: string }): Promise<string>;
+  complete(input: { id: string; tenantId: string; cursorAfter?: string }): Promise<void>;
+  fail(input: { id: string; tenantId: string; errorCode: string; errorMessage: string }): Promise<void>;
+}
+
+export interface CanonicalFactRepository {
+  ingest(input: { tenantId: string; sourceId: string; mappingVersion: string; fact: ConnectorFact; correlationId: string }): Promise<void>;
+}
