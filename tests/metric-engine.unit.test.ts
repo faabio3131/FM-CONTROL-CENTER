@@ -31,6 +31,16 @@ describe("F08 deterministic Metric Engine", () => {
     expect(result).toMatchObject({ status: "available", value: "2", unit: "count" });
   });
 
+  it("soma valores financeiros sem erro de ponto flutuante", () => {
+    const definition = getMetricDefinition("billing.gross_billed")!;
+    const ts = new Date("2026-09-20T00:00:00Z");
+    const result = computeMetric(definition, [
+      { id: "1", externalId: "i1", factType: "billing.invoice", payload: { amount: "0.1", currency: "BRL" }, sourceTimestamp: ts, provenanceRef: "p1" },
+      { id: "2", externalId: "i2", factType: "billing.invoice", payload: { amount: "0.2", currency: "BRL" }, sourceTimestamp: ts, provenanceRef: "p2" },
+    ]);
+    expect(result).toMatchObject({ status: "available", value: "0.3", currency: "BRL" });
+  });
+
   it("recusa somar moedas diferentes sem política FX", () => {
     const definition = getMetricDefinition("billing.gross_billed")!;
     const ts = new Date("2026-09-20T00:00:00Z");
