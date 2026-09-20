@@ -7,7 +7,7 @@ export interface MetricStore {
   saveValue(input: {
     tenantId: string; metricId: string; metricVersion: number; value: string | null; unit: string; currency?: string;
     periodStart?: Date; periodEnd?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: string;
-    qualityStatus: string; sourceAuthority: string; provenanceRefs: string[];
+    qualityStatus: string; sourceAuthority: string; provenanceRefs: readonly string[];
   }): Promise<void>;
   latestValue(tenantId: string, metricId: string): Promise<MetricView | null>;
 }
