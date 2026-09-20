@@ -2,10 +2,10 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/application/audit/record-audit-event";
 import { buildCoreGateway } from "@/application/core/core-composition";
-import { CoreArgumentError, CoreCapabilityDeniedError } from "@/application/core/core-gateway";
+import { CoreArgumentError } from "@/application/core/core-gateway";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { AuthenticationRequiredError, TenantScopeRequiredError, type TenantContext } from "@/domain/security/tenant-context";
-import { CanonicalCoreUnavailableError } from "@/infrastructure/core/http-core-client";
+import { CognitiveModelContractError, CognitiveModelUnavailableError } from "@/domain/core/cognitive-model";
 
 async function auditCoreQuery(context: TenantContext | null, result: "success" | "failure" | "denied", metadata: Record<string, unknown>) {
   if (!context) return;
@@ -34,15 +34,11 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: error.message }, { status: 401 });
     if (error instanceof TenantScopeRequiredError) return NextResponse.json({ error: error.message }, { status: 403 });
-    if (error instanceof CoreCapabilityDeniedError) {
-      await auditCoreQuery(context, "denied", { error: error.message });
-      return NextResponse.json({ error: error.message }, { status: 403 });
-    }
     if (error instanceof CoreArgumentError) {
       await auditCoreQuery(context, "failure", { error: error.message });
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    if (error instanceof CanonicalCoreUnavailableError) {
+    if (error instanceof CognitiveModelUnavailableError || error instanceof CognitiveModelContractError) {
       await auditCoreQuery(context, "failure", { error: error.message });
       return NextResponse.json({ error: error.message }, { status: 503 });
     }
