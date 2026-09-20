@@ -58,11 +58,11 @@ describe("F07/F08 PostgreSQL tenant isolation", () => {
     const now = new Date();
     await store.saveValue({
       tenantId: TENANTS[0], metricId: "trial.starts.count", metricVersion: 1, value: "3", unit: "count",
-      computedAt: now, freshnessStatus: "current", qualityStatus: "verified", sourceAuthority: "fixture-a", provenanceRefs: [],
+      computedAt: now, freshnessStatus: "unknown", qualityStatus: "verified", sourceAuthority: "fixture-a", provenanceRefs: [],
     });
     await store.saveValue({
       tenantId: TENANTS[1], metricId: "trial.starts.count", metricVersion: 1, value: "99", unit: "count",
-      computedAt: new Date(now.getTime() + 1), freshnessStatus: "current", qualityStatus: "verified", sourceAuthority: "fixture-b", provenanceRefs: [],
+      computedAt: new Date(now.getTime() + 1), freshnessStatus: "unknown", qualityStatus: "verified", sourceAuthority: "fixture-b", provenanceRefs: [],
     });
 
     const value = await store.latestValue(TENANTS[0], "trial.starts.count");
