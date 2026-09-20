@@ -2,12 +2,15 @@ import { computeMetric, type MetricFact } from "@/domain/metrics/metric-engine";
 import { getMetricDefinition, METRIC_REGISTRY } from "@/domain/metrics/registry";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 
+export type MetricFreshnessStatus = "fresh" | "delayed" | "stale" | "unknown" | "unavailable";
+export type MetricQualityStatus = "verified" | "reconciled" | "partial" | "estimated" | "unknown" | "missing";
+
 export interface MetricStore {
   factsForMetric(input: { tenantId: string; factType: string; periodStart?: Date; periodEnd?: Date }): Promise<readonly MetricFact[]>;
   saveValue(input: {
     tenantId: string; metricId: string; metricVersion: number; value: string | null; unit: string; currency?: string;
-    periodStart?: Date; periodEnd?: Date; asOf?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: string;
-    qualityStatus: string; sourceAuthority: string; provenanceRefs: readonly string[];
+    periodStart?: Date; periodEnd?: Date; asOf?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: MetricFreshnessStatus;
+    qualityStatus: MetricQualityStatus; sourceAuthority: string; provenanceRefs: readonly string[];
   }): Promise<void>;
   latestValue(tenantId: string, metricId: string): Promise<MetricView | null>;
 }
@@ -23,8 +26,8 @@ export interface MetricView {
   readonly asOf?: Date;
   readonly computedAt: Date;
   readonly sourceTimestamp?: Date;
-  readonly freshnessStatus: string;
-  readonly qualityStatus: string;
+  readonly freshnessStatus: MetricFreshnessStatus;
+  readonly qualityStatus: MetricQualityStatus;
   readonly sourceAuthority: string;
   readonly provenanceRefs: readonly string[];
 }
