@@ -11,6 +11,17 @@ export interface SourceDefinition {
   readonly mappingVersion: string;
 }
 
+export interface NewSourceDefinition {
+  readonly name: string;
+  readonly sourceType: string;
+  readonly authoritativeDomain: string;
+  readonly syncMode: ConnectorSyncMode;
+  readonly secretRef?: string;
+  readonly mappingVersion?: string;
+  readonly freshnessSeconds?: number;
+  readonly config?: Record<string, unknown>;
+}
+
 export interface ConnectorFact {
   readonly externalId: string;
   readonly factType: string;
@@ -39,6 +50,8 @@ export interface Connector {
 
 export interface SourceRepository {
   findById(tenantId: string, sourceId: string): Promise<SourceDefinition | null>;
+  list(tenantId: string): Promise<readonly SourceDefinition[]>;
+  create(tenantId: string, input: NewSourceDefinition): Promise<SourceDefinition>;
 }
 
 export interface SyncRepository {
