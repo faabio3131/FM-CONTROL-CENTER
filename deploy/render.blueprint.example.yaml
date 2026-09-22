@@ -14,3 +14,9 @@ services:
         sync: false
       - key: RUN_MIGRATIONS_ON_STARTUP
         value: "false"
+      - key: FMCC_COGNITIVE_MODEL_BASE_URL
+        sync: false
+      - key: FMCC_COGNITIVE_MODEL_API_KEY
+        sync: false
+      - key: FMCC_COGNITIVE_MODEL_ID
+        sync: false

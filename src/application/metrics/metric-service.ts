@@ -1,0 +1,75 @@
+import { computeMetric, type MetricFact } from "@/domain/metrics/metric-engine";
+import { EXECUTIVE_METRIC_TARGETS, getMetricDefinition } from "@/domain/metrics/registry";
+import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
+
+export type MetricFreshnessStatus = "fresh" | "delayed" | "stale" | "unknown" | "unavailable";
+export type MetricQualityStatus = "verified" | "reconciled" | "partial" | "estimated" | "unknown" | "missing";
+
+export interface MetricStore {
+  factsForMetric(input: { tenantId: string; factType: string; periodStart?: Date; periodEnd?: Date }): Promise<readonly MetricFact[]>;
+  saveValue(input: {
+    tenantId: string; metricId: string; metricVersion: number; value: string | null; unit: string; currency?: string;
+    periodStart?: Date; periodEnd?: Date; asOf?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: MetricFreshnessStatus;
+    qualityStatus: MetricQualityStatus; sourceAuthority: string; provenanceRefs: readonly string[];
+  }): Promise<void>;
+  latestValue(tenantId: string, metricId: string): Promise<MetricView | null>;
+}
+
+export interface MetricView {
+  readonly metricId: string;
+  readonly metricVersion: number;
+  readonly value: string | null;
+  readonly unit: string;
+  readonly currency?: string;
+  readonly periodStart?: Date;
+  readonly periodEnd?: Date;
+  readonly asOf?: Date;
+  readonly computedAt: Date;
+  readonly sourceTimestamp?: Date;
+  readonly freshnessStatus: MetricFreshnessStatus;
+  readonly qualityStatus: MetricQualityStatus;
+  readonly sourceAuthority: string;
+  readonly provenanceRefs: readonly string[];
+}
+
+export class MetricService {
+  constructor(private readonly store: MetricStore) {}
+
+  async recompute(context: TenantContext, input: { metricId: string; periodStart?: Date; periodEnd?: Date; asOf?: Date }): Promise<MetricView> {
+    requirePermission(context, "metric:read");
+    const definition = getMetricDefinition(input.metricId);
+    if (!definition) throw new Error(`metrics.definition_not_found:${input.metricId}`);
+    const facts = await this.store.factsForMetric({ tenantId: context.tenantId, factType: definition.factType, periodStart: input.periodStart, periodEnd: input.periodEnd });
+    const computed = computeMetric(definition, facts);
+    const now = new Date();
+    const value: MetricView = {
+      metricId: definition.metricId, metricVersion: definition.version, value: computed.value,
+      unit: computed.unit, currency: computed.status === "available" ? computed.currency : undefined,
+      periodStart: input.periodStart, periodEnd: input.periodEnd, asOf: input.asOf,
+      computedAt: now, sourceTimestamp: computed.status === "available" ? computed.sourceTimestamp : undefined,
+      freshnessStatus: computed.status === "available" ? "unknown" : "unavailable",
+      qualityStatus: computed.qualityStatus, sourceAuthority: definition.sourceAuthority,
+      provenanceRefs: computed.provenanceRefs,
+    };
+    await this.store.saveValue({ tenantId: context.tenantId, ...value });
+    return value;
+  }
+
+  async query(context: TenantContext, metricId: string): Promise<MetricView | null> {
+    requirePermission(context, "metric:read");
+    if (!getMetricDefinition(metricId)) throw new Error(`metrics.definition_not_found:${metricId}`);
+    return this.store.latestValue(context.tenantId, metricId);
+  }
+
+  async overview(context: TenantContext) {
+    requirePermission(context, "metric:read");
+    return Promise.all(EXECUTIVE_METRIC_TARGETS.map(async (target) => {
+      const definition = getMetricDefinition(target.metricId);
+      return {
+        target,
+        definition,
+        value: definition ? await this.store.latestValue(context.tenantId, definition.metricId) : null,
+      };
+    }));
+  }
+}
