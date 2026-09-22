@@ -91,7 +91,7 @@ export class ConnectorRuntime {
       const result = await this.pullWithRetry(connector, source, context, input.cursor);
       for (const fact of result.facts) {
         await this.facts.ingest({
-          tenantId: context.tenantId, sourceId: source.id, mappingVersion: source.mappingVersion,
+          tenantId: context.tenantId, productId: source.productId, sourceId: source.id, mappingVersion: source.mappingVersion,
           fact, correlationId: context.correlationId,
         });
       }
