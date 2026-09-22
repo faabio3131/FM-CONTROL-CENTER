@@ -73,6 +73,12 @@ export const METRIC_REGISTRY: readonly MetricDefinition[] = [
     grain: "period", dimensions: ["currency"], timeWindow: "bounded_period", freshnessPolicy: "source_governed",
     sourceAuthority: "configured_operating_cost_source",
   },
+  {
+    metricId: "lead.created.count", version: 1, calculationVersion: "v1",
+    displayName: "Leads criados", description: "Leads distintos criados no período por fonte comercial autorizada.",
+    kind: "count", factType: "lead.created", unit: "count", grain: "period", dimensions: [],
+    timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_lead_source",
+  },
 ] as const;
 
 export function getMetricDefinition(metricId: string): MetricDefinition | null {
@@ -102,7 +108,7 @@ export const EXECUTIVE_METRIC_TARGETS: readonly ExecutiveMetricTarget[] = [
   { metricId: "cost.operating.total", displayName: "Custos operacionais rastreáveis", definitionStatus: "implemented" },
   { metricId: "finance.operating_result", displayName: "Resultado operacional", definitionStatus: "pending_semantics" },
   { metricId: "finance.operating_margin.rate", displayName: "Margem operacional", definitionStatus: "pending_semantics" },
-  { metricId: "lead.created.count", displayName: "Leads criados", definitionStatus: "pending_semantics" },
+  { metricId: "lead.created.count", displayName: "Leads criados", definitionStatus: "implemented" },
   { metricId: "incident.count", displayName: "Incidentes", definitionStatus: "pending_semantics" },
   { metricId: "service.error.rate", displayName: "Taxa de erro", definitionStatus: "pending_semantics" },
   { metricId: "usage.active_users.dau", displayName: "Usuários ativos diários (DAU)", definitionStatus: "pending_semantics" },
