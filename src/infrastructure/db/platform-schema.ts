@@ -1,8 +1,22 @@
 import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
+export const productDefinitions = pgTable("fmcc_product_definition", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("fmcc_product_tenant_slug_uq").on(t.tenantId, t.slug),
+  index("fmcc_product_tenant_status_idx").on(t.tenantId, t.status),
+]);
+
 export const sourceDefinitions = pgTable("fmcc_source_definition", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id"),
   name: text("name").notNull(),
   sourceType: text("source_type").notNull(),
   authoritativeDomain: text("authoritative_domain").notNull(),
@@ -17,6 +31,7 @@ export const sourceDefinitions = pgTable("fmcc_source_definition", {
 }, (t) => [
   uniqueIndex("fmcc_source_tenant_name_uq").on(t.tenantId, t.name),
   index("fmcc_source_tenant_status_idx").on(t.tenantId, t.status),
+  index("fmcc_source_tenant_product_idx").on(t.tenantId, t.productId),
 ]);
 
 export const syncExecutions = pgTable("fmcc_sync_execution", {
@@ -41,6 +56,7 @@ export const syncExecutions = pgTable("fmcc_sync_execution", {
 export const canonicalFacts = pgTable("fmcc_canonical_fact", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id"),
   sourceId: uuid("source_id").notNull(),
   externalId: text("external_id").notNull(),
   factType: text("fact_type").notNull(),
@@ -52,11 +68,13 @@ export const canonicalFacts = pgTable("fmcc_canonical_fact", {
 }, (t) => [
   uniqueIndex("fmcc_fact_dedupe_uq").on(t.tenantId, t.sourceId, t.externalId, t.mappingVersion),
   index("fmcc_fact_tenant_type_time_idx").on(t.tenantId, t.factType, t.sourceTimestamp),
+  index("fmcc_fact_tenant_product_type_time_idx").on(t.tenantId, t.productId, t.factType, t.sourceTimestamp),
 ]);
 
 export const metricValues = pgTable("fmcc_metric_value", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id"),
   metricId: text("metric_id").notNull(),
   metricVersion: integer("metric_version").notNull(),
   value: text("value"),
@@ -73,4 +91,5 @@ export const metricValues = pgTable("fmcc_metric_value", {
   provenanceRefs: jsonb("provenance_refs").$type<string[]>().notNull().default([]),
 }, (t) => [
   index("fmcc_metric_tenant_metric_time_idx").on(t.tenantId, t.metricId, t.computedAt),
+  index("fmcc_metric_tenant_product_metric_time_idx").on(t.tenantId, t.productId, t.metricId, t.computedAt),
 ]);

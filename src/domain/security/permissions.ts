@@ -1,12 +1,17 @@
 export type FmccRole = "owner" | "admin" | "analyst" | "viewer" | "member";
-export type Permission = "tenant:manage" | "member:manage" | "source:read" | "source:write" | "metric:read" | "audit:read" | "integration:read" | "integration:write";
+export type Permission =
+  | "tenant:manage" | "member:manage"
+  | "source:read" | "source:write"
+  | "metric:read" | "audit:read"
+  | "integration:read" | "integration:write"
+  | "product:read" | "product:write";
 
 const ROLE_PERMISSIONS: Record<FmccRole, ReadonlySet<Permission>> = {
-  owner: new Set(["tenant:manage","member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write"]),
-  admin: new Set(["member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write"]),
-  analyst: new Set(["source:read","metric:read","audit:read","integration:read"]),
-  viewer: new Set(["metric:read","integration:read"]),
-  member: new Set(["metric:read","integration:read"]),
+  owner: new Set(["tenant:manage","member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write"]),
+  admin: new Set(["member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write"]),
+  analyst: new Set(["source:read","metric:read","audit:read","integration:read","product:read"]),
+  viewer: new Set(["metric:read","integration:read","product:read"]),
+  member: new Set(["metric:read","integration:read","product:read"]),
 };
 
 export function normalizeRole(role: string): FmccRole {

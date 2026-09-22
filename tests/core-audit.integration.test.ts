@@ -33,6 +33,7 @@ describe("F09 Cognitive Core audit + tenant isolation", () => {
         answer: "R$ 100",
         factualStatus: "grounded",
         evidenceRefs: ["billing.gross_billed"],
+        productRefs: ["kordena"],
       },
     });
 
@@ -58,6 +59,7 @@ describe("F09 Cognitive Core audit + tenant isolation", () => {
     expect(rows[0].metadata).toMatchObject({
       factualStatus: "grounded",
       evidenceRefs: ["billing.gross_billed"],
+      productRefs: ["kordena"],
     });
   });
 

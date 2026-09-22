@@ -14,9 +14,28 @@ describe("F10 Executive Command Center contract", () => {
   it("keeps Core query behind the governed API boundary", () => {
     const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/core-query-form.tsx"), "utf8");
     expect(source).toContain('fetch("/api/core/query"');
-    expect(source).toContain("Provider cognitivo indisponível");
+    expect(source).toContain("Provedor cognitivo indisponível");
     expect(source).toContain("contrato cognitivo governado");
     expect(source).not.toContain("Core canônico ainda não está conectado neste ambiente");
+  });
+
+  it("limpa a pergunta após o envio e mantém a resposta fora do campo", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/core-query-form.tsx"), "utf8");
+    expect(source).toContain('const [question, setQuestion] = useState("")');
+    expect(source).toContain("const normalizedQuestion = question.trim()");
+    expect(source).toContain('setQuestion("")');
+    expect(source).toContain("value={question}");
+    expect(source).toContain("body: JSON.stringify({ question: normalizedQuestion })");
+  });
+
+  it("oferece ditado por microfone em português sem substituir a digitação", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/core-query-form.tsx"), "utf8");
+    expect(source).toContain("webkitSpeechRecognition");
+    expect(source).toContain('recognition.lang = "pt-BR"');
+    expect(source).toContain('aria-label={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}');
+    expect(source).toContain('voiceErrorMessage');
+    expect(source).toContain('Reconhecimento de voz não disponível neste navegador.');
+    expect(source).toContain("activeRecognition.abort()");
   });
 
   it("recovers from transport or invalid-response failures instead of remaining in loading", () => {

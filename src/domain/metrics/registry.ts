@@ -22,7 +22,7 @@ export interface MetricDefinition {
 export const METRIC_REGISTRY: readonly MetricDefinition[] = [
   {
     metricId: "trial.starts.count", version: 1, calculationVersion: "v1",
-    displayName: "Trials iniciados", description: "Trials distintos iniciados no período.",
+    displayName: "Testes gratuitos iniciados", description: "Testes gratuitos distintos iniciados no período.",
     kind: "count", factType: "trial.started", unit: "count", grain: "period", dimensions: [],
     timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_trial_source",
   },
@@ -66,20 +66,20 @@ export interface ExecutiveMetricTarget {
 }
 
 export const EXECUTIVE_METRIC_TARGETS: readonly ExecutiveMetricTarget[] = [
-  { metricId: "trial.starts.count", displayName: "Trials iniciados", definitionStatus: "implemented" },
-  { metricId: "trial.active.count", displayName: "Trials ativos", definitionStatus: "pending_semantics" },
-  { metricId: "trial.conversion.rate", displayName: "Conversão trial → assinatura", definitionStatus: "pending_semantics" },
+  { metricId: "trial.starts.count", displayName: "Testes gratuitos iniciados", definitionStatus: "implemented" },
+  { metricId: "trial.active.count", displayName: "Testes gratuitos ativos", definitionStatus: "pending_semantics" },
+  { metricId: "trial.conversion.rate", displayName: "Conversão de teste gratuito → assinatura", definitionStatus: "pending_semantics" },
   { metricId: "subscription.active.count", displayName: "Assinaturas ativas", definitionStatus: "implemented" },
   { metricId: "subscription.cancelled.count", displayName: "Cancelamentos", definitionStatus: "implemented" },
-  { metricId: "subscription.logo_churn.rate", displayName: "Churn de clientes", definitionStatus: "pending_semantics" },
-  { metricId: "revenue.mrr", displayName: "MRR", definitionStatus: "pending_semantics" },
-  { metricId: "revenue.arr", displayName: "ARR", definitionStatus: "pending_semantics" },
+  { metricId: "subscription.logo_churn.rate", displayName: "Taxa de cancelamento de clientes", definitionStatus: "pending_semantics" },
+  { metricId: "revenue.mrr", displayName: "Receita recorrente mensal (MRR)", definitionStatus: "pending_semantics" },
+  { metricId: "revenue.arr", displayName: "Receita recorrente anual (ARR)", definitionStatus: "pending_semantics" },
   { metricId: "billing.gross_billed", displayName: "Faturamento bruto emitido", definitionStatus: "implemented" },
   { metricId: "revenue.cash_collected", displayName: "Caixa recebido", definitionStatus: "implemented" },
   { metricId: "receivable.delinquent_amount", displayName: "Inadimplência", definitionStatus: "pending_semantics" },
   { metricId: "lead.created.count", displayName: "Leads criados", definitionStatus: "pending_semantics" },
   { metricId: "incident.count", displayName: "Incidentes", definitionStatus: "pending_semantics" },
   { metricId: "service.error.rate", displayName: "Taxa de erro", definitionStatus: "pending_semantics" },
-  { metricId: "usage.active_users.dau", displayName: "Usuários ativos (DAU)", definitionStatus: "pending_semantics" },
-  { metricId: "support.ticket.open.count", displayName: "Tickets abertos", definitionStatus: "pending_semantics" },
+  { metricId: "usage.active_users.dau", displayName: "Usuários ativos diários (DAU)", definitionStatus: "pending_semantics" },
+  { metricId: "support.ticket.open.count", displayName: "Chamados de suporte abertos", definitionStatus: "pending_semantics" },
 ] as const;
