@@ -28,7 +28,7 @@ export default function OnboardingPage() {
       });
 
       if (result.error) {
-        setMessage(result.error.message ?? "Não foi possível criar a organização.");
+        setMessage("Não foi possível criar a organização.");
         return;
       }
 
@@ -47,7 +47,7 @@ export default function OnboardingPage() {
       const result = await authClient.organization.setActive({ organizationId });
 
       if (result.error) {
-        setMessage(result.error.message ?? "Não foi possível entrar na organização.");
+        setMessage("Não foi possível entrar na organização.");
         return;
       }
 
@@ -63,9 +63,9 @@ export default function OnboardingPage() {
   return (
     <main className="shell">
       <section className="card auth-card">
-        <span className="eyebrow">Tenant</span>
+        <span className="eyebrow">Organização</span>
         <h1>Organização</h1>
-        <p>A organização autenticada é a raiz de isolamento de dados do Control Center.</p>
+        <p>A organização autenticada é a raiz de isolamento de dados do FM Control Center.</p>
 
         <section aria-labelledby="existing-orgs-title">
           <h2 id="existing-orgs-title">Entrar em organização existente</h2>
