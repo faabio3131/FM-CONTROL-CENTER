@@ -34,10 +34,12 @@ describe("FMCC cognitive model adapter", () => {
     expect(result.metricIds).toEqual(["billing.gross_billed"]);
     const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
       max_tokens?: number;
-      response_format?: { type?: string };
+      reasoning_effort?: string;
+      response_format?: unknown;
     };
     expect(request.max_tokens).toBe(512);
-    expect(request.response_format).toEqual({ type: "json_object" });
+    expect(request.reasoning_effort).toBe("low");
+    expect(request.response_format).toBeUndefined();
   });
 
   it("tolera texto ao redor do JSON sem ampliar o catálogo permitido", async () => {
