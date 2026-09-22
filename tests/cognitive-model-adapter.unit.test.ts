@@ -15,27 +15,16 @@ describe("FMCC cognitive model adapter", () => {
     }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const adapter = new OpenAiCompatibleCognitiveModel(
-      "https://models.example.test",
-      "unit-test-token",
-      "approved-model",
-    );
-
+    const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
     const result = await adapter.plan({
       question: "Quanto faturamos?",
-      metricCatalog: [{
-        metricId: "billing.gross_billed",
-        displayName: "Faturamento",
-        description: "Faturamento governado",
-      }],
+      metricCatalog: [{ metricId: "billing.gross_billed", displayName: "Faturamento", description: "Faturamento governado" }],
       operationalContext: [],
     });
 
-    expect(result.metricIds).toEqual(["billing.gross_billed"]);
+    expect(result).toEqual({ metricIds: ["billing.gross_billed"], productSlugs: [] });
     const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
-      max_tokens?: number;
-      reasoning_effort?: string;
-      response_format?: unknown;
+      max_tokens?: number; reasoning_effort?: string; response_format?: unknown;
     };
     expect(request.max_tokens).toBe(512);
     expect(request.reasoning_effort).toBe("low");
@@ -47,21 +36,46 @@ describe("FMCC cognitive model adapter", () => {
       choices: [{ message: { content: 'prefix {"metricIds":["billing.gross_billed","metric.forbidden"]} suffix' } }],
     }), { status: 200, headers: { "content-type": "application/json" } })));
 
-    const adapter = new OpenAiCompatibleCognitiveModel(
-      "https://models.example.test",
-      "unit-test-token",
-      "approved-model",
-    );
-
+    const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
     await expect(adapter.plan({
       question: "Quanto faturamos?",
-      metricCatalog: [{
-        metricId: "billing.gross_billed",
-        displayName: "Faturamento",
-        description: "Faturamento governado",
-      }],
+      metricCatalog: [{ metricId: "billing.gross_billed", displayName: "Faturamento", description: "Faturamento governado" }],
       operationalContext: [],
-    })).resolves.toEqual({ metricIds: ["billing.gross_billed"] });
+    })).resolves.toEqual({ metricIds: ["billing.gross_billed"], productSlugs: [] });
+  });
+
+  it("aceita somente productSlugs presentes no catálogo autorizado", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        metricIds: ["billing.gross_billed"],
+        productSlugs: ["kordena"],
+      }) } }],
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+
+    const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
+    await expect(adapter.plan({
+      question: "Como está o faturamento do Kordena?",
+      metricCatalog: [{ metricId: "billing.gross_billed", displayName: "Faturamento", description: "Faturamento governado" }],
+      productCatalog: [{ slug: "kordena", name: "Kordena" }],
+      operationalContext: [],
+    })).resolves.toEqual({ metricIds: ["billing.gross_billed"], productSlugs: ["kordena"] });
+  });
+
+  it("falha fechado quando o provider tenta selecionar produto não autorizado", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        metricIds: ["billing.gross_billed"],
+        productSlugs: ["foreign-product"],
+      }) } }],
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+
+    const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
+    await expect(adapter.plan({
+      question: "Consulte outro produto",
+      metricCatalog: [{ metricId: "billing.gross_billed", displayName: "Faturamento", description: "Faturamento governado" }],
+      productCatalog: [{ slug: "kordena", name: "Kordena" }],
+      operationalContext: [],
+    })).rejects.toBeInstanceOf(CognitiveModelContractError);
   });
 
   it("falha fechado quando o modelo não retorna nenhuma métrica autorizada", async () => {
@@ -69,19 +83,10 @@ describe("FMCC cognitive model adapter", () => {
       choices: [{ message: { content: JSON.stringify({ metricIds: ["metric.forbidden"] }) } }],
     }), { status: 200, headers: { "content-type": "application/json" } })));
 
-    const adapter = new OpenAiCompatibleCognitiveModel(
-      "https://models.example.test",
-      "unit-test-token",
-      "approved-model",
-    );
-
+    const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
     await expect(adapter.plan({
       question: "Solicite uma métrica fora do catálogo",
-      metricCatalog: [{
-        metricId: "trial.starts.count",
-        displayName: "Trials",
-        description: "Trials iniciados",
-      }],
+      metricCatalog: [{ metricId: "trial.starts.count", displayName: "Trials", description: "Trials iniciados" }],
       operationalContext: [],
     })).rejects.toBeInstanceOf(CognitiveModelContractError);
   });
@@ -91,12 +96,7 @@ describe("FMCC cognitive model adapter", () => {
       choices: [{ message: { content: "A métrica governada indica 10 trials." } }],
     }), { status: 200, headers: { "content-type": "application/json" } })));
 
-    const adapter = new OpenAiCompatibleCognitiveModel(
-      "https://models.example.test",
-      "unit-test-token",
-      "approved-model",
-    );
-
+    const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
     await expect(adapter.synthesize({
       question: "Quantos trials?",
       facts: [{ metricId: "trial.starts.count", value: "10" }],
