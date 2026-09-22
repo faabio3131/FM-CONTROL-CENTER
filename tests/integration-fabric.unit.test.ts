@@ -26,6 +26,7 @@ function sourceRepo(sourceResult: SourceDefinition | null): SourceRepository {
 function runtimeFor(sourceResult: SourceDefinition | null = source, connectorOverride?: Connector) {
   const completed = new Map<string, string>();
   const facts: unknown[] = [];
+  const failures: Array<{ errorCode: string; errorMessage: string }> = [];
   const connector: Connector = connectorOverride ?? {
     sourceType: "fixture", capabilities: ["billing.read"],
     async health() { return "healthy"; },
@@ -39,7 +40,7 @@ function runtimeFor(sourceResult: SourceDefinition | null = source, connectorOve
         return id ? { id, state: "completed" as const } : { id: "exec-1", state: "started" as const };
       },
       async complete(input) { completed.set("idem-1", input.id); },
-      async fail() {},
+      async fail(input) { failures.push({ errorCode: input.errorCode, errorMessage: input.errorMessage }); },
     },
     { async ingest(input) { facts.push(input); } },
     [connector],
@@ -47,7 +48,7 @@ function runtimeFor(sourceResult: SourceDefinition | null = source, connectorOve
     3,
     0,
   );
-  return { runtime, facts };
+  return { runtime, facts, failures };
 }
 
 describe("F07 integration fabric", () => {
@@ -81,6 +82,25 @@ describe("F07 integration fabric", () => {
     const result = await runtime.syncPull(context, { sourceId: "source-1", idempotencyKey: "idem-1" });
     expect(attempts).toBe(3);
     expect(result).toMatchObject({ status: "completed", nextCursor: "done", rateLimitRemaining: 10 });
+  });
+
+  it("não persiste mensagem bruta de erro externo que possa conter segredo", async () => {
+    const leaked = "https://provider.example.test?token=super-secret-value";
+    const connector: Connector = {
+      sourceType: "fixture", capabilities: ["billing.read"],
+      async health() { return "healthy"; },
+      async pull() { throw new Error(leaked); },
+    };
+    const { runtime, failures } = runtimeFor(source, connector);
+
+    await expect(runtime.syncPull(context, { sourceId: "source-1", idempotencyKey: "idem-secret" }))
+      .rejects.toThrow(leaked);
+
+    expect(failures).toEqual([{
+      errorCode: "Error",
+      errorMessage: "integration.connector_failure",
+    }]);
+    expect(JSON.stringify(failures)).not.toContain("super-secret-value");
   });
 
   it("nega sync para papel sem integration:write", async () => {
