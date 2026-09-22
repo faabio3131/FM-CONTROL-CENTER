@@ -42,3 +42,10 @@
 .comparison-panel{display:grid;gap:16px}
 .comparison-result{border-top:1px solid var(--line);padding-top:14px}
 .comparison-result ul{margin:.7rem 0 0;padding-left:1.2rem;color:var(--muted)}
+
+.core-voice-button,.core-submit-button{white-space:nowrap;align-self:stretch}
+.core-voice-button[aria-pressed="true"]{outline:2px solid #9aa4b2;outline-offset:2px}
+.core-voice-status{display:block;color:var(--muted);min-height:1.1em}
+@media (max-width:720px){
+  .core-voice-button,.core-submit-button{width:100%}
+}
