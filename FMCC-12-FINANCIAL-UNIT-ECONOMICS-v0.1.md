@@ -64,3 +64,18 @@ Nenhum será calculado por aproximação.
 - nenhuma operação financeira;
 - nenhuma autorização delegada ao Core;
 - valores ausentes nunca viram zero.
+
+
+## Fechamento técnico da fase
+
+Implementação concluída na PR #12:
+- métricas base governadas de inadimplência e custos;
+- resultado operacional determinístico usando decimal textual/BigInt;
+- bloqueio de moeda e período incompatíveis;
+- API/UI financeira;
+- Core recebe resultado operacional somente após cálculo determinístico;
+- MRR/ARR, margem percentual, CAC/LTV/payback/ARPU permanecem semântica pendente quando não sustentados.
+
+Foundation Gate #205 — **SUCCESS** no SHA `c2afaf26fbe727baba3f6e3658e48978e06f1307`.
+
+**Estado:** implementação/CI PASS. Preview da tranche permanece evidência separada.
