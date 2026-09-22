@@ -1,12 +1,10 @@
 import type { NewSourceDefinition, SourceDefinition, SourceRepository } from "@/domain/integration/contracts";
+import type { ProductRepository } from "@/domain/products/contracts";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 
-export class InvalidSecretReferenceError extends Error {
-  constructor() { super("integration.secret_reference_invalid"); }
-}
-export class ConfigSecretForbiddenError extends Error {
-  constructor(path: string) { super(`integration.config_secret_forbidden:${path}`); }
-}
+export class InvalidSecretReferenceError extends Error { constructor() { super("integration.secret_reference_invalid"); } }
+export class ConfigSecretForbiddenError extends Error { constructor(path: string) { super(`integration.config_secret_forbidden:${path}`); } }
+export class InvalidProductScopeError extends Error { constructor() { super("integration.product_scope_invalid"); } }
 
 const SENSITIVE_CONFIG_KEY = /(secret|password|passwd|token|api[_-]?key|private[_-]?key|credential)/i;
 
@@ -28,7 +26,7 @@ function assertConfigContainsNoSecrets(value: unknown, path = "config"): void {
 }
 
 export class SourceRegistryService {
-  constructor(private readonly sources: SourceRepository) {}
+  constructor(private readonly sources: SourceRepository, private readonly products?: ProductRepository) {}
 
   async list(context: TenantContext): Promise<readonly SourceDefinition[]> {
     requirePermission(context, "source:read");
@@ -39,11 +37,11 @@ export class SourceRegistryService {
     requirePermission(context, "source:write");
     validateSecretRef(input.secretRef);
     assertConfigContainsNoSecrets(input.config);
-    if (!input.name.trim() || !input.sourceType.trim() || !input.authoritativeDomain.trim()) {
-      throw new Error("integration.source_definition_invalid");
-    }
-    if (input.freshnessSeconds !== undefined && (!Number.isInteger(input.freshnessSeconds) || input.freshnessSeconds < 1)) {
-      throw new Error("integration.freshness_invalid");
+    if (!input.name.trim() || !input.sourceType.trim() || !input.authoritativeDomain.trim()) throw new Error("integration.source_definition_invalid");
+    if (input.freshnessSeconds !== undefined && (!Number.isInteger(input.freshnessSeconds) || input.freshnessSeconds < 1)) throw new Error("integration.freshness_invalid");
+    if (input.productId) {
+      const product = await this.products?.findById(context.tenantId, input.productId);
+      if (!product || product.status !== "active") throw new InvalidProductScopeError();
     }
     return this.sources.create(context.tenantId, {
       ...input,
