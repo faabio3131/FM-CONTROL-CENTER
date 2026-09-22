@@ -20,8 +20,8 @@ O smoke real encontrou duas falhas de UX que não haviam aparecido no CI:
 
 As duas foram corrigidas, receberam testes de regressão e foram recertificadas.
 
-**Classificação atual:** FUNCIONALMENTE APROVADA EM CI + PREVIEW.  
-**Pendência única antes do gate final:** revalidar explicitamente `/api/health` e `/api/ready` no HEAD documental final após esta reconciliação.
+**Classificação atual:** FUNCIONALMENTE APROVADA EM CI + PREVIEW + HEALTH/READY.  
+**Estado de governança:** READY FOR MERGE após recertificação deste último HEAD documental; merge continua condicionado à autorização humana explícita.
 
 ## Entrega técnica
 
@@ -152,11 +152,17 @@ Correção: camada de apresentação pt-BR para estados, categorias, atualidade,
 - F12 permanece proibida;
 - merge depende de gate final + autorização humana explícita.
 
-## Última pendência
+## Fechamento operacional
 
-Depois deste commit documental:
-- recertificar HEAD;
-- Auto-Deploy no Preview;
-- validar `/api/health`;
-- validar `/api/ready`;
-- registrar GO/NO-GO final.
+Checks finais recebidos:
+- `GET /api/health` → serviço `fm-control-center`, status `ok`;
+- `GET /api/ready` → status `ready`.
+
+Essas evidências foram obtidas após a conclusão do Gate #188. O delta entre o candidate funcional `986991e...` e o HEAD documental anterior `c3c9f6...` contém somente arquivos Markdown, sem alteração de runtime.
+
+Após este último commit documental:
+- recertificar o HEAD no Foundation Gate;
+- verificar que o delta adicional permanece somente documental;
+- registrar **GO FOR MERGE** na PR #11;
+- não executar merge sem autorização humana explícita;
+- após merge, recertificar `main` antes de liberar F12.
