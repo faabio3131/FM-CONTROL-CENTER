@@ -40,3 +40,19 @@ Métricas:
 Nenhum `99.9%` pode ser fabricado.
 
 O Core pode explicar/correlacionar fatos operacionais, mas não pode alterar infraestrutura.
+
+
+## Fechamento técnico da fase
+
+Implementação concluída na PR #12:
+- incident count;
+- job failure count;
+- integration failure count;
+- service error count;
+- API/UI operacional governada;
+- health/readiness tratados como sinais pontuais, nunca como uptime;
+- availability/error rate/infra consumption permanecem `pending_semantics` onde não há denominador/série temporal.
+
+Foundation Gate #211 — **SUCCESS** no SHA `bbe84f94d953825dd783a5a16a8c15d666deb315`, certificado por PR auxiliar #13 sem merge. O mesmo SHA recebeu Gate #212 — **SUCCESS** na PR #12.
+
+**Estado:** implementação/CI PASS. Preview da tranche permanece evidência separada.
