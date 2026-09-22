@@ -112,10 +112,9 @@ describe("F09 Cognitive Core audit + tenant isolation", () => {
     expect(tenantBUserB).toHaveLength(1);
     expect(tenantBUserB[0]).toMatchObject({ question: "Pergunta B", answer: "Resposta B" });
 
-    expect(JSON.stringify(tenantAUserA)).not.toContain("Pergunta A2");
-    expect(JSON.stringify(tenantAUserA)).not.toContain("Pergunta B");
-    expect(JSON.stringify(tenantAUserA2)).not.toContain("Pergunta A");
-    expect(JSON.stringify(tenantBUserB)).not.toContain("Pergunta A");
+    expect(tenantAUserA.map((item) => item.question)).toEqual(["Pergunta A"]);
+    expect(tenantAUserA2.map((item) => item.question)).toEqual(["Pergunta A2"]);
+    expect(tenantBUserB.map((item) => item.question)).toEqual(["Pergunta B"]);
   });
 
   it("ignora eventos de falha na memória de continuidade", async () => {
