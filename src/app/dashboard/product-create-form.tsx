@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { mensagemErroCadastroProduto } from "@/presentation/pt-br";
 
 type ProductCreateResponse = { error?: string };
 
@@ -37,7 +38,7 @@ export function ProductCreateForm() {
       const payload = await responsePayload(response);
       if (!response.ok) {
         setStatus("error");
-        setMessage(payload.error ?? "Não foi possível cadastrar o produto.");
+        setMessage(mensagemErroCadastroProduto(payload.error));
         return;
       }
 
@@ -53,7 +54,7 @@ export function ProductCreateForm() {
   return (
     <form className="product-create-form" onSubmit={submit}>
       <label>Produto<input name="name" required minLength={2} maxLength={120} autoComplete="off" placeholder="Ex.: Kordena" /></label>
-      <label>Slug<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autoComplete="off" placeholder="kordena" /></label>
+      <label>Identificador<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autoComplete="off" placeholder="kordena" /></label>
       <button className="button" type="submit" disabled={status === "saving"}>{status === "saving" ? "Salvando…" : "Cadastrar produto"}</button>
       {status === "error" ? <small className="error">{message}</small> : null}
     </form>
