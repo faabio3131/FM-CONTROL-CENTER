@@ -31,4 +31,22 @@ describe("FMCC cognitive architecture ownership", () => {
     expect(adapter).toContain("Selecione SOMENTE metricIds presentes no catálogo");
     expect(adapter).toContain("Nunca invente números");
   });
+
+  it("degrada configuração cognitiva inválida para erro de provider indisponível", () => {
+    const composition = readFileSync("src/application/core/core-composition.ts", "utf8");
+
+    expect(composition).toContain("CognitiveModelUnavailableError");
+    expect(composition).toContain("try {");
+    expect(composition).toContain("config = cognitiveEnv()");
+    expect(composition).toContain("throw new CognitiveModelUnavailableError()");
+  });
+
+  it("declara variáveis cognitivas no blueprint de Preview sem versionar segredos", () => {
+    const blueprint = readFileSync("deploy/render.blueprint.example.yaml", "utf8");
+
+    expect(blueprint).toContain("FMCC_COGNITIVE_MODEL_BASE_URL");
+    expect(blueprint).toContain("FMCC_COGNITIVE_MODEL_API_KEY");
+    expect(blueprint).toContain("FMCC_COGNITIVE_MODEL_ID");
+    expect(blueprint).not.toContain("replace-with-runtime-secret");
+  });
 });
