@@ -28,23 +28,34 @@ export function CoreQueryForm() {
     if (!question) return;
 
     setState({ status: "loading" });
-    const response = await fetch("/api/core/query", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question }),
-    });
-    const payload = await response.json() as {
-      answer?: string;
-      evidence?: Array<{ ref: string; sourceAuthority?: string }>;
-      error?: string;
-    };
 
-    if (!response.ok) {
-      setState({ status: "error", answer: cognitiveErrorMessage(payload.error) });
-      return;
+    try {
+      const response = await fetch("/api/core/query", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+
+      const payload = await response.json() as {
+        answer?: string;
+        evidence?: Array<{ ref: string; sourceAuthority?: string }>;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        setState({ status: "error", answer: cognitiveErrorMessage(payload.error) });
+        return;
+      }
+
+      if (typeof payload.answer !== "string" || !payload.answer.trim()) {
+        setState({ status: "error", answer: cognitiveErrorMessage() });
+        return;
+      }
+
+      setState({ status: "success", answer: payload.answer, evidence: payload.evidence });
+    } catch {
+      setState({ status: "error", answer: cognitiveErrorMessage() });
     }
-
-    setState({ status: "success", answer: payload.answer, evidence: payload.evidence });
   }
 
   return (
