@@ -3,6 +3,16 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type ProductCreateResponse = { error?: string };
+
+async function responsePayload(response: Response): Promise<ProductCreateResponse> {
+  try {
+    return await response.json() as ProductCreateResponse;
+  } catch {
+    return {};
+  }
+}
+
 export function ProductCreateForm() {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
@@ -10,7 +20,8 @@ export function ProductCreateForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get("name") ?? "").trim();
     const slug = String(form.get("slug") ?? "").trim();
     if (!name || !slug) return;
@@ -23,13 +34,14 @@ export function ProductCreateForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name, slug }),
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await responsePayload(response);
       if (!response.ok) {
         setStatus("error");
         setMessage(payload.error ?? "Não foi possível cadastrar o produto.");
         return;
       }
-      event.currentTarget.reset();
+
+      formElement.reset();
       setStatus("idle");
       router.refresh();
     } catch {
