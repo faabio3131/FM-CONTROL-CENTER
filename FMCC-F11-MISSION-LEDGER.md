@@ -30,8 +30,9 @@
 | Ditado por voz pt-BR | PASS | transcrição recebida no Preview |
 | Campo do Core após envio | PASS | pergunta limpa; resposta preservada |
 | CI funcional | PASS | Gate #184 |
-| Reconciliação documental final | EM EXECUÇÃO | este HEAD documental |
-| health/ready no HEAD documental final | PENDENTE | último subgate operacional |
+| Reconciliação documental final | CONCLUÍDA | fechamento de 22/09/2026 |
+| health/ready final | PASS | `/api/health` ok + `/api/ready` ready |
+| Gate final da PR #11 | AGUARDANDO RECERTIFICAÇÃO | resultado será registrado na PR sem novo commit documental |
 | Merge PR #11 | NÃO AUTORIZADO | exige GO final + autorização humana |
 
 ## Evidência automática funcional
@@ -64,8 +65,11 @@ Risco conhecido:
 - logs `database_migration_started` e `database_migration_completed`;
 - serviço Live.
 
-### Runtime já comprovado durante a F11
-- `/api/health` e `/api/ready` passaram em candidate anterior da mesma F11;
+### Runtime final
+- `GET /api/health` → `{"service":"fm-control-center","status":"ok"}`;
+- `GET /api/ready` → `{"status":"ready"}`;
+- evidências manuais recebidas após o Gate #188;
+- do candidate funcional `986991e...` ao HEAD documental `c3c9f6...` houve somente alterações Markdown, sem mudança de código executável;
 - dashboard autenticado acessível;
 - sessão existente reutilizada sem novo login nesta rodada.
 
@@ -141,15 +145,16 @@ Confirmado no Preview:
 - evidence e Audit Ledger preservam product refs;
 - interface traduz estados internos sem alterar contratos técnicos.
 
-## Último subgate
+## Gate final
 
-Após esta reconciliação documental:
-1. recertificar o novo HEAD documental;
-2. aguardar Auto-Deploy desse HEAD no Preview;
-3. revalidar explicitamente:
-   - `GET /api/health` → status ok;
-   - `GET /api/ready` → status ready;
-4. registrar gate final;
-5. somente então solicitar autorização humana explícita para merge.
+Todos os subgates funcionais e operacionais da F11 estão concluídos.
 
-**F12 permanece proibida até o fechamento formal da F11.**
+Este documento é o último ajuste documental. O novo HEAD deve:
+1. passar integralmente pelo Foundation Gate;
+2. permanecer com delta somente documental em relação ao runtime já aprovado;
+3. receber classificação final **GO FOR MERGE** na PR #11;
+4. aguardar autorização humana explícita antes de qualquer merge.
+
+Nenhum novo commit documental é necessário para registrar o resultado do gate final; a evidência final fica na PR para evitar criar um novo HEAD após a certificação.
+
+**F12 permanece proibida até o merge governado da F11 e a recertificação pós-merge da main.**
