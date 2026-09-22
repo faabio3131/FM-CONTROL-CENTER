@@ -8,13 +8,15 @@ export class FmccVerticalCognitiveCore {
   async plan(input: {
     question: string;
     operationalContext: readonly CoreOperationalContext[];
-  }): Promise<readonly string[]> {
+    productCatalog?: readonly { slug: string; name: string }[];
+  }): Promise<{ metricIds: readonly string[]; productSlugs: readonly string[] }> {
     const result = await this.model.plan({
       question: input.question,
       metricCatalog: METRIC_REGISTRY.map(({ metricId, displayName, description }) => ({ metricId, displayName, description })),
+      productCatalog: input.productCatalog ?? [],
       operationalContext: input.operationalContext,
     });
-    return result.metricIds;
+    return { metricIds: result.metricIds, productSlugs: result.productSlugs ?? [] };
   }
 
   async synthesize(input: {
@@ -24,10 +26,7 @@ export class FmccVerticalCognitiveCore {
     operationalContext: readonly CoreOperationalContext[];
   }): Promise<CoreAnswer> {
     const answer = await this.model.synthesize({
-      question: input.question,
-      facts: input.facts,
-      evidence: input.evidence,
-      operationalContext: input.operationalContext,
+      question: input.question, facts: input.facts, evidence: input.evidence, operationalContext: input.operationalContext,
     });
     return { answer, evidence: input.evidence, factualStatus: "grounded" };
   }
