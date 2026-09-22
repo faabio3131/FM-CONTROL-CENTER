@@ -15,6 +15,13 @@
       "when": 1789876484174,
       "tag": "0001_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790080000000,
+      "tag": "0002_foundation",
+      "breakpoints": true
     }
   ]
 }
