@@ -2,7 +2,7 @@
 
 **Fase:** F11 — Inteligência por Produto  
 **Progresso mestre:** 65% → 71%  
-**Status atual:** IMPLEMENTAÇÃO + SMOKE FUNCIONAL APROVADOS — HEALTH/READY DO HEAD DOCUMENTAL FINAL PENDENTES  
+**Status atual:** IMPLEMENTAÇÃO + SMOKE + HEALTH/READY APROVADOS — RECERTIFICAÇÃO DOCUMENTAL FINAL PENDENTE  
 **Baseline:** `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`  
 **Branch:** `feat/fmcc-f11-product-intelligence`  
 **PR:** #11 — OPEN/DRAFT  
@@ -36,7 +36,7 @@ Evidência de CI do candidate funcional `986991e...`:
 
 Risco conhecido não bloqueante: 4 vulnerabilidades `moderate` transitivas em tooling de desenvolvimento; nenhuma HIGH/CRITICAL bloqueando o gate vigente.
 
-**Preview/smoke funcional:** aprovado no Render, incluindo Product Registry, visão por produto, comparação, Core single/multi-product, localização pt-BR, ditado por voz e limpeza do campo cognitivo após envio. **Pendência real:** health/ready explícitos no HEAD documental final e gate final.
+**Preview/smoke funcional:** aprovado no Render, incluindo Product Registry, visão por produto, comparação, Core single/multi-product, localização pt-BR, ditado por voz e limpeza do campo cognitivo após envio. **Health/ready:** aprovados. **Pendência real:** somente recertificação deste último HEAD documental e gate final da PR.
 
 ## 1. Objetivo
 
@@ -408,11 +408,12 @@ F11 só fecha quando:
 | Core por produto single/multi | PASS |
 | voz pt-BR + campo limpo | PASS |
 | documentação reconciliada | PASS — atualização final |
-| health/ready do HEAD documental final | PENDENTE |
-| merge PR #11 | PROIBIDO até gate final + autorização humana |
+| health/ready final | PASS |
+| gate final PR #11 | AGUARDANDO RECERTIFICAÇÃO DOCUMENTAL |
+| merge PR #11 | PROIBIDO até GO final + autorização humana |
 
-**Classificação atual da F11:** IMPLEMENTADA, CERTIFICADA EM CI E APROVADA NO SMOKE FUNCIONAL.  
-**Bloqueio remanescente:** somente health/ready explícitos no HEAD documental final e gate final antes da autorização humana de merge.
+**Classificação atual da F11:** IMPLEMENTADA, CERTIFICADA EM CI E APROVADA NO SMOKE FUNCIONAL E DE RUNTIME.  
+**Bloqueio remanescente:** somente a recertificação deste último HEAD documental e a autorização humana de merge após GO final.
 
 ## 23. Adições validadas durante o smoke
 
