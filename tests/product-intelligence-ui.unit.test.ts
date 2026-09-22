@@ -18,6 +18,16 @@ describe("F11 Product Intelligence UI/API contract", () => {
     expect(source).toContain("Nenhum score composto é produzido");
   });
 
+  it("cadastro preserva o form antes da fronteira assíncrona e trata resposta não-JSON", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/product-create-form.tsx"), "utf8");
+    expect(source).toContain("const formElement = event.currentTarget");
+    expect(source).toContain("const form = new FormData(formElement)");
+    expect(source).toContain("formElement.reset()");
+    expect(source).not.toContain("event.currentTarget.reset()");
+    expect(source).toContain("async function responsePayload");
+    expect(source).toContain("catch {");
+  });
+
   it("API de comparação usa productIds explícitos", () => {
     const source = readFileSync(resolve(process.cwd(), "src/app/api/products/compare/route.ts"), "utf8");
     expect(source).toContain('getAll("productId")');
