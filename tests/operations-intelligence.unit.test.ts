@@ -26,6 +26,11 @@ describe("F14 operations intelligence", () => {
     ])).toMatchObject({ status: "available", value: "2" });
   });
 
+  it("não registra percentual de disponibilidade sem semântica temporal aprovada", () => {
+    expect(getMetricDefinition("service.availability.rate")).toBeNull();
+    expect(getMetricDefinition("service.error.rate")).toBeNull();
+  });
+
   it("não transforma health pontual em disponibilidade inventada", async () => {
     const values = new Map<string, MetricView>([
       ["incident.count", metric("incident.count", "1")],
