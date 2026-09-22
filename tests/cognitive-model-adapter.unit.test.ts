@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe("FMCC cognitive model adapter", () => {
   it("aceita apenas metricIds presentes no catálogo governado", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({
         metricIds: ["billing.gross_billed", "metric.forbidden"],
       }) } }],
@@ -40,9 +40,9 @@ describe("FMCC cognitive model adapter", () => {
     expect(request.response_format).toEqual({ type: "json_object" });
   });
 
-  it("tolera envelope textual ao redor do JSON sem ampliar o catálogo permitido", async () => {
+  it("tolera texto ao redor do JSON sem ampliar o catálogo permitido", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
-      choices: [{ message: { content: 'analysis marker\n```json\n{"metricIds":["billing.gross_billed","metric.forbidden"]}\n```' } }],
+      choices: [{ message: { content: 'prefix {"metricIds":["billing.gross_billed","metric.forbidden"]} suffix' } }],
     }), { status: 200, headers: { "content-type": "application/json" } })));
 
     const adapter = new OpenAiCompatibleCognitiveModel(
