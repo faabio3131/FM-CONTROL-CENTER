@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { mensagemErroComparacao, mensagemEstadoComparacao, rotuloEstadoComparacao, rotuloUnidade } from "@/presentation/pt-br";
 
 type Product = { id: string; name: string; slug: string };
 type ComparisonPayload = {
@@ -11,7 +12,7 @@ type ComparisonPayload = {
 };
 
 const METRICS = [
-  ["trial.starts.count", "Trials iniciados"],
+  ["trial.starts.count", "Testes gratuitos iniciados"],
   ["subscription.active.count", "Assinaturas ativas"],
   ["subscription.cancelled.count", "Cancelamentos"],
   ["billing.gross_billed", "Faturamento bruto emitido"],
@@ -39,9 +40,9 @@ export function ProductComparisonForm({ products }: { products: readonly Product
       params.append("productId", productB);
       const response = await fetch(`/api/products/compare?${params.toString()}`);
       const payload = await response.json() as ComparisonPayload;
-      setResult(response.ok ? payload : { error: payload.error ?? "Comparação indisponível." });
+      setResult(response.ok ? payload : { error: mensagemErroComparacao(payload.error) });
     } catch {
-      setResult({ error: "Comparação indisponível." });
+      setResult({ error: "Não foi possível realizar a comparação." });
     } finally {
       setLoading(false);
     }
@@ -59,10 +60,10 @@ export function ProductComparisonForm({ products }: { products: readonly Product
         <div className="comparison-result" role="status">
           {result.error ? <p className="error">{result.error}</p> : (
             <>
-              <strong>Estado: {result.status}</strong>
+              <strong>Estado: {rotuloEstadoComparacao(result.status)}</strong>
               {result.status === "comparable" ? (
-                <ul>{result.values?.map(({ product, value }) => <li key={product.id}>{product.name}: {value?.value ?? "Indisponível"} {value?.currency ?? value?.unit ?? ""}</li>)}</ul>
-              ) : <p>Os dados não são comparáveis de forma governada neste momento.</p>}
+                <ul>{result.values?.map(({ product, value }) => <li key={product.id}>{product.name}: {value?.value ?? "Indisponível"} {value?.currency ?? rotuloUnidade(value?.unit)}</li>)}</ul>
+              ) : <p>{mensagemEstadoComparacao(result.status)}</p>}
             </>
           )}
         </div>
