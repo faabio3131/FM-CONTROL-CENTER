@@ -82,18 +82,21 @@ function voiceErrorMessage(code?: string): string {
 export function CoreQueryForm() {
   const [state, setState] = useState<State>({ status: "idle" });
   const [question, setQuestion] = useState("");
-  const [voiceSupported, setVoiceSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceBaseRef = useRef("");
 
   useEffect(() => {
-    setVoiceSupported(Boolean(speechRecognitionConstructor()));
-
     return () => {
-      recognitionRef.current?.abort();
-      recognitionRef.current = null;
+      const recognition = recognitionRef.current;
+      if (recognition) {
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        recognition.abort();
+        recognitionRef.current = null;
+      }
     };
   }, []);
 
@@ -157,7 +160,16 @@ export function CoreQueryForm() {
     const normalizedQuestion = question.trim();
     if (!normalizedQuestion) return;
 
-    recognitionRef.current?.stop();
+    const activeRecognition = recognitionRef.current;
+    if (activeRecognition) {
+      activeRecognition.onresult = null;
+      activeRecognition.onerror = null;
+      activeRecognition.onend = null;
+      activeRecognition.abort();
+      recognitionRef.current = null;
+      setListening(false);
+    }
+
     setQuestion("");
     setVoiceMessage("");
     setState({ status: "loading" });
@@ -211,18 +223,16 @@ export function CoreQueryForm() {
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
           />
-          {voiceSupported ? (
-            <button
-              className="button core-voice-button"
-              type="button"
-              onClick={toggleVoice}
-              aria-pressed={listening}
-              aria-label={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}
-              title={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}
-            >
-              <span aria-hidden="true">🎙️</span> {listening ? "Parar" : "Falar"}
-            </button>
-          ) : null}
+          <button
+            className="button core-voice-button"
+            type="button"
+            onClick={toggleVoice}
+            aria-pressed={listening}
+            aria-label={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}
+            title={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}
+          >
+            <span aria-hidden="true">🎙️</span> {listening ? "Parar" : "Falar"}
+          </button>
           <button className="button core-submit-button" type="submit" disabled={state.status === "loading" || !question.trim()}>
             {state.status === "loading" ? "Consultando…" : "Consultar"}
           </button>
