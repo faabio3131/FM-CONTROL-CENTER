@@ -1,83 +1,107 @@
 # FM CONTROL CENTER — RELATÓRIO DE EXECUÇÃO F11
 
 **Fase:** F11 — Inteligência por Produto  
-**Data de reconciliação:** 22/09/2026  
+**Data:** 22/09/2026  
 **Baseline:** `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`  
 **Branch:** `feat/fmcc-f11-product-intelligence`  
 **PR:** #11 — OPEN/DRAFT  
-**Candidate funcional certificado:** `e5a3d9bef3451b32830315f6e1b9175f9fc06dff`
+**Candidate funcional:** `986991e74e53fc8ff41d90d0ca27cabf345163fc`  
+**Gate funcional:** #184 — SUCCESS
 
 ## Resumo executivo
 
-A F11 foi implementada tecnicamente e passou no Foundation Gate #162. A arquitetura introduz uma autoridade canônica de produto no FMCC sem deslocar as autoridades existentes de tenant, fontes, fatos, métricas ou auditoria.
+A F11 foi implementada e validada em CI e Preview. A fase introduz autoridade canônica de produto no FM Control Center sem deslocar as autoridades existentes de organização/tenant, fontes, fatos, métricas e auditoria.
 
-O produto agora possui dimensão explícita em Source Definition, Canonical Fact e Metric Value; Product Intelligence para visão individual, growth governado e comparação; superfícies API/UI; e integração product-aware no FM Cognitive Vertical Core.
+Foram entregues Product Registry, dimensão `product_id`, Inteligência por Produto, comparação governada, Core consciente de produto, UI em português e melhorias de UX do Core com ditado por voz e limpeza da pergunta após envio.
 
-**Classificação atual:** IMPLEMENTADA E CERTIFICADA EM CI, MAS NÃO ENCERRADA.  
-**Pendência:** Preview/smoke final da F11.
+O smoke real encontrou duas falhas de UX que não haviam aparecido no CI:
+1. falso erro após cadastro bem-sucedido de produto;
+2. enum interno `unavailable` exposto na interface.
 
-## Implementação entregue
+As duas foram corrigidas, receberam testes de regressão e foram recertificadas.
 
-### Product authority
-- tabela `fmcc_product_definition`;
-- slug único por tenant;
-- status active/inactive;
+**Classificação atual:** FUNCIONALMENTE APROVADA EM CI + PREVIEW.  
+**Pendência única antes do gate final:** revalidar explicitamente `/api/health` e `/api/ready` no HEAD documental final após esta reconciliação.
+
+## Entrega técnica
+
+### Autoridade de produto
+- `fmcc_product_definition`;
+- slug único por organização;
+- status active/inactive interno;
 - RBAC `product:read` / `product:write`;
 - lookup sempre tenant-scoped.
 
-### Product scope
+### Escopo por produto
 - `product_id` opcional em Source Definition;
 - `product_id` opcional em Canonical Fact;
 - `product_id` opcional em Metric Value;
 - propagação source → ingestion → fact → metric;
-- consultas globais continuam isoladas de métricas product-scoped.
+- isolamento de métricas globais e product-scoped.
 
-### Product Intelligence
-- categorias acquisition, activation, engagement, revenue, churn e health;
-- estado `pending_semantics` para métricas sem semântica aprovada;
-- Product Overview por SaaS;
-- histórico por produto;
-- growth apenas com duas observações comparáveis;
+### Inteligência por Produto
+- aquisição;
+- ativação;
+- engajamento;
+- receita;
+- cancelamento;
+- saúde operacional;
+- histórico e crescimento governado;
+- missing e semântica pendente explícitos;
 - nenhum `product.performance.score` inventado.
 
-### Portfolio Comparison
-- mesma métrica;
-- mesma unidade;
-- mesma moeda quando aplicável;
-- período comparável;
-- estados explícitos `comparable`, `unavailable`, `pending_semantics`, `incompatible_currency` e `incompatible_period`.
+### Comparação governada
+Estados internos suportados:
+- `comparable`;
+- `unavailable`;
+- `pending_semantics`;
+- `incompatible_currency`;
+- `incompatible_period`.
+
+A UI converte esses estados para pt-BR. Comparação só ocorre com métrica/unidade/moeda/período compatíveis.
 
 ### APIs e UI
 - `GET/POST /api/products`;
 - `GET /api/products/:productId/overview`;
 - `GET /api/products/compare`;
-- cadastro/listagem de produtos no dashboard;
-- visão individual por produto;
-- comparação governada no dashboard;
-- gaps e provenance explícitos.
+- cadastro/listagem;
+- visão individual;
+- comparação governada;
+- gaps/proveniência explícitos;
+- superfície visível em português.
 
 ### Core F11
-- planner recebe catálogo de produtos autorizado do tenant;
-- plano pode retornar `productSlugs`;
-- single-product e multi-product suportados;
+- planner recebe catálogo autorizado de produtos;
+- suporta `productSlugs`;
+- single-product e multi-product;
 - slug não autorizado falha fechado;
 - facts/evidence carregam productId/productSlug;
-- Audit Ledger registra product refs quando aplicável;
+- Audit Ledger registra product refs;
 - Metric Engine permanece autoridade factual.
+
+### UX cognitiva
+- campo da pergunta controlado;
+- pergunta apagada após envio;
+- resposta preservada;
+- botão **Falar**;
+- reconhecimento de fala `pt-BR`;
+- transcrição para o campo;
+- estado **Parar** durante captura;
+- erros de voz em português;
+- fallback por digitação;
+- captura abortada de forma segura no submit/unmount.
 
 ## Migration
 
-Migration F11:
 `drizzle/0002_foundation.sql`
 
-Ela adiciona Product Registry, `product_id` opcional e índices de escopo sem invalidar dados globais F07–F10.
+Migration aplicada com sucesso no Preview via startup migration governada.
 
-## Certificação automática
+## Certificação automática funcional
 
-Foundation Gate #162 — SUCCESS no candidate funcional `e5a3d9b...`.
-
-- 20 test files PASS;
-- 84 tests PASS;
+Foundation Gate #184 — SUCCESS:
+- 21 test files PASS;
+- 91 tests PASS;
 - 0 FAIL;
 - lint SUCCESS;
 - typecheck SUCCESS;
@@ -87,25 +111,52 @@ Foundation Gate #162 — SUCCESS no candidate funcional `e5a3d9b...`.
 - Docker build SUCCESS;
 - runtime dependency audit SUCCESS.
 
+## Preview smoke consolidado
+
+PASS:
+- deploy/migration;
+- dashboard autenticado;
+- Product Registry read/create/list;
+- Kordena e Iron;
+- Product Overview;
+- missing != zero;
+- semântica pendente;
+- proveniência;
+- comparação Kordena × Iron;
+- Core Kordena;
+- Core Kordena × Iron;
+- localização pt-BR;
+- ditado por voz;
+- limpeza do campo após submit;
+- resposta preservada.
+
+## Defeitos encontrados e corrigidos no smoke
+
+### Falso erro no cadastro
+O produto era persistido, mas a UI acessava `event.currentTarget` após `await`.  
+Correção: preservar referência estável do form e tratar resposta não-JSON defensivamente.
+
+### Enum técnico em inglês
+`unavailable` era exibido diretamente.  
+Correção: camada de apresentação pt-BR para estados, categorias, atualidade, qualidade, fonte e mensagens visíveis.
+
 ## Risco conhecido
 
-O audit de dependências continua reportando 4 vulnerabilidades `moderate` transitivas em tooling de desenvolvimento. Não há HIGH/CRITICAL bloqueando o gate atual. Não foi aplicado downgrade/destructive force fix.
-
-## Pendências reais
-
-Antes de qualquer merge da PR #11:
-- recertificar o HEAD documental resultante desta reconciliação;
-- implantar a branch/candidate F11 no Preview de forma controlada;
-- aplicar migration em Preview;
-- executar smoke funcional e cognitivo;
-- registrar evidências;
-- classificar gate final;
-- obter autorização humana explícita para merge.
+4 vulnerabilidades `moderate` transitivas em tooling de desenvolvimento. Nenhuma HIGH/CRITICAL bloqueando o gate vigente. Nenhum force-fix destrutivo foi usado.
 
 ## Governança
 
 - PR #11 permanece OPEN/DRAFT;
-- nenhum merge da F11 foi executado;
-- nenhuma produção foi utilizada;
+- nenhum merge F11 executado;
+- produção não utilizada;
 - F12 permanece proibida;
-- documentação não converte CI em evidência operacional de Preview.
+- merge depende de gate final + autorização humana explícita.
+
+## Última pendência
+
+Depois deste commit documental:
+- recertificar HEAD;
+- Auto-Deploy no Preview;
+- validar `/api/health`;
+- validar `/api/ready`;
+- registrar GO/NO-GO final.
