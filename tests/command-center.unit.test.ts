@@ -18,4 +18,12 @@ describe("F10 Executive Command Center contract", () => {
     expect(source).toContain("contrato cognitivo governado");
     expect(source).not.toContain("Core canônico ainda não está conectado neste ambiente");
   });
+
+  it("recovers from transport or invalid-response failures instead of remaining in loading", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/core-query-form.tsx"), "utf8");
+    expect(source).toContain("try {");
+    expect(source).toContain("catch {");
+    expect(source).toContain('setState({ status: "error", answer: cognitiveErrorMessage() })');
+    expect(source).toContain('typeof payload.answer !== "string"');
+  });
 });
