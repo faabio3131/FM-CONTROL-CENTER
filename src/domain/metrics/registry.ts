@@ -79,6 +79,30 @@ export const METRIC_REGISTRY: readonly MetricDefinition[] = [
     kind: "count", factType: "lead.created", unit: "count", grain: "period", dimensions: [],
     timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_lead_source",
   },
+  {
+    metricId: "incident.count", version: 1, calculationVersion: "v1",
+    displayName: "Incidentes", description: "Incidentes distintos abertos no período por fonte operacional autorizada.",
+    kind: "count", factType: "incident.opened", unit: "count", grain: "period", dimensions: [],
+    timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_incident_source",
+  },
+  {
+    metricId: "job.failure.count", version: 1, calculationVersion: "v1",
+    displayName: "Falhas de jobs", description: "Jobs distintos que falharam no período por fonte operacional autorizada.",
+    kind: "count", factType: "job.failed", unit: "count", grain: "period", dimensions: [],
+    timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_job_source",
+  },
+  {
+    metricId: "integration.failure.count", version: 1, calculationVersion: "v1",
+    displayName: "Falhas de integrações", description: "Execuções de integração distintas que falharam no período.",
+    kind: "count", factType: "integration.failed", unit: "count", grain: "period", dimensions: [],
+    timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_integration_source",
+  },
+  {
+    metricId: "service.error.count", version: 1, calculationVersion: "v1",
+    displayName: "Erros de serviço", description: "Erros de serviço distintos registrados no período por telemetria autorizada.",
+    kind: "count", factType: "service.error", unit: "count", grain: "period", dimensions: [],
+    timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_observability_source",
+  },
 ] as const;
 
 export function getMetricDefinition(metricId: string): MetricDefinition | null {
@@ -109,7 +133,10 @@ export const EXECUTIVE_METRIC_TARGETS: readonly ExecutiveMetricTarget[] = [
   { metricId: "finance.operating_result", displayName: "Resultado operacional", definitionStatus: "pending_semantics" },
   { metricId: "finance.operating_margin.rate", displayName: "Margem operacional", definitionStatus: "pending_semantics" },
   { metricId: "lead.created.count", displayName: "Leads criados", definitionStatus: "implemented" },
-  { metricId: "incident.count", displayName: "Incidentes", definitionStatus: "pending_semantics" },
+  { metricId: "incident.count", displayName: "Incidentes", definitionStatus: "implemented" },
+  { metricId: "job.failure.count", displayName: "Falhas de jobs", definitionStatus: "implemented" },
+  { metricId: "integration.failure.count", displayName: "Falhas de integrações", definitionStatus: "implemented" },
+  { metricId: "service.error.count", displayName: "Erros de serviço", definitionStatus: "implemented" },
   { metricId: "service.error.rate", displayName: "Taxa de erro", definitionStatus: "pending_semantics" },
   { metricId: "usage.active_users.dau", displayName: "Usuários ativos diários (DAU)", definitionStatus: "pending_semantics" },
   { metricId: "support.ticket.open.count", displayName: "Chamados de suporte abertos", definitionStatus: "pending_semantics" },
