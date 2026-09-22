@@ -14,8 +14,8 @@ describe("F11 Product Intelligence UI/API contract", () => {
   it("visão individual explicita semântica pendente e provenance", () => {
     const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/products/[productId]/page.tsx"), "utf8");
     expect(source).toContain("Semântica pendente");
-    expect(source).toContain("Sem provenance factual disponível");
-    expect(source).toContain("Nenhum score composto é produzido");
+    expect(source).toContain("Sem proveniência factual disponível");
+    expect(source).toContain("Nenhum índice composto é produzido");
   });
 
   it("cadastro preserva o form antes da fronteira assíncrona e trata resposta não-JSON", () => {
