@@ -2,10 +2,41 @@
 
 **Fase:** F11 — Inteligência por Produto  
 **Progresso mestre:** 65% → 71%  
-**Status inicial:** SYSTEM DESIGN APROVADO PARA IMPLEMENTAÇÃO NA PR F11  
+**Status atual:** IMPLEMENTAÇÃO FUNCIONAL CERTIFICADA EM CI — PREVIEW/SMOKE FINAL PENDENTE  
 **Baseline:** `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`  
 **Branch:** `feat/fmcc-f11-product-intelligence`  
+**PR:** #11 — OPEN/DRAFT  
+**Candidate funcional certificado:** `e5a3d9bef3451b32830315f6e1b9175f9fc06dff`  
+**Foundation Gate:** #162 — SUCCESS  
 **Produção:** fora do escopo
+
+## 0. Reconciliação de CURRENT — 22/09/2026
+
+A descoberta inicial deste documento registrava lacunas ainda inexistentes no baseline. Após a implementação da F11, o CURRENT técnico da PR #11 passa a incluir:
+- Product Registry canônico e tenant-scoped;
+- `product_id` opcional em Source Definition, Canonical Fact e Metric Value;
+- validação server-side de product scope;
+- isolamento cross-tenant e cross-product;
+- Product Intelligence Service;
+- Product Overview por SaaS;
+- histórico de métricas por produto para sinais de growth governados;
+- Portfolio Comparison com bloqueio de moeda/período incompatíveis;
+- APIs de produtos, overview e comparação;
+- UI de cadastro/listagem, visão individual e comparação;
+- FM Cognitive Vertical Core product-aware com catálogo autorizado do tenant;
+- evidence/auditoria com product refs;
+- migration Drizzle versionada `0002_foundation.sql`.
+
+Evidência de CI do candidate funcional `e5a3d9b...`:
+- Foundation Gate #162 — SUCCESS;
+- 20 test files PASS;
+- 84 tests PASS;
+- 0 FAIL;
+- lint, typecheck, migration verification/apply, build, Docker e runtime dependency audit verdes.
+
+Risco conhecido não bloqueante: 4 vulnerabilidades `moderate` transitivas em tooling de desenvolvimento; nenhuma HIGH/CRITICAL bloqueando o gate vigente.
+
+**Pendência real:** Preview/smoke da F11 no ambiente Render. Até essa evidência existir, a F11 não está encerrada, não está pronta para merge e a F12 permanece proibida.
 
 ## 1. Objetivo
 
@@ -21,9 +52,11 @@ Entregar visão governada por SaaS para:
 
 Nenhuma métrica pode ser inventada. Ausência de dado permanece ausência de dado.
 
-## 2. CURRENT confirmado
+## 2. BASELINE confirmado antes da implementação
 
-O FMCC já possui:
+Esta seção preserva o estado encontrado no início da F11 para fins de rastreabilidade histórica.
+
+O FMCC já possuía:
 - TenantContext server-side;
 - Integration Fabric com Source Registry;
 - canonical facts tenant-scoped;
@@ -34,7 +67,7 @@ O FMCC já possui:
 - Audit Ledger;
 - Preview/CI/CD certificados.
 
-O CURRENT não possui:
+O baseline ainda não possuía:
 - Product Registry canônico;
 - product scope explícito no Source Registry;
 - product scope explícito nos canonical facts;
@@ -338,7 +371,7 @@ A criação de Product Registry e product dimension é uma extensão coerente do
 
 Se durante implementação surgir decisão difícil de reverter fora deste desenho, criar ADR específico antes de codificar essa parte.
 
-## 21. Critérios de aceite
+## 21. Critérios de aceite e estado atual
 
 F11 só fecha quando:
 - Product Registry existe e é tenant-scoped;
@@ -355,3 +388,24 @@ F11 só fecha quando:
 - documentação reconciliada.
 
 **F12 permanece proibida até o fechamento formal de F11.**
+
+## 22. Matriz de aceite reconciliada — 22/09/2026
+
+| Critério | Estado |
+|---|---|
+| Product Registry tenant-scoped | PASS |
+| product scope em source/fact/metric | PASS |
+| Product Overview | PASS |
+| Portfolio Comparison | PASS |
+| categorias F11 com valor ou gap explícito | PASS |
+| growth apenas com histórico comparável | PASS |
+| Core entende produto(s) autorizados | PASS |
+| cross-tenant/cross-product automatizado | PASS |
+| Audit Ledger/provenance preservados | PASS |
+| CI funcional | PASS — Gate #162 |
+| documentação reconciliada | PASS — esta atualização |
+| Preview/smoke F11 | PENDENTE |
+| merge PR #11 | PROIBIDO até gate final + autorização humana |
+
+**Classificação atual da F11:** IMPLEMENTADA E CERTIFICADA EM CI, MAS AINDA NÃO ENCERRADA.  
+**Bloqueio remanescente:** evidência operacional de Preview/smoke no candidate final.
