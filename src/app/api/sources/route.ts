@@ -8,8 +8,8 @@ import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 
 function publicSource(source: SourceDefinition) {
-  const { secretRef: _secretRef, ...safe } = source;
-  return { ...safe, hasSecretReference: Boolean(source.secretRef) };
+  const { secretRef, ...safe } = source;
+  return { ...safe, hasSecretReference: Boolean(secretRef) };
 }
 function securityResponse(error: unknown) {
   if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: error.message }, { status: 401 });
