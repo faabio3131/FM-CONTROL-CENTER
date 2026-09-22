@@ -9,7 +9,7 @@ export default function SignInPage(){
     const form=new FormData(event.currentTarget); const email=String(form.get("email")??"").trim(); const password=String(form.get("password")??""); const name=String(form.get("name")??"").trim();
     try {
       const result=mode==="sign-up"?await authClient.signUp.email({name,email,password}):await authClient.signIn.email({email,password});
-      if(result.error){setMessage(result.error.message??"Não foi possível autenticar.");return;}
+      if(result.error){setMessage(mode==="sign-in"?"Não foi possível entrar. Verifique suas credenciais.":"Não foi possível criar a conta.");return;}
       router.push(mode==="sign-up"?"/onboarding":"/dashboard"); router.refresh();
     } finally {setBusy(false);}
   }
