@@ -2,7 +2,7 @@
 
 **Baseline:** `8076ad7861f43f78fa502d92dbd7eb0f0ff130d4`  
 **Branch:** `feat/fmcc-f07-f10-intelligence-stack`  
-**PR:** #9 — Draft  
+**PR histórica:** #9 — MERGED em 22/09/2026  
 **Produção:** não utilizada  
 **Reconciliação deste relatório:** 22/09/2026
 
@@ -19,8 +19,12 @@ A certificação adicional de 22/09/2026 incluiu teste PostgreSQL dedicado para 
 - F08 — CONCLUÍDA COM EVIDÊNCIA;
 - F09 — CONCLUÍDA COM EVIDÊNCIA EM PREVIEW;
 - F10 — CONCLUÍDA COM EVIDÊNCIA EM PREVIEW;
-- produção e merge não realizados;
-- F11 não iniciada.
+- PR #9 integrada à `main` por squash;
+- PR #10 integrou o trigger de CI em `push: main`;
+- Gate #143 certificou a `main` pós-merge;
+- Render Preview reconciliado para `main` com smoke pós-merge concluído;
+- produção não utilizada;
+- F11 iniciada em branch/PR próprias e ainda não encerrada.
 
 ## F07 — Integration Fabric
 
@@ -141,24 +145,29 @@ Resultado:
 
 ## CI/CD Preview
 
-O serviço Preview foi configurado para a branch da PR #9 com deploy condicionado à aprovação dos checks de CI.
+O serviço Preview foi posteriormente reconciliado para acompanhar `main`, com deploy condicionado à aprovação dos checks de CI.
 
-O fluxo pretendido passa a ser:
-commit → GitHub Actions → gate verde → deploy automático no Preview.
+A PR #10 adicionou `push: main` ao Foundation Gate. O primeiro CI pós-merge real da `main` foi o Gate #143 — SUCCESS, no SHA `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`.
+
+O Render marcou esse mesmo SHA como Live e o smoke confirmou health, readiness, autenticação/dashboard e consulta cognitiva governada.
+
+Fluxo operacional vigente:
+commit/merge → GitHub Actions → gate verde → deploy automático no Preview.
 
 ## Governança atual
 
-- PR #9 permanece OPEN/DRAFT;
-- nenhum merge realizado;
+- PR #9: MERGED;
+- PR #10: MERGED;
+- `main`: `c199b5bc6fc4ad871523eeaf98f6705b12417bb7` após hardening do CI;
+- Foundation Gate #143 pós-merge: SUCCESS;
 - nenhum deploy produtivo realizado;
-- F07–F10 estão fechadas no escopo Preview;
+- F07–F10 estão fechadas com evidência pós-merge em Preview;
 - isso não equivale a produção ou autorização comercial;
-- F11 permanece não iniciada;
-- próximo passo de governança: revisão final da PR #9 e decisão explícita de integração.
+- F11 está em execução na PR #11 Draft e ainda depende de Preview/smoke final.
 
-## Próxima fase funcional
+## Continuidade funcional
 
-F11 — Inteligência por Produto:
+F11 — Inteligência por Produto foi iniciada em branch/PR próprias:
 - visão individual de cada SaaS;
 - aquisição;
 - ativação;
