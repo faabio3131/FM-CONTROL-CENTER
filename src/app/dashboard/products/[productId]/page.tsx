@@ -8,6 +8,7 @@ import { resolveTenantContext } from "@/application/security/resolve-tenant-cont
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
+import { rotuloAtualidade, rotuloCategoriaProduto, rotuloDirecaoCrescimento, rotuloQualidade, rotuloStatusProduto } from "@/presentation/pt-br";
 
 function displayValue(value: { value: string | null; unit: string; currency?: string } | null) {
   if (!value || value.value === null) return "Indisponível";
@@ -47,9 +48,9 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
     <main className="dashboard-shell">
       <header className="dashboard-header">
         <div>
-          <span className="eyebrow">Product Intelligence · F11</span>
+          <span className="eyebrow">Inteligência por Produto · F11</span>
           <h1>{overview.product.name}</h1>
-          <p>Produto governado: <code>{overview.product.slug}</code> · {overview.product.status}</p>
+          <p>Produto governado: <code>{overview.product.slug}</code> · {rotuloStatusProduto(overview.product.status)}</p>
         </div>
         <Link className="button" href="/dashboard">Voltar</Link>
       </header>
@@ -62,17 +63,17 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
         <div className="metric-grid">
           {overview.metrics.map(({ target, status, value }) => (
             <article className="metric-card" key={target.metricId}>
-              <span className="metric-label">{target.category} · {target.displayName}</span>
+              <span className="metric-label">{rotuloCategoriaProduto(target.category)} · {target.displayName}</span>
               <strong className={status === "available" ? "metric-value" : "metric-value unavailable"}>
                 {status === "pending_semantics" ? "Semântica pendente" : displayValue(value)}
               </strong>
               <div className="metric-meta">
-                <span>Métrica: {target.metricId}</span>
-                <span>{value ? `Freshness: ${value.freshnessStatus}` : "Freshness indisponível"}</span>
-                <span>{value ? `Qualidade: ${value.qualityStatus}` : "Qualidade indisponível"}</span>
+                <span>Identificador técnico: {target.metricId}</span>
+                <span>{value ? `Atualidade: ${rotuloAtualidade(value.freshnessStatus)}` : "Atualidade indisponível"}</span>
+                <span>{value ? `Qualidade: ${rotuloQualidade(value.qualityStatus)}` : "Qualidade indisponível"}</span>
               </div>
               <small className="metric-provenance">
-                {value ? `Fonte: ${value.sourceAuthority} · refs: ${value.provenanceRefs.length}` : "Sem provenance factual disponível"}
+                {value ? `Fonte: ${value.sourceAuthority} · referências: ${value.provenanceRefs.length}` : "Sem proveniência factual disponível"}
               </small>
             </article>
           ))}
@@ -81,7 +82,7 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
 
       <section className="executive-section">
         <div className="section-heading">
-          <div><span className="eyebrow">Growth</span><h2>Evolução governada</h2></div>
+          <div><span className="eyebrow">Crescimento</span><h2>Evolução governada</h2></div>
           <p>Somente duas observações comparáveis do mesmo produto e métrica podem formar tendência.</p>
         </div>
         <div className="metric-grid">
@@ -89,9 +90,9 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
             <article className="metric-card" key={signal.metricId}>
               <span className="metric-label">{signal.metricId}</span>
               <strong className={signal.status === "available" ? "metric-value" : "metric-value unavailable"}>
-                {signal.status === "available" ? signal.direction : "Indisponível"}
+                {signal.status === "available" ? rotuloDirecaoCrescimento(signal.direction) : "Indisponível"}
               </strong>
-              <small className="metric-provenance">Nenhum score composto é produzido.</small>
+              <small className="metric-provenance">Nenhum índice composto é produzido.</small>
             </article>
           ))}
         </div>
