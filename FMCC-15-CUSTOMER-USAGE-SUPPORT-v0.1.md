@@ -39,3 +39,25 @@ Permanecem pending_semantics:
 Não haverá score mágico. A superfície apresenta sinais individuais e diferencia fato, ausência e semântica pendente.
 
 PII não deve ser replicada no payload de métricas quando não necessária.
+
+
+## Fechamento técnico da fase
+
+Implementação concluída na PR #12:
+- DAU governado por usuários distintos;
+- eventos de engajamento;
+- chamados de suporte abertos;
+- API/UI agregada;
+- Core usa apenas agregados governados;
+- fatos brutos/PII não são expostos pela superfície de inteligência;
+- MAU, adoção, risk score e experience score permanecem `pending_semantics`.
+
+Foundation Gate #214 — **SUCCESS** no SHA `545114ce2379178eae05b06d3b2fb66765cf006e`.
+
+Resultado automático do candidate:
+- 31 test files PASS;
+- 109 tests PASS;
+- 0 FAIL;
+- lint/typecheck/migrations/build/Docker/runtime audit verdes.
+
+**Estado:** implementação/CI PASS. Preview do candidate da tranche ainda não foi comprovado.
