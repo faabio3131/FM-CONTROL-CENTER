@@ -7,13 +7,14 @@ import { resolveTenantContext } from "@/application/security/resolve-tenant-cont
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
+import { rotuloAtualidade, rotuloQualidade, rotuloStatusDefinicao, rotuloStatusProduto } from "@/presentation/pt-br";
 import { CoreQueryForm } from "./core-query-form";
 import { ProductComparisonForm } from "./product-comparison-form";
 import { ProductCreateForm } from "./product-create-form";
 import { SignOutButton } from "./sign-out-button";
 
 function formatTemporalContext(value: { periodStart?: Date; periodEnd?: Date; asOf?: Date }) {
-  if (value.asOf) return `As-of: ${value.asOf.toISOString()}`;
+  if (value.asOf) return `Referência temporal: ${value.asOf.toISOString()}`;
   if (value.periodStart || value.periodEnd) return `Período: ${value.periodStart?.toISOString() ?? "?"} → ${value.periodEnd?.toISOString() ?? "?"}`;
   return "Período: não informado pela fonte";
 }
@@ -46,9 +47,9 @@ export default async function DashboardPage() {
     <main className="dashboard-shell">
       <header className="dashboard-header">
         <div>
-          <span className="eyebrow">Executive Command Center · Preview</span>
-          <h1>Control Center</h1>
-          <p>Tenant autenticado: <code>{context.tenantId}</code></p>
+          <span className="eyebrow">Central Executiva de Comando · Prévia</span>
+          <h1>FM Control Center</h1>
+          <p>Organização autenticada: <code>{context.tenantId}</code></p>
         </div>
         <SignOutButton />
       </header>
@@ -66,11 +67,11 @@ export default async function DashboardPage() {
                 {value ? formatMetric(value.value, value.unit, value.currency) : "Indisponível"}
               </strong>
               <div className="metric-meta">
-                <span>{value ? `Qualidade: ${value.qualityStatus}` : definition ? "Sem valor governado" : "Definição semântica pendente"}</span>
-                <span>{value ? `Freshness: ${value.freshnessStatus}` : definition ? "Fonte ainda não conectada" : "Métrica ainda não implementada"}</span>
+                <span>{value ? `Qualidade: ${rotuloQualidade(value.qualityStatus)}` : definition ? "Sem valor governado" : "Definição semântica pendente"}</span>
+                <span>{value ? `Atualidade: ${rotuloAtualidade(value.freshnessStatus)}` : definition ? "Fonte ainda não conectada" : "Métrica ainda não implementada"}</span>
                 <span>{value ? formatTemporalContext(value) : "Período indisponível"}</span>
               </div>
-              <small className="metric-provenance">{value ? `Fonte: ${value.sourceAuthority} · v${value.metricVersion}` : `Métrica: ${target.metricId} · ${target.definitionStatus}`}</small>
+              <small className="metric-provenance">{value ? `Fonte: ${value.sourceAuthority} · versão ${value.metricVersion}` : `Identificador técnico: ${target.metricId} · ${rotuloStatusDefinicao(target.definitionStatus)}`}</small>
             </article>
           ))}
         </div>
@@ -78,15 +79,15 @@ export default async function DashboardPage() {
 
       <section className="executive-section" aria-labelledby="product-intelligence-title">
         <div className="section-heading">
-          <div><span className="eyebrow">F11 · Product Intelligence</span><h2 id="product-intelligence-title">Inteligência por produto</h2></div>
-          <p>Produto é escopo governado do tenant, nunca inferido do frontend.</p>
+          <div><span className="eyebrow">F11 · Inteligência por Produto</span><h2 id="product-intelligence-title">Inteligência por produto</h2></div>
+          <p>Produto é escopo governado da organização, nunca inferido pela interface.</p>
         </div>
         {context.role === "owner" || context.role === "admin" ? <ProductCreateForm /> : null}
         {products.length ? (
           <div className="product-grid">
             {products.map((product) => (
               <Link className="product-card" key={product.id} href={`/dashboard/products/${product.id}`}>
-                <span className="eyebrow">{product.status}</span>
+                <span className="eyebrow">{rotuloStatusProduto(product.status)}</span>
                 <strong>{product.name}</strong>
                 <small>{product.slug}</small>
               </Link>
@@ -98,7 +99,7 @@ export default async function DashboardPage() {
       {products.length >= 2 ? (
         <section className="executive-section" aria-labelledby="portfolio-comparison-title">
           <div className="section-heading">
-            <div><span className="eyebrow">Portfolio</span><h2 id="portfolio-comparison-title">Comparação governada</h2></div>
+            <div><span className="eyebrow">Portfólio</span><h2 id="portfolio-comparison-title">Comparação governada</h2></div>
             <p>Somente mesma métrica, unidade, moeda e período podem ser comparados.</p>
           </div>
           <ProductComparisonForm products={products.map(({ id, name, slug }) => ({ id, name, slug }))} />
@@ -106,10 +107,10 @@ export default async function DashboardPage() {
       ) : null}
 
       <section className="foundation-grid" aria-label="Controles da plataforma">
-        <article><strong>Identidade</strong><span>Server-side</span></article>
-        <article><strong>Tenant isolation</strong><span>Fail-closed</span></article>
-        <article><strong>Metric Engine</strong><span>Determinístico</span></article>
-        <article><strong>Core Gateway</strong><span>Serviço canônico / fail-closed</span></article>
+        <article><strong>Identidade</strong><span>Validada no servidor</span></article>
+        <article><strong>Isolamento por organização</strong><span>Bloqueio por padrão</span></article>
+        <article><strong>Motor de Métricas</strong><span>Determinístico</span></article>
+        <article><strong>Acesso ao Core</strong><span>Serviço canônico / bloqueio por padrão</span></article>
       </section>
 
       <CoreQueryForm />
