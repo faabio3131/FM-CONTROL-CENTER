@@ -6,14 +6,12 @@ import { CognitiveModelUnavailableError } from "@/domain/core/cognitive-model";
 import { AuditCoreContextReader } from "@/infrastructure/core/audit-core-context-reader";
 import { OpenAiCompatibleCognitiveModel } from "@/infrastructure/core/openai-compatible-cognitive-model";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
+import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 
 export function buildCoreGateway(): CoreGateway {
   let config: ReturnType<typeof cognitiveEnv>;
-  try {
-    config = cognitiveEnv();
-  } catch {
-    throw new CognitiveModelUnavailableError();
-  }
+  try { config = cognitiveEnv(); }
+  catch { throw new CognitiveModelUnavailableError(); }
 
   const verticalCore = new FmccVerticalCognitiveCore(
     new OpenAiCompatibleCognitiveModel(config.baseUrl, config.apiKey, config.modelId),
@@ -23,5 +21,6 @@ export function buildCoreGateway(): CoreGateway {
     verticalCore,
     new MetricService(new PostgresMetricStore()),
     new AuditCoreContextReader(),
+    new PostgresProductRepository(),
   );
 }
