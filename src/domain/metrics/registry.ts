@@ -52,6 +52,27 @@ export const METRIC_REGISTRY: readonly MetricDefinition[] = [
     grain: "period", dimensions: ["currency"], timeWindow: "bounded_period", freshnessPolicy: "source_governed",
     sourceAuthority: "configured_payment_source",
   },
+  {
+    metricId: "receivable.delinquent_amount", version: 1, calculationVersion: "v1",
+    displayName: "Inadimplência", description: "Soma de valores vencidos marcados como inadimplentes pela fonte financeira autorizada.",
+    kind: "sum", factType: "receivable.delinquent", valueField: "amount", unit: "currency", currencyField: "currency",
+    grain: "period", dimensions: ["currency"], timeWindow: "bounded_period", freshnessPolicy: "source_governed",
+    sourceAuthority: "configured_receivables_source",
+  },
+  {
+    metricId: "cost.infrastructure.total", version: 1, calculationVersion: "v1",
+    displayName: "Custos de infraestrutura", description: "Custos de infraestrutura efetivamente reportados por fonte autorizada.",
+    kind: "sum", factType: "cost.infrastructure", valueField: "amount", unit: "currency", currencyField: "currency",
+    grain: "period", dimensions: ["currency"], timeWindow: "bounded_period", freshnessPolicy: "source_governed",
+    sourceAuthority: "configured_infrastructure_cost_source",
+  },
+  {
+    metricId: "cost.operating.total", version: 1, calculationVersion: "v1",
+    displayName: "Custos operacionais rastreáveis", description: "Custos operacionais rastreáveis reportados por fonte autorizada.",
+    kind: "sum", factType: "cost.operating", valueField: "amount", unit: "currency", currencyField: "currency",
+    grain: "period", dimensions: ["currency"], timeWindow: "bounded_period", freshnessPolicy: "source_governed",
+    sourceAuthority: "configured_operating_cost_source",
+  },
 ] as const;
 
 export function getMetricDefinition(metricId: string): MetricDefinition | null {
@@ -76,7 +97,11 @@ export const EXECUTIVE_METRIC_TARGETS: readonly ExecutiveMetricTarget[] = [
   { metricId: "revenue.arr", displayName: "Receita recorrente anual (ARR)", definitionStatus: "pending_semantics" },
   { metricId: "billing.gross_billed", displayName: "Faturamento bruto emitido", definitionStatus: "implemented" },
   { metricId: "revenue.cash_collected", displayName: "Caixa recebido", definitionStatus: "implemented" },
-  { metricId: "receivable.delinquent_amount", displayName: "Inadimplência", definitionStatus: "pending_semantics" },
+  { metricId: "receivable.delinquent_amount", displayName: "Inadimplência", definitionStatus: "implemented" },
+  { metricId: "cost.infrastructure.total", displayName: "Custos de infraestrutura", definitionStatus: "implemented" },
+  { metricId: "cost.operating.total", displayName: "Custos operacionais rastreáveis", definitionStatus: "implemented" },
+  { metricId: "finance.operating_result", displayName: "Resultado operacional", definitionStatus: "pending_semantics" },
+  { metricId: "finance.operating_margin.rate", displayName: "Margem operacional", definitionStatus: "pending_semantics" },
   { metricId: "lead.created.count", displayName: "Leads criados", definitionStatus: "pending_semantics" },
   { metricId: "incident.count", displayName: "Incidentes", definitionStatus: "pending_semantics" },
   { metricId: "service.error.rate", displayName: "Taxa de erro", definitionStatus: "pending_semantics" },
