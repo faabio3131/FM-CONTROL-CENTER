@@ -1,12 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { CoreGateway } from "@/application/core/core-gateway";
+import { CoreArgumentError, CoreGateway } from "@/application/core/core-gateway";
 import { FmccVerticalCognitiveCore } from "@/application/core/fmcc-vertical-cognitive-core";
 import type { MetricService } from "@/application/metrics/metric-service";
 import type { CognitiveModel } from "@/domain/core/cognitive-model";
 import type { CoreOperationalContext } from "@/domain/core/contracts";
+import type { ProductDefinition, ProductRepository } from "@/domain/products/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
 const context: TenantContext = { tenantId: "tenant-b", userId: "user-b", role: "owner", correlationId: "corr-b" };
+
+const productRows: ProductDefinition[] = [
+  { id: "p-kordena", tenantId: "tenant-b", slug: "kordena", name: "Kordena", status: "active" },
+  { id: "p-iron", tenantId: "tenant-b", slug: "iron", name: "IRON", status: "active" },
+  { id: "p-inactive", tenantId: "tenant-b", slug: "legacy", name: "Legacy", status: "inactive" },
+  { id: "p-foreign", tenantId: "tenant-foreign", slug: "foreign", name: "Foreign", status: "active" },
+];
+
+function productRepo(): ProductRepository {
+  return {
+    async findById(tenantId, productId) { return productRows.find((p) => p.tenantId === tenantId && p.id === productId) ?? null; },
+    async findBySlug(tenantId, slug) { return productRows.find((p) => p.tenantId === tenantId && p.slug === slug) ?? null; },
+    async list(tenantId) { return productRows.filter((p) => p.tenantId === tenantId); },
+    async create() { throw new Error("unused"); },
+  };
+}
 
 function model(metricIds: readonly string[], answer = "Resposta governada"): CognitiveModel {
   return {
@@ -21,16 +38,20 @@ function model(metricIds: readonly string[], answer = "Resposta governada"): Cog
   };
 }
 
-describe("F09 FMCC Vertical Cognitive Core", () => {
+function metric(metricId: string, productId?: string, value = "100") {
+  return {
+    productId, metricId, metricVersion: 1, value, unit: "currency", currency: "BRL",
+    computedAt: new Date(), sourceTimestamp: new Date(), freshnessStatus: "fresh", qualityStatus: "verified",
+    sourceAuthority: "billing-authority", provenanceRefs: [`fact-${productId ?? "global"}-${metricId}`],
+  };
+}
+
+describe("F09/F11 FMCC Vertical Cognitive Core", () => {
   it("usa o Metric Engine como autoridade factual", async () => {
     const metrics = {
       async query(received: TenantContext) {
         expect(received.tenantId).toBe("tenant-b");
-        return {
-          metricId: "billing.gross_billed", metricVersion: 1, value: "100", unit: "currency", currency: "BRL",
-          computedAt: new Date(), sourceTimestamp: new Date(), freshnessStatus: "current", qualityStatus: "verified",
-          sourceAuthority: "billing-authority", provenanceRefs: ["fact-1"],
-        };
+        return metric("billing.gross_billed");
       },
     } as unknown as MetricService;
 
@@ -70,22 +91,12 @@ describe("F09 FMCC Vertical Cognitive Core", () => {
       },
       async synthesize() { return "R$ 100"; },
     };
-    const metrics = {
-      async query() {
-        return {
-          metricId: "billing.gross_billed", metricVersion: 1, value: "100", unit: "currency", currency: "BRL",
-          computedAt: new Date(), freshnessStatus: "fresh", qualityStatus: "verified",
-          sourceAuthority: "billing-authority", provenanceRefs: ["fact-1"],
-        };
-      },
-    } as unknown as MetricService;
+    const metrics = { async query() { return metric("billing.gross_billed"); } } as unknown as MetricService;
     const contextReader = {
       async recent(input: { tenantId: string; userId: string }) {
         expect(input).toMatchObject({ tenantId: "tenant-b", userId: "user-b" });
         return [{
-          question: "Quanto faturamos ontem?",
-          answer: "R$ 90",
-          factualStatus: "grounded" as const,
+          question: "Quanto faturamos ontem?", answer: "R$ 90", factualStatus: "grounded" as const,
           evidenceRefs: ["billing.gross_billed"],
         }];
       },
@@ -100,11 +111,7 @@ describe("F09 FMCC Vertical Cognitive Core", () => {
     const metrics = {
       async query(_context: TenantContext, metricId: string) {
         requested.push(metricId);
-        return {
-          metricId, metricVersion: 1, value: metricId === "billing.gross_billed" ? "1000" : "800",
-          unit: "currency", currency: "BRL", computedAt: new Date(), freshnessStatus: "fresh",
-          qualityStatus: "verified", sourceAuthority: "finance", provenanceRefs: [`fact-${metricId}`],
-        };
+        return metric(metricId, undefined, metricId === "billing.gross_billed" ? "1000" : "800");
       },
     } as unknown as MetricService;
 
@@ -115,5 +122,76 @@ describe("F09 FMCC Vertical Cognitive Core", () => {
 
     expect(answer.factualStatus).toBe("grounded");
     expect(requested).toEqual(["billing.gross_billed", "revenue.cash_collected"]);
+  });
+
+  it("resolve produto único somente a partir do catálogo autorizado do tenant", async () => {
+    let productCatalog: readonly { slug: string; name: string }[] = [];
+    const cognitiveModel: CognitiveModel = {
+      async plan(input) {
+        productCatalog = input.productCatalog ?? [];
+        return { metricIds: ["billing.gross_billed"], productSlugs: ["kordena"] };
+      },
+      async synthesize(input) {
+        expect(input.facts[0]).toMatchObject({ productId: "p-kordena", productSlug: "kordena", value: "100" });
+        return "Kordena: faturamento governado disponível.";
+      },
+    };
+    const requestedProducts: Array<string | undefined> = [];
+    const metrics = {
+      async query(_context: TenantContext, metricId: string, productId?: string) {
+        requestedProducts.push(productId);
+        return metric(metricId, productId);
+      },
+    } as unknown as MetricService;
+
+    const answer = await new CoreGateway(
+      new FmccVerticalCognitiveCore(cognitiveModel), metrics, undefined, productRepo(),
+    ).ask(context, "Como está o faturamento do Kordena?");
+
+    expect(productCatalog).toEqual([
+      { slug: "kordena", name: "Kordena" },
+      { slug: "iron", name: "IRON" },
+    ]);
+    expect(requestedProducts).toEqual(["p-kordena"]);
+    expect(answer.evidence[0]).toMatchObject({ productId: "p-kordena", productSlug: "kordena" });
+  });
+
+  it("consulta múltiplos produtos autorizados sem cruzar tenant", async () => {
+    const requested: Array<{ metricId: string; productId?: string }> = [];
+    const cognitiveModel: CognitiveModel = {
+      async plan() { return { metricIds: ["billing.gross_billed"], productSlugs: ["kordena", "iron"] }; },
+      async synthesize(input) {
+        expect(input.facts).toHaveLength(2);
+        return "Comparação governada.";
+      },
+    };
+    const metrics = {
+      async query(_context: TenantContext, metricId: string, productId?: string) {
+        requested.push({ metricId, productId });
+        return metric(metricId, productId, productId === "p-kordena" ? "100" : "80");
+      },
+    } as unknown as MetricService;
+
+    const answer = await new CoreGateway(
+      new FmccVerticalCognitiveCore(cognitiveModel), metrics, undefined, productRepo(),
+    ).ask(context, "Compare faturamento do Kordena e IRON.");
+
+    expect(requested).toEqual([
+      { metricId: "billing.gross_billed", productId: "p-kordena" },
+      { metricId: "billing.gross_billed", productId: "p-iron" },
+    ]);
+    expect(answer.evidence.map((item) => item.productSlug)).toEqual(["kordena", "iron"]);
+  });
+
+  it("falha fechado quando o plano tenta usar produto não autorizado", async () => {
+    const cognitiveModel: CognitiveModel = {
+      async plan() { return { metricIds: ["billing.gross_billed"], productSlugs: ["foreign"] }; },
+      async synthesize() { return "não deveria"; },
+    };
+    const metrics = { async query() { return metric("billing.gross_billed"); } } as unknown as MetricService;
+
+    await expect(new CoreGateway(
+      new FmccVerticalCognitiveCore(cognitiveModel), metrics, undefined, productRepo(),
+    ).ask(context, "Consulte foreign")).rejects.toBeInstanceOf(CoreArgumentError);
   });
 });
