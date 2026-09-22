@@ -6,7 +6,8 @@ import { PostgresCanonicalFactRepository, PostgresSourceRepository, PostgresSync
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 import { MetricService } from "@/application/metrics/metric-service";
 import { CoreGateway } from "@/application/core/core-gateway";
-import type { CanonicalCoreClient } from "@/domain/core/contracts";
+import { FmccVerticalCognitiveCore } from "@/application/core/fmcc-vertical-cognitive-core";
+import type { CognitiveModel } from "@/domain/core/cognitive-model";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
 const TENANTS = ["it-tenant-a", "it-tenant-b"];
@@ -86,16 +87,18 @@ describe("F07/F08 PostgreSQL tenant isolation", () => {
     });
     expect(metric.provenanceRefs).toHaveLength(1);
 
-    const core: CanonicalCoreClient = {
+    const cognitiveModel: CognitiveModel = {
       async plan(input) {
-        expect(input.tenantId).toBe(tenantId);
-        return { capability: "metric.query", arguments: { metricId: "billing.gross_billed" } };
+        expect(input.metricCatalog.some(({ metricId }) => metricId === "billing.gross_billed")).toBe(true);
+        return { metricIds: ["billing.gross_billed"] };
       },
       async synthesize(input) {
         expect(input.evidence[0].provenanceRefs).toHaveLength(1);
-        return { answer: "Valor governado disponível.", evidence: input.evidence, factualStatus: "grounded" };
+        expect(input.facts[0]).toMatchObject({ metricId: "billing.gross_billed", value: "12.34", currency: "BRL" });
+        return "Valor governado disponível.";
       },
     };
+    const core = new FmccVerticalCognitiveCore(cognitiveModel);
     const answer = await new CoreGateway(core, metrics).ask(context, "Qual o faturamento bruto emitido?");
     expect(answer).toMatchObject({ factualStatus: "grounded", evidence: [{ ref: "billing.gross_billed" }] });
   });
