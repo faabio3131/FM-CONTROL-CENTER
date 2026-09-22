@@ -11,6 +11,16 @@ function normalizeQuality(value: string): MetricQualityStatus {
   if (value === "verified" || value === "reconciled" || value === "partial" || value === "estimated" || value === "missing") return value;
   return "unknown";
 }
+function mapMetric(row: typeof metricValues.$inferSelect): MetricView {
+  return {
+    productId: row.productId ?? undefined,
+    metricId: row.metricId, metricVersion: row.metricVersion, value: row.value, unit: row.unit,
+    currency: row.currency ?? undefined, periodStart: row.periodStart ?? undefined, periodEnd: row.periodEnd ?? undefined,
+    asOf: row.asOf ?? undefined, computedAt: row.computedAt, sourceTimestamp: row.sourceTimestamp ?? undefined,
+    freshnessStatus: normalizeFreshness(row.freshnessStatus), qualityStatus: normalizeQuality(row.qualityStatus),
+    sourceAuthority: row.sourceAuthority, provenanceRefs: row.provenanceRefs,
+  };
+}
 
 export class PostgresMetricStore implements MetricStore {
   async factsForMetric(input: { tenantId: string; productId?: string; factType: string; periodStart?: Date; periodEnd?: Date }) {
@@ -46,15 +56,13 @@ export class PostgresMetricStore implements MetricStore {
     const rows = await db.select().from(metricValues).where(and(
       eq(metricValues.tenantId, tenantId), eq(metricValues.metricId, metricId), productClause,
     )).orderBy(desc(metricValues.computedAt)).limit(1);
-    const row = rows[0];
-    if (!row) return null;
-    return {
-      productId: row.productId ?? undefined,
-      metricId: row.metricId, metricVersion: row.metricVersion, value: row.value, unit: row.unit,
-      currency: row.currency ?? undefined, periodStart: row.periodStart ?? undefined, periodEnd: row.periodEnd ?? undefined,
-      asOf: row.asOf ?? undefined, computedAt: row.computedAt, sourceTimestamp: row.sourceTimestamp ?? undefined,
-      freshnessStatus: normalizeFreshness(row.freshnessStatus), qualityStatus: normalizeQuality(row.qualityStatus),
-      sourceAuthority: row.sourceAuthority, provenanceRefs: row.provenanceRefs,
-    };
+    return rows[0] ? mapMetric(rows[0]) : null;
+  }
+
+  async recentValues(tenantId: string, metricId: string, productId: string, limit: number): Promise<readonly MetricView[]> {
+    const rows = await db.select().from(metricValues).where(and(
+      eq(metricValues.tenantId, tenantId), eq(metricValues.metricId, metricId), eq(metricValues.productId, productId),
+    )).orderBy(desc(metricValues.computedAt)).limit(limit);
+    return rows.map(mapMetric);
   }
 }
