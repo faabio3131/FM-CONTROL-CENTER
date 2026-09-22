@@ -1,65 +1,31 @@
 # FM CONTROL CENTER — F09 FM COGNITIVE VERTICAL CORE
 
-**Status:** ARQUITETURA RECONCILIADA / IMPLEMENTAÇÃO EM PR #9  
-**Data de reconciliação:** 20/09/2026  
+**Status:** CONCLUÍDA COM EVIDÊNCIA EM PREVIEW / NÃO É PRODUÇÃO  
+**Data de reconciliação arquitetural:** 20/09/2026  
+**Data de certificação F09:** 22/09/2026  
 **Decisão vigente:** ADR-013 — Product-Owned FM Cognitive Vertical Core
 
-## 1. Correção arquitetural
+## 1. Arquitetura vigente
 
-A interpretação anterior tratava o FM Control Center como consumidor obrigatório de um runtime cognitivo hospedado no `fm-ai-platform`.
-
-Essa decisão foi revista porque o FMCC é SaaS comercial independente e precisa possuir seu próprio cérebro vertical, contexto, memória, policies e ciclo de evolução.
+O FM Control Center possui seu próprio cérebro vertical, contexto, memória, policies e ciclo de evolução.
 
 O ADR-001 está SUPERSEDED.
 
-## 2. Current da implementação
-
-O FMCC agora contém no próprio produto:
+O FMCC contém no próprio produto:
 - `FmccVerticalCognitiveCore`;
 - Cognitive Model Port;
-- adapter HTTP OpenAI-compatible para capacidade de modelo;
+- adapter OpenAI-compatible;
 - Core Gateway;
-- memória operacional tenant/user scoped a partir do audit ledger;
+- memória operacional tenant/user scoped a partir do Audit Ledger;
 - Metric Engine como autoridade factual;
 - provenance/evidence;
 - análise single e multi-métrica;
-- degradação segura quando modelo não está configurado.
+- degradação segura quando o provider falha;
+- observabilidade segura de falhas externas.
 
-Foi removida a dependência obrigatória:
-- `FM_CORE_BASE_URL`;
-- `FM_CORE_SERVICE_TOKEN`;
-- `HttpCanonicalCoreClient`;
-- runtime cognitivo de outro produto.
+Não existe dependência operacional cognitiva obrigatória de outro SaaS.
 
-## 3. Natureza vertical e cognitiva
-
-O Core do FMCC é vertical para gestão empresarial consolidada.
-
-Capacidades previstas/implementadas no boundary:
-- interpretação de intenção;
-- seleção planejada de métricas governadas;
-- contexto operacional;
-- consulta single/multi-métrica;
-- explicação de indicadores;
-- correlação;
-- padrões;
-- anomalias;
-- análise de risco;
-- recomendação;
-- interação executiva em linguagem natural.
-
-O modelo externo é apenas provider de cognição. O Core é a combinação de:
-- policies verticais;
-- contexto;
-- capabilities;
-- grounding;
-- Metric Engine;
-- provenance;
-- guardrails;
-- auditoria;
-- model adapter.
-
-## 4. Autoridade
+## 2. Autoridade
 
 Core → interpretação/análise/recomendação → capability → serviço determinístico → tenant/autorização → evidence/provenance → resposta → auditoria.
 
@@ -73,44 +39,74 @@ O Core não pode:
 - executar ação crítica diretamente;
 - tratar memória conversacional como fonte factual.
 
-## 5. Multi-tenancy
+## 3. Multi-tenancy e memória
 
-Contexto cognitivo é filtrado por tenant + usuário. Toda consulta de métrica recebe TenantContext server-side.
+Contexto cognitivo é filtrado por tenant + usuário. Toda consulta de métrica recebe `TenantContext` server-side.
 
-Cross-tenant é STOP condition.
+A certificação adicionou teste PostgreSQL real para provar:
+- memória do usuário A do tenant A não retorna contexto do usuário A2;
+- memória do tenant A não retorna contexto do tenant B;
+- eventos de falha não entram como continuidade cognitiva;
+- cross-tenant permanece STOP condition.
 
-## 6. Model provider runtime
+## 4. Provider cognitivo em Preview
 
-Variáveis do produto:
-- `FMCC_COGNITIVE_MODEL_BASE_URL`;
-- `FMCC_COGNITIVE_MODEL_API_KEY`;
-- `FMCC_COGNITIVE_MODEL_ID`.
+Foi validado um provider real compatível com o boundary OpenAI-compatible do produto.
 
-Secrets ficam somente no runtime secret store.
+Durante a configuração inicial, o provider rejeitou a autenticação. O valor de configuração foi corrigido no secret store do ambiente e o smoke subsequente passou.
 
-A V1 usa um adapter OpenAI-compatible como boundary concreto. Multi-provider adicional só será introduzido se houver benefício comprovado.
+Nenhum secret foi registrado em código, logs ou documentação.
 
-## 7. Estado de prontidão
+## 5. Smoke real de Preview
 
-IMPLEMENTADO EM CÓDIGO:
-- ownership do Core no FMCC;
-- vertical policies;
-- model boundary;
-- context memory;
-- Metric grounding;
-- multi-metric reasoning path;
-- fail-closed.
+Com aplicação autenticada no Preview:
+- `/api/health` respondeu `{"service":"fm-control-center","status":"ok"}`;
+- `/api/ready` respondeu `{"status":"ready"}`;
+- dashboard autenticado carregou;
+- pergunta executiva: **“Quanto faturamos esse mês?”**;
+- resposta: métricas indisponíveis por ausência de valores governados;
+- provenance exibida: `billing.gross_billed`;
+- nenhum valor foi inventado;
+- o comportamento confirmou missing != zero e grounding no Metric Engine.
 
-AINDA EXIGE EVIDÊNCIA:
-- CI do novo HEAD;
-- model provider configurado no Preview;
-- smoke real de pergunta executiva;
-- verificação de ausência de cross-tenant;
-- logs/auditoria/provenance;
-- regressão F06–F10.
+## 6. Audit Ledger
+
+A rota `/api/core/query` grava `core.query` antes de devolver resposta de sucesso.
+
+A certificação PostgreSQL prova persistência de:
+- tenant;
+- ator;
+- correlação;
+- resultado;
+- resource type;
+- `factualStatus`;
+- `evidenceRefs`.
+
+O runtime também registra evento operacional somente depois da persistência, sem incluir pergunta, resposta ou credencial.
+
+## 7. Evidência de CI
+
+Candidate funcional de certificação:
+`cb632f9c1bab9957094274092fd60161c5e546f3`
+
+FMCC Foundation Gate #133:
+- Install — SUCCESS
+- Lint — SUCCESS
+- Typecheck — SUCCESS
+- Verify migration matches schema — SUCCESS
+- Apply versioned migration — SUCCESS
+- Tests — SUCCESS
+- Build — SUCCESS
+- Docker build — SUCCESS
+- Runtime dependency audit — SUCCESS
+
+Resultado:
+- 15 test files PASS;
+- 62 tests PASS;
+- teste de auditoria/isolamento cognitivo PostgreSQL: 3/3 PASS.
 
 ## Gate
 
-**F09 NÃO está homologada ainda.**
+**F09 — CONCLUÍDA COM EVIDÊNCIA EM PREVIEW.**
 
-O bloqueio atual deixou de ser “Core externo inexistente”. O gate agora depende de testar e validar o Core vertical próprio no Preview do FM Control Center.
+Esta certificação não declara produção, release comercial nem merge. PR #9 permanece sob governança até decisão explícita de integração.
