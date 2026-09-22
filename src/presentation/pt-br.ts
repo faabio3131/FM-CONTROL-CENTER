@@ -113,3 +113,40 @@ export function mensagemErroComparacao(code?: string): string {
   }
   return "Não foi possível realizar a comparação.";
 }
+
+export function rotuloMetrica(metricId: string): string {
+  switch (metricId) {
+    case "trial.starts.count": return "Testes gratuitos iniciados";
+    case "trial.active.count": return "Testes gratuitos ativos";
+    case "trial.conversion.rate": return "Conversão de teste gratuito em assinatura";
+    case "subscription.active.count": return "Assinaturas ativas";
+    case "subscription.cancelled.count": return "Cancelamentos";
+    case "subscription.logo_churn.rate": return "Taxa de cancelamento de clientes";
+    case "billing.gross_billed": return "Faturamento bruto emitido";
+    case "revenue.cash_collected": return "Caixa recebido";
+    case "revenue.mrr": return "Receita recorrente mensal";
+    case "revenue.arr": return "Receita recorrente anual";
+    case "receivable.delinquent_amount": return "Inadimplência";
+    case "lead.created.count": return "Potenciais clientes criados";
+    case "activation.completed.count": return "Ativações concluídas";
+    case "activation.rate": return "Taxa de ativação";
+    case "usage.active_users.dau": return "Usuários ativos diários";
+    case "usage.active_users.mau": return "Usuários ativos mensais";
+    case "usage.feature_adoption.rate": return "Taxa de adoção de funcionalidade";
+    case "usage.engagement.events": return "Eventos de engajamento";
+    case "incident.count": return "Incidentes";
+    case "service.error.rate": return "Taxa de erro";
+    case "support.ticket.open.count": return "Chamados de suporte abertos";
+    default: return "Métrica governada";
+  }
+}
+
+export function rotuloAutoridadeFonte(sourceAuthority?: string): string {
+  switch (sourceAuthority) {
+    case "configured_trial_source": return "Fonte governada de testes gratuitos";
+    case "configured_billing_source": return "Fonte governada de cobrança";
+    case "configured_payment_source": return "Fonte governada de pagamentos";
+    case "billing-authority": return "Fonte governada de cobrança";
+    default: return "Fonte governada";
+  }
+}
