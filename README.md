@@ -10,7 +10,7 @@ SaaS comercial independente da Nova FM Tecnologia. A Nova FM é o Tenant Zero.
 - F08: Metric Registry + Metric Engine determinísticos concluídos com evidência na PR #9.
 - F09: FMCC Cognitive Vertical Core **próprio do produto** concluído com evidência em Preview na PR #9.
 - F10: Executive Command Center concluído com evidência em Preview na PR #9.
-- F11: não iniciada; depende do encerramento governado da PR #9.
+- F11: implementação funcional concluída na PR #11 Draft; Product Registry, product scope, Product Intelligence, comparação governada, UI e Core product-aware certificados no Gate #162. Preview/smoke final ainda pendente; F11 **não está encerrada nem mergeada**.
 
 ## Arquitetura cognitiva vigente
 
@@ -62,7 +62,10 @@ Nunca versione secrets.
 - consulta executiva governada validada;
 - ausência de valor governado apresentada como indisponível, nunca como zero;
 - provenance preservada;
-- Audit Ledger e memória cognitiva tenant/user scoped testados em PostgreSQL.
+- Audit Ledger e memória cognitiva tenant/user scoped testados em PostgreSQL;
+- PR #9 e PR #10 integradas à `main`; CI pós-merge automático em `push: main`;
+- Render Preview reconciliado para `main` e smoke pós-merge F07–F10 concluído;
+- F11 permanece em branch/PR próprias até Preview/smoke e gate final.
 
 ## Stack
 Node.js 24 LTS · Next.js 16.3.x · TypeScript · PostgreSQL 18 · Drizzle · Better Auth Organizations · GitHub Actions · Render Preview.
