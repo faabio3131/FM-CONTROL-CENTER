@@ -2,14 +2,28 @@
 
 **Baseline:** `8076ad7861f43f78fa502d92dbd7eb0f0ff130d4`  
 **Branch:** `feat/fmcc-f07-f10-intelligence-stack`  
-**PR:** #9  
-**Modo:** pipeline autônomo com reavaliação assíncrona  
-**Produção:** não utilizada
+**PR:** #9 — Draft  
+**Produção:** não utilizada  
+**Reconciliação deste relatório:** 22/09/2026
 
 ## Resumo executivo
-F07 e F08 atingiram gate técnico verde. A arquitetura de F09 foi posteriormente reconciliada para um **FMCC Cognitive Vertical Core próprio do produto**, removendo a dependência cognitiva operacional de outro SaaS. F10 permanece alinhada ao mesmo Core próprio. A recertificação do novo HEAD está bloqueada antes da execução dos steps do GitHub Actions por ausência de runner alocado; portanto F09/F10 não foram promovidas e F11–F15 não foram iniciadas.
+
+F07 e F08 permanecem tecnicamente aprovadas.
+
+F09 e F10 foram posteriormente reconciliadas para o FM Cognitive Vertical Core próprio do FMCC, tiveram CI real restaurado, provider cognitivo configurado em Preview e smoke executivo concluído com grounding/provenance.
+
+A certificação adicional de 22/09/2026 incluiu teste PostgreSQL dedicado para isolamento cognitivo tenant/user e persistência do Audit Ledger.
+
+**Resultado atual:**
+- F07 — CONCLUÍDA COM EVIDÊNCIA;
+- F08 — CONCLUÍDA COM EVIDÊNCIA;
+- F09 — CONCLUÍDA COM EVIDÊNCIA EM PREVIEW;
+- F10 — CONCLUÍDA COM EVIDÊNCIA EM PREVIEW;
+- produção e merge não realizados;
+- F11 não iniciada.
 
 ## F07 — Integration Fabric
+
 Implementado:
 - Source Registry tenant-scoped;
 - Connector contracts/runtime;
@@ -27,6 +41,7 @@ Implementado:
 **Status:** gate técnico aprovado.
 
 ## F08 — Data Platform + Metric Engine
+
 Implementado:
 - Metric Registry versionado;
 - Metric Engine determinístico;
@@ -41,91 +56,115 @@ Implementado:
 
 **Status:** gate técnico aprovado.
 
-## F09 — Cognitive Core
-Estado arquitetural vigente:
-- `FmccVerticalCognitiveCore` pertence ao próprio FM Control Center;
+## F09 — FM Cognitive Vertical Core
+
+Arquitetura vigente:
+- Core próprio do FMCC;
 - Cognitive Model Port;
 - adapter OpenAI-compatible;
-- contexto e memória tenant/user scoped;
+- contexto/memória tenant + user scoped;
 - Metric Engine como autoridade factual;
 - grounding/provenance;
 - planejamento single/multi-métrica;
 - explicação, correlação, anomalia, risco e recomendação;
-- fail-closed sem provider.
+- fail-closed;
+- observabilidade segura do provider;
+- Audit Ledger de `core.query`.
 
-Removido do desenho vigente:
-- `FM_CORE_BASE_URL`;
-- `FM_CORE_SERVICE_TOKEN`;
-- `HttpCanonicalCoreClient`;
-- dependência operacional cognitiva do Kordena/`fm-ai-platform`.
+Certificação PostgreSQL:
+- memória operacional não cruza tenant;
+- memória operacional não cruza usuário;
+- eventos de falha não alimentam continuidade cognitiva;
+- `core.query` persiste tenant, ator, correlação, resultado e evidence refs.
 
-**Status:** implementado/reconciliado em código; recertificação CI e Preview pendentes.
+**Status:** concluída com evidência em Preview.
 
 ## F10 — Executive Command Center
+
 Implementado:
 - dashboard executivo;
 - cards governados;
 - estados indisponível/semântica pendente;
 - provenance/source/freshness/quality;
-- painel de consulta ao Core próprio;
-- degradação segura quando provider cognitivo não está configurado;
+- painel de consulta ao Core;
+- degradação segura do provider;
 - responsividade/acessibilidade básica;
 - dados não inventados.
 
-**Status:** implementado; certificação do HEAD corrigido e Preview E2E pendentes.
+Smoke real de Preview:
+- health OK;
+- readiness READY;
+- autenticação e dashboard OK;
+- consulta **“Quanto faturamos esse mês?”** executada;
+- resposta informou ausência de valor governado;
+- provenance exibida: `billing.gross_billed`;
+- nenhum valor ausente foi convertido em zero.
 
-## Evidência verde histórica
-Último HEAD funcional consolidado anterior à reconciliação do Core próprio:
-`8d2fee2d4db989cabcc19e485dcf0eb6d0ad48f7`.
+**Status:** concluída com evidência em Preview.
 
-FMCC Foundation Gate #82:
-- Install — SUCCESS
-- Lint — SUCCESS
-- Typecheck — SUCCESS
-- Verify migration matches schema — SUCCESS
-- Apply versioned migration — SUCCESS
-- Tests — SUCCESS
-- Build — SUCCESS
-- Build Docker image without runtime secrets — SUCCESS
-- Runtime dependency audit — SUCCESS
+## Incidentes e correções durante homologação
 
-Essa evidência não certifica automaticamente os commits posteriores.
+### GitHub Actions
 
-## STOP operacional de CI — evidência atual
+Houve período de falha pré-runner sem execução de steps. O bloqueio foi operacional e não permitia classificar o código.
 
-HEAD investigado:
-`62405d16c262a880971d1287f979317d906c6b73`
+Posteriormente, a execução normal de GitHub Actions foi restaurada e os gates voltaram a produzir evidência real.
 
-FMCC Foundation Gate #119:
-- run id: `35510973426`;
-- attempt 1: FAILURE antes de qualquer step;
-- reexecução explícita autorizada executada;
-- attempt 2: job `106087696116`;
-- resultado novamente FAILURE;
-- `steps=[]`;
-- `runner_id=0`;
-- nenhum runner alocado;
-- nenhum log de execução disponível.
+### Provider cognitivo
 
-Comparação de workflow:
-- run #86 SUCCESS no HEAD `ec3bf035fc557890577d3ce0a86309c97b6057de`, com 17 steps;
-- run #89 já falhava sem execução normal;
-- o workflow usado nos dois pontos possui o mesmo blob SHA: `85bfd11d004bf47daaa2911840f7f08f6fe1b51b`.
+O primeiro smoke real recebeu resposta externa 401.
 
-Conclusão suportada pela evidência:
-- a transição de execução normal para falha pré-runner não foi causada por alteração do arquivo de workflow;
-- não é possível afirmar a causa administrativa específica apenas pela API disponível;
-- não existe evidência para atribuir a falha atual ao código de F09/F10, pois lint/test/build/migrations não chegaram a rodar;
-- também não é permitido chamar o HEAD corrigido de certificado.
+A configuração do ambiente foi corrigida no secret store. O smoke subsequente passou e o Core respondeu de forma governada.
+
+Nenhum secret foi registrado neste relatório.
+
+## CI conclusivo de certificação
+
+Candidate funcional:
+`cb632f9c1bab9957094274092fd60161c5e546f3`
+
+FMCC Foundation Gate #133 — SUCCESS:
+- Install;
+- Lint;
+- Typecheck;
+- migration verification;
+- migration apply;
+- Tests;
+- Build;
+- Docker build;
+- runtime dependency audit.
+
+Resultado:
+- 15 test files PASS;
+- 62 tests PASS;
+- teste PostgreSQL específico de auditoria/isolamento cognitivo: 3/3 PASS.
+
+## CI/CD Preview
+
+O serviço Preview foi configurado para a branch da PR #9 com deploy condicionado à aprovação dos checks de CI.
+
+O fluxo pretendido passa a ser:
+commit → GitHub Actions → gate verde → deploy automático no Preview.
 
 ## Governança atual
+
 - PR #9 permanece OPEN/DRAFT;
 - nenhum merge realizado;
-- nenhum deploy de produção realizado;
-- arquitetura do Core próprio preservada;
-- F11–F15 não iniciadas;
-- merge e progressão permanecem bloqueados até execução real do CI obrigatório;
-- após restaurar runner/Actions: recertificar HEAD → configurar provider cognitivo no Preview → smoke E2E → regressão F06–F10 → revisão final → merge condicionado → smoke pós-merge.
+- nenhum deploy produtivo realizado;
+- F07–F10 estão fechadas no escopo Preview;
+- isso não equivale a produção ou autorização comercial;
+- F11 permanece não iniciada;
+- próximo passo de governança: revisão final da PR #9 e decisão explícita de integração.
 
-## Pendência externa
-É necessário restaurar a capacidade de alocação de GitHub-hosted runner para este repositório/conta. Possíveis causas administrativas como quota, billing/spending limit, políticas de Actions ou disponibilidade específica da conta devem ser verificadas no GitHub; nenhuma delas é declarada como causa raiz sem evidência administrativa.
+## Próxima fase funcional
+
+F11 — Inteligência por Produto:
+- visão individual de cada SaaS;
+- aquisição;
+- ativação;
+- engajamento;
+- receita;
+- churn;
+- saúde;
+- crescimento;
+- comparação entre produtos.
