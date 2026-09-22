@@ -14,6 +14,8 @@ describe("F10 Executive Command Center contract", () => {
   it("keeps Core query behind the governed API boundary", () => {
     const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/core-query-form.tsx"), "utf8");
     expect(source).toContain('fetch("/api/core/query"');
-    expect(source).toContain("Core canônico ainda não está conectado neste ambiente");
+    expect(source).toContain("Provider cognitivo indisponível");
+    expect(source).toContain("contrato cognitivo governado");
+    expect(source).not.toContain("Core canônico ainda não está conectado neste ambiente");
   });
 });
