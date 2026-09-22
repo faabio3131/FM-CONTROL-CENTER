@@ -13,6 +13,7 @@ export interface MetricStore {
     qualityStatus: MetricQualityStatus; sourceAuthority: string; provenanceRefs: readonly string[];
   }): Promise<void>;
   latestValue(tenantId: string, metricId: string, productId?: string): Promise<MetricView | null>;
+  recentValues(tenantId: string, metricId: string, productId: string, limit: number): Promise<readonly MetricView[]>;
 }
 
 export interface MetricView {
@@ -41,23 +42,18 @@ export class MetricService {
     const definition = getMetricDefinition(input.metricId);
     if (!definition) throw new Error(`metrics.definition_not_found:${input.metricId}`);
     const facts = await this.store.factsForMetric({
-      tenantId: context.tenantId,
-      productId: input.productId,
-      factType: definition.factType,
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
+      tenantId: context.tenantId, productId: input.productId, factType: definition.factType,
+      periodStart: input.periodStart, periodEnd: input.periodEnd,
     });
     const computed = computeMetric(definition, facts);
     const now = new Date();
     const value: MetricView = {
-      productId: input.productId,
-      metricId: definition.metricId, metricVersion: definition.version, value: computed.value,
+      productId: input.productId, metricId: definition.metricId, metricVersion: definition.version, value: computed.value,
       unit: computed.unit, currency: computed.status === "available" ? computed.currency : undefined,
       periodStart: input.periodStart, periodEnd: input.periodEnd, asOf: input.asOf,
       computedAt: now, sourceTimestamp: computed.status === "available" ? computed.sourceTimestamp : undefined,
       freshnessStatus: computed.status === "available" ? "unknown" : "unavailable",
-      qualityStatus: computed.qualityStatus, sourceAuthority: definition.sourceAuthority,
-      provenanceRefs: computed.provenanceRefs,
+      qualityStatus: computed.qualityStatus, sourceAuthority: definition.sourceAuthority, provenanceRefs: computed.provenanceRefs,
     };
     await this.store.saveValue({ tenantId: context.tenantId, ...value });
     return value;
@@ -69,15 +65,18 @@ export class MetricService {
     return this.store.latestValue(context.tenantId, metricId, productId);
   }
 
+  async history(context: TenantContext, metricId: string, productId: string, limit = 2): Promise<readonly MetricView[]> {
+    requirePermission(context, "metric:read");
+    if (!getMetricDefinition(metricId)) throw new Error(`metrics.definition_not_found:${metricId}`);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 24) throw new Error("metrics.history_limit_invalid");
+    return this.store.recentValues(context.tenantId, metricId, productId, limit);
+  }
+
   async overview(context: TenantContext) {
     requirePermission(context, "metric:read");
     return Promise.all(EXECUTIVE_METRIC_TARGETS.map(async (target) => {
       const definition = getMetricDefinition(target.metricId);
-      return {
-        target,
-        definition,
-        value: definition ? await this.store.latestValue(context.tenantId, definition.metricId) : null,
-      };
+      return { target, definition, value: definition ? await this.store.latestValue(context.tenantId, definition.metricId) : null };
     }));
   }
 }
