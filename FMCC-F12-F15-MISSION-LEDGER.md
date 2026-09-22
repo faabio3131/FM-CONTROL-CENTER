@@ -16,7 +16,7 @@
 | F12 implementação | PASS | Finance service/API/UI + deterministic operating result + Core grounding |
 | F12 gate | PASS | Foundation Gate #205 — SUCCESS on `c2afaf26fbe727baba3f6e3658e48978e06f1307` |
 | F13 | PASS | Foundation Gate #210 — SUCCESS on `3fda942e6d898f6445f0ae4317c5e8ba38913c9b` |
-| F14 | EM EXECUÇÃO | liberada após Gate #210 |
+| F14 | EM TESTES | implementação concluída; aguardando Foundation Gate do HEAD F14 |
 | F15 | BLOQUEADA POR GATE F14 | System Design preparado |
 
 ## Guardrails
