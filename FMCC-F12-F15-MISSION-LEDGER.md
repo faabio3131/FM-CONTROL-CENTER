@@ -13,9 +13,9 @@
 | F11 pós-merge | PASS | Gate #192 SUCCESS |
 | F12 Current Discovery | PASS | `FMCC-12-CURRENT-DISCOVERY-FINANCE-v0.1.md` |
 | F12 System Design | PASS | `FMCC-12-FINANCIAL-UNIT-ECONOMICS-v0.1.md` |
-| F12 implementação | EM EXECUÇÃO | branch/PR #12 |
-| F12 gate | PENDENTE | não avançar F13 antes de verde |
-| F13 | BLOQUEADA POR GATE F12 | System Design preparado, implementação aguarda F12 |
+| F12 implementação | PASS | Finance service/API/UI + deterministic operating result + Core grounding |
+| F12 gate | PASS | Foundation Gate #205 — SUCCESS on `c2afaf26fbe727baba3f6e3658e48978e06f1307` |
+| F13 | EM EXECUÇÃO | liberada após Gate #205 |
 | F14 | BLOQUEADA POR GATE F13 | System Design preparado |
 | F15 | BLOQUEADA POR GATE F14 | System Design preparado |
 
