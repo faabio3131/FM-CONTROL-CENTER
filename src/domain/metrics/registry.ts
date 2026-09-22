@@ -103,6 +103,24 @@ export const METRIC_REGISTRY: readonly MetricDefinition[] = [
     kind: "count", factType: "service.error", unit: "count", grain: "period", dimensions: [],
     timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_observability_source",
   },
+  {
+    metricId: "usage.active_users.dau", version: 1, calculationVersion: "v1",
+    displayName: "Usuários ativos diários (DAU)", description: "Usuários distintos com atividade governada dentro do período diário consultado.",
+    kind: "count", factType: "usage.active_user.day", unit: "count", grain: "period", dimensions: [],
+    timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_usage_source",
+  },
+  {
+    metricId: "usage.engagement.events", version: 1, calculationVersion: "v1",
+    displayName: "Eventos de engajamento", description: "Eventos de engajamento distintos reportados pela telemetria de produto autorizada.",
+    kind: "count", factType: "usage.engagement_event", unit: "count", grain: "period", dimensions: [],
+    timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_usage_source",
+  },
+  {
+    metricId: "support.ticket.open.count", version: 1, calculationVersion: "v1",
+    displayName: "Chamados de suporte abertos", description: "Chamados distintos abertos no período por fonte de suporte autorizada.",
+    kind: "count", factType: "support.ticket.opened", unit: "count", grain: "period", dimensions: [],
+    timeWindow: "bounded_period", freshnessPolicy: "source_governed", sourceAuthority: "configured_support_source",
+  },
 ] as const;
 
 export function getMetricDefinition(metricId: string): MetricDefinition | null {
@@ -138,6 +156,7 @@ export const EXECUTIVE_METRIC_TARGETS: readonly ExecutiveMetricTarget[] = [
   { metricId: "integration.failure.count", displayName: "Falhas de integrações", definitionStatus: "implemented" },
   { metricId: "service.error.count", displayName: "Erros de serviço", definitionStatus: "implemented" },
   { metricId: "service.error.rate", displayName: "Taxa de erro", definitionStatus: "pending_semantics" },
-  { metricId: "usage.active_users.dau", displayName: "Usuários ativos diários (DAU)", definitionStatus: "pending_semantics" },
-  { metricId: "support.ticket.open.count", displayName: "Chamados de suporte abertos", definitionStatus: "pending_semantics" },
+  { metricId: "usage.active_users.dau", displayName: "Usuários ativos diários (DAU)", definitionStatus: "implemented" },
+  { metricId: "usage.engagement.events", displayName: "Eventos de engajamento", definitionStatus: "implemented" },
+  { metricId: "support.ticket.open.count", displayName: "Chamados de suporte abertos", definitionStatus: "implemented" },
 ] as const;
