@@ -7,7 +7,7 @@ import { resolveTenantContext } from "@/application/security/resolve-tenant-cont
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
-import { rotuloAtualidade, rotuloQualidade, rotuloStatusDefinicao, rotuloStatusProduto } from "@/presentation/pt-br";
+import { rotuloAtualidade, rotuloAutoridadeFonte, rotuloQualidade, rotuloStatusDefinicao, rotuloStatusProduto } from "@/presentation/pt-br";
 import { CoreQueryForm } from "./core-query-form";
 import { ProductComparisonForm } from "./product-comparison-form";
 import { ProductCreateForm } from "./product-create-form";
@@ -71,7 +71,7 @@ export default async function DashboardPage() {
                 <span>{value ? `Atualidade: ${rotuloAtualidade(value.freshnessStatus)}` : definition ? "Fonte ainda não conectada" : "Métrica ainda não implementada"}</span>
                 <span>{value ? formatTemporalContext(value) : "Período indisponível"}</span>
               </div>
-              <small className="metric-provenance">{value ? `Fonte: ${value.sourceAuthority} · versão ${value.metricVersion}` : `Identificador técnico: ${target.metricId} · ${rotuloStatusDefinicao(target.definitionStatus)}`}</small>
+              <small className="metric-provenance">{value ? `Fonte: ${rotuloAutoridadeFonte(value.sourceAuthority)} · versão ${value.metricVersion}` : `Identificador técnico: ${target.metricId} · ${rotuloStatusDefinicao(target.definitionStatus)}`}</small>
             </article>
           ))}
         </div>
