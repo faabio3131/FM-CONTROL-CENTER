@@ -4,6 +4,7 @@ export type SourceStatus = "configured" | "healthy" | "degraded" | "unavailable"
 export interface SourceDefinition {
   readonly id: string;
   readonly tenantId: string;
+  readonly productId?: string;
   readonly name: string;
   readonly sourceType: string;
   readonly authoritativeDomain: string;
@@ -16,6 +17,7 @@ export interface SourceDefinition {
 }
 
 export interface NewSourceDefinition {
+  readonly productId?: string;
   readonly name: string;
   readonly sourceType: string;
   readonly authoritativeDomain: string;
@@ -59,13 +61,14 @@ export interface SourceRepository {
 }
 
 export interface SyncRepository {
-  begin(input: {
-    tenantId: string; sourceId: string; idempotencyKey: string; correlationId: string; cursorBefore?: string;
-  }): Promise<{ id: string; state: "started" | "restarted" | "running" | "completed" }>;
+  begin(input: { tenantId: string; sourceId: string; idempotencyKey: string; correlationId: string; cursorBefore?: string }): Promise<{ id: string; state: "started" | "restarted" | "running" | "completed" }>;
   complete(input: { id: string; tenantId: string; cursorAfter?: string }): Promise<void>;
   fail(input: { id: string; tenantId: string; errorCode: string; errorMessage: string }): Promise<void>;
 }
 
 export interface CanonicalFactRepository {
-  ingest(input: { tenantId: string; sourceId: string; mappingVersion: string; fact: ConnectorFact; correlationId: string }): Promise<void>;
+  ingest(input: {
+    tenantId: string; productId?: string; sourceId: string; mappingVersion: string;
+    fact: ConnectorFact; correlationId: string;
+  }): Promise<void>;
 }
