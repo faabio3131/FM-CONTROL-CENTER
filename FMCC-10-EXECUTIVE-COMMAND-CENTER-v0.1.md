@@ -1,13 +1,16 @@
 # FM CONTROL CENTER — F10 EXECUTIVE COMMAND CENTER
 
-**Status:** IMPLEMENTADA E TESTADA NA PR / PREVIEW E2E PENDENTE  
-**HEAD verificado:** `8d2fee2d4db989cabcc19e485dcf0eb6d0ad48f7`  
-**CI:** FMCC Foundation Gate #82 — SUCCESS
+**Status:** CONCLUÍDA COM EVIDÊNCIA EM PREVIEW / NÃO É PRODUÇÃO  
+**Data de certificação F10:** 22/09/2026  
+**PR:** #9 — Draft  
+**Branch:** `feat/fmcc-f07-f10-intelligence-stack`
 
 ## Objetivo
+
 Construir a primeira superfície executiva real usando as mesmas autoridades de F07/F08/F09.
 
 ## Implementação comprovada
+
 - dashboard executivo server-side;
 - cards vindos de MetricService/PostgreSQL;
 - catálogo de KPIs-alvo com gaps explícitos;
@@ -16,8 +19,8 @@ Construir a primeira superfície executiva real usando as mesmas autoridades de 
 - período/as-of quando existente;
 - tenant autenticado;
 - painel do Core via `/api/core/query`;
-- continuidade contextual tenant/user via audit ledger;
-- suporte a análise multi-métrica para explicação, correlação, padrões, anomalia, risco e recomendação;
+- continuidade contextual tenant/user via Audit Ledger;
+- suporte a análise multi-métrica;
 - Core indisponível degrada com segurança e não derruba o dashboard;
 - responsividade básica;
 - acessibilidade semântica básica;
@@ -25,20 +28,58 @@ Construir a primeira superfície executiva real usando as mesmas autoridades de 
 - métricas sem semântica aprovada aparecem como pendentes, sem fabricar cálculo.
 
 ## Dados
-Nenhuma fixture é exibida como dado real no dashboard. Sem ingestão real, os cards mostram indisponibilidade/fonte não conectada.
+
+Nenhuma fixture é exibida como dado real no dashboard.
+
+Sem ingestão real, os cards mostram indisponibilidade/fonte não conectada.
 
 Dashboard e Core usam a mesma autoridade determinística de métricas.
 
-## Evidência
-- testes do Command Center;
-- testes do Core Gateway;
-- integração PostgreSQL F07/F08/F09;
-- lint/typecheck/test/build/Docker/audit verdes no Gate #82.
+## Smoke real de Preview
 
-## Dependência de gate
-A UI está implementada. A arquitetura cognitiva foi reconciliada para o FMCC Cognitive Vertical Core próprio do produto. Falta recertificar o novo HEAD e provar o fluxo real no Preview com model provider configurado.
+Evidências observadas no ambiente Preview:
+- `/api/health` saudável;
+- `/api/ready` ready;
+- login e sessão válidos;
+- dashboard autenticado carregado;
+- tenant resolvido server-side;
+- consulta ao FM Cognitive Core executada;
+- pergunta: **“Quanto faturamos esse mês?”**;
+- resposta governada de indisponibilidade por ausência de valor autorizado;
+- provenance: `billing.gross_billed`;
+- ausência de dado não foi convertida em zero;
+- falha inicial do provider foi diagnosticada sem derrubar o dashboard e corrigida por configuração do ambiente.
+
+## Segurança e tenancy
+
+A certificação F09/F10 inclui:
+- autenticação integrada;
+- tenant server-side;
+- headers externos sem autoridade de tenant;
+- Metric Store tenant-scoped;
+- memória cognitiva tenant/user scoped;
+- teste PostgreSQL específico para impedir contexto cross-tenant/cross-user;
+- Audit Ledger para `core.query`.
+
+## CI conclusivo
+
+Candidate funcional:
+`cb632f9c1bab9957094274092fd60161c5e546f3`
+
+FMCC Foundation Gate #133 — SUCCESS:
+- lint;
+- typecheck;
+- migration verification;
+- migration apply;
+- 15 test files / 62 tests;
+- build;
+- Docker build;
+- runtime dependency audit.
 
 ## Gate
-**F10 — IMPLEMENTADA/TESTADA, MAS NÃO CERTIFICADA COMO INTEGRADA EM PREVIEW.**
 
-Não promover a homologada enquanto o novo Core vertical próprio não estiver com CI verde, smoke E2E Preview e smoke pós-merge.
+**F10 — CONCLUÍDA COM EVIDÊNCIA EM PREVIEW.**
+
+A certificação é de integração e homologação de Preview. Não declara produção, autorização comercial ou merge.
+
+A próxima progressão funcional prevista no Plano Mestre é F11 — Inteligência por Produto, após o encerramento de governança da PR #9.
