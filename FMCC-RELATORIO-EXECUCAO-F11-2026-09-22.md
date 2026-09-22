@@ -4,7 +4,7 @@
 **Data:** 22/09/2026  
 **Baseline:** `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`  
 **Branch:** `feat/fmcc-f11-product-intelligence`  
-**PR:** #11 — OPEN/DRAFT  
+**PR:** #11 — MERGED/CLOSED  
 **Candidate funcional:** `986991e74e53fc8ff41d90d0ca27cabf345163fc`  
 **Gate funcional:** #184 — SUCCESS
 
@@ -20,8 +20,8 @@ O smoke real encontrou duas falhas de UX que não haviam aparecido no CI:
 
 As duas foram corrigidas, receberam testes de regressão e foram recertificadas.
 
-**Classificação atual:** FUNCIONALMENTE APROVADA EM CI + PREVIEW + HEALTH/READY.  
-**Estado de governança:** READY FOR MERGE após recertificação deste último HEAD documental; merge continua condicionado à autorização humana explícita.
+**Classificação atual:** **CONCLUÍDA COM EVIDÊNCIA**.  
+**Estado de governança:** PR #11 MERGED/CLOSED; `main` recertificada no Foundation Gate #192 — SUCCESS.
 
 ## Entrega técnica
 
@@ -166,3 +166,16 @@ Após este último commit documental:
 - registrar **GO FOR MERGE** na PR #11;
 - não executar merge sem autorização humana explícita;
 - após merge, recertificar `main` antes de liberar F12.
+
+
+## Fechamento pós-merge — CURRENT
+
+A autorização humana foi recebida e a PR #11 foi integrada por squash.
+
+- merge SHA: `2a276f4c57577bf0236ae134311705f294d31b21`;
+- Gate pós-merge da `main`: Foundation Gate #192 — **SUCCESS**;
+- F11 encerrada com evidência;
+- F12 liberada;
+- progresso acumulado oficial: **71%**.
+
+Os trechos anteriores que registram “OPEN/DRAFT”, “READY FOR MERGE” ou “F12 proibida” constituem evidência histórica do estado anterior ao merge, não o CURRENT vigente.
