@@ -6,14 +6,29 @@ import { CoreArgumentError } from "@/application/core/core-gateway";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { AuthenticationRequiredError, TenantScopeRequiredError, type TenantContext } from "@/domain/security/tenant-context";
 import { CognitiveModelContractError, CognitiveModelUnavailableError } from "@/domain/core/cognitive-model";
+import { logEvent } from "@/infrastructure/observability/logger";
 
-async function auditCoreQuery(context: TenantContext | null, result: "success" | "failure" | "denied", metadata: Record<string, unknown>) {
+async function auditCoreQuery(
+  context: TenantContext | null,
+  result: "success" | "failure" | "denied",
+  metadata: Record<string, unknown>,
+) {
   if (!context) return;
   await recordAuditEvent(context, {
     action: "core.query",
     resourceType: "cognitive_core",
     result,
     metadata,
+  });
+
+  const evidenceCount = Array.isArray(metadata.evidenceRefs)
+    ? metadata.evidenceRefs.filter((item) => typeof item === "string").length
+    : 0;
+
+  logEvent("info", "core_query_audit_recorded", {
+    result,
+    correlationId: context.correlationId,
+    evidenceCount,
   });
 }
 
@@ -32,8 +47,12 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(answer);
   } catch (error) {
-    if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: error.message }, { status: 401 });
-    if (error instanceof TenantScopeRequiredError) return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error instanceof AuthenticationRequiredError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof TenantScopeRequiredError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     if (error instanceof CoreArgumentError) {
       await auditCoreQuery(context, "failure", { error: error.message });
       return NextResponse.json({ error: error.message }, { status: 400 });
