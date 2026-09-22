@@ -16,6 +16,25 @@ export class RetryableConnectorError extends Error {
   constructor(message = "integration.connector_retryable_error") { super(message); }
 }
 
+function safeConnectorFailure(error: unknown): { errorCode: string; errorMessage: string } {
+  if (error instanceof ConnectorTimeoutError) {
+    return { errorCode: error.name, errorMessage: "integration.connector_timeout" };
+  }
+  if (error instanceof RetryableConnectorError) {
+    return { errorCode: error.name, errorMessage: "integration.connector_retryable_error" };
+  }
+  if (error instanceof ConnectorUnsupportedModeError) {
+    return { errorCode: error.name, errorMessage: "integration.connector_pull_not_supported" };
+  }
+  if (error instanceof ConnectorNotRegisteredError) {
+    return { errorCode: error.name, errorMessage: "integration.connector_not_registered" };
+  }
+  return {
+    errorCode: error instanceof Error ? error.name : "UnknownError",
+    errorMessage: "integration.connector_failure",
+  };
+}
+
 export class ConnectorRuntime {
   private readonly connectors = new Map<string, Connector>();
 
@@ -86,11 +105,19 @@ export class ConnectorRuntime {
         nextCursor: result.nextCursor, rateLimitRemaining: result.rateLimitRemaining,
       };
     } catch (error) {
-      const normalized = error instanceof Error ? error : new Error("integration.unknown_error");
-      await this.syncs.fail({ id: executionId, tenantId: context.tenantId, errorCode: normalized.name, errorMessage: normalized.message });
+      const failure = safeConnectorFailure(error);
+      await this.syncs.fail({
+        id: executionId,
+        tenantId: context.tenantId,
+        errorCode: failure.errorCode,
+        errorMessage: failure.errorMessage,
+      });
       logEvent("error", "connector_sync_failed", {
-        tenantId: context.tenantId, sourceId: source.id, executionId, correlationId: context.correlationId,
-        errorCode: normalized.name, errorMessage: normalized.message,
+        tenantId: context.tenantId,
+        sourceId: source.id,
+        executionId,
+        correlationId: context.correlationId,
+        errorCode: failure.errorCode,
       });
       throw error;
     }
