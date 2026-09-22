@@ -1,10 +1,11 @@
 # FM CONTROL CENTER — F11 MISSION LEDGER
 
-**Mission:** F11 — Inteligência por Produto  
+**Missão:** F11 — Inteligência por Produto  
 **Baseline main:** `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`  
 **Branch:** `feat/fmcc-f11-product-intelligence`  
 **PR:** #11 — OPEN/DRAFT  
-**Candidate funcional certificado:** `e5a3d9bef3451b32830315f6e1b9175f9fc06dff`  
+**Candidate funcional recertificado:** `986991e74e53fc8ff41d90d0ca27cabf345163fc`  
+**Foundation Gate funcional:** #184 — SUCCESS  
 **Produção:** fora do escopo
 
 ## Estado consolidado — 22/09/2026
@@ -12,22 +13,30 @@
 | Bloco | Estado | Evidência |
 |---|---|---|
 | System Design F11 | CONCLUÍDO | `FMCC-11-PRODUCT-INTELLIGENCE-v0.1.md` |
-| Product Registry | CONCLUÍDO | tenant-scoped + RBAC + slug único |
-| Product scope | CONCLUÍDO | source/fact/metric com `product_id` opcional |
-| Product Intelligence | CONCLUÍDO | overview + history + growth governado |
-| Portfolio Comparison | CONCLUÍDO | moeda/período/missing fail-closed |
-| UI/API F11 | CONCLUÍDO | produtos, overview e comparação |
-| Core product-aware | CONCLUÍDO | catálogo autorizado + single/multi-product |
-| Audit/provenance | CONCLUÍDO | product refs em evidence/audit |
-| Migration | CONCLUÍDO | `0002_foundation.sql` |
-| CI funcional | PASS | Foundation Gate #162 |
-| Reconciliação documental | CONCLUÍDA | documentação atualizada nesta etapa |
-| Preview/smoke F11 | PENDENTE | bloqueio operacional final |
-| Merge PR #11 | NÃO AUTORIZADO | depende de gate final + autorização humana |
+| Product Registry | PASS | tenant-scoped + RBAC + slug único |
+| Product scope | PASS | source/fact/metric com `product_id` opcional |
+| Product Intelligence | PASS | overview + history + crescimento governado |
+| Portfolio Comparison | PASS | moeda/período/missing fail-closed |
+| UI/API F11 | PASS | produtos, overview e comparação |
+| Core product-aware | PASS | catálogo autorizado + single/multi-product |
+| Audit/provenance | PASS | product refs em evidence/audit |
+| Migration | PASS | `0002_foundation.sql` aplicada no Preview |
+| UI pt-BR | PASS | enums/status técnicos não vazam para interface |
+| Product create/list Preview | PASS | Kordena + Iron |
+| Product Overview Preview | PASS | Kordena |
+| Comparison Preview | PASS | missing → Indisponível, nunca zero |
+| Core single-product Preview | PASS | Kordena |
+| Core multi-product Preview | PASS | Kordena × Iron |
+| Ditado por voz pt-BR | PASS | transcrição recebida no Preview |
+| Campo do Core após envio | PASS | pergunta limpa; resposta preservada |
+| CI funcional | PASS | Gate #184 |
+| Reconciliação documental final | EM EXECUÇÃO | este HEAD documental |
+| health/ready no HEAD documental final | PENDENTE | último subgate operacional |
+| Merge PR #11 | NÃO AUTORIZADO | exige GO final + autorização humana |
 
-## Evidência automática
+## Evidência automática funcional
 
-Foundation Gate #162 no candidate funcional `e5a3d9b...`:
+Foundation Gate #184 no candidate `986991e...`:
 - Install — SUCCESS;
 - Lint — SUCCESS;
 - Typecheck — SUCCESS;
@@ -38,41 +47,109 @@ Foundation Gate #162 no candidate funcional `e5a3d9b...`:
 - Docker build — SUCCESS;
 - Runtime dependency audit — SUCCESS.
 
-Resultado de testes:
-- 20 test files PASS;
-- 84 tests PASS;
+Resultado:
+- 21 test files PASS;
+- 91 tests PASS;
 - 0 FAIL.
 
-Risco conhecido declarado:
+Risco conhecido:
 - 4 vulnerabilidades `moderate` transitivas em tooling de desenvolvimento;
-- nenhuma HIGH/CRITICAL bloqueando o gate vigente.
+- nenhuma HIGH/CRITICAL bloqueando o gate atual.
+
+## Evidência de Preview
+
+### Deploy e migration
+- candidate F11 implantado no Render Preview;
+- migration `0002_foundation.sql` executada via startup migration governada;
+- logs `database_migration_started` e `database_migration_completed`;
+- serviço Live.
+
+### Runtime já comprovado durante a F11
+- `/api/health` e `/api/ready` passaram em candidate anterior da mesma F11;
+- dashboard autenticado acessível;
+- sessão existente reutilizada sem novo login nesta rodada.
+
+### Product Registry
+- Kordena / `kordena` criado e listado;
+- falha de UX pós-submit detectada no smoke;
+- causa corrigida preservando referência do form antes do await;
+- regressão automatizada;
+- Iron / `iron` criado após correção sem falso erro e apareceu imediatamente.
+
+### Inteligência por Produto
+- visão individual do Kordena carregada;
+- Aquisição, Ativação, Engajamento e Receita exibidas;
+- missing exibido como **Indisponível**;
+- métricas sem semântica aprovada exibidas como **Semântica pendente**;
+- atualidade, qualidade e proveniência explícitas;
+- nenhum missing convertido para zero.
+
+### Comparação governada
+Kordena × Iron em **Testes gratuitos iniciados**:
+- estado **Indisponível**;
+- mensagem de dados governados insuficientes;
+- nenhum ranking/zero fabricado.
+
+### Core consciente de produto
+Pergunta single-product:
+`Quanto faturamos este mês no Kordena?`
+- resposta governada de indisponibilidade;
+- proveniência de faturamento;
+- nenhum valor inventado.
+
+Pergunta multi-product:
+`Compare o faturamento deste mês entre Kordena e Iron.`
+- duas evidências de faturamento;
+- resposta governada de indisponibilidade;
+- nenhum valor inventado.
+
+### Interface pt-BR
+O smoke detectou enum interno `unavailable` exposto. Foi criada camada de apresentação pt-BR e recertificada.
+Confirmado no Preview:
+- Ativo;
+- Portfólio;
+- Testes gratuitos iniciados;
+- Indisponível;
+- Isolamento por organização;
+- Motor de Métricas;
+- Acesso ao Core;
+- Bloqueio por padrão.
+
+### UX do Core
+Confirmado no Preview:
+- botão **Falar**;
+- reconhecimento/transcrição em `pt-BR`;
+- mensagem **Transcrição recebida**;
+- pergunta falada transcrita no campo;
+- após Consultar, campo fica vazio;
+- resposta permanece abaixo;
+- proveniência permanece visível.
 
 ## Guardrails confirmados
 
-- tenant continua autoridade server-side;
+- organização/tenant continua autoridade server-side;
 - Product Registry é autoridade de produto;
 - productId não amplia tenant scope;
-- source/fact/metric ficam isolados por produto quando há product scope;
-- consulta global continua usando escopo sem produto;
-- missing permanece unavailable, nunca zero;
-- growth não cria score composto e depende de histórico comparável;
-- Portfolio Comparison bloqueia moedas/períodos incompatíveis;
-- Core recebe somente catálogo de produtos autorizado do tenant;
+- source/fact/metric permanecem isolados por produto;
+- consulta global continua separada do escopo de produto;
+- missing permanece unavailable internamente e **Indisponível** na UI, nunca zero;
+- crescimento não cria score composto;
+- comparação bloqueia moedas/períodos incompatíveis;
+- Core recebe somente catálogo de produtos autorizado;
 - slug não autorizado falha fechado;
 - Core não cria produto nem substitui Metric Engine;
-- evidence e Audit Ledger preservam product refs quando aplicável.
+- evidence e Audit Ledger preservam product refs;
+- interface traduz estados internos sem alterar contratos técnicos.
 
-## Pendência única para gate operacional
+## Último subgate
 
-Executar Preview/smoke da F11 no candidate final e comprovar:
-- migrations aplicadas;
-- health/ready;
-- login/dashboard;
-- criação/listagem de produto autorizada;
-- abertura da visão individual;
-- estados unavailable/pending semantics sem fabricação;
-- comparação governada;
-- consulta do Core direcionada a produto autorizado;
-- ausência de cross-tenant/cross-product leakage.
+Após esta reconciliação documental:
+1. recertificar o novo HEAD documental;
+2. aguardar Auto-Deploy desse HEAD no Preview;
+3. revalidar explicitamente:
+   - `GET /api/health` → status ok;
+   - `GET /api/ready` → status ready;
+4. registrar gate final;
+5. somente então solicitar autorização humana explícita para merge.
 
-**F11 não está encerrada e F12 não pode iniciar.**
+**F12 permanece proibida até o fechamento formal da F11.**
