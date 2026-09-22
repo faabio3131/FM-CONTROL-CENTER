@@ -54,6 +54,10 @@ export default async function DashboardPage() {
         <SignOutButton />
       </header>
 
+      <section className="foundation-grid" aria-label="Inteligência empresarial">
+        <Link href="/dashboard/finance"><strong>Financeiro</strong><span>F12 · dados governados</span></Link>
+      </section>
+
       <section className="executive-section" aria-labelledby="executive-overview-title">
         <div className="section-heading">
           <div><span className="eyebrow">Métricas governadas</span><h2 id="executive-overview-title">Visão executiva</h2></div>
