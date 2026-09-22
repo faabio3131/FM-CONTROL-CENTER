@@ -57,6 +57,7 @@ export default async function DashboardPage() {
       <section className="foundation-grid" aria-label="Inteligência empresarial">
         <Link href="/dashboard/finance"><strong>Financeiro</strong><span>F12 · dados governados</span></Link>
         <Link href="/dashboard/growth"><strong>Growth / Comercial</strong><span>F13 · funil governado</span></Link>
+        <Link href="/dashboard/operations"><strong>Operações / SRE</strong><span>F14 · sinais operacionais</span></Link>
       </section>
 
       <section className="executive-section" aria-labelledby="executive-overview-title">
