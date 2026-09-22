@@ -8,7 +8,7 @@ import { resolveTenantContext } from "@/application/security/resolve-tenant-cont
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
-import { rotuloAtualidade, rotuloCategoriaProduto, rotuloDirecaoCrescimento, rotuloQualidade, rotuloStatusProduto } from "@/presentation/pt-br";
+import { rotuloAtualidade, rotuloAutoridadeFonte, rotuloCategoriaProduto, rotuloDirecaoCrescimento, rotuloMetrica, rotuloQualidade, rotuloStatusProduto } from "@/presentation/pt-br";
 
 function displayValue(value: { value: string | null; unit: string; currency?: string } | null) {
   if (!value || value.value === null) return "Indisponível";
@@ -68,12 +68,12 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
                 {status === "pending_semantics" ? "Semântica pendente" : displayValue(value)}
               </strong>
               <div className="metric-meta">
-                <span>Identificador técnico: {target.metricId}</span>
+                <span>Métrica: {target.displayName}</span>
                 <span>{value ? `Atualidade: ${rotuloAtualidade(value.freshnessStatus)}` : "Atualidade indisponível"}</span>
                 <span>{value ? `Qualidade: ${rotuloQualidade(value.qualityStatus)}` : "Qualidade indisponível"}</span>
               </div>
               <small className="metric-provenance">
-                {value ? `Fonte: ${value.sourceAuthority} · referências: ${value.provenanceRefs.length}` : "Sem proveniência factual disponível"}
+                {value ? `Fonte: ${rotuloAutoridadeFonte(value.sourceAuthority)} · referências: ${value.provenanceRefs.length}` : "Sem proveniência factual disponível"}
               </small>
             </article>
           ))}
@@ -88,7 +88,7 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
         <div className="metric-grid">
           {overview.growth.map((signal) => (
             <article className="metric-card" key={signal.metricId}>
-              <span className="metric-label">{signal.metricId}</span>
+              <span className="metric-label">{rotuloMetrica(signal.metricId)}</span>
               <strong className={signal.status === "available" ? "metric-value" : "metric-value unavailable"}>
                 {signal.status === "available" ? rotuloDirecaoCrescimento(signal.direction) : "Indisponível"}
               </strong>
