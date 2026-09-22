@@ -1,6 +1,8 @@
 export interface CoreEvidence {
   readonly kind: "metric" | "source";
   readonly ref: string;
+  readonly productId?: string;
+  readonly productSlug?: string;
   readonly sourceAuthority?: string;
   readonly freshnessStatus?: string;
   readonly qualityStatus?: string;
