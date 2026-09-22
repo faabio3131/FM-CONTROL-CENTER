@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { rotuloAutoridadeFonte, rotuloMetrica } from "@/presentation/pt-br";
 
 type State = {
   status: "idle" | "loading" | "success" | "error";
@@ -10,10 +11,10 @@ type State = {
 
 function cognitiveErrorMessage(code?: string): string {
   if (code === "core.cognitive_model_unavailable") {
-    return "Provider cognitivo indisponível. Verifique configuração, credencial ou conectividade do modelo.";
+    return "Provedor cognitivo indisponível. Verifique a configuração, a credencial ou a conectividade do modelo.";
   }
   if (code === "core.cognitive_model_contract_invalid") {
-    return "O provider respondeu, mas a resposta não passou pelo contrato cognitivo governado.";
+    return "O provedor respondeu, mas a resposta não passou pelo contrato cognitivo governado.";
   }
   return "Não foi possível consultar o Core.";
 }
@@ -63,7 +64,7 @@ export function CoreQueryForm() {
       <div>
         <span className="eyebrow">FM Cognitive Core</span>
         <h2 id="core-title">Consulta executiva governada</h2>
-        <p>O Core usa as mesmas métricas determinísticas do dashboard e informa quando um dado não existe.</p>
+        <p>O Core usa as mesmas métricas determinísticas do painel e informa quando um dado não existe.</p>
       </div>
 
       <form onSubmit={submit} className="core-form">
@@ -89,7 +90,7 @@ export function CoreQueryForm() {
           {state.evidence?.length ? (
             <small>
               Proveniência: {state.evidence
-                .map((item) => item.sourceAuthority ? `${item.ref} · ${item.sourceAuthority}` : item.ref)
+                .map((item) => `${rotuloMetrica(item.ref)} · ${rotuloAutoridadeFonte(item.sourceAuthority)}`)
                 .join(", ")}
             </small>
           ) : null}
