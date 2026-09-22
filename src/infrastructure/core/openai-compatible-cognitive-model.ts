@@ -1,5 +1,6 @@
 import { CognitiveModelContractError, CognitiveModelUnavailableError, type CognitiveModel } from "@/domain/core/cognitive-model";
 import type { CoreEvidence, CoreOperationalContext } from "@/domain/core/contracts";
+import { logEvent } from "@/infrastructure/observability/logger";
 
 interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string } }>;
@@ -57,7 +58,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
         'Responda somente JSON no formato {"metricIds":["..."]}.',
       ].join(" ") },
       { role: "user", content: JSON.stringify(input) },
-    ], { jsonMode: true, maxTokens: 512 });
+    ], 512);
 
     try {
       const parsed = parseJsonObject(content);
@@ -89,7 +90,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
         "Contexto operacional é memória de continuidade, não fonte de verdade.",
       ].join(" ") },
       { role: "user", content: JSON.stringify(input) },
-    ], { maxTokens: 1024 });
+    ], 1024);
 
     if (!content.trim()) throw new CognitiveModelContractError();
     return content.trim();
@@ -97,7 +98,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
 
   private async complete(
     messages: readonly { role: "system" | "user"; content: string }[],
-    options: { jsonMode?: boolean; maxTokens: number },
+    maxTokens: number,
   ): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -108,15 +109,22 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
         body: JSON.stringify({
           model: this.model,
           temperature: 0,
-          max_tokens: options.maxTokens,
+          max_tokens: maxTokens,
+          reasoning_effort: "low",
           stream: false,
           messages,
-          ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
         }),
         signal: controller.signal,
       });
 
-      if (!response.ok) throw new CognitiveModelUnavailableError();
+      if (!response.ok) {
+        logEvent("warn", "cognitive_provider_http_error", {
+          providerHost: new URL(this.baseUrl).hostname,
+          model: this.model,
+          status: response.status,
+        });
+        throw new CognitiveModelUnavailableError();
+      }
 
       const payload = await response.json() as ChatCompletionResponse;
       const content = payload.choices?.[0]?.message?.content;
@@ -124,6 +132,12 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
       return content;
     } catch (error) {
       if (error instanceof CognitiveModelContractError || error instanceof CognitiveModelUnavailableError) throw error;
+
+      logEvent("warn", "cognitive_provider_transport_error", {
+        providerHost: new URL(this.baseUrl).hostname,
+        model: this.model,
+        errorType: error instanceof Error ? error.name : "unknown",
+      });
       throw new CognitiveModelUnavailableError();
     } finally {
       clearTimeout(timer);
