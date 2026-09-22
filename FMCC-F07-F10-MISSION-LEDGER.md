@@ -2,7 +2,7 @@
 
 **Mission:** F07 Integration Fabric → F08 Data Platform + Metric Engine → F09 Cognitive Core → F10 Executive Command Center  
 **Baseline main:** `8076ad7861f43f78fa502d92dbd7eb0f0ff130d4`  
-**PR:** #9 — Draft  
+**PR histórica:** #9 — MERGED em 22/09/2026  
 **Branch:** `feat/fmcc-f07-f10-intelligence-stack`  
 **Produção:** não utilizada
 
@@ -97,25 +97,28 @@ Durante o primeiro smoke do provider em Preview houve resposta externa 401. A co
 
 ## CI/CD de Preview
 
-O serviço Preview está configurado para acompanhar a branch da PR #9 e utilizar deploy após checks de CI aprovados.
+Após o merge da PR #9, a PR #10 habilitou o Foundation Gate em `push: main`. A PR #10 também foi mergeada e a `main` foi certificada no Gate #143.
 
-Deploy manual por SHA não é mais o fluxo operacional pretendido.
+O Render Preview foi reconciliado para acompanhar `main` com deploy após checks de CI aprovados. O deploy do SHA `c199b5bc6fc4ad871523eeaf98f6705b12417bb7` ficou Live e o smoke pós-merge confirmou `/api/health`, `/api/ready`, dashboard autenticado e consulta cognitiva governada.
+
+Deploy manual por SHA não é o fluxo operacional pretendido.
 
 ## Governança
 
-- PR #9 permanece OPEN/DRAFT;
-- nenhum merge realizado;
+- PR #9 foi MERGED por squash em `c65434e0e6180138dee827eb0a33b08ef1bbf7c8`;
+- PR #10 foi MERGED por squash em `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`;
+- `main` recebeu CI pós-merge real no Foundation Gate #143 — SUCCESS;
+- Render Preview acompanha `main` e o smoke pós-merge F07–F10 foi concluído;
 - nenhuma produção utilizada;
 - secrets não são registrados em código/documentação;
-- F11 ainda não foi iniciada;
-- próxima ação de governança: revisão final da PR #9 e decisão explícita de integração antes de abrir F11.
+- F11 foi iniciada em branch/PR próprias e está em PR #11 Draft;
+- F12 permanece bloqueada até o encerramento governado da F11.
 
-## Próxima fase funcional
+## Continuidade após F07–F10
 
-Plano Mestre:
-**F11 — Inteligência por Produto**
+A fase seguinte foi iniciada de forma governada como **F11 — Inteligência por Produto**, em branch `feat/fmcc-f11-product-intelligence` e PR #11 Draft.
 
-Escopo previsto:
+Escopo da F11:
 - visão individual de cada SaaS;
 - aquisição;
 - ativação;
