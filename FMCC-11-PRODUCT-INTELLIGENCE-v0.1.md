@@ -2,12 +2,12 @@
 
 **Fase:** F11 — Inteligência por Produto  
 **Progresso mestre:** 65% → 71%  
-**Status atual:** IMPLEMENTAÇÃO FUNCIONAL CERTIFICADA EM CI — PREVIEW/SMOKE FINAL PENDENTE  
+**Status atual:** IMPLEMENTAÇÃO + SMOKE FUNCIONAL APROVADOS — HEALTH/READY DO HEAD DOCUMENTAL FINAL PENDENTES  
 **Baseline:** `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`  
 **Branch:** `feat/fmcc-f11-product-intelligence`  
 **PR:** #11 — OPEN/DRAFT  
-**Candidate funcional certificado:** `e5a3d9bef3451b32830315f6e1b9175f9fc06dff`  
-**Foundation Gate:** #162 — SUCCESS  
+**Candidate funcional certificado:** `986991e74e53fc8ff41d90d0ca27cabf345163fc`  
+**Foundation Gate funcional:** #184 — SUCCESS  
 **Produção:** fora do escopo
 
 ## 0. Reconciliação de CURRENT — 22/09/2026
@@ -27,16 +27,16 @@ A descoberta inicial deste documento registrava lacunas ainda inexistentes no ba
 - evidence/auditoria com product refs;
 - migration Drizzle versionada `0002_foundation.sql`.
 
-Evidência de CI do candidate funcional `e5a3d9b...`:
-- Foundation Gate #162 — SUCCESS;
-- 20 test files PASS;
-- 84 tests PASS;
+Evidência de CI do candidate funcional `986991e...`:
+- Foundation Gate #184 — SUCCESS;
+- 21 test files PASS;
+- 91 tests PASS;
 - 0 FAIL;
 - lint, typecheck, migration verification/apply, build, Docker e runtime dependency audit verdes.
 
 Risco conhecido não bloqueante: 4 vulnerabilidades `moderate` transitivas em tooling de desenvolvimento; nenhuma HIGH/CRITICAL bloqueando o gate vigente.
 
-**Pendência real:** Preview/smoke da F11 no ambiente Render. Até essa evidência existir, a F11 não está encerrada, não está pronta para merge e a F12 permanece proibida.
+**Preview/smoke funcional:** aprovado no Render, incluindo Product Registry, visão por produto, comparação, Core single/multi-product, localização pt-BR, ditado por voz e limpeza do campo cognitivo após envio. **Pendência real:** health/ready explícitos no HEAD documental final e gate final.
 
 ## 1. Objetivo
 
@@ -402,10 +402,25 @@ F11 só fecha quando:
 | Core entende produto(s) autorizados | PASS |
 | cross-tenant/cross-product automatizado | PASS |
 | Audit Ledger/provenance preservados | PASS |
-| CI funcional | PASS — Gate #162 |
-| documentação reconciliada | PASS — esta atualização |
-| Preview/smoke F11 | PENDENTE |
+| CI funcional | PASS — Gate #184 |
+| Preview/smoke funcional F11 | PASS |
+| UI pt-BR | PASS |
+| Core por produto single/multi | PASS |
+| voz pt-BR + campo limpo | PASS |
+| documentação reconciliada | PASS — atualização final |
+| health/ready do HEAD documental final | PENDENTE |
 | merge PR #11 | PROIBIDO até gate final + autorização humana |
 
-**Classificação atual da F11:** IMPLEMENTADA E CERTIFICADA EM CI, MAS AINDA NÃO ENCERRADA.  
-**Bloqueio remanescente:** evidência operacional de Preview/smoke no candidate final.
+**Classificação atual da F11:** IMPLEMENTADA, CERTIFICADA EM CI E APROVADA NO SMOKE FUNCIONAL.  
+**Bloqueio remanescente:** somente health/ready explícitos no HEAD documental final e gate final antes da autorização humana de merge.
+
+## 23. Adições validadas durante o smoke
+
+O smoke real incorporou melhorias sem alterar as autoridades arquiteturais:
+- camada de apresentação pt-BR para impedir vazamento de enums técnicos;
+- correção do falso erro pós-submit no cadastro de produto;
+- limpeza automática da pergunta do Core após envio, preservando resposta/evidência;
+- ditado por voz em pt-BR no navegador com fallback por digitação;
+- lifecycle seguro do reconhecimento de fala.
+
+Essas mudanças foram recertificadas no Gate #184 e validadas funcionalmente no Preview.
