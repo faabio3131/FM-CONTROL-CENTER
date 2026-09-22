@@ -24,3 +24,11 @@ export const UNIT_ECONOMICS_TARGETS = [
   { metricId: "revenue.arpu", displayName: "ARPU", definitionStatus: "pending_semantics" as const },
   { metricId: "finance.operating_margin.rate", displayName: "Margem operacional", definitionStatus: "pending_semantics" as const },
 ] as const;
+
+export const FINANCIAL_DERIVED_METRICS = [
+  {
+    metricId: "finance.operating_result",
+    displayName: "Resultado operacional",
+    description: "Caixa recebido menos custos de infraestrutura e custos operacionais, calculado deterministicamente somente com moeda e período compatíveis.",
+  },
+] as const;
