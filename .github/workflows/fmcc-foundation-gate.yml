@@ -39,12 +39,18 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-secret-000000000000000000000000000000000000000000000000
 
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: Install
         run: npm install
+      - name: Bootstrap F20 lockfile evidence
+        run: |
+          echo "FMCC_LOCKFILE_BEGIN"
+          base64 -w0 package-lock.json
+          echo
+          echo "FMCC_LOCKFILE_END"
       - name: Lint
         run: npm run lint
       - name: Typecheck
