@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { buildAlertService } from "@/application/alerts/alert-composition";
 import { MetricService } from "@/application/metrics/metric-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -40,8 +41,14 @@ export default async function DashboardPage() {
   }
 
   const metricService = new MetricService(new PostgresMetricStore());
-  const metrics = await metricService.overview(context);
-  const products = await new ProductRegistryService(new PostgresProductRepository()).list(context);
+  const [metrics, products, alertOverview] = await Promise.all([
+    metricService.overview(context),
+    new ProductRegistryService(new PostgresProductRepository()).list(context),
+    buildAlertService().overview(context),
+  ]);
+  const governedAvailable = metrics.filter(({ value }) => value?.value !== null && value).length;
+  const activeProducts = products.filter((product) => product.status === "active").length;
+  const activeAlerts = alertOverview.occurrences.filter((occurrence) => occurrence.status === "active").length;
 
   return (
     <main className="dashboard-shell">
@@ -53,6 +60,29 @@ export default async function DashboardPage() {
         </div>
         <SignOutButton />
       </header>
+
+      <section className="command-overview" aria-label="Resumo executivo">
+        <article className={activeAlerts > 0 ? "command-card attention" : "command-card"}>
+          <span>Exigem atenção</span>
+          <strong>{activeAlerts}</strong>
+          <small>{activeAlerts > 0 ? "alertas ativos com regra governada" : "nenhum alerta ativo governado"}</small>
+        </article>
+        <article className="command-card">
+          <span>Cobertura factual</span>
+          <strong>{governedAvailable}/{metrics.length}</strong>
+          <small>métricas com valor governado disponível agora</small>
+        </article>
+        <article className="command-card">
+          <span>Produtos ativos</span>
+          <strong>{activeProducts}</strong>
+          <small>produtos autorizados no tenant atual</small>
+        </article>
+        <article className="command-card">
+          <span>Core Executivo</span>
+          <strong>Governado</strong>
+          <small><a href="#core-title">Consultar com evidência</a></small>
+        </article>
+      </section>
 
       <section className="foundation-grid" aria-label="Inteligência empresarial">
         <Link href="/dashboard/finance"><strong>Financeiro</strong><span>F12 · dados governados</span></Link>
