@@ -1,7 +1,7 @@
 # FM CONTROL CENTER — F09 ADDENDUM
 # KORDENA GOVERNED COMMERCIAL READ CAPABILITY
 
-**Status:** FUNCTIONAL CERTIFIED / DOCUMENTARY HEAD RECERTIFICATION PENDING
+**Status:** FINAL CERTIFICATION CANDIDATE — functional + documentary evidence reconciled
 **Version:** 0.1
 **Date:** 2026-09-23
 **Parent architecture:** F09 — FM Cognitive Vertical Core
@@ -409,6 +409,29 @@ The functional candidate satisfies:
 **Functional cognitive gate: PASS on
 `362595ea3c93f389d01b7e1d374c3fdb997c2c9c`.**
 
-This documentation creates a new HEAD. The cognitive block is not considered
-documentarily closed until that exact HEAD is recertified by the cognitive
-governed gate.
+## 19. Documentary recertification
+
+The first documentary HEAD failed only strict whitespace validation because the
+Markdown header contained trailing spaces. No functional gate failed.
+
+The corrected documentary HEAD:
+
+`4821d5bc6c08359c92e0fc1dae053c4d3f2a5206`
+
+was recertified with **FMCC Cognitive Governed Intelligence Gate — SUCCESS**:
+
+- lint: PASS;
+- TypeScript: PASS;
+- schema/no drift: PASS;
+- migrations: PASS;
+- 8 targeted files / 50 targeted tests: PASS;
+- 35 test files / 138 full-regression tests: PASS;
+- production build: PASS;
+- strict diff whitespace: PASS;
+- runtime dependency audit at HIGH threshold: PASS.
+
+The present closure commit records that evidence and becomes the final candidate
+HEAD. Per governance, this exact HEAD must itself be recertified before the
+technical/documentary gate is considered finally closed. No further content
+change is required after a green recertification; the PR check is the closing
+evidence.
