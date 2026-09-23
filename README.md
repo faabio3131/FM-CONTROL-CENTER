@@ -11,7 +11,11 @@ SaaS comercial independente da Nova FM Tecnologia. A Nova FM é o Tenant Zero.
 - F09: FMCC Cognitive Vertical Core **próprio do produto** concluído com evidência em Preview na PR #9.
 - F10: Executive Command Center concluído com evidência em Preview na PR #9.
 - F11: **CONCLUÍDA COM EVIDÊNCIA**. PR #11 MERGED/CLOSED; squash merge `2a276f4c57577bf0236ae134311705f294d31b21`; Foundation Gate pós-merge #192 em `main` — SUCCESS. Product Registry, escopo por produto, Inteligência por Produto, comparação governada, UI pt-BR e Core consciente de produto integrados. Progresso acumulado: **71%**.
-- F12–F15: implementação funcional e CI concluídos na PR #12 Draft. Gates F12 #205, F13 #210, F14 #211/#212 e F15 #214 em SUCCESS; candidate funcional `545114ce2379178eae05b06d3b2fb66765cf006e` com 31 arquivos de teste / 109 testes PASS / 0 FAIL. **Preview do candidate ainda não comprovado**, pois o serviço Preview vigente acompanha `main`; por isso a tranche ainda não está autorizada para merge nem declarada 88% certificada. F16 permanece fora do escopo.
+- F12–F15: **CONCLUÍDAS COM EVIDÊNCIA**. PR #12 MERGED/CLOSED; squash merge `9632dd3871790a8b709fa5bc11211b9649b943fa`; Foundation Gate pós-merge #220 SUCCESS; Render Preview no source `9632dd3` com migration, health, readiness, login/dashboard, F12–F15 e Core fail-closed homologados. Progresso acumulado: **88%**.
+- F16: Core Executivo Avançado implementado; engineering gate #228 SUCCESS — 33 arquivos / 115 testes PASS / 0 FAIL. Preview do candidate da tranche será validado de forma consolidada.
+- F17: Alertas e Automações Governadas implementados com regras determinísticas, Audit Ledger, RBAC, idempotência e action previews sem execução crítica; engineering gate #237 SUCCESS — 36 arquivos / 123 testes PASS / 0 FAIL.
+- F18: Premium UX/UI implementada na mesma aplicação; design system, experiência executiva, Core/alerts UX, responsividade, foco e reduced-motion; engineering gate #244 SUCCESS — 37 arquivos / 128 testes PASS / 0 FAIL.
+- F19: **EM CERTIFICAÇÃO TÉCNICA INTEGRAL** na PR #15 Draft; sem merge, produção ou F20.
 
 ## Arquitetura cognitiva vigente
 
