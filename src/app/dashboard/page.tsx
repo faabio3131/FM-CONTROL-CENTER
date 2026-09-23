@@ -59,6 +59,7 @@ export default async function DashboardPage() {
         <Link href="/dashboard/growth"><strong>Growth / Comercial</strong><span>F13 · funil governado</span></Link>
         <Link href="/dashboard/operations"><strong>Operações / SRE</strong><span>F14 · sinais operacionais</span></Link>
         <Link href="/dashboard/customers"><strong>Clientes / Uso / Suporte</strong><span>F15 · agregados governados</span></Link>
+        <Link href="/dashboard/commercial/kordena"><strong>Kordena Comercial</strong><span>KCA-12 · control plane</span></Link>
       </section>
 
       <section className="executive-section" aria-labelledby="executive-overview-title">
