@@ -3,6 +3,10 @@ import type { CanonicalFactRepository, NewSourceDefinition, SourceDefinition, So
 import { db } from "@/infrastructure/db/client";
 import { canonicalFacts, sourceDefinitions, syncExecutions } from "@/infrastructure/db/platform-schema";
 
+function scopedSyncIdempotencyKey(sourceId: string, idempotencyKey: string): string {
+  return `${sourceId}:${idempotencyKey}`;
+}
+
 function mapSource(row: typeof sourceDefinitions.$inferSelect): SourceDefinition {
   return {
     id: row.id, tenantId: row.tenantId, productId: row.productId ?? undefined,
@@ -34,14 +38,18 @@ export class PostgresSourceRepository implements SourceRepository {
 
 export class PostgresSyncRepository implements SyncRepository {
   async begin(input: { tenantId: string; sourceId: string; idempotencyKey: string; correlationId: string; cursorBefore?: string }) {
+    const persistedKey = scopedSyncIdempotencyKey(
+      input.sourceId,
+      input.idempotencyKey,
+    );
     const inserted = await db.insert(syncExecutions).values({
-      tenantId: input.tenantId, sourceId: input.sourceId, idempotencyKey: input.idempotencyKey,
+      tenantId: input.tenantId, sourceId: input.sourceId, idempotencyKey: persistedKey,
       correlationId: input.correlationId, cursorBefore: input.cursorBefore, status: "running",
     }).onConflictDoNothing({ target: [syncExecutions.tenantId, syncExecutions.idempotencyKey] }).returning({ id: syncExecutions.id });
 
     if (inserted[0]) return { id: inserted[0].id, state: "started" as const };
     const existingRows = await db.select({ id: syncExecutions.id, status: syncExecutions.status }).from(syncExecutions).where(and(
-      eq(syncExecutions.tenantId, input.tenantId), eq(syncExecutions.idempotencyKey, input.idempotencyKey)
+      eq(syncExecutions.tenantId, input.tenantId), eq(syncExecutions.sourceId, input.sourceId), eq(syncExecutions.idempotencyKey, persistedKey)
     )).limit(1);
     const existing = existingRows[0];
     if (!existing) throw new Error("integration.idempotency_state_missing");
@@ -56,7 +64,7 @@ export class PostgresSyncRepository implements SyncRepository {
         .returning({ id: syncExecutions.id });
       if (restarted[0]) return { id: restarted[0].id, state: "restarted" as const };
       const racedRows = await db.select({ id: syncExecutions.id, status: syncExecutions.status }).from(syncExecutions).where(and(
-        eq(syncExecutions.tenantId, input.tenantId), eq(syncExecutions.idempotencyKey, input.idempotencyKey)
+        eq(syncExecutions.tenantId, input.tenantId), eq(syncExecutions.sourceId, input.sourceId), eq(syncExecutions.idempotencyKey, persistedKey)
       )).limit(1);
       const raced = racedRows[0];
       if (raced?.status === "completed") return { id: raced.id, state: "completed" as const };
