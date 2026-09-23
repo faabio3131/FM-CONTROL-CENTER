@@ -190,6 +190,23 @@ describe("FMCC cognitive Kordena commercial read capability", () => {
     expect(result.evidence.freshnessStatus).toBe("stale");
   });
 
+  it("aplica freshness fail-closed padrão quando a source não declara política", async () => {
+    const withoutFreshness = { ...source, freshnessSeconds: undefined };
+    const capability = new KordenaCommercialSummaryCapability(
+      sources([withoutFreshness]),
+      products(),
+      control(async () => snapshot("2026-09-23T17:50:00.000Z")),
+      () => new Date("2026-09-23T18:01:00.000Z"),
+    );
+
+    const result = await capability.read(context, {
+      productSlugs: ["kordena"],
+    });
+
+    expect(result.status).toBe("unavailable");
+    expect(result.evidence.freshnessStatus).toBe("stale");
+  });
+
   it("converts source failure into unavailable evidence without inventing data", async () => {
     const capability = new KordenaCommercialSummaryCapability(
       sources(),
