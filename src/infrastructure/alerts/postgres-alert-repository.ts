@@ -1,8 +1,9 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type {
   AlertOccurrence,
   AlertRepository,
   AlertRule,
+  AlertRuleLifecycleEvent,
   GovernedActionPreview,
 } from "@/domain/alerts/contracts";
 import { db } from "@/infrastructure/db/client";
@@ -217,6 +218,53 @@ export class PostgresAlertRepository implements AlertRepository {
       }
     });
     return true;
+  }
+
+  async listRuleLifecycle(tenantId: string, ruleId: string): Promise<readonly AlertRuleLifecycleEvent[]> {
+    const resourceId = `rule:${ruleId}`;
+    const rows = await db.select({
+      action: auditEvents.action,
+      actorId: auditEvents.actorId,
+      correlationId: auditEvents.correlationId,
+      occurredAt: auditEvents.occurredAt,
+    }).from(auditEvents).where(and(
+      eq(auditEvents.tenantId, tenantId),
+      eq(auditEvents.resourceId, resourceId),
+    )).orderBy(asc(auditEvents.occurredAt));
+
+    return rows.flatMap((row) => {
+      const action =
+        row.action === "alert.rule.created" ? "created" :
+        row.action === "alert.rule.disabled" ? "disabled" :
+        row.action === "alert.rule.archived" ? "archived" :
+        null;
+      return action ? [{
+        action,
+        actorId: row.actorId,
+        correlationId: row.correlationId,
+        occurredAt: row.occurredAt,
+      }] : [];
+    });
+  }
+
+  async listOccurrencesForRule(tenantId: string, ruleId: string, limit = 100) {
+    const acknowledgements = await db.select({ resourceId: auditEvents.resourceId }).from(auditEvents).where(and(
+      eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.acknowledged"),
+    ));
+    const acknowledged = new Set(
+      acknowledgements
+        .map((row) => row.resourceId?.replace(/^occurrence:/, ""))
+        .filter((value): value is string => Boolean(value)),
+    );
+    const rows = await db.select().from(auditEvents).where(and(
+      eq(auditEvents.tenantId, tenantId),
+      eq(auditEvents.action, "alert.raised"),
+      sql`${auditEvents.metadata}->>'ruleId' = ${ruleId}`,
+    )).orderBy(desc(auditEvents.occurredAt)).limit(Math.min(Math.max(limit, 1), 500));
+    return rows.flatMap((row) => {
+      const occurrence = mapOccurrence(row, acknowledged);
+      return occurrence ? [occurrence] : [];
+    });
   }
 
   async recordOccurrence(input: AlertOccurrence) {
