@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { KordenaCommercialControlService } from "@/application/integration/kordena-commercial-control-service";
 import type { ConnectorContext, SourceDefinition } from "@/domain/integration/contracts";
+import type { TenantContext } from "@/domain/security/tenant-context";
+import type { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
 import {
   KordenaCommercialConnector,
   KordenaCommercialConnectorError,
@@ -117,6 +120,27 @@ describe("KCA-12 Kordena commercial connector", () => {
     expect(result.status).toBe("accepted");
     expect(seenAuthorization).toBe(`Bearer ${"s".repeat(40)}`);
     expect(seenBody).not.toContain("ssssssss");
+  });
+
+  it("fails closed when a source is outside the current FMCC tenant", async () => {
+    const tenantContext: TenantContext = {
+      tenantId: "tenant-a",
+      userId: "owner-a",
+      role: "owner",
+      correlationId: "corr-cross-tenant",
+    };
+    const sources = {
+      async findById() { return null; },
+      async list() { return []; },
+      async create() { throw new Error("not used"); },
+    } as unknown as PostgresSourceRepository;
+    const service = new KordenaCommercialControlService(
+      sources,
+      new KordenaCommercialConnector(() => "x".repeat(40)),
+    );
+    await expect(
+      service.snapshot(tenantContext, "source-from-tenant-b"),
+    ).rejects.toThrow("security.cross_tenant_access_denied");
   });
 
   it("fails closed for insecure source URL or unavailable secret", async () => {
