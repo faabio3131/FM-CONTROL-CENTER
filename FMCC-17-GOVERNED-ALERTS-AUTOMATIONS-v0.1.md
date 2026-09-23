@@ -212,3 +212,32 @@ Cobrir:
 - UI states;
 - lint/typecheck/tests/build/Docker/audit;
 - Preview proporcional.
+
+## 12. Evidência de execução
+
+Implementação realizada incrementalmente sobre F16 certificada.
+
+Entregas comprovadas:
+- regras determinísticas de alerta;
+- avaliação fail-closed de thresholds;
+- missing/stale nunca convertido em zero;
+- persistência em Audit Ledger;
+- fingerprint/idempotência;
+- advisory transaction lock PostgreSQL para concorrência;
+- RBAC `alert:read`, `alert:write`, `action:prepare`;
+- action intents/previews auditáveis;
+- ações de médio/alto risco sem side effect externo;
+- APIs e dashboard `/dashboard/alerts`;
+- testes de replay, idempotência, RBAC, audit e tenant isolation.
+
+Gate de engenharia:
+- **Foundation Gate #237 — SUCCESS**
+- HEAD certificado: `303f0f042d95076c05f032dbd34ce9fbb9fdb56e`
+- 36 test files PASS;
+- 123 tests PASS;
+- 0 FAIL;
+- lint/typecheck/migrations/build/Docker/dependency audit PASS.
+
+Estado: **IMPLEMENTADA E CERTIFICADA EM CI**.
+
+Nenhuma automação crítica externa foi executada ou habilitada autonomamente.
