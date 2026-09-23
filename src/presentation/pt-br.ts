@@ -150,3 +150,37 @@ export function rotuloAutoridadeFonte(sourceAuthority?: string): string {
     default: return "Fonte governada";
   }
 }
+
+
+export function rotuloOperadorAlerta(operator: string): string {
+  switch (operator) {
+    case "gt": return "Maior que";
+    case "gte": return "Maior ou igual a";
+    case "lt": return "Menor que";
+    case "lte": return "Menor ou igual a";
+    case "eq": return "Igual a";
+    default: return "Operador";
+  }
+}
+
+export function rotuloSeveridadeAlerta(severity: string): string {
+  switch (severity) {
+    case "info": return "Informativa";
+    case "warning": return "Atenção";
+    case "critical": return "Crítica";
+    default: return "Severidade";
+  }
+}
+
+export function rotuloEstadoRegraAlerta(enabled: boolean, archived: boolean): string {
+  if (archived) return "Arquivada";
+  return enabled ? "Ativa" : "Desativada";
+}
+
+export function rotuloEstadoOcorrencia(status: string): string {
+  switch (status) {
+    case "active": return "Ativa";
+    case "acknowledged": return "Reconhecida";
+    default: return "Estado desconhecido";
+  }
+}
