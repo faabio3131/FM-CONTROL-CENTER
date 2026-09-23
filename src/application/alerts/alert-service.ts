@@ -18,6 +18,7 @@ import { requirePermission, type TenantContext } from "@/domain/security/tenant-
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{8,160}$/;
 
 export class AlertDefinitionInvalidError extends Error { constructor() { super("alert.definition_invalid"); } }
+export class AlertRuleDuplicateError extends Error { constructor() { super("alert.rule_duplicate"); } }
 export class AlertRuleNotFoundError extends Error { constructor() { super("alert.rule_not_found"); } }
 export class AlertOccurrenceNotFoundError extends Error { constructor() { super("alert.occurrence_not_found"); } }
 export class AlertActionInvalidError extends Error { constructor() { super("alert.action_invalid"); } }
@@ -58,6 +59,17 @@ export class AlertService {
       throw new AlertDefinitionInvalidError();
     }
     if (input.productId && this.products) await this.products.get(context, input.productId);
+    const normalizedThreshold = input.threshold.trim();
+    const existingRules = await this.repository.listRules(context.tenantId);
+    const duplicate = existingRules.some((rule) =>
+      rule.enabled &&
+      rule.metricId === input.metricId &&
+      (rule.productId ?? "") === (input.productId ?? "") &&
+      rule.operator === input.operator &&
+      rule.threshold === normalizedThreshold &&
+      rule.severity === input.severity
+    );
+    if (duplicate) throw new AlertRuleDuplicateError();
     const id = stableFingerprint([context.tenantId, "rule", input.idempotencyKey]).slice(0, 32);
     const rule: AlertRule = {
       id,
@@ -65,13 +77,22 @@ export class AlertService {
       productId: input.productId,
       metricId: input.metricId,
       operator: input.operator,
-      threshold: input.threshold.trim(),
+      threshold: normalizedThreshold,
       severity: input.severity,
       enabled: true,
       createdBy: context.userId,
       createdAt: new Date(),
     };
     return this.repository.createRule({ ...rule, idempotencyKey: input.idempotencyKey });
+  }
+
+  async disableRule(context: TenantContext, ruleId: string) {
+    requirePermission(context, "alert:write");
+    const rule = await this.repository.findRule(context.tenantId, ruleId);
+    if (!rule) throw new AlertRuleNotFoundError();
+    const disabled = await this.repository.disableRule(context.tenantId, ruleId, context.userId, context.correlationId);
+    if (!disabled) throw new AlertRuleNotFoundError();
+    return { ruleId, status: "disabled" as const };
   }
 
   async evaluate(context: TenantContext, ruleId: string) {
