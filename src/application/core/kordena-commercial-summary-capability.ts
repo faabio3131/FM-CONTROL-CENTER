@@ -99,7 +99,11 @@ export class KordenaCommercialSummaryCapability implements CoreReadCapability {
         sourceAuthority: "kordena_fm_commercial_platform",
         freshnessStatus: stale ? "stale" : "fresh",
         qualityStatus: stale ? "partial" : "verified",
-        provenanceRefs: [`source:${source.id}`],
+        provenanceRefs: [
+          `source:${source.id}`,
+          `mapping:${source.mappingVersion}`,
+          `schema:${snapshot.schema_version}`,
+        ],
         asOf: snapshot.as_of,
       };
 
@@ -113,6 +117,8 @@ export class KordenaCommercialSummaryCapability implements CoreReadCapability {
           productSlug: product.slug,
           productName: product.name,
           asOf: snapshot.as_of,
+          schemaVersion: snapshot.schema_version,
+          mappingVersion: source.mappingVersion,
           summary: snapshot.summary,
           coverage: snapshot.coverage,
         },
