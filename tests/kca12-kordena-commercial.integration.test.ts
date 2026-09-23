@@ -6,6 +6,7 @@ import type { PostgresSourceRepository } from "@/infrastructure/integration/post
 import {
   KordenaCommercialConnector,
   KordenaCommercialConnectorError,
+  isKordenaCommercialAction,
 } from "@/infrastructure/integration/kordena-commercial-connector";
 
 const source: SourceDefinition = {
@@ -200,6 +201,40 @@ describe("KCA-12 Kordena commercial connector", () => {
     await expect(
       connector.pull(otherContext, otherSource),
     ).rejects.toThrow("integration.kordena_control_tenant_denied");
+  });
+
+
+
+  it("rejects unknown commercial actions at the runtime contract boundary", () => {
+    expect(isKordenaCommercialAction("price.publish")).toBe(true);
+    expect(isKordenaCommercialAction("plan_version.create")).toBe(true);
+    expect(isKordenaCommercialAction("price.force_publish")).toBe(false);
+    expect(isKordenaCommercialAction("admin.override")).toBe(false);
+    expect(isKordenaCommercialAction(null)).toBe(false);
+  });
+
+  it("aborts a hung Kordena request using the connector context timeout", async () => {
+    let observedSignal: AbortSignal | null = null;
+    const connector = new KordenaCommercialConnector(
+      () => "x".repeat(40),
+      async (_input, init) => {
+        observedSignal = init?.signal as AbortSignal;
+        return await new Promise<Response>((_resolve, reject) => {
+          observedSignal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+      () => ["https://kordena.example.test"],
+      controlTenant,
+    );
+
+    await expect(
+      connector.snapshot({ ...context, timeoutMs: 20 }, source),
+    ).rejects.toThrow("integration.kordena_request_timeout");
+    expect(observedSignal?.aborted).toBe(true);
   });
 
   it("fails closed for insecure source URL or unavailable secret", async () => {
