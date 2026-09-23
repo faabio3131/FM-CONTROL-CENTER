@@ -6,7 +6,11 @@ interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string } }>;
 }
 
-function parseJsonObject(content: string): { metricIds?: unknown; productSlugs?: unknown } {
+function parseJsonObject(content: string): {
+  metricIds?: unknown;
+  capabilityIds?: unknown;
+  productSlugs?: unknown;
+} {
   const candidates = [content.trim()];
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
   if (fenced) candidates.push(fenced);
@@ -19,7 +23,11 @@ function parseJsonObject(content: string): { metricIds?: unknown; productSlugs?:
     try {
       const parsed = JSON.parse(candidate) as unknown;
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed as { metricIds?: unknown; productSlugs?: unknown };
+        return parsed as {
+          metricIds?: unknown;
+          capabilityIds?: unknown;
+          productSlugs?: unknown;
+        };
       }
     } catch {
       continue;
@@ -41,32 +49,56 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
   async plan(input: {
     question: string;
     metricCatalog: readonly { metricId: string; displayName: string; description: string }[];
+    capabilityCatalog?: readonly { id: string; displayName: string; description: string }[];
     productCatalog?: readonly { slug: string; name: string }[];
     operationalContext: readonly CoreOperationalContext[];
-  }): Promise<{ metricIds: readonly string[]; productSlugs?: readonly string[] }> {
+  }): Promise<{
+    metricIds: readonly string[];
+    capabilityIds?: readonly string[];
+    productSlugs?: readonly string[];
+  }> {
     const content = await this.complete([
       { role: "system", content: [
         "Você é o planejador do FM Control Center, um Core cognitivo vertical de gestão empresarial.",
-        "Selecione SOMENTE metricIds presentes no catálogo fornecido.",
+        "Selecione SOMENTE metricIds presentes no catálogo de métricas fornecido.",
+        "Selecione SOMENTE capabilityIds presentes no catálogo de capabilities fornecido.",
         "Selecione SOMENTE productSlugs presentes no catálogo de produtos autorizado.",
         "Use productSlugs vazio quando a pergunta for global e não referir produto específico.",
-        "Escolha de 1 a 8 métricas e no máximo 4 produtos.",
+        "Escolha até 8 métricas, até 4 capabilities e no máximo 4 produtos.",
+        "Selecione ao menos uma métrica ou capability.",
         "Nunca invente produto, métrica, tenant, valor ou causa.",
         "Para correlação, anomalia, risco ou recomendação use múltiplas métricas quando necessário.",
         "O contexto operacional serve apenas para continuidade e não é fonte factual.",
-        'Responda somente JSON no formato {"metricIds":["..."],"productSlugs":["..."]}.',
+        'Responda somente JSON no formato {"metricIds":["..."],"capabilityIds":["..."],"productSlugs":["..."]}.',
       ].join(" ") },
       { role: "user", content: JSON.stringify(input) },
     ], 512);
 
     try {
       const parsed = parseJsonObject(content);
-      if (!Array.isArray(parsed.metricIds)) throw new Error("invalid");
+      const rawMetricIds = parsed.metricIds ?? [];
+      if (!Array.isArray(rawMetricIds)) throw new Error("invalid");
       const allowedMetrics = new Set(input.metricCatalog.map((item) => item.metricId));
       const metricIds = [...new Set(
-        parsed.metricIds.filter((item): item is string => typeof item === "string" && allowedMetrics.has(item)),
+        rawMetricIds.filter((item): item is string => typeof item === "string" && allowedMetrics.has(item)),
       )];
-      if (metricIds.length < 1 || metricIds.length > 8) throw new Error("invalid");
+      if (metricIds.length > 8) throw new Error("invalid");
+
+      const rawCapabilityIds = parsed.capabilityIds ?? [];
+      if (!Array.isArray(rawCapabilityIds)) throw new Error("invalid");
+      const allowedCapabilities = new Set(
+        (input.capabilityCatalog ?? []).map((item) => item.id),
+      );
+      const capabilityIds = [...new Set(
+        rawCapabilityIds.filter(
+          (item): item is string =>
+            typeof item === "string" && allowedCapabilities.has(item),
+        ),
+      )];
+      if (capabilityIds.length > 4) throw new Error("invalid");
+      if (metricIds.length === 0 && capabilityIds.length === 0) {
+        throw new Error("invalid");
+      }
 
       const rawProductSlugs = parsed.productSlugs ?? [];
       if (!Array.isArray(rawProductSlugs)) throw new Error("invalid");
@@ -75,7 +107,9 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
       const allowedProducts = new Set((input.productCatalog ?? []).map((item) => item.slug));
       if (productSlugs.some((slug) => !allowedProducts.has(slug))) throw new CognitiveModelContractError();
 
-      return { metricIds, productSlugs };
+      return capabilityIds.length > 0
+        ? { metricIds, capabilityIds, productSlugs }
+        : { metricIds, productSlugs };
     } catch (error) {
       if (error instanceof CognitiveModelContractError) throw error;
       throw new CognitiveModelContractError();
