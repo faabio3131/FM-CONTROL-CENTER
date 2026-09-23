@@ -36,10 +36,10 @@ export default async function AlertsPage() {
       </header>
 
       <section className="guardrail-grid" aria-label="Governança de alertas">
-        <article><span className="eyebrow">Detecção</span><strong>Determinística</strong><p>Métrica governada + operador + threshold configurado.</p></article>
+        <article><span className="eyebrow">Detecção</span><strong>Determinística</strong><p>Métrica governada + operador + limite configurado.</p></article>
         <article><span className="eyebrow">Idempotência</span><strong>Identificador único + bloqueio</strong><p>A mesma observação não gera ocorrência duplicada.</p></article>
         <article><span className="eyebrow">Ações</span><strong>Prévia somente</strong><p>Nenhum efeito externo crítico é executado na F17.</p></article>
-        <article><span className="eyebrow">Auditoria</span><strong>Obrigatória</strong><p>Regra, ocorrência, acknowledgement e intent ficam rastreáveis.</p></article>
+        <article><span className="eyebrow">Auditoria</span><strong>Obrigatória</strong><p>Regra, ocorrência, reconhecimento e intenção ficam rastreáveis.</p></article>
       </section>
 
       <AlertControlPanel
