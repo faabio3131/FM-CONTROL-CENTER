@@ -1,3 +1,4 @@
+import { sanitizeAuditMetadata } from "@/application/audit/sanitize-audit-metadata";
 import type { TenantContext } from "@/domain/security/tenant-context";
 import { db } from "@/infrastructure/db/client";
 import { auditEvents } from "@/infrastructure/db/foundation-schema";
@@ -9,6 +10,8 @@ export async function recordAuditEvent(context: TenantContext, input: {
   await db.insert(auditEvents).values({
     tenantId: context.tenantId, actorId: context.userId, actorType: "user",
     action: input.action, resourceType: input.resourceType, resourceId: input.resourceId,
-    result: input.result, correlationId: context.correlationId, metadata: input.metadata ?? {},
+    result: input.result,
+    correlationId: context.correlationId,
+    metadata: sanitizeAuditMetadata(input.metadata ?? {}),
   });
 }
