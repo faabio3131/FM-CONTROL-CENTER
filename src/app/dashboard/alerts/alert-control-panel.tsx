@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 type Rule = { id: string; metricId: string; operator: string; threshold: string; severity: string; enabled: boolean; archived: boolean; productId?: string };
@@ -126,12 +127,13 @@ export function AlertControlPanel(props: {
           <summary>Histórico arquivado ({archivedRules.length})</summary>
           <div className="alert-list">
             {archivedRules.map((rule) => (
-              <article className="alert-item" key={rule.id}>
+              <Link className="alert-item archive-link" href={`/dashboard/alerts/rules/${encodeURIComponent(rule.id)}`} key={rule.id}>
                 <div>
                   <strong>{rule.metricId}</strong>
                   <span>{rule.operator} {rule.threshold} · {rule.severity} · arquivada</span>
                 </div>
-              </article>
+                <span>Abrir arquivo →</span>
+              </Link>
             ))}
           </div>
         </details>
