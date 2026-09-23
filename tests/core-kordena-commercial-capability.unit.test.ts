@@ -241,6 +241,22 @@ describe("FMCC cognitive Kordena commercial read capability", () => {
     expect(JSON.stringify(result)).not.toContain("private details");
   });
 
+  it("não trata resumo Kordena como total global sem produto explícito", async () => {
+    const read = vi.fn(async () => snapshot());
+    const capability = new KordenaCommercialSummaryCapability(
+      sources(),
+      products(),
+      control(read),
+    );
+
+    const result = await capability.read(context, {
+      productSlugs: [],
+    });
+
+    expect(result.status).toBe("unavailable");
+    expect(read).not.toHaveBeenCalled();
+  });
+
   it("does not use Kordena state for a different selected product", async () => {
     const read = vi.fn(async () => snapshot());
     const capability = new KordenaCommercialSummaryCapability(
