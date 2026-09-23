@@ -1,2 +1,21 @@
 import Link from "next/link";
-export default function HomePage(){return <main className="shell"><section className="hero"><span className="eyebrow">Nova FM Tecnologia</span><h1>FM Control Center</h1><p>Fundação técnica do centro governado de inteligência, métricas e operação empresarial.</p><div className="actions"><Link className="button primary" href="/sign-in">Entrar</Link><Link className="button" href="/dashboard">Abrir FM Control Center</Link></div><p className="phase">Fase 06 · Fundação técnica Web/Nuvem</p></section></main>}
+
+export default function HomePage() {
+  return (
+    <main className="shell">
+      <section className="hero">
+        <span className="eyebrow">Nova FM Tecnologia · Intelligence Control Plane</span>
+        <h1>FM Control Center</h1>
+        <p>
+          Centro executivo governado para métricas, produtos, operações, alertas e decisões assistidas pelo
+          FM Cognitive Vertical Core.
+        </p>
+        <div className="actions">
+          <Link className="button primary" href="/sign-in">Entrar com segurança</Link>
+          <Link className="button" href="/dashboard">Abrir Control Center</Link>
+        </div>
+        <p className="phase">Preview governado · mesma linha arquitetural destinada à operação comercial</p>
+      </section>
+    </main>
+  );
+}
