@@ -27,17 +27,26 @@ export function AlertControlPanel(props: {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      const payload = await response.json() as { error?: string; preview?: { riskLevel?: string; reason?: string } };
+      const payload = await response.json() as {
+        error?: string;
+        preview?: { riskLevel?: string; reason?: string };
+        evaluation?: { status?: string; reason?: string };
+        occurrence?: unknown;
+        created?: boolean;
+      };
       if (!response.ok) {
         setMessage(payload.error ?? "Operação indisponível.");
-        return false;
+        return null;
       }
       if (payload.preview?.reason) setMessage(`Preview ${payload.preview.riskLevel ?? ""}: ${payload.preview.reason}`);
+      else if (payload.evaluation?.status === "unavailable") setMessage("Avaliação concluída: métrica indisponível; nenhum alerta criado.");
+      else if (payload.evaluation?.status === "clear") setMessage("Avaliação concluída: threshold não atingido; nenhum alerta criado.");
+      else if (payload.evaluation?.status === "incompatible") setMessage("Avaliação concluída: valor incompatível; nenhum alerta criado.");
       else setMessage("Operação registrada com sucesso.");
-      return true;
+      return payload;
     } catch {
       setMessage("Não foi possível concluir a operação.");
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
@@ -46,7 +55,7 @@ export function AlertControlPanel(props: {
   async function createRule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const ok = await request("/api/alerts", {
+    const result = await request("/api/alerts", {
       metricId: String(data.get("metricId") ?? ""),
       productId: String(data.get("productId") ?? "") || undefined,
       operator: String(data.get("operator") ?? ""),
@@ -54,7 +63,7 @@ export function AlertControlPanel(props: {
       severity: String(data.get("severity") ?? ""),
       idempotencyKey: crypto.randomUUID(),
     });
-    if (ok) window.location.reload();
+    if (result) window.location.reload();
   }
 
   return (
@@ -80,8 +89,8 @@ export function AlertControlPanel(props: {
           <article className="alert-item" key={rule.id}>
             <div><strong>{rule.metricId}</strong><span>{rule.operator} {rule.threshold} · {rule.severity}</span></div>
             {props.canWrite ? <button className="button" disabled={busy} onClick={async () => {
-              const ok = await request("/api/alerts/evaluate", { ruleId: rule.id });
-              if (ok) window.location.reload();
+              const result = await request("/api/alerts/evaluate", { ruleId: rule.id });
+              if (result?.occurrence) window.location.reload();
             }}>Avaliar agora</button> : null}
           </article>
         )) : <div className="empty-state"><strong>Nenhuma regra configurada.</strong><p>Alertas não são inventados sem regra/threshold explícitos.</p></div>}
