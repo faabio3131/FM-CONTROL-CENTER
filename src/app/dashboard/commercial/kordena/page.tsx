@@ -96,6 +96,14 @@ export default async function KordenaCommercialPage() {
               <span className="metric-label">Past due</span>
               <strong className="metric-value">{snapshot.summary.past_due_subscriptions ?? 0}</strong>
             </article>
+            <article className="metric-card">
+              <span className="metric-label">Usuários</span>
+              <strong className="metric-value">{snapshot.summary.users ?? 0}</strong>
+            </article>
+            <article className="metric-card">
+              <span className="metric-label">Unidades</span>
+              <strong className="metric-value">{snapshot.summary.units ?? 0}</strong>
+            </article>
           </section>
 
           <section className="executive-section">
