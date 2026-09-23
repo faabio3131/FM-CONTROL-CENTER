@@ -5,16 +5,16 @@ export type Permission =
   | "metric:read" | "audit:read"
   | "integration:read" | "integration:write"
   | "product:read" | "product:write"
-  | "commercial:read" | "commercial:write"
   | "alert:read" | "alert:write"
-  | "action:prepare";
+  | "action:prepare"
+  | "commercial:read" | "commercial:write";
 
 const ROLE_PERMISSIONS: Record<FmccRole, ReadonlySet<Permission>> = {
-  owner: new Set(["tenant:manage","member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write","commercial:read","commercial:write","alert:read","alert:write","action:prepare"]),
-  admin: new Set(["member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write","commercial:read","commercial:write","alert:read","alert:write","action:prepare"]),
-  analyst: new Set(["source:read","metric:read","audit:read","integration:read","product:read","commercial:read","alert:read","action:prepare"]),
-  viewer: new Set(["metric:read","integration:read","product:read","commercial:read","alert:read"]),
-  member: new Set(["metric:read","integration:read","product:read","commercial:read","alert:read"]),
+  owner: new Set(["tenant:manage","member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write","alert:read","alert:write","action:prepare","commercial:read","commercial:write"]),
+  admin: new Set(["member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write","alert:read","alert:write","action:prepare","commercial:read","commercial:write"]),
+  analyst: new Set(["source:read","metric:read","audit:read","integration:read","product:read","alert:read","action:prepare","commercial:read"]),
+  viewer: new Set(["metric:read","integration:read","product:read","alert:read","commercial:read"]),
+  member: new Set(["metric:read","integration:read","product:read","alert:read","commercial:read"]),
 };
 
 export function normalizeRole(role: string): FmccRole {

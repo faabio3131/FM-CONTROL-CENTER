@@ -16,7 +16,7 @@ concurrency:
 jobs:
   foundation:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -61,6 +61,10 @@ jobs:
         run: npm run security:secrets
       - name: Build
         run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E
+        run: npm run test:e2e
       - name: Runtime smoke
         run: npm run test:runtime-smoke
       - name: Build Docker image without runtime secrets

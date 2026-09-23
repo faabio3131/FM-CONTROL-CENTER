@@ -5,6 +5,7 @@ import { buildAlertService } from "@/application/alerts/alert-composition";
 import { MetricService } from "@/application/metrics/metric-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
+import { roleHasPermission } from "@/domain/security/permissions";
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
@@ -91,7 +92,8 @@ export default async function DashboardPage() {
         <Link href="/dashboard/customers"><strong>Clientes / Uso / Suporte</strong><span>F15 · agregados governados</span></Link>
         <Link href="/dashboard/intelligence"><strong>Inteligência Executiva</strong><span>F16 · análise avançada governada</span></Link>
         <Link href="/dashboard/alerts"><strong>Alertas e Automações</strong><span>F17 · regras e workflows governados</span></Link>
-        <Link href="/dashboard/commercial/kordena"><strong>Kordena Comercial</strong><span>KCA-12 · control plane</span></Link>
+        <Link href="/dashboard/commercial/kordena"><strong>Kordena Comercial</strong><span>Integração comercial governada</span></Link>
+        {roleHasPermission(context.role, "source:read") ? <Link href="/dashboard/sources"><strong>Fontes e Integrações</strong><span>Malha de Integrações · conexões governadas</span></Link> : null}
       </section>
 
       <section className="executive-section" aria-labelledby="executive-overview-title">

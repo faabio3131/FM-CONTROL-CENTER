@@ -43,3 +43,12 @@ export function cognitiveEnv() {
 
   return { baseUrl: parsed.toString(), apiKey, modelId } as const;
 }
+
+
+export function alertAutomationEnv() {
+  const schedulerSecret = process.env.FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET?.trim();
+  if (!schedulerSecret || schedulerSecret.length < 32) {
+    throw new Error("config.FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET_invalid");
+  }
+  return { schedulerSecret } as const;
+}

@@ -80,7 +80,7 @@ export default async function KordenaCommercialPage() {
     <main className="dashboard-shell">
       <header className="dashboard-header">
         <div>
-          <span className="eyebrow">KCA-12 · Commercial Control Plane</span>
+          <span className="eyebrow">KCA-12 · Plano de controle comercial</span>
           <h1>Kordena Comercial</h1>
           <p>
             Dados canônicos consumidos por API governada. Nenhum acesso direto
@@ -112,35 +112,35 @@ export default async function KordenaCommercialPage() {
           <section className="metric-grid" aria-label="Resumo comercial Kordena">
             <article className="metric-card">
               <span className="metric-label">Clientes</span>
-              <strong className="metric-value">{snapshot.summary.customers ?? 0}</strong>
+              <strong className="metric-value">{typeof snapshot.summary.customers === "number" ? snapshot.summary.customers : "Indisponível"}</strong>
             </article>
             <article className="metric-card">
-              <span className="metric-label">Trials ativos</span>
-              <strong className="metric-value">{snapshot.summary.active_trials ?? 0}</strong>
+              <span className="metric-label">Testes gratuitos ativos</span>
+              <strong className="metric-value">{typeof snapshot.summary.active_trials === "number" ? snapshot.summary.active_trials : "Indisponível"}</strong>
             </article>
             <article className="metric-card">
               <span className="metric-label">Assinaturas ativas</span>
-              <strong className="metric-value">{snapshot.summary.active_subscriptions ?? 0}</strong>
+              <strong className="metric-value">{typeof snapshot.summary.active_subscriptions === "number" ? snapshot.summary.active_subscriptions : "Indisponível"}</strong>
             </article>
             <article className="metric-card">
-              <span className="metric-label">Past due / vencimentos</span>
-              <strong className="metric-value">{snapshot.summary.past_due_subscriptions ?? 0}</strong>
+              <span className="metric-label">Assinaturas vencidas ou em atraso</span>
+              <strong className="metric-value">{typeof snapshot.summary.past_due_subscriptions === "number" ? snapshot.summary.past_due_subscriptions : "Indisponível"}</strong>
             </article>
             <article className="metric-card">
               <span className="metric-label">Pagamentos confirmados</span>
-              <strong className="metric-value">{snapshot.summary.confirmed_payments ?? 0}</strong>
+              <strong className="metric-value">{typeof snapshot.summary.confirmed_payments === "number" ? snapshot.summary.confirmed_payments : "Indisponível"}</strong>
             </article>
             <article className="metric-card">
               <span className="metric-label">Falhas de pagamento</span>
-              <strong className="metric-value">{snapshot.summary.failed_payments ?? 0}</strong>
+              <strong className="metric-value">{typeof snapshot.summary.failed_payments === "number" ? snapshot.summary.failed_payments : "Indisponível"}</strong>
             </article>
             <article className="metric-card">
               <span className="metric-label">Usuários</span>
-              <strong className="metric-value">{snapshot.summary.users ?? 0}</strong>
+              <strong className="metric-value">{typeof snapshot.summary.users === "number" ? snapshot.summary.users : "Indisponível"}</strong>
             </article>
             <article className="metric-card">
               <span className="metric-label">Unidades</span>
-              <strong className="metric-value">{snapshot.summary.units ?? 0}</strong>
+              <strong className="metric-value">{typeof snapshot.summary.units === "number" ? snapshot.summary.units : "Indisponível"}</strong>
             </article>
           </section>
 
@@ -150,7 +150,7 @@ export default async function KordenaCommercialPage() {
                 <span className="eyebrow">Planos canônicos</span>
                 <h2>Catálogo Kordena</h2>
               </div>
-              <p>Preços e versões vêm da Commercial Platform.</p>
+              <p>Preços e versões vêm da Plataforma Comercial canônica.</p>
             </div>
             <div className="product-grid">
               {snapshot.catalog.map((raw) => {
@@ -166,7 +166,7 @@ export default async function KordenaCommercialPage() {
                     : null;
                 return (
                   <article className="product-card" key={String(plan.plan_code)}>
-                    <span className="eyebrow">{String(plan.status ?? "unknown")}</span>
+                    <span className="eyebrow">{String(plan.status ?? "Desconhecido")}</span>
                     <strong>{String(version?.display_name ?? plan.plan_code ?? "Plano")}</strong>
                     <small>{String(plan.plan_code ?? "")}</small>
                   </article>
@@ -193,12 +193,12 @@ export default async function KordenaCommercialPage() {
                     ["Signups iniciados", "signup_started"],
                     ["Signups concluídos", "signup_completed"],
                     ["Tenants provisionados", "tenant_provisioned"],
-                    ["Trials ativos", "trial_active"],
-                    ["Trials expirando", "trial_expiring"],
+                    ["Testes gratuitos ativos", "trial_active"],
+                    ["Testes expirando", "trial_expiring"],
                     ["Conversão", "conversion_rate"],
                     ["Assinaturas ativas", "subscription_active"],
-                    ["Past due", "past_due"],
-                    ["Churn", "churn"],
+                    ["Vencidas / em atraso", "past_due"],
+                    ["Taxa de cancelamento", "churn"],
                     ["MRR", "mrr"],
                     ["ARR", "arr"],
                     ["Pagamentos confirmados", "payment_success"],
@@ -227,10 +227,12 @@ export default async function KordenaCommercialPage() {
                   })}
                 </div>
                 <div className="card">
-                  <strong>Saúde: {String(snapshot.observability.health.status ?? "unknown")}</strong>
+                  <strong>
+                    Saúde: {String(snapshot.observability.health.status ?? "Desconhecida")}
+                  </strong>
                   <p>
                     Alertas ativos: {snapshot.observability.alerts.length}.{" "}
-                    INTERNAL_TEST excluído dos KPIs comerciais:{" "}
+                    INTERNAL_TEST excluído dos indicadores comerciais:{" "}
                     {snapshot.observability.internal_test_excluded ? "sim" : "não"}.
                   </p>
                 </div>
