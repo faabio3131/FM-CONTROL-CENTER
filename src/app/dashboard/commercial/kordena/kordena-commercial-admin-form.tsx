@@ -93,7 +93,6 @@ export function KordenaCommercialAdminForm(props: { sourceId: string }) {
     selectedAction: string,
     selectedPayload: Record<string, unknown>,
     options?: {
-      approvalContext?: Record<string, unknown>;
       approvalToken?: string;
     },
   ) {
@@ -111,7 +110,6 @@ export function KordenaCommercialAdminForm(props: { sourceId: string }) {
           action: selectedAction,
           resourceId: resourceId.trim() || undefined,
           payload: selectedPayload,
-          approvalContext: options?.approvalContext,
           approvalToken: options?.approvalToken,
         }),
       },
@@ -152,9 +150,7 @@ export function KordenaCommercialAdminForm(props: { sourceId: string }) {
     setBusy(true);
     setStatus(null);
     try {
-      const body = await send(requiredPreview, {}, {
-        approvalContext: proposedPayload,
-      });
+      const body = await send(requiredPreview, proposedPayload);
       const token = body.approval?.token;
       const expiresAt = body.approval?.expiresAt;
       if (typeof token !== "string" || typeof expiresAt !== "string") {
