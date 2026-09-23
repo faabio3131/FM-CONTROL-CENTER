@@ -1,6 +1,14 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/application/audit/record-audit-event";
+import {
+  CommercialApprovalInvalidError,
+  CommercialApprovalRequiredError,
+  consumeCommercialApproval,
+  isHighRiskCommercialPublish,
+  issueCommercialApproval,
+  publishActionForPreview,
+} from "@/application/integration/commercial-approval";
 import { KordenaCommercialControlService } from "@/application/integration/kordena-commercial-control-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import {
@@ -35,6 +43,8 @@ export async function POST(request: Request) {
       action?: unknown;
       resourceId?: unknown;
       payload?: unknown;
+      approvalToken?: unknown;
+      approvalContext?: unknown;
     };
     if (
       typeof body.sourceId !== "string" ||
@@ -58,6 +68,36 @@ export async function POST(request: Request) {
       throw new PermissionDeniedError("commercial:write");
     }
 
+    const resourceId =
+      typeof body.resourceId === "string" ? body.resourceId : undefined;
+    const publishPayload = body.payload as Record<string, unknown>;
+
+    if (isHighRiskCommercialPublish(body.action)) {
+      if (typeof body.approvalToken !== "string") {
+        throw new CommercialApprovalRequiredError();
+      }
+      await consumeCommercialApproval(context, {
+        sourceId: body.sourceId,
+        resourceId,
+        publishAction: body.action,
+        publishPayload,
+        token: body.approvalToken,
+      });
+    }
+
+    const previewPublishAction = publishActionForPreview(body.action);
+    if (
+      previewPublishAction &&
+      (!body.approvalContext ||
+        typeof body.approvalContext !== "object" ||
+        Array.isArray(body.approvalContext))
+    ) {
+      return NextResponse.json(
+        { error: "commercial.approval_context_required" },
+        { status: 400 },
+      );
+    }
+
     const command = {
       actor: {
         user_id: context.userId,
@@ -65,9 +105,8 @@ export async function POST(request: Request) {
         step_up_at: proof.verifiedAt.toISOString(),
       },
       action: body.action,
-      resource_id:
-        typeof body.resourceId === "string" ? body.resourceId : undefined,
-      payload: body.payload as Record<string, unknown>,
+      resource_id: resourceId,
+      payload: publishPayload,
     } as KordenaCommercialCommand;
 
     const result = await new KordenaCommercialControlService().command(
@@ -78,6 +117,15 @@ export async function POST(request: Request) {
         idempotencyKey,
       },
     );
+
+    const approval = previewPublishAction
+      ? await issueCommercialApproval(context, {
+          sourceId: body.sourceId,
+          resourceId,
+          publishAction: previewPublishAction,
+          publishPayload: body.approvalContext as Record<string, unknown>,
+        })
+      : null;
     await recordAuditEvent(context, {
       action: "commercial.command.forwarded",
       resourceType: "kordena_commercial_control_plane",
@@ -85,11 +133,11 @@ export async function POST(request: Request) {
       metadata: {
         sourceId: body.sourceId,
         commandAction: body.action,
-        resourceId:
-          typeof body.resourceId === "string" ? body.resourceId : null,
+        resourceId: resourceId ?? null,
+        approvalIssued: Boolean(approval),
       },
     });
-    return NextResponse.json(result);
+    return NextResponse.json(approval ? { ...result, approval } : result);
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
@@ -98,7 +146,9 @@ export async function POST(request: Request) {
       error instanceof TenantScopeRequiredError ||
       error instanceof PermissionDeniedError ||
       error instanceof CrossTenantAccessError ||
-      error instanceof StepUpRequiredError
+      error instanceof StepUpRequiredError ||
+      error instanceof CommercialApprovalRequiredError ||
+      error instanceof CommercialApprovalInvalidError
     ) {
       if (context) {
         await recordAuditEvent(context, {

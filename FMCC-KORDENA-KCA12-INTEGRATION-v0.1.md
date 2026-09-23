@@ -1,6 +1,6 @@
 # FMCC — Kordena Commercial Control Plane — KCA-12
 
-Status: FINAL RECONCILIATION CANDIDATE / exact-head recertification required.
+Status: MERGED BASELINE + HARDENING CANDIDATE / exact-head recertification required.
 
 Original KCA-12 base: `main` @ `9632dd3871790a8b709fa5bc11211b9649b943fa`.
 
@@ -149,3 +149,31 @@ PR #16 is again mergeable against the current `main`.
 This documentation update creates a new candidate HEAD and must itself pass the
 FMCC Foundation Gate. The PR check on that exact HEAD is the final documentary
 evidence and does not require another content-only commit.
+
+
+## Hardening posterior na tranche de finalização
+
+Após o merge KCA-12 na `main` em
+`378eefdb7d2e2a99054382686e52227afb245f53`, a tranche de finalização do FMCC
+adiciona controles complementares sem transferir autoridade comercial para o
+FMCC:
+
+- publicação de plano, preço e promoção classificada como ação de alto risco;
+- prévia obrigatória no servidor, não apenas na interface;
+- aprovação efêmera vinculada a tenant, usuário, fonte, ação, recurso e hash do
+  payload de publicação;
+- token de aprovação de uso único, armazenado somente como hash no Audit Ledger;
+- expiração da aprovação e rejeição de replay;
+- superfície comercial principal em pt-BR;
+- ausência preservada como indisponível, nunca convertida silenciosamente em
+  zero;
+- Central de Fontes e Integrações para cadastro, saúde e sincronização
+  governados;
+- Browser E2E para jornadas críticas;
+- automação interna de avaliação de alertas sem efeitos externos críticos.
+
+A integração real continua fail-closed enquanto URL allowlisted, tenant de
+controle e segredo runtime reais não estiverem configurados.
+
+A promoção desta tranche exige novo Foundation Gate no HEAD reconciliado após
+incorporar a `main` atual sem force push nem rebase destrutivo.

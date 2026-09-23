@@ -16,7 +16,7 @@ describe("KCA-12 commercial control security contract", () => {
     expect(roleHasPermission("viewer", "commercial:read")).toBe(true);
   });
 
-  it("exige password step-up antes de encaminhar comando ao Kordena", () => {
+  it("exige reautenticação e gate server-side antes de publicação comercial", () => {
     const route = readFileSync(
       new URL(
         "../src/app/api/integrations/kordena-commercial/commands/route.ts",
@@ -34,6 +34,9 @@ describe("KCA-12 commercial control security contract", () => {
     expect(route).toContain("verifyPasswordStepUp");
     expect(route).toContain("commercial:write");
     expect(route).toContain("recordAuditEvent");
+    expect(route).toContain("consumeCommercialApproval");
+    expect(route).toContain("issueCommercialApproval");
+    expect(route).toContain("isHighRiskCommercialPublish");
     expect(stepUp).toContain("auth.api.signInEmail");
     expect(stepUp).toContain("current.user.id");
   });
