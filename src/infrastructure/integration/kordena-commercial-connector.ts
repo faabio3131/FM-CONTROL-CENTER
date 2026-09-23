@@ -241,12 +241,51 @@ export class KordenaCommercialConnector implements Connector {
       );
     }
     const body = (await response.json()) as Partial<KordenaCommercialSnapshot>;
+    const requiredCollections = [
+      body.customers,
+      body.product_accounts,
+      body.trials,
+      body.subscriptions,
+      body.billing_transactions,
+      body.entitlements,
+      body.catalog,
+      body.facts,
+    ];
+    const requiredSummaryKeys = [
+      "customers",
+      "internal_test_customers",
+      "active_trials",
+      "active_subscriptions",
+      "past_due_subscriptions",
+      "suspended_subscriptions",
+      "confirmed_payments",
+      "failed_payments",
+      "reconciled_transactions",
+      "users",
+      "units",
+    ] as const;
+    const summary =
+      body.summary && typeof body.summary === "object"
+        ? body.summary
+        : null;
+    const summaryValid =
+      summary !== null &&
+      requiredSummaryKeys.every(
+        (key) =>
+          typeof summary[key] === "number" &&
+          Number.isFinite(summary[key]) &&
+          summary[key] >= 0,
+      );
+
     if (
       body.schema_version !== "kordena.fmcc.commercial.v1" ||
       body.product_code !== "KORDENA" ||
       typeof body.as_of !== "string" ||
-      !Array.isArray(body.facts) ||
-      !Array.isArray(body.catalog)
+      Number.isNaN(new Date(body.as_of).getTime()) ||
+      requiredCollections.some((collection) => !Array.isArray(collection)) ||
+      !body.coverage ||
+      typeof body.coverage !== "object" ||
+      !summaryValid
     ) {
       throw new KordenaCommercialConnectorError(
         "integration.kordena_snapshot_contract_invalid",
