@@ -10,6 +10,7 @@ import {
   AuthenticationRequiredError,
   TenantScopeRequiredError,
 } from "@/domain/security/tenant-context";
+import { rotuloMetrica, rotuloOperadorAlerta, rotuloSeveridadeAlerta } from "@/presentation/pt-br";
 import { ArchivedRuleActions } from "./archived-rule-actions";
 
 function formatDate(value: Date) {
@@ -60,10 +61,10 @@ export default async function ArchivedRulePage({ params }: { params: Promise<{ r
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">Arquivo governado de regra</span>
-          <h1>{rule.metricId}</h1>
+          <h1>{rotuloMetrica(rule.metricId)}</h1>
           <p>
             Registro preservado em modo somente leitura. Arquivar não apaga histórico
-            e esta tela não gera ocorrências.
+            e esta tela não gera ocorrências. Identificador técnico: <code>{rule.metricId}</code>.
           </p>
         </div>
         <Link className="button" href="/dashboard/alerts">Voltar para alertas</Link>
@@ -86,13 +87,13 @@ export default async function ArchivedRulePage({ params }: { params: Promise<{ r
           </article>
           <article className="metric-card">
             <span className="metric-label">Métrica</span>
-            <strong>{rule.metricId}</strong>
-            <small className="metric-provenance">Escopo: {rule.productId ?? "Global"}</small>
+            <strong>{rotuloMetrica(rule.metricId)}</strong>
+            <small className="metric-provenance">Escopo: {rule.productId ?? "Global"} · identificador técnico: {rule.metricId}</small>
           </article>
           <article className="metric-card">
             <span className="metric-label">Condição</span>
-            <strong>{rule.operator} {rule.threshold}</strong>
-            <small className="metric-provenance">Severidade: {rule.severity}</small>
+            <strong>{rotuloOperadorAlerta(rule.operator)} {rule.threshold}</strong>
+            <small className="metric-provenance">Severidade: {rotuloSeveridadeAlerta(rule.severity)}</small>
           </article>
           <article className="metric-card">
             <span className="metric-label">Criada em</span>
@@ -115,7 +116,7 @@ export default async function ArchivedRulePage({ params }: { params: Promise<{ r
             <strong>{comparisonLabel(comparison.status)}</strong>
             <p>
               Valor governado atual: {currentMetric?.value ?? "Indisponível"} ·
-              threshold arquivado: {rule.operator} {rule.threshold}
+              limite arquivado: {rotuloOperadorAlerta(rule.operator)} {rule.threshold}
             </p>
           </div>
           <small className="metric-provenance">
@@ -132,7 +133,7 @@ export default async function ArchivedRulePage({ params }: { params: Promise<{ r
             <span className="eyebrow">Linha do tempo</span>
             <h2>Auditoria da regra</h2>
           </div>
-          <p>Eventos persistidos no Audit Ledger para esta regra.</p>
+          <p>Eventos persistidos no Registro de Auditoria para esta regra.</p>
         </div>
         <div className="archive-timeline">
           {lifecycle.length ? lifecycle.map((event, index) => (
@@ -143,7 +144,7 @@ export default async function ArchivedRulePage({ params }: { params: Promise<{ r
               </div>
               <code>{event.correlationId}</code>
             </article>
-          )) : <div className="empty-state">Nenhum evento de lifecycle encontrado.</div>}
+          )) : <div className="empty-state">Nenhum evento do ciclo de vida encontrado.</div>}
         </div>
       </section>
 
@@ -159,10 +160,10 @@ export default async function ArchivedRulePage({ params }: { params: Promise<{ r
           {occurrences.length ? occurrences.map((occurrence) => (
             <article className="alert-item" key={occurrence.id}>
               <div>
-                <strong>{occurrence.metricId} · {occurrence.severity}</strong>
+                <strong>{rotuloMetrica(occurrence.metricId)} · {rotuloSeveridadeAlerta(occurrence.severity)}</strong>
                 <span>
-                  Observado {occurrence.observedValue} · threshold {occurrence.operator} {occurrence.threshold}
-                  · {occurrence.status}
+                  Valor observado {occurrence.observedValue} · limite {rotuloOperadorAlerta(occurrence.operator)} {occurrence.threshold}
+                  · {occurrence.status === "acknowledged" ? "Reconhecida" : "Ativa"}
                 </span>
               </div>
               <small>{formatDate(occurrence.occurredAt)} · evidências {occurrence.evidenceRefs.length}</small>
