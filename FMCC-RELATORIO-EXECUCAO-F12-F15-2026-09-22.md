@@ -226,3 +226,32 @@ Bloqueio único conhecido para a certificação desta missão:
 Não há falha de código conhecida no candidate funcional certificado pelo CI.
 
 Nenhum merge deve ser executado até resolver a evidência de Preview e realizar a auditoria final da tranche.
+
+
+---
+
+## CURRENT PÓS-MERGE / FECHAMENTO FACTUAL — 23/09/2026
+
+Esta seção complementa o estado histórico acima sem apagá-lo.
+
+Estado factual posterior à emissão original deste documento:
+
+- PR #12: **MERGED / CLOSED**;
+- squash merge na `main`: `9632dd3871790a8b709fa5bc11211b9649b943fa`;
+- Foundation Gate pós-merge #220: **SUCCESS**;
+- 31 test files / 109 tests PASS / 0 FAIL;
+- Render Preview `fmcc-preview-web` reconfigurado para `main`;
+- source implantado: `9632dd3`;
+- deploy: **succeeded / live**;
+- startup migration: PASS;
+- `/api/health`: PASS;
+- `/api/ready`: PASS;
+- login/dashboard: PASS;
+- F12 Financeiro: Preview PASS;
+- F13 Growth/Comercial: Preview PASS;
+- F14 Operações/SRE: Preview PASS;
+- F15 Clientes/Uso/Suporte: Preview PASS;
+- Core financeiro e Core uso/suporte: fail-closed + provenance PASS;
+- progresso oficial F12–F15 após homologação: **88%**.
+
+Portanto, descrições anteriores de PR #12 OPEN/DRAFT, Preview bloqueado e 88% ainda não certificado representam o **estado histórico pré-merge**, não o CURRENT atual.
