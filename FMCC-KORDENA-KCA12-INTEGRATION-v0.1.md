@@ -1,8 +1,10 @@
 # FMCC — Kordena Commercial Control Plane — KCA-12
 
-Status: FUNCTIONAL CERTIFIED / documentary HEAD recertification required.
+Status: MERGED BASELINE + HARDENING CANDIDATE / exact-head recertification required.
 
-Base: `main` @ `9632dd3871790a8b709fa5bc11211b9649b943fa`.
+Original KCA-12 base: `main` @ `9632dd3871790a8b709fa5bc11211b9649b943fa`.
+
+Current reconciled main: `175f4847eba16b7361929d35a780dc22a39ff95b`.
 
 ## Architectural reconciliation
 
@@ -95,3 +97,83 @@ tests, 16 Web Node tests, 7/7 GitHub Actions SUCCESS and Vercel SUCCESS.
 KCA-G12 is certified on the functional candidates. This documentation commit
 creates a new FMCC HEAD and must itself pass the Foundation Gate before the
 cross-repository documentary closure is considered final.
+
+
+## Reconciliation with F16-F19 CURRENT
+
+While KCA-12 remained in Draft, FMCC `main` legitimately advanced with the
+F16-F19 advanced intelligence/alerts certification at:
+
+`175f4847eba16b7361929d35a780dc22a39ff95b`
+
+The KCA-12 branch was therefore reconciled without reset, force push or
+destructive rebase.
+
+A non-destructive merge commit with both histories as parents was created:
+
+`b973958448d64c09bfb018b66836f7418970bb70`
+
+Conflicting surfaces were reconciled conservatively:
+
+- dashboard preserves F16 intelligence/alerts surfaces and adds only the
+  Kordena Commercial KCA-12 entry;
+- RBAC preserves F16 `alert:read`, `alert:write`, `action:prepare` and
+  adds KCA-12 `commercial:read` / `commercial:write`;
+- no F16-F19 capability, test, security control or documentation was removed.
+
+### Exact-head certification on the reconciled functional HEAD
+
+FMCC Foundation Gate: **SUCCESS**.
+
+Evidence on `b973958448d64c09bfb018b66836f7418970bb70`:
+
+- lint: PASS;
+- TypeScript: PASS;
+- schema generation/no drift: PASS;
+- migrations: PASS;
+- 42 test files PASS;
+- 154 tests PASS;
+- KCA-12 Kordena connector: 6 tests PASS;
+- KCA-12 commercial security: 3 tests PASS;
+- F19 adversarial coverage remains green;
+- high-confidence secret scan: PASS — 212 tracked files checked;
+- Next production build: PASS;
+- runtime smoke: PASS;
+- Docker image build without runtime secrets: PASS;
+- runtime dependency audit at HIGH threshold: PASS;
+- 4 moderate transitive advisories remain reported by npm audit; no
+  HIGH/CRITICAL gate failure exists.
+
+PR #16 is again mergeable against the current `main`.
+
+This documentation update creates a new candidate HEAD and must itself pass the
+FMCC Foundation Gate. The PR check on that exact HEAD is the final documentary
+evidence and does not require another content-only commit.
+
+
+## Hardening posterior na tranche de finalização
+
+Após o merge KCA-12 na `main` em
+`378eefdb7d2e2a99054382686e52227afb245f53`, a tranche de finalização do FMCC
+adiciona controles complementares sem transferir autoridade comercial para o
+FMCC:
+
+- publicação de plano, preço e promoção classificada como ação de alto risco;
+- prévia obrigatória no servidor, não apenas na interface;
+- aprovação efêmera vinculada a tenant, usuário, fonte, ação, recurso e hash do
+  payload de publicação;
+- token de aprovação de uso único, armazenado somente como hash no Audit Ledger;
+- expiração da aprovação e rejeição de replay;
+- superfície comercial principal em pt-BR;
+- ausência preservada como indisponível, nunca convertida silenciosamente em
+  zero;
+- Central de Fontes e Integrações para cadastro, saúde e sincronização
+  governados;
+- Browser E2E para jornadas críticas;
+- automação interna de avaliação de alertas sem efeitos externos críticos.
+
+A integração real continua fail-closed enquanto URL allowlisted, tenant de
+controle e segredo runtime reais não estiverem configurados.
+
+A promoção desta tranche exige novo Foundation Gate no HEAD reconciliado após
+incorporar a `main` atual sem force push nem rebase destrutivo.
