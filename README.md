@@ -15,7 +15,7 @@ SaaS comercial independente da Nova FM Tecnologia. A Nova FM é o Tenant Zero.
 - F16: Core Executivo Avançado implementado; engineering gate #228 SUCCESS — 33 arquivos / 115 testes PASS / 0 FAIL. Preview do candidate da tranche será validado de forma consolidada.
 - F17: Alertas e Automações Governadas implementados com regras determinísticas, Audit Ledger, RBAC, idempotência e action previews sem execução crítica; engineering gate #237 SUCCESS — 36 arquivos / 123 testes PASS / 0 FAIL.
 - F18: Premium UX/UI implementada na mesma aplicação; design system, experiência executiva, Core/alerts UX, responsividade, foco e reduced-motion; engineering gate #244 SUCCESS — 37 arquivos / 128 testes PASS / 0 FAIL.
-- F19: **EM CERTIFICAÇÃO TÉCNICA INTEGRAL** na PR #15 Draft; sem merge, produção ou F20.
+- F19: certificação técnica integral executada; Gate de código #252 SUCCESS — 39 arquivos / 135 testes PASS / 0 FAIL, secret scan/runtime smoke/Docker/dependency audit verdes. **Preview do candidate da PR #15 ainda pendente**, portanto a tranche ainda não foi promovida oficialmente a 97%. Sem merge, produção ou F20.
 
 ## Arquitetura cognitiva vigente
 
