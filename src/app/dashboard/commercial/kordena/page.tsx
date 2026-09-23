@@ -37,7 +37,7 @@ function metricDisplay(metric: KordenaObservabilityMetric | undefined): string {
           return `${row.currency} ${row.amount}`;
         })
         .filter((item): item is string => item !== null);
-      return amounts.length ? amounts.join(" · ") : "0 assinaturas ativas";
+      return amounts.length ? amounts.join(" · ") : "Indisponível";
     }
   }
   return "Disponível";
@@ -96,8 +96,8 @@ export default async function KordenaCommercialPage() {
         <section className="card">
           <strong>Fonte Kordena ainda não configurada.</strong>
           <p>
-            Registre uma source do tipo <code>{KORDENA_COMMERCIAL_SOURCE_TYPE}</code>
-            com URL HTTPS e secretRef. Nenhum dado será presumido.
+            Registre uma fonte do tipo técnico <code>{KORDENA_COMMERCIAL_SOURCE_TYPE}</code>
+            com URL HTTPS e referência de segredo. Nenhum dado será presumido.
           </p>
         </section>
       ) : unavailable || !snapshot ? (
@@ -190,9 +190,9 @@ export default async function KordenaCommercialPage() {
               <>
                 <div className="metric-grid">
                   {[
-                    ["Signups iniciados", "signup_started"],
-                    ["Signups concluídos", "signup_completed"],
-                    ["Tenants provisionados", "tenant_provisioned"],
+                    ["Cadastros iniciados", "signup_started"],
+                    ["Cadastros concluídos", "signup_completed"],
+                    ["Organizações provisionadas", "tenant_provisioned"],
                     ["Testes gratuitos ativos", "trial_active"],
                     ["Testes expirando", "trial_expiring"],
                     ["Conversão", "conversion_rate"],
