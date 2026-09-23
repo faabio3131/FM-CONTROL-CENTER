@@ -79,6 +79,7 @@ jobs:
         run: >-
           npx vitest run
           tests/core-gateway.unit.test.ts
+          tests/core-governed-capability-architecture.unit.test.ts
           tests/cognitive-model-adapter.unit.test.ts
           tests/core-kordena-commercial-capability.unit.test.ts
           tests/core-audit.integration.test.ts
