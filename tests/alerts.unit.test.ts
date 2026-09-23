@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AlertRuleDuplicateError, AlertService } from "@/application/alerts/alert-service";
 import type { MetricService, MetricView } from "@/application/metrics/metric-service";
-import { evaluateAlertThreshold, type AlertOccurrence, type AlertRepository, type AlertRule, type GovernedActionPreview } from "@/domain/alerts/contracts";
+import { compareAlertThresholdDefinition, evaluateAlertThreshold, type AlertOccurrence, type AlertRepository, type AlertRule, type AlertRuleLifecycleEvent, type GovernedActionPreview } from "@/domain/alerts/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
 const context: TenantContext = { tenantId: "tenant-alert", userId: "user-alert", role: "owner", correlationId: "corr-alert" };
@@ -28,6 +28,7 @@ class MemoryRepository implements AlertRepository {
   rules: AlertRule[] = [rule()];
   occurrences: AlertOccurrence[] = [];
   previews: GovernedActionPreview[] = [];
+  lifecycle: AlertRuleLifecycleEvent[] = [];
   async createRule(input: AlertRule) { this.rules.push(input); return { rule: input, created: true }; }
   async listRules(tenantId: string) { return this.rules.filter((item) => item.tenantId === tenantId); }
   async findRule(tenantId: string, ruleId: string) { return this.rules.find((item) => item.tenantId === tenantId && item.id === ruleId) ?? null; }
@@ -42,6 +43,10 @@ class MemoryRepository implements AlertRepository {
     if (index < 0 || this.rules[index]?.enabled) return false;
     this.rules[index] = { ...this.rules[index], archived: true };
     return true;
+  }
+  async listRuleLifecycle(_tenantId: string, _ruleId: string) { return this.lifecycle; }
+  async listOccurrencesForRule(tenantId: string, ruleId: string) {
+    return this.occurrences.filter((item) => item.tenantId === tenantId && item.ruleId === ruleId);
   }
   async recordOccurrence(input: AlertOccurrence) {
     const existing = this.occurrences.find((item) => item.fingerprint === input.fingerprint);
@@ -73,6 +78,12 @@ describe("F17 governed alerts", () => {
   it("não converte missing ou stale em alerta", () => {
     expect(evaluateAlertThreshold(rule(), metric(null)).status).toBe("unavailable");
     expect(evaluateAlertThreshold(rule(), metric("99", "stale"))).toMatchObject({ status: "unavailable", reason: "stale_or_unavailable" });
+  });
+
+  it("compara regra arquivada em modo somente leitura sem reativá-la", () => {
+    const archived = { ...rule("gt", "10"), enabled: false, archived: true };
+    expect(evaluateAlertThreshold(archived, metric("12"))).toMatchObject({ status: "clear", reason: "rule_disabled" });
+    expect(compareAlertThresholdDefinition(archived, metric("12"))).toMatchObject({ status: "triggered", observedValue: "12" });
   });
 
   it("impede regra ativa semanticamente duplicada", async () => {
@@ -113,6 +124,25 @@ describe("F17 governed alerts", () => {
     const archived = await service.archiveRule(context, "rule-1");
     expect(archived.status).toBe("archived");
     expect(repository.rules[0]).toMatchObject({ enabled: false, archived: true });
+  });
+
+  it("expõe detalhe arquivado sem criar ocorrência", async () => {
+    const repository = new MemoryRepository();
+    repository.rules[0] = { ...repository.rules[0]!, enabled: false, archived: true };
+    repository.lifecycle = [
+      { action: "created", actorId: "user-alert", correlationId: "corr-created", occurredAt: new Date("2026-09-23T10:00:00Z") },
+      { action: "disabled", actorId: "user-alert", correlationId: "corr-disabled", occurredAt: new Date("2026-09-23T11:00:00Z") },
+      { action: "archived", actorId: "user-alert", correlationId: "corr-archived", occurredAt: new Date("2026-09-23T12:00:00Z") },
+    ];
+    const metrics = { async query() { return metric("12"); } } as unknown as MetricService;
+    const service = new AlertService(repository, metrics);
+
+    const detail = await service.ruleDetail(context, "rule-1");
+    expect(detail.readOnly).toBe(true);
+    expect(detail.rule).toMatchObject({ enabled: false, archived: true });
+    expect(detail.lifecycle.map((event) => event.action)).toEqual(["created", "disabled", "archived"]);
+    expect(detail.comparison.status).toBe("triggered");
+    expect(repository.occurrences).toHaveLength(0);
   });
 
   it("é idempotente para a mesma observação e provenance", async () => {
