@@ -37,6 +37,13 @@ export interface AlertOccurrence {
   readonly status: "active" | "acknowledged";
 }
 
+export interface AlertRuleLifecycleEvent {
+  readonly action: "created" | "disabled" | "archived";
+  readonly actorId: string;
+  readonly correlationId: string;
+  readonly occurredAt: Date;
+}
+
 export interface GovernedActionPreview {
   readonly id: string;
   readonly tenantId: string;
@@ -56,6 +63,8 @@ export interface AlertRepository {
   findRule(tenantId: string, ruleId: string): Promise<AlertRule | null>;
   disableRule(tenantId: string, ruleId: string, actorId: string, correlationId: string): Promise<boolean>;
   archiveRule(tenantId: string, ruleId: string, actorId: string, correlationId: string): Promise<boolean>;
+  listRuleLifecycle(tenantId: string, ruleId: string): Promise<readonly AlertRuleLifecycleEvent[]>;
+  listOccurrencesForRule(tenantId: string, ruleId: string, limit?: number): Promise<readonly AlertOccurrence[]>;
   recordOccurrence(input: AlertOccurrence): Promise<{ occurrence: AlertOccurrence; created: boolean }>;
   listOccurrences(tenantId: string, limit?: number): Promise<readonly AlertOccurrence[]>;
   acknowledge(tenantId: string, occurrenceId: string, actorId: string, correlationId: string): Promise<boolean>;
@@ -85,12 +94,11 @@ export function validDecimalThreshold(value: string): boolean {
   return decimalParts(value) !== null;
 }
 
-export function evaluateAlertThreshold(rule: AlertRule, value: MetricView | null): {
+export function compareAlertThresholdDefinition(rule: AlertRule, value: MetricView | null): {
   status: AlertEvaluationStatus;
   observedValue?: string;
   reason?: string;
 } {
-  if (!rule.enabled) return { status: "clear", reason: "rule_disabled" };
   if (!value || value.value === null) return { status: "unavailable", reason: "missing_value" };
   if (value.freshnessStatus === "stale" || value.freshnessStatus === "unavailable") {
     return { status: "unavailable", reason: "stale_or_unavailable" };
@@ -104,6 +112,15 @@ export function evaluateAlertThreshold(rule: AlertRule, value: MetricView | null
     rule.operator === "lte" ? compared <= 0 :
     compared === 0;
   return { status: triggered ? "triggered" : "clear", observedValue: value.value };
+}
+
+export function evaluateAlertThreshold(rule: AlertRule, value: MetricView | null): {
+  status: AlertEvaluationStatus;
+  observedValue?: string;
+  reason?: string;
+} {
+  if (!rule.enabled) return { status: "clear", reason: "rule_disabled" };
+  return compareAlertThresholdDefinition(rule, value);
 }
 
 export function stableFingerprint(parts: readonly string[]): string {
