@@ -80,13 +80,22 @@ function validateCapabilityResult(
   ) {
     throw new CoreReadCapabilityContractError();
   }
-  if (
-    result.status === "available" &&
-    (!result.fact ||
+  if (result.status === "available") {
+    if (
+      !result.fact ||
       typeof result.fact !== "object" ||
-      Array.isArray(result.fact))
-  ) {
-    throw new CoreReadCapabilityContractError();
+      Array.isArray(result.fact) ||
+      typeof result.evidence.sourceAuthority !== "string" ||
+      !result.evidence.sourceAuthority.trim() ||
+      typeof result.evidence.freshnessStatus !== "string" ||
+      !result.evidence.freshnessStatus.trim() ||
+      typeof result.evidence.qualityStatus !== "string" ||
+      !result.evidence.qualityStatus.trim() ||
+      !Array.isArray(result.evidence.provenanceRefs) ||
+      result.evidence.provenanceRefs.length < 1
+    ) {
+      throw new CoreReadCapabilityContractError();
+    }
   }
   return result;
 }
