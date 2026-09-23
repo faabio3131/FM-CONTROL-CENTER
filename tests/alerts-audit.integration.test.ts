@@ -99,6 +99,45 @@ describe("F17 alert audit repository", () => {
       eq(auditEvents.action, "alert.rule.archived"),
     ));
     expect(rows).toHaveLength(1);
+
+    const lifecycle = await repository.listRuleLifecycle(TENANT, "rule-archive");
+    expect(lifecycle.map((event) => event.action)).toEqual(["created", "disabled", "archived"]);
+  });
+
+  it("lista somente ocorrências persistidas da regra solicitada", async () => {
+    const repository = new PostgresAlertRepository();
+    await repository.recordOccurrence({
+      id: "occurrence-rule-a",
+      tenantId: TENANT,
+      ruleId: "rule-a",
+      metricId: "incident.count",
+      observedValue: "12",
+      threshold: "10",
+      operator: "gt",
+      severity: "warning",
+      evidenceRefs: ["fact-a"],
+      fingerprint: "fingerprint-rule-a",
+      occurredAt: new Date("2026-09-23T13:00:00Z"),
+      status: "active",
+    });
+    await repository.recordOccurrence({
+      id: "occurrence-rule-b",
+      tenantId: TENANT,
+      ruleId: "rule-b",
+      metricId: "incident.count",
+      observedValue: "15",
+      threshold: "10",
+      operator: "gt",
+      severity: "critical",
+      evidenceRefs: ["fact-b"],
+      fingerprint: "fingerprint-rule-b",
+      occurredAt: new Date("2026-09-23T14:00:00Z"),
+      status: "active",
+    });
+
+    const rows = await repository.listOccurrencesForRule(TENANT, "rule-a");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe("occurrence-rule-a");
   });
 
   it("torna acknowledgement idempotente", async () => {
