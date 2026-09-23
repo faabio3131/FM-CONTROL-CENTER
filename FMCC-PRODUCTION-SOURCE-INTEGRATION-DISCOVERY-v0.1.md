@@ -1,37 +1,67 @@
-# FMCC — Production Source Integration Discovery v0.1
+# FMCC — Production Source Integration Discovery v0.2
 
-Status: CURRENT DISCOVERY — GOVERNED / NÃO HOMOLOGADO EM PRODUÇÃO
+Status: CURRENT DISCOVERY RECONCILIADO — GOVERNED / NÃO HOMOLOGADO EM PRODUÇÃO
 
-Base certificada:
-`main@175f4847eba16b7361929d35a780dc22a39ff95b`
+Current FMCC certificado:
+`main@eb130c37bdd26c559c517fcfc3cf3731874ffc59`
 
-Objetivo:
-mapear as fontes reais necessárias para que as métricas do FM Control Center deixem de depender de ausência de dados, sem inventar providers, semântica ou fatos.
+Current Kordena KCA-13:
+- PR `faabio3131/fm-ai-platform#130`: MERGED;
+- merge commit: `05c65c16ef380158b4602780511a9997e08cb5bb`;
+- candidate final reportado: `72cb89feadc2930bf08a22d57edd31afc9bb7c54`;
+- target branch Kordena: `staging/kordena-premium`;
+- Kordena Commercial Gate: SUCCESS;
+- WP-031 Master Gate: SUCCESS;
+- WP-031L Regression Channel Parity: SUCCESS;
+- Commercial Runtime Readiness V1: SUCCESS.
+
+Preview FMCC:
+- Render Preview source: `eb130c3`;
+- exact SHA automation: PASS;
+- branch: `main`;
+- health: PASS;
+- readiness: PASS;
+- unauthenticated dashboard protection: PASS.
+
+## Objetivo
+
+Mapear o que já possui autoridade/fonte real, o que está tecnicamente pronto para conexão e o que continua bloqueado por semântica, provider, credencial ou decisão empresarial.
+
+Este documento NÃO converte observabilidade read-only em fato canônico do Metric Engine.
 
 ## Regras
 
 - SOURCE AUTHORITY → Integration Fabric → Canonical Facts → Metric Registry → Metric Engine → Intelligence → Core.
 - Missing != zero.
-- Coleção/sumário de provider não é automaticamente um fato canônico compatível.
-- Métrica só pode ser marcada CONNECTED quando existir fonte real configurada, autenticação válida, ingestão comprovada e proveniência.
-- Credencial inexistente = EXTERNAL_BLOCKER, nunca dado simulado.
-- Semântica pendente não pode ser resolvida por implementação silenciosa.
+- Observability/read model != canonical fact.
+- Snapshot aggregate != canonical event fact.
+- Métrica somente pode ser marcada CONNECTED no Metric Engine quando existir:
+  1. autoridade real;
+  2. source real registrada;
+  3. autenticação válida;
+  4. health/sync comprovados;
+  5. fato canônico compatível;
+  6. proveniência;
+  7. semântica aprovada;
+  8. cálculo determinístico;
+  9. evidência de execução no ambiente homologado.
+- Credencial inexistente = EXTERNAL_BLOCKER.
+- Semântica pendente = SEMANTICS_PENDING.
+- Provider não escolhido = PROVIDER_UNDECIDED.
+- Observabilidade disponível pode alimentar UI/Core read-only sem automaticamente satisfazer o Metric Engine.
 
-## Fonte real já descoberta — Kordena Commercial Control Plane
+## Fonte real descoberta — Kordena Commercial Control Plane
 
-Contrato Kordena verificado no candidate:
-`faabio3131/fm-ai-platform@b35ba198ecd9a667f0473829c16562e2474a1f31`
-
-Boundary:
+Boundary governado:
 `/v1/control-plane/fmcc`
 
 Autoridade:
 Kordena Commercial Platform.
 
 Acesso:
-HTTP governado; FMCC não lê/escreve banco Kordena diretamente.
+HTTP governado; FMCC não lê/escreve diretamente o banco operacional do Kordena.
 
-Fatos publicados pelo contrato atual:
+Fatos canônicos atualmente publicados pelo snapshot comercial:
 - `customer.created`
 - `trial.started`
 - `trial.converted`
@@ -42,95 +72,196 @@ Fatos publicados pelo contrato atual:
 - `payment.failed`
 - `entitlement.changed`
 
-O próprio contrato Kordena declara como pendente:
-- MRR
-- ARR
+KCA-13 adiciona observabilidade/read model governado:
+- signup_started
+- signup_completed
+- tenant_provisioned
+- trial_started
+- trial_active
+- trial_expiring
+- trial_expired
+- trial_converted
+- conversion_rate
+- subscription_active
+- past_due
 - churn
-- inadimplência monetária
-- contagem de assinatura ativa com semântica stateful/as-of
-- saúde operacional (fonte dedicada)
-- custos (fonte FinOps dedicada)
-- suporte (fonte dedicada)
+- mrr
+- arr
+- payment_success
+- payment_failure
+- antiabuse
+- health
+- finops
+- alerts
+- tracing
+- coverage
+
+Regras KCA-13 validadas no FMCC:
+- schema version `kordena.observability.kca13.v1`;
+- INTERNAL_TEST excluído;
+- provenance_refs não vazios;
+- source_authority não vazio;
+- definition não vazia;
+- alertas determinísticos bem formados;
+- tracing exige correlation ID governado;
+- coverage explícito;
+- contrato inválido → fail-closed;
+- ausência → indisponível, nunca zero inventado;
+- Core consome a capability como read-only.
 
 ## Matriz das 24 métricas executivas
 
-| metric_id | Estado semântico FMCC | Fato exigido | Fonte real descoberta | Status de integração | Observação |
+| metric_id | Semântica FMCC | Contrato necessário | Fonte/observabilidade descoberta | Status CURRENT | Observação |
 |---|---|---|---|---|---|
-| trial.starts.count | implemented | trial.started | Kordena Commercial (para Kordena) | READY_TO_CONNECT | Contrato Kordena publica fato compatível; faltam runtime config/source real/credencial e sync homologado. |
-| trial.active.count | pending_semantics | — | Kordena snapshot possui active_trials | SEMANTICS_PENDING | Sumário não substitui definição canônica aprovada. |
-| trial.conversion.rate | pending_semantics | — | Kordena publica trial.started + trial.converted | SEMANTICS_PENDING | Exige coorte, população e janela temporal aprovadas. |
-| subscription.active.count | implemented | subscription.active | Kordena publica subscription.activated e snapshot active_subscriptions | SEMANTICS_PENDING | Evento activated não equivale a estado ativo as-of; contrato Kordena declara pendência stateful. |
-| subscription.cancelled.count | implemented | subscription.cancelled | Kordena Commercial | READY_TO_CONNECT | Fato compatível disponível. |
-| subscription.logo_churn.rate | pending_semantics | — | Kordena publica cancelamentos | SEMANTICS_PENDING | Denominador/coorte/janela ainda não aprovados. |
-| revenue.mrr | pending_semantics | — | Kordena catalog/subscriptions | SEMANTICS_PENDING | O próprio contrato Kordena declara MRR pendente. |
-| revenue.arr | pending_semantics | — | Kordena catalog/subscriptions | SEMANTICS_PENDING | O próprio contrato Kordena declara ARR pendente. |
-| billing.gross_billed | implemented | billing.invoice | Nenhuma fonte real aprovada | PROVIDER_UNDECIDED | Kordena atual não publica billing.invoice. |
-| revenue.cash_collected | implemented | payment.settled | Kordena Commercial | READY_TO_CONNECT | Fato compatível com amount/currency disponível. |
-| receivable.delinquent_amount | implemented | receivable.delinquent | Kordena declara delinquency_amount pendente | SEMANTICS_PENDING | Não existe fato monetário compatível no contrato atual. |
-| cost.infrastructure.total | implemented | cost.infrastructure | Nenhuma fonte FinOps aprovada | PROVIDER_UNDECIDED | Deve vir de autoridade faturável/custo real, não tabela estimada. |
-| cost.operating.total | implemented | cost.operating | Nenhuma fonte financeira/operacional aprovada | PROVIDER_UNDECIDED | Necessita fonte contábil/operacional real. |
-| finance.operating_result | pending_semantics no registry executivo | derivada | Metric/Finance layer existente | ARCHITECTURAL_RECONCILIATION | Há serviço determinístico F12; registry executivo ainda marca pendência. Não reconciliar silenciosamente. |
-| finance.operating_margin.rate | pending_semantics | — | Nenhuma | SEMANTICS_PENDING | Fórmula/base ainda não aprovada. |
-| lead.created.count | implemented | lead.created | Nenhum CRM/fonte comercial aprovado | PROVIDER_UNDECIDED | Não inventar CRM/attribution. |
-| incident.count | implemented | incident.opened | Nenhuma fonte operacional aprovada | PROVIDER_UNDECIDED | Health pontual não é incidente. |
-| job.failure.count | implemented | job.failed | Nenhuma telemetria operacional conectada | PROVIDER_UNDECIDED | Deve vir de runtime/job authority. |
-| integration.failure.count | implemented | integration.failed | FMCC possui ConnectorRuntime, mas não emite esse fato canônico hoje | READY_FOR_INTERNAL_ADAPTER | Pode ser fonte interna governada, após contrato explícito e testes. |
-| service.error.count | implemented | service.error | Nenhuma observabilidade aprovada | PROVIDER_UNDECIDED | Necessita telemetria real. |
-| service.error.rate | pending_semantics | — | Nenhuma | SEMANTICS_PENDING | Exige população/denominador/janela. |
-| usage.active_users.dau | implemented | usage.active_user.day | Nenhuma telemetria SaaS conectada | PROVIDER_UNDECIDED | Cada SaaS deve emitir fatos governados por produto. |
-| usage.engagement.events | implemented | usage.engagement_event | Nenhuma telemetria SaaS conectada | PROVIDER_UNDECIDED | Não inferir de logs genéricos. |
-| support.ticket.open.count | implemented | support.ticket.opened | Nenhuma fonte de suporte aprovada | PROVIDER_UNDECIDED | Kordena declara suporte como fonte dedicada. |
+| trial.starts.count | implemented | fact `trial.started` | Kordena fact | READY_TO_CONNECT | Fato canônico compatível. Falta source/runtime real e sync homologado. |
+| trial.active.count | pending_semantics | definição as-of aprovada | KCA-13 `trial_active` | SEMANTICS_PENDING | Read model existe, mas Metric Registry não possui definição canônica final. |
+| trial.conversion.rate | pending_semantics | coorte + janela + população | KCA-13 `conversion_rate` | SEMANTICS_PENDING | Read model governado disponível; não promover ao Metric Engine sem semântica oficial. |
+| subscription.active.count | implemented | fact `subscription.active` | KCA-13 `subscription_active`; snapshot publica `subscription.activated` | SEMANTICS_PENDING | Evento activated não equivale a estado ativo as-of. |
+| subscription.cancelled.count | implemented | fact `subscription.cancelled` | Kordena fact | READY_TO_CONNECT | Fato compatível. Falta runtime/source/sync real. |
+| subscription.logo_churn.rate | pending_semantics | coorte + janela + denominador | KCA-13 `churn` | SEMANTICS_PENDING | KCA-13 resolve read model, não o contrato canônico do Metric Engine. |
+| revenue.mrr | pending_semantics | definição MRR aprovada | KCA-13 `mrr` por moeda | SEMANTICS_PENDING | Disponível para leitura governada; sem FX inventado. Registry continua pendente. |
+| revenue.arr | pending_semantics | definição ARR aprovada | KCA-13 `arr` por moeda | SEMANTICS_PENDING | Disponível para leitura governada; Registry continua pendente. |
+| billing.gross_billed | implemented | fact `billing.invoice` | Nenhuma fonte canônica compatível | PROVIDER_UNDECIDED | Kordena atual não publica billing.invoice. |
+| revenue.cash_collected | implemented | fact `payment.settled` | Kordena fact | READY_TO_CONNECT | Fato compatível com amount/currency. |
+| receivable.delinquent_amount | implemented | fact `receivable.delinquent` | KCA-13 `past_due` é observabilidade, não valor monetário canônico | PROVIDER_UNDECIDED | Ainda falta autoridade de inadimplência monetária. |
+| cost.infrastructure.total | implemented | fact `cost.infrastructure` | KCA-13 declara infra FinOps unavailable | PROVIDER_UNDECIDED | Não estimar custo de infraestrutura. |
+| cost.operating.total | implemented | fact `cost.operating` | Nenhuma fonte aprovada | PROVIDER_UNDECIDED | Necessita fonte financeira/operacional real. |
+| finance.operating_result | pending_semantics | composição financeira oficial | Serviços F12 existem | ARCHITECTURAL_RECONCILIATION | Registry executivo continua pendente. |
+| finance.operating_margin.rate | pending_semantics | fórmula/base aprovada | Nenhuma | SEMANTICS_PENDING | Não inferir fórmula silenciosamente. |
+| lead.created.count | implemented | fact `lead.created` | Nenhum CRM aprovado | PROVIDER_UNDECIDED | Não inventar CRM/attribution. |
+| incident.count | implemented | fact `incident.opened` | KCA-13 health/alerts são read model | PROVIDER_UNDECIDED | Health/alert != incidente canônico. |
+| job.failure.count | implemented | fact `job.failed` | Scheduler/CI existem, sem adapter canônico | READY_FOR_INTERNAL_ADAPTER | Pode ser implementado com authority interna governada. |
+| integration.failure.count | implemented | fact `integration.failed` | ConnectorRuntime existe, sem adapter canônico | READY_FOR_INTERNAL_ADAPTER | Pode ser implementado com authority interna governada. |
+| service.error.count | implemented | fact `service.error` | Logs/health existem, sem fonte canônica aprovada | PROVIDER_UNDECIDED | Log genérico não vira fato automaticamente. |
+| service.error.rate | pending_semantics | população + janela | Nenhuma | SEMANTICS_PENDING | Exige denominador e janela. |
+| usage.active_users.dau | implemented | fact `usage.active_user.day` | Nenhuma telemetria SaaS canônica conectada | PROVIDER_UNDECIDED | Cada SaaS deve emitir fato governado. |
+| usage.engagement.events | implemented | fact `usage.engagement_event` | Nenhuma telemetria SaaS canônica conectada | PROVIDER_UNDECIDED | Não inferir de logs. |
+| support.ticket.open.count | implemented | fact `support.ticket.opened` | KCA-13 coverage externo | PROVIDER_UNDECIDED | Necessita fonte de suporte real. |
 
-## Credenciais/configuração Kordena necessárias
+## Cobertura Kordena disponível para UI/Core
 
-A integração Kordena candidata exige, em runtime:
+O KCA-13 pode alimentar leitura governada no painel Kordena e no Core para:
+- cadastros iniciados/concluídos;
+- organizações provisionadas;
+- trials;
+- conversão;
+- assinaturas;
+- past due;
+- churn;
+- MRR/ARR por moeda;
+- pagamentos;
+- health;
+- alertas;
+- tracing;
+- AI FinOps existente;
+- coverage explícito.
+
+Isso NÃO altera silenciosamente o estado semântico do Metric Registry.
+
+## Configuração runtime FMCC necessária para Kordena
+
+Confirmado no CURRENT do código:
 
 - `FMCC_KORDENA_CONTROL_TENANT_ID`
 - `FMCC_KORDENA_ALLOWED_ORIGINS`
 - `FMCC_KORDENA_CONTROL_PLANE_TOKEN`
 
-A origem Kordena deve receber o mesmo segredo por configuração própria.
+A source deve usar exatamente:
+`env:FMCC_KORDENA_CONTROL_PLANE_TOKEN`
 
-O segredo:
+O valor real:
 - não pertence ao repositório;
-- não pertence à configuração JSON da source;
-- não pode aparecer em logs/auditoria/browser.
+- não pertence à config JSON da source;
+- não pode aparecer em logs;
+- não pode aparecer no browser;
+- não pode aparecer no Audit Ledger.
 
-Enquanto os valores reais não forem configurados e a source não estiver registrada:
-**Kordena = READY_TO_CONNECT / EXTERNAL_BLOCKER para homologação real.**
+## Scheduler de Alertas
 
-## Decisões necessárias antes de CONNECTED
+CURRENT de aplicação:
+`FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET`
+
+CURRENT do workflow:
+- `FMCC_AUTOMATION_BASE_URL` como repository/environment variable;
+- `FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET` como secret.
+
+Status:
+**READY_TO_CONFIGURE / EXTERNAL_BLOCKER**
+
+Sem os valores de runtime:
+- workflow permanece fail-closed;
+- nenhuma execução agendada real é declarada ativa;
+- nenhuma execução simulada é aceita como evidência.
+
+## Status operacional das fontes
 
 ### Kordena
-Já existe provider/authority aprovado tecnicamente.
-Falta:
-1. reconciliar a PR FMCC KCA-12 com a main atual;
-2. garantir aprovação server-side para publicação de preço/plano/promoção;
-3. registrar source real no tenant de controle;
-4. configurar origem HTTPS allowlisted;
-5. configurar segredo real fora do repo;
-6. executar health + sync real;
-7. provar fatos persistidos e proveniência;
-8. recomputar métricas compatíveis no Metric Engine;
-9. comparar Core/UI com os valores determinísticos.
 
-### Demais domínios
-Ainda exigem decisão de provider/fonte real:
-- billing/invoices;
-- FinOps/infra;
+Arquitetura/contrato: CERTIFIED.
+
+Preview FMCC: CERTIFIED no SHA exato.
+
+Kordena KCA-13: MERGED e gates verdes.
+
+Integração real FMCC ↔ Kordena:
+**READY_TO_CONNECT / EXTERNAL_BLOCKER**
+
+Ainda falta evidência real de:
+1. tenant de controle configurado;
+2. origin allowlist configurada;
+3. segredo compartilhado configurado em ambos os runtimes;
+4. source real cadastrada no tenant correto;
+5. health real;
+6. sync real;
+7. canonical facts persistidos;
+8. provenance persistida;
+9. Metric Engine recompute das métricas compatíveis;
+10. Core/UI comparados contra os mesmos dados reais.
+
+### Outros domínios
+
+Ainda sem provider/authority empresarial aprovada:
+- billing invoices;
+- inadimplência monetária;
+- FinOps infraestrutura;
 - custos operacionais;
 - CRM/leads;
-- observabilidade/incidentes;
-- telemetria de uso;
+- incidentes;
+- job telemetry canônica;
+- integration failure facts;
+- service error facts;
+- usage/engagement;
 - suporte.
 
-Nenhum provider será escolhido silenciosamente por esta implementação.
+Status:
+**PROVIDER_UNDECIDED** ou **SEMANTICS_PENDING**, conforme a matriz.
 
-## Próxima ação técnica
+## Critério pré-F20
 
-1. Portar a integração Kordena certificada para uma branch baseada na main atual.
-2. Preservar permissões F16/F17 e adicionar permissões comerciais sem regressão.
-3. Converter toda UI Kordena para pt-BR.
-4. Tornar preview/aprovação de publicações de alto risco obrigatório no servidor.
-5. Rodar matriz integral.
-6. Homologar somente com credencial/configuração real; caso contrário manter EXTERNAL_BLOCKER explícito.
+A tranche funcional pode seguir para auditoria independente quando:
+- CURRENT pós-merge estiver verde;
+- Preview SHA exato estiver comprovado;
+- Source Coverage estiver reconciliada;
+- blockers externos estiverem explicitamente classificados;
+- nenhuma source não homologada for chamada de CONNECTED;
+- nenhuma métrica read-only for promovida indevidamente a Metric Engine.
+
+Esses critérios estão atendidos documentalmente neste v0.2.
+
+## External blockers a carregar para F20/F21
+
+1. Kordena runtime real FMCC.
+2. Scheduler runtime real.
+3. Providers empresariais ainda não escolhidos para domínios listados.
+4. Semânticas executivas ainda `pending_semantics`.
+
+Esses blockers não podem ser “corrigidos” por implementação silenciosa.
+
+## Veredito pré-auditoria
+
+**FINAL FUNCTIONAL TRANCHE CERTIFIED — READY FOR AUDIT**
+
+Com a ressalva:
+- produção não autorizada;
+- sources externas ainda não homologadas como CONNECTED;
+- blockers acima devem permanecer visíveis em F20/F21 e no release candidate.
