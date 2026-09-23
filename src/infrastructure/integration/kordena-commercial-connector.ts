@@ -40,13 +40,16 @@ export interface KordenaCommercialCommand {
   readonly action:
     | "plan_version.create"
     | "plan_version.validate"
+    | "plan_version.preview"
     | "plan_version.publish"
     | "price.create"
     | "price.validate"
+    | "price.preview"
     | "price.publish"
     | "promotion.create"
     | "promotion_version.create"
     | "promotion_version.validate"
+    | "promotion_version.preview"
     | "promotion_version.publish";
   readonly resource_id?: string;
   readonly payload: Record<string, unknown>;
