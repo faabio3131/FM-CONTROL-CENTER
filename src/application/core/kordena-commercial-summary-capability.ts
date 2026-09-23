@@ -51,7 +51,7 @@ export class KordenaCommercialSummaryCapability implements CoreReadCapability {
     requirePermission(context, "commercial:read");
 
     if (
-      input.productSlugs.length > 0 &&
+      input.productSlugs.length === 0 ||
       !input.productSlugs.includes("kordena")
     ) {
       return { status: "unavailable", evidence: unavailableEvidence() };
