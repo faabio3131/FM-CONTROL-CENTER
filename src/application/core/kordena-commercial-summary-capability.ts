@@ -58,12 +58,17 @@ export class KordenaCommercialSummaryCapability implements CoreReadCapability {
     }
 
     const product = await this.products.findBySlug(context.tenantId, "kordena");
-    if (!product || product.status !== "active") {
+    if (
+      !product ||
+      product.tenantId !== context.tenantId ||
+      product.status !== "active"
+    ) {
       return { status: "unavailable", evidence: unavailableEvidence() };
     }
 
     const candidates = (await this.sources.list(context.tenantId)).filter(
       (source) =>
+        source.tenantId === context.tenantId &&
         source.productId === product.id &&
         source.sourceType === KORDENA_COMMERCIAL_SOURCE_TYPE,
     );
