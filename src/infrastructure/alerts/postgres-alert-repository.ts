@@ -109,7 +109,7 @@ export class PostgresAlertRepository implements AlertRepository {
     const [rows, disabledRows, archivedRows] = await Promise.all([
       db.select().from(auditEvents).where(and(
         eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.rule.created"),
-      )).orderBy(desc(auditEvents.occurredAt)).limit(100),
+      )).orderBy(desc(auditEvents.occurredAt)),
       db.select({ resourceId: auditEvents.resourceId }).from(auditEvents).where(and(
         eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.rule.disabled"),
       )),
