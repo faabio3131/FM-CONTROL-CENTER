@@ -4,9 +4,14 @@ export interface CognitiveModel {
   plan(input: {
     question: string;
     metricCatalog: readonly { metricId: string; displayName: string; description: string }[];
+    capabilityCatalog?: readonly { id: string; displayName: string; description: string }[];
     productCatalog?: readonly { slug: string; name: string }[];
     operationalContext: readonly CoreOperationalContext[];
-  }): Promise<{ metricIds: readonly string[]; productSlugs?: readonly string[] }>;
+  }): Promise<{
+    metricIds: readonly string[];
+    capabilityIds?: readonly string[];
+    productSlugs?: readonly string[];
+  }>;
 
   synthesize(input: {
     question: string;
