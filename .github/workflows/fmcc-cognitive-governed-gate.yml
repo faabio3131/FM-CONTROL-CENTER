@@ -1,0 +1,99 @@
+name: FMCC Cognitive Governed Intelligence Gate
+
+on:
+  pull_request:
+    paths:
+      - 'src/application/core/**'
+      - 'src/domain/core/**'
+      - 'src/infrastructure/core/**'
+      - 'src/application/integration/kordena-commercial-control-service.ts'
+      - 'src/infrastructure/integration/kordena-commercial-connector.ts'
+      - 'src/app/api/core/**'
+      - 'tests/core-*.test.ts'
+      - 'tests/cognitive-*.test.ts'
+      - 'tests/kca12-kordena-commercial.integration.test.ts'
+      - 'tests/kca12-commercial-security.test.ts'
+      - 'FMCC-09-COGNITIVE-CORE-GATEWAY-v0.1.md'
+      - 'docs/**'
+      - '.github/workflows/fmcc-cognitive-governed-gate.yml'
+  push:
+    branches:
+      - 'feat/fmcc-cognitive-governed-intelligence'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fmcc-cognitive-governed-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cognitive-governed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: fmcc
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fmcc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fmcc
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-only-secret-000000000000000000000000000000000000000000000000
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Verify migration matches schema
+        run: |
+          npm run db:generate
+          git diff --exit-code -- drizzle
+
+      - name: Apply versioned migration
+        run: npm run db:migrate
+
+      - name: Cognitive targeted tests
+        run: >-
+          npx vitest run
+          tests/core-gateway.unit.test.ts
+          tests/cognitive-model-adapter.unit.test.ts
+          tests/core-kordena-commercial-capability.unit.test.ts
+          tests/core-audit.integration.test.ts
+          tests/core-ownership-architecture.unit.test.ts
+          tests/kca12-kordena-commercial.integration.test.ts
+          tests/kca12-commercial-security.test.ts
+
+      - name: Full regression
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Diff whitespace
+        run: git diff --check ${{ github.event.pull_request.base.sha || github.event.before }}..HEAD
+
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev --audit-level=high
