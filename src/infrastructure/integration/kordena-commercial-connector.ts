@@ -7,6 +7,8 @@ import type {
 } from "@/domain/integration/contracts";
 
 export const KORDENA_COMMERCIAL_SOURCE_TYPE = "kordena-commercial-v1";
+export const KORDENA_COMMERCIAL_SECRET_REF =
+  "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN";
 
 export type SecretResolver = (reference: string) => string | undefined;
 export type AllowedOriginResolver = () => readonly string[];
@@ -128,9 +130,9 @@ function serviceToken(
   source: SourceDefinition,
   resolveSecret: SecretResolver,
 ): string {
-  if (!source.secretRef) {
+  if (source.secretRef !== KORDENA_COMMERCIAL_SECRET_REF) {
     throw new KordenaCommercialConnectorError(
-      "integration.kordena_secret_reference_missing",
+      "integration.kordena_secret_reference_invalid",
     );
   }
   const token = resolveSecret(source.secretRef)?.trim();
