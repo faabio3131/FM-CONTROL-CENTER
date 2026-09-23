@@ -93,8 +93,16 @@ export default async function KordenaCommercialPage() {
               <strong className="metric-value">{snapshot.summary.active_subscriptions ?? 0}</strong>
             </article>
             <article className="metric-card">
-              <span className="metric-label">Past due</span>
+              <span className="metric-label">Past due / vencimentos</span>
               <strong className="metric-value">{snapshot.summary.past_due_subscriptions ?? 0}</strong>
+            </article>
+            <article className="metric-card">
+              <span className="metric-label">Pagamentos confirmados</span>
+              <strong className="metric-value">{snapshot.summary.confirmed_payments ?? 0}</strong>
+            </article>
+            <article className="metric-card">
+              <span className="metric-label">Falhas de pagamento</span>
+              <strong className="metric-value">{snapshot.summary.failed_payments ?? 0}</strong>
             </article>
             <article className="metric-card">
               <span className="metric-label">Usuários</span>
@@ -140,13 +148,32 @@ export default async function KordenaCommercialPage() {
           <section className="executive-section">
             <div className="section-heading">
               <div>
-                <span className="eyebrow">Métricas pendentes</span>
+                <span className="eyebrow">Métricas e fontes pendentes</span>
                 <h2>Semântica governada</h2>
               </div>
               <p>
-                MRR, ARR e churn permanecem indisponíveis até a definição
-                semântica correspondente; ausência nunca é exibida como zero.
+                Ausência de fonte ou semântica aprovada é exibida como
+                indisponível, nunca como zero.
               </p>
+            </div>
+            <div className="metric-grid">
+              {[
+                ["MRR", snapshot.coverage.mrr],
+                ["ARR", snapshot.coverage.arr],
+                ["Churn", snapshot.coverage.churn],
+                ["Inadimplência monetária", snapshot.coverage.delinquency_amount],
+                ["Saúde operacional", snapshot.coverage.health],
+                ["Custos", snapshot.coverage.costs],
+                ["Suporte", snapshot.coverage.support],
+              ].map(([label, dependency]) => (
+                <article className="metric-card" key={label}>
+                  <span className="metric-label">{label}</span>
+                  <strong className="metric-value unavailable">Indisponível</strong>
+                  <small className="metric-provenance">
+                    Dependência: {dependency ?? "fonte governada não configurada"}
+                  </small>
+                </article>
+              ))}
             </div>
           </section>
 
