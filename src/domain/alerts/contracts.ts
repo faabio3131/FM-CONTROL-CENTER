@@ -16,6 +16,7 @@ export interface AlertRule {
   readonly threshold: string;
   readonly severity: AlertSeverity;
   readonly enabled: boolean;
+  readonly archived: boolean;
   readonly createdBy: string;
   readonly createdAt: Date;
 }
@@ -54,6 +55,7 @@ export interface AlertRepository {
   listRules(tenantId: string): Promise<readonly AlertRule[]>;
   findRule(tenantId: string, ruleId: string): Promise<AlertRule | null>;
   disableRule(tenantId: string, ruleId: string, actorId: string, correlationId: string): Promise<boolean>;
+  archiveRule(tenantId: string, ruleId: string, actorId: string, correlationId: string): Promise<boolean>;
   recordOccurrence(input: AlertOccurrence): Promise<{ occurrence: AlertOccurrence; created: boolean }>;
   listOccurrences(tenantId: string, limit?: number): Promise<readonly AlertOccurrence[]>;
   acknowledge(tenantId: string, occurrenceId: string, actorId: string, correlationId: string): Promise<boolean>;
