@@ -1,7 +1,7 @@
 # FM CONTROL CENTER — F09 ADDENDUM
 # KORDENA GOVERNED COMMERCIAL READ CAPABILITY
 
-**Status:** FINAL CERTIFICATION CANDIDATE — functional + documentary evidence reconciled
+**Status:** FINAL RECONCILIATION CANDIDATE — F16-F19 + KCA-12 + cognitive evidence reconciled
 **Version:** 0.1
 **Date:** 2026-09-23
 **Parent architecture:** F09 — FM Cognitive Vertical Core
@@ -435,3 +435,62 @@ HEAD. Per governance, this exact HEAD must itself be recertified before the
 technical/documentary gate is considered finally closed. No further content
 change is required after a green recertification; the PR check is the closing
 evidence.
+
+
+## 20. Reconciliation with FMCC F16-F19 CURRENT
+
+After the first cognitive certification, FMCC `main` legitimately advanced to
+the F16-F19 certified line:
+
+`175f4847eba16b7361929d35a780dc22a39ff95b`
+
+KCA-12 PR #16 was reconciled non-destructively and its final documentary HEAD is:
+
+`8d420bcdfac9da82b730e183547eb2ae0fd18ca2`
+
+with FMCC Foundation Gate **SUCCESS**.
+
+The cognitive branch then absorbed that current KCA-12 base through a
+non-destructive merge. Reconciled cognitive candidate:
+
+`50214ad12564818d6d6de57e75c6723806580516`
+
+The reconciliation explicitly preserved both cognitive lines:
+
+- F16 reasoning guardrails:
+  - separate fact / inference / recommendation / forecast;
+  - no causal claim from correlation without causal evidence;
+  - no classified anomaly/risk/numeric forecast without deterministic signal;
+  - evidence insufficiency must remain explicit;
+- Kordena governed capability planner:
+  - server-side metric/capability/product allowlists;
+  - product-specific capability cannot represent a global company total;
+  - read-only Kordena snapshot capability;
+  - provenance/freshness fail-closed.
+
+No F16-F19 alert, executive intelligence or security surface was removed.
+
+### Exact-head certification on the reconciled cognitive candidate
+
+FMCC Cognitive Governed Intelligence Gate on
+`50214ad12564818d6d6de57e75c6723806580516`: **SUCCESS**.
+
+- lint: PASS;
+- TypeScript: PASS;
+- schema/no drift: PASS;
+- migrations: PASS;
+- targeted: 8 test files / 51 tests PASS;
+- cognitive model adapter: 9 tests PASS;
+- Core Gateway: 14 tests PASS;
+- Kordena cognitive capability: 7 tests PASS;
+- full regression: 44 test files / 174 tests PASS;
+- F19 adversarial and tenant-isolation suites remain green;
+- production build: PASS;
+- strict diff whitespace: PASS;
+- runtime dependency audit at HIGH threshold: PASS;
+- 4 moderate transitive advisories remain reported; no HIGH/CRITICAL gate
+  failure exists.
+
+This final documentation reconciliation creates a new HEAD. That exact HEAD must
+pass the cognitive governed gate. The PR check on that SHA is the closing
+technical/documentary evidence and does not require another content-only commit.
