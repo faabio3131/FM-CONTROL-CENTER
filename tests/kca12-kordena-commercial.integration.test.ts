@@ -74,6 +74,7 @@ describe("KCA-12 Kordena commercial connector", () => {
     const connector = new KordenaCommercialConnector(
       (ref) => ref === source.secretRef ? "x".repeat(40) : undefined,
       fetcher,
+      () => ["https://kordena.example.test"],
     );
 
     const result = await connector.pull(context, source);
@@ -101,6 +102,7 @@ describe("KCA-12 Kordena commercial connector", () => {
           headers: { "content-type": "application/json" },
         });
       },
+      () => ["https://kordena.example.test"],
     );
     const result = await connector.command(
       context,
@@ -136,7 +138,11 @@ describe("KCA-12 Kordena commercial connector", () => {
     } as unknown as PostgresSourceRepository;
     const service = new KordenaCommercialControlService(
       sources,
-      new KordenaCommercialConnector(() => "x".repeat(40)),
+      new KordenaCommercialConnector(
+        () => "x".repeat(40),
+        fetch,
+        () => ["https://kordena.example.test"],
+      ),
     );
     await expect(
       service.snapshot(tenantContext, "source-from-tenant-b"),
@@ -144,7 +150,11 @@ describe("KCA-12 Kordena commercial connector", () => {
   });
 
   it("fails closed for insecure source URL or unavailable secret", async () => {
-    const connector = new KordenaCommercialConnector(() => undefined);
+    const connector = new KordenaCommercialConnector(
+      () => undefined,
+      fetch,
+      () => ["https://kordena.example.test"],
+    );
     await expect(connector.pull(context, source)).rejects.toBeInstanceOf(
       KordenaCommercialConnectorError,
     );
@@ -153,7 +163,11 @@ describe("KCA-12 Kordena commercial connector", () => {
       ...source,
       config: { baseUrl: "http://kordena.example.test" },
     };
-    const configured = new KordenaCommercialConnector(() => "t".repeat(40));
+    const configured = new KordenaCommercialConnector(
+      () => "t".repeat(40),
+      fetch,
+      () => ["https://kordena.example.test"],
+    );
     await expect(configured.pull(context, insecure)).rejects.toBeInstanceOf(
       KordenaCommercialConnectorError,
     );
