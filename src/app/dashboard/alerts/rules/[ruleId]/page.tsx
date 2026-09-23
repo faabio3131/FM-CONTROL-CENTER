@@ -30,7 +30,7 @@ function lifecycleLabel(action: "created" | "disabled" | "archived") {
 function comparisonLabel(status: "triggered" | "clear" | "unavailable" | "incompatible") {
   if (status === "triggered") return "A condição seria atingida com o valor atual";
   if (status === "clear") return "A condição não seria atingida com o valor atual";
-  if (status === "incompatible") return "Valor atual incompatível com o threshold";
+  if (status === "incompatible") return "Valor atual incompatível com o limite";
   return "Comparação indisponível por ausência/atualidade da evidência";
 }
 
