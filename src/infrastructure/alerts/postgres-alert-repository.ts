@@ -21,7 +21,7 @@ function toDate(value: unknown, fallback: Date): Date {
   return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? new Date(value) : fallback;
 }
 
-function mapRule(row: typeof auditEvents.$inferSelect, disabled = false): AlertRule | null {
+function mapRule(row: typeof auditEvents.$inferSelect, disabled = false, archived = false): AlertRule | null {
   const m = row.metadata;
   const id = readString(m.ruleId);
   const metricId = readString(m.metricId);
@@ -38,7 +38,8 @@ function mapRule(row: typeof auditEvents.$inferSelect, disabled = false): AlertR
     operator: operator as AlertRule["operator"],
     threshold,
     severity: severity as AlertRule["severity"],
-    enabled: disabled ? false : (readBoolean(m.enabled) ?? true),
+    enabled: archived || disabled ? false : (readBoolean(m.enabled) ?? true),
+    archived,
     createdBy: row.actorId,
     createdAt: toDate(m.createdAt, row.occurredAt),
   };
@@ -104,12 +105,15 @@ export class PostgresAlertRepository implements AlertRepository {
   }
 
   async listRules(tenantId: string) {
-    const [rows, disabledRows] = await Promise.all([
+    const [rows, disabledRows, archivedRows] = await Promise.all([
       db.select().from(auditEvents).where(and(
         eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.rule.created"),
       )).orderBy(desc(auditEvents.occurredAt)).limit(100),
       db.select({ resourceId: auditEvents.resourceId }).from(auditEvents).where(and(
         eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.rule.disabled"),
+      )),
+      db.select({ resourceId: auditEvents.resourceId }).from(auditEvents).where(and(
+        eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.rule.archived"),
       )),
     ]);
     const disabled = new Set(
@@ -117,15 +121,21 @@ export class PostgresAlertRepository implements AlertRepository {
         .map((row) => row.resourceId?.replace(/^rule:/, ""))
         .filter((value): value is string => Boolean(value)),
     );
+    const archived = new Set(
+      archivedRows
+        .map((row) => row.resourceId?.replace(/^rule:/, ""))
+        .filter((value): value is string => Boolean(value)),
+    );
     return rows.flatMap((row) => {
-      const rule = mapRule(row, disabled.has(readString(row.metadata.ruleId) ?? ""));
+      const ruleId = readString(row.metadata.ruleId) ?? "";
+      const rule = mapRule(row, disabled.has(ruleId), archived.has(ruleId));
       return rule ? [rule] : [];
     });
   }
 
   async findRule(tenantId: string, ruleId: string) {
     const resourceId = `rule:${ruleId}`;
-    const [rows, disabledRows] = await Promise.all([
+    const [rows, disabledRows, archivedRows] = await Promise.all([
       db.select().from(auditEvents).where(and(
         eq(auditEvents.tenantId, tenantId),
         eq(auditEvents.action, "alert.rule.created"),
@@ -136,8 +146,13 @@ export class PostgresAlertRepository implements AlertRepository {
         eq(auditEvents.action, "alert.rule.disabled"),
         eq(auditEvents.resourceId, resourceId),
       )).limit(1),
+      db.select({ resourceId: auditEvents.resourceId }).from(auditEvents).where(and(
+        eq(auditEvents.tenantId, tenantId),
+        eq(auditEvents.action, "alert.rule.archived"),
+        eq(auditEvents.resourceId, resourceId),
+      )).limit(1),
     ]);
-    return rows[0] ? mapRule(rows[0], Boolean(disabledRows[0])) : null;
+    return rows[0] ? mapRule(rows[0], Boolean(disabledRows[0]), Boolean(archivedRows[0])) : null;
   }
 
   async disableRule(tenantId: string, ruleId: string, actorId: string, correlationId: string) {
@@ -171,6 +186,36 @@ export class PostgresAlertRepository implements AlertRepository {
       }
     });
 
+    return true;
+  }
+
+  async archiveRule(tenantId: string, ruleId: string, actorId: string, correlationId: string) {
+    const resourceId = `rule:${ruleId}`;
+    const rule = await this.findRule(tenantId, ruleId);
+    if (!rule) return false;
+    if (rule.enabled) return false;
+
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${tenantId}:archive:${ruleId}`}))`);
+      const existing = await tx.select().from(auditEvents).where(and(
+        eq(auditEvents.tenantId, tenantId),
+        eq(auditEvents.action, "alert.rule.archived"),
+        eq(auditEvents.resourceId, resourceId),
+      )).limit(1);
+      if (!existing[0]) {
+        await tx.insert(auditEvents).values({
+          tenantId,
+          actorId,
+          actorType: "user",
+          action: "alert.rule.archived",
+          resourceType: "alert_rule",
+          resourceId,
+          result: "success",
+          correlationId,
+          metadata: { ruleId, archivedAt: new Date().toISOString() },
+        });
+      }
+    });
     return true;
   }
 
