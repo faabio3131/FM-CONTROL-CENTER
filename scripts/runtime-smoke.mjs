@@ -3,10 +3,14 @@ import { spawn } from "node:child_process";
 const baseUrl = "http://127.0.0.1:3000";
 let output = "";
 
-const server = spawn("npm", ["start", "--", "-p", "3000"], {
-  env: { ...process.env, NODE_ENV: "production", PORT: "3000" },
-  stdio: ["ignore", "pipe", "pipe"],
-});
+const server = spawn(
+  process.execPath,
+  ["node_modules/next/dist/bin/next", "start", "-p", "3000"],
+  {
+    env: { ...process.env, NODE_ENV: "production", PORT: "3000" },
+    stdio: ["ignore", "pipe", "pipe"],
+  },
+);
 
 server.stdout.on("data", (chunk) => { output += String(chunk); });
 server.stderr.on("data", (chunk) => { output += String(chunk); });
@@ -49,6 +53,20 @@ async function expectStatus(path, expectedStatus, init) {
   }
 }
 
+async function stopServer() {
+  if (server.exitCode !== null) return;
+  const exited = new Promise((resolve) => server.once("exit", resolve));
+  server.kill("SIGTERM");
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 2_000)),
+  ]);
+  if (server.exitCode === null) {
+    server.kill("SIGKILL");
+    await exited;
+  }
+}
+
 try {
   await waitUntilReady();
 
@@ -68,7 +86,5 @@ try {
 
   console.log("FMCC runtime smoke PASS");
 } finally {
-  server.kill("SIGTERM");
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  if (!server.killed) server.kill("SIGKILL");
+  await stopServer();
 }
