@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { AlertDefinitionInvalidError } from "@/application/alerts/alert-service";
+import { AlertDefinitionInvalidError, AlertRuleDuplicateError } from "@/application/alerts/alert-service";
 import { buildAlertService } from "@/application/alerts/alert-composition";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import type { AlertOperator, AlertSeverity } from "@/domain/alerts/contracts";
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     const response = securityResponse(error);
     if (response) return response;
     if (error instanceof ProductNotFoundError) return NextResponse.json({ error: error.message }, { status: 404 });
+    if (error instanceof AlertRuleDuplicateError) return NextResponse.json({ error: error.message }, { status: 409 });
     if (error instanceof AlertDefinitionInvalidError) return NextResponse.json({ error: error.message }, { status: 400 });
     throw error;
   }
