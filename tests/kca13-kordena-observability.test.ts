@@ -182,31 +182,35 @@ describe("KCA-13 Kordena observability contract", () => {
   });
 
   it("fails closed on empty provenance, malformed alerts, or incomplete tracing", async () => {
+    const valid = snapshot();
+    const observability = valid.observability;
+    if (!observability) throw new Error("KCA-13 fixture missing observability");
+
     const variants = [
       {
-        ...snapshot(),
+        ...valid,
         observability: {
-          ...snapshot().observability,
+          ...observability,
           metrics: {
-            ...snapshot().observability?.metrics,
+            ...observability.metrics,
             mrr: {
-              ...snapshot().observability?.metrics.mrr,
+              ...observability.metrics.mrr,
               provenance_refs: [],
             },
           },
         },
       },
       {
-        ...snapshot(),
+        ...valid,
         observability: {
-          ...snapshot().observability,
+          ...observability,
           alerts: [{ code: "bad", severity: "high", count: 0, message: "bad" }],
         },
       },
       {
-        ...snapshot(),
+        ...valid,
         observability: {
-          ...snapshot().observability,
+          ...observability,
           tracing: { correlation_ids: ["corr-kca13"] },
         },
       },
