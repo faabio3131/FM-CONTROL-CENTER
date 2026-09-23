@@ -44,6 +44,10 @@ class MemoryAlertRepository implements AlertRepository {
     this.rules[index] = { ...this.rules[index], archived: true };
     return true;
   }
+  async listRuleLifecycle() { return []; }
+  async listOccurrencesForRule(tenantId: string, ruleId: string) {
+    return this.occurrences.filter((item) => item.tenantId === tenantId && item.ruleId === ruleId);
+  }
   async recordOccurrence(input: AlertOccurrence) { this.occurrences.push(input); return { occurrence: input, created: true }; }
   async listOccurrences(tenantId: string) { return this.occurrences.filter((item) => item.tenantId === tenantId); }
   async acknowledge(tenantId: string, occurrenceId: string) { return this.occurrences.some((item) => item.tenantId === tenantId && item.id === occurrenceId); }
