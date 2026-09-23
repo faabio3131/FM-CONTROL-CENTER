@@ -104,6 +104,40 @@ describe("F17 alert audit repository", () => {
     expect(lifecycle.map((event) => event.action)).toEqual(["created", "disabled", "archived"]);
   });
 
+
+  it("mantém mais de 100 regras disponíveis para autoridade operacional", async () => {
+    const repository = new PostgresAlertRepository();
+    const createdAt = new Date("2026-09-23T12:00:00Z");
+    await db.insert(auditEvents).values(
+      Array.from({ length: 105 }, (_, index) => ({
+        tenantId: TENANT,
+        actorId: "user-a",
+        actorType: "user",
+        action: "alert.rule.created",
+        resourceType: "alert_rule",
+        resourceId: `rule:rule-volume-${index}`,
+        result: "success",
+        correlationId: `corr-volume-${index}`,
+        metadata: {
+          ruleId: `rule-volume-${index}`,
+          productId: null,
+          metricId: "trial.starts.count",
+          operator: "gt",
+          threshold: String(index + 1),
+          severity: "warning",
+          enabled: true,
+          createdAt: new Date(createdAt.getTime() + index).toISOString(),
+        },
+        occurredAt: new Date(createdAt.getTime() + index),
+      })),
+    );
+
+    const rules = await repository.listRules(TENANT);
+    expect(rules).toHaveLength(105);
+    expect(rules.some((rule) => rule.id === "rule-volume-0")).toBe(true);
+    expect(rules.some((rule) => rule.id === "rule-volume-104")).toBe(true);
+  });
+
   it("lista somente ocorrências persistidas da regra solicitada", async () => {
     const repository = new PostgresAlertRepository();
     await repository.recordOccurrence({
