@@ -185,7 +185,10 @@ test("fontes: cadastro governado do Kordena permanece fail-closed sem runtime ex
   await expect(sourceCard.getByRole("status")).toContainText("Saúde: Indisponível");
 
   await sourceCard.getByRole("button", { name: "Sincronizar agora" }).click();
-  await expect(sourceCard.getByRole("status")).toContainText(
-    "A sincronização falhou ou a configuração externa ainda não está pronta.",
-  );
+  await expect(
+    sourceCard.getByText(
+      "A sincronização falhou ou a configuração externa ainda não está pronta.",
+      { exact: true },
+    ),
+  ).toBeVisible();
 });
