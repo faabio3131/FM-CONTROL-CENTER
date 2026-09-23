@@ -9,6 +9,7 @@ import type {
 export const KORDENA_COMMERCIAL_SOURCE_TYPE = "kordena-commercial-v1";
 
 export type SecretResolver = (reference: string) => string | undefined;
+export type AllowedOriginResolver = () => readonly string[];
 
 export interface KordenaCommercialSnapshot {
   readonly schema_version: "kordena.fmcc.commercial.v1";
@@ -76,7 +77,18 @@ export function environmentSecretResolver(reference: string): string | undefined
   return process.env[name]?.trim() || undefined;
 }
 
-function sourceBaseUrl(source: SourceDefinition): string {
+export function environmentKordenaAllowedOrigins(): readonly string[] {
+  return (process.env.FMCC_KORDENA_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => new URL(value).origin);
+}
+
+function sourceBaseUrl(
+  source: SourceDefinition,
+  allowedOrigins: readonly string[],
+): string {
   const raw = source.config.baseUrl;
   if (typeof raw !== "string" || !raw.trim()) {
     throw new KordenaCommercialConnectorError(
@@ -91,11 +103,7 @@ function sourceBaseUrl(source: SourceDefinition): string {
       "integration.kordena_base_url_invalid",
     );
   }
-  if (
-    parsed.protocol !== "https:" &&
-    parsed.hostname !== "localhost" &&
-    parsed.hostname !== "127.0.0.1"
-  ) {
+  if (parsed.protocol !== "https:") {
     throw new KordenaCommercialConnectorError(
       "integration.kordena_base_url_insecure",
     );
@@ -103,6 +111,14 @@ function sourceBaseUrl(source: SourceDefinition): string {
   if (parsed.username || parsed.password) {
     throw new KordenaCommercialConnectorError(
       "integration.kordena_base_url_credentials_forbidden",
+    );
+  }
+  const allowed = new Set(
+    allowedOrigins.map((value) => new URL(value).origin),
+  );
+  if (!allowed.has(parsed.origin)) {
+    throw new KordenaCommercialConnectorError(
+      "integration.kordena_origin_not_allowed",
     );
   }
   return parsed.toString().replace(/\/$/, "");
@@ -170,6 +186,8 @@ export class KordenaCommercialConnector implements Connector {
   constructor(
     private readonly resolveSecret: SecretResolver = environmentSecretResolver,
     private readonly fetcher: typeof fetch = fetch,
+    private readonly allowedOrigins: AllowedOriginResolver =
+      environmentKordenaAllowedOrigins,
   ) {}
 
   async health(
@@ -270,7 +288,7 @@ export class KordenaCommercialConnector implements Connector {
     const headers = new Headers(init.headers);
     headers.set("authorization", `Bearer ${token}`);
     headers.set("x-correlation-id", context.correlationId);
-    return this.fetcher(`${sourceBaseUrl(source)}${path}`, {
+    return this.fetcher(`${sourceBaseUrl(source, this.allowedOrigins())}${path}`, {
       ...init,
       headers,
     });
