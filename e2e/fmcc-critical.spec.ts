@@ -99,7 +99,8 @@ test("alertas: criação, ausência fail-closed, duplicata, desativação e arqu
   await page.getByText("Histórico arquivado (1)").click();
   await page.getByRole("link", { name: /Abrir arquivo/ }).click();
 
-  await expect(page.getByText("Arquivada", { exact: true })).toBeVisible();
+  const stateCard = page.locator("article.metric-card").filter({ hasText: "Estado" });
+  await expect(stateCard.getByText("Arquivada", { exact: true })).toBeVisible();
   await expect(page.getByText("Nenhuma ocorrência histórica.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Criar nova regra baseada nesta" })).toBeVisible();
 });
