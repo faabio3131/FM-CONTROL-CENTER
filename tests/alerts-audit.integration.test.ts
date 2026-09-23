@@ -41,6 +41,34 @@ describe("F17 alert audit repository", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("desativa regra de forma auditável e idempotente", async () => {
+    const repository = new PostgresAlertRepository();
+    await repository.createRule({
+      id: "rule-disable",
+      tenantId: TENANT,
+      metricId: "trial.starts.count",
+      operator: "gt",
+      threshold: "10",
+      severity: "warning",
+      enabled: true,
+      createdBy: "user-a",
+      createdAt: new Date(),
+      idempotencyKey: "rule-disable-12345",
+    });
+
+    expect(await repository.disableRule(TENANT, "rule-disable", "user-a", "corr-disable-a")).toBe(true);
+    expect(await repository.disableRule(TENANT, "rule-disable", "user-a", "corr-disable-b")).toBe(true);
+
+    const rules = await repository.listRules(TENANT);
+    expect(rules.find((item) => item.id === "rule-disable")?.enabled).toBe(false);
+
+    const rows = await db.select().from(auditEvents).where(and(
+      eq(auditEvents.tenantId, TENANT),
+      eq(auditEvents.action, "alert.rule.disabled"),
+    ));
+    expect(rows).toHaveLength(1);
+  });
+
   it("torna acknowledgement idempotente", async () => {
     const repository = new PostgresAlertRepository();
     await repository.recordOccurrence({
