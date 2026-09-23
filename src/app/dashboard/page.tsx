@@ -58,7 +58,7 @@ export default async function DashboardPage() {
         <Link href="/dashboard/finance"><strong>Financeiro</strong><span>F12 · dados governados</span></Link>
         <Link href="/dashboard/growth"><strong>Growth / Comercial</strong><span>F13 · funil governado</span></Link>
         <Link href="/dashboard/operations"><strong>Operações / SRE</strong><span>F14 · sinais operacionais</span></Link>
-        <Link href="/dashboard/customers"><strong>Clientes / Uso / Suporte</strong><span>F15 · agregados governados</span></Link>
+        <Link href="/dashboard/customers"><strong>Clientes / Uso / Suporte</strong><span>F15 · agregados governados</span></Link>\n        <Link href="/dashboard/intelligence"><strong>Inteligência Executiva</strong><span>F16 · análise avançada governada</span></Link>
       </section>
 
       <section className="executive-section" aria-labelledby="executive-overview-title">
