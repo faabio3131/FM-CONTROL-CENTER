@@ -9,6 +9,8 @@ describe("F17 alerts UI", () => {
     const archivePage = readFileSync(resolve(process.cwd(), "src/app/dashboard/alerts/rules/[ruleId]/page.tsx"), "utf8");
     const archiveActions = readFileSync(resolve(process.cwd(), "src/app/dashboard/alerts/rules/[ruleId]/archived-rule-actions.tsx"), "utf8");
     expect(page).toContain("Valor desconhecido nunca vira zero");
+    expect(page).toContain("limite configurado");
+    expect(page).toContain("reconhecimento e intenção ficam rastreáveis");
     expect(page).toContain("Identificador único + bloqueio");
     expect(page).toContain("Prévia somente");
     expect(control).toContain("Nenhuma regra operacional");
@@ -25,7 +27,7 @@ describe("F17 alerts UI", () => {
     expect(archiveActions).toContain("Criar nova regra baseada nesta");
     expect(control).toContain("Já existe uma regra ativa equivalente.");
     expect(control).toContain("Avaliação concluída: métrica indisponível; nenhum alerta criado.");
-    expect(control).toContain("threshold não atingido; nenhum alerta criado.");
+    expect(control).toContain("limite não atingido; nenhum alerta criado.");
     expect(control).toContain("rotuloMetrica(rule.metricId)");
     expect(control).toContain("rotuloOperadorAlerta(rule.operator)");
     expect(control).toContain("rotuloSeveridadeAlerta(rule.severity)");
@@ -34,6 +36,9 @@ describe("F17 alerts UI", () => {
     expect(page).not.toContain("Unknown nunca vira zero");
     expect(page).not.toContain("Fingerprint + lock");
     expect(page).not.toContain("Preview somente");
+    expect(page).not.toContain("threshold configurado");
+    expect(page).not.toContain("acknowledgement");
+    expect(page).not.toContain("intent ficam rastreáveis");
     expect(control).not.toContain("/execute");
   });
 });
