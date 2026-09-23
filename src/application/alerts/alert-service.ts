@@ -198,10 +198,10 @@ export class AlertService {
       requiresConfirmation: riskLevel !== "low",
       executable: false as const,
       reason: riskLevel === "high"
-        ? "Ação de alto risco permanece somente em preview; execução externa não é autorizada na F17."
+        ? "Ação de alto risco permanece somente em prévia; execução externa não é autorizada na F17."
         : riskLevel === "medium"
           ? "Ação de médio risco exige confirmação humana antes de qualquer execução futura."
-          : "F17 prepara a intenção auditável; nenhum side effect externo é executado.",
+          : "A F17 prepara a intenção auditável; nenhum efeito externo é executado.",
       fingerprint,
       createdAt: new Date(),
     };
