@@ -1,6 +1,6 @@
 # FMCC — Kordena Commercial Control Plane — KCA-12
 
-Status: IN PROGRESS / NOT CERTIFIED.
+Status: FUNCTIONAL CERTIFIED / documentary HEAD recertification required.
 
 Base: `main` @ `9632dd3871790a8b709fa5bc11211b9649b943fa`.
 
@@ -57,3 +57,41 @@ metadata.
   confirmation;
 - Kordena remains the mutation authority: FMCC forwards commands to
   `AplicacaoCatalogoComercialV1` and never writes Kordena tables directly.
+
+
+## Functional certification evidence
+
+Candidate funcional FMCC:
+
+`5d4843d4bd5ac403c59a0d491413f4482a0318f9`
+
+Cross-repository Kordena candidate:
+
+`b35ba198ecd9a667f0473829c16562e2474a1f31`
+
+Evidence on the FMCC candidate:
+
+- FMCC Foundation Gate: SUCCESS;
+- 33 test files PASS;
+- 118 tests PASS;
+- KCA-12 Kordena connector: 6 tests PASS;
+- KCA-12 commercial security: 3 tests PASS;
+- lint: PASS;
+- TypeScript: PASS;
+- migration/schema verification: PASS;
+- versioned migration application: PASS;
+- Next production build: PASS;
+- Docker image build without runtime secrets: PASS;
+- runtime dependency audit at HIGH threshold: PASS;
+- 4 moderate transitive advisories were reported by npm audit; no HIGH/CRITICAL
+  gate failure exists.
+
+The connector additionally fails closed for incomplete snapshots so contract drift
+cannot be rendered as a false zero.
+
+The Kordena candidate is certified with 202 targeted tests, 1803 full Python
+tests, 16 Web Node tests, 7/7 GitHub Actions SUCCESS and Vercel SUCCESS.
+
+KCA-G12 is certified on the functional candidates. This documentation commit
+creates a new FMCC HEAD and must itself pass the Foundation Gate before the
+cross-repository documentary closure is considered final.
