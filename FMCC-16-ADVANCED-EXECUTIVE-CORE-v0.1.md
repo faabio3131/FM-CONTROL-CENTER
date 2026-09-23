@@ -189,3 +189,30 @@ Exigir:
 - build;
 - CI;
 - Preview proporcional.
+
+## 16. Evidência de execução
+
+Implementação realizada na PR #15 sobre a baseline certificada da `main`.
+
+Entregas comprovadas:
+- Executive Analysis Service governado;
+- composição multi-domínio a partir do Metric Engine;
+- variação determinística compatível;
+- correlação tratada como composição de evidências, nunca causalidade automática;
+- anomaly/risk/forecast em `insufficient_evidence` sem contratos suficientes;
+- API `/api/intelligence/executive`;
+- UI `/dashboard/intelligence`;
+- auditoria e guardrails epistemológicos;
+- nenhum cálculo determinístico delegado ao LLM.
+
+Gate de engenharia:
+- **Foundation Gate #228 — SUCCESS**
+- HEAD certificado: `7b37af8190da9571db19d20f971d5f0dccc8a127`
+- 33 test files PASS;
+- 115 tests PASS;
+- 0 FAIL;
+- lint/typecheck/migrations/build/Docker/dependency audit PASS.
+
+Estado: **IMPLEMENTADA E CERTIFICADA EM CI**.
+
+A homologação visual/funcional do candidate da tranche permanece consolidada no gate de Preview F16–F19.
