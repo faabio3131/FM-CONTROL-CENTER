@@ -33,7 +33,7 @@ export class KordenaCommercialSummaryCapability implements CoreReadCapability {
     id: CAPABILITY_ID,
     displayName: "Resumo comercial atual do Kordena",
     description:
-      "Estado atual governado de clientes, trials, assinaturas, past due, pagamentos, usuários e unidades do Kordena.",
+      "Estado atual governado de clientes, trials, assinaturas, past due, pagamentos, usuários e unidades do Kordena, incluindo cobertura explícita de métricas comerciais ainda indisponíveis.",
     productSlugs: ["kordena"],
   } as const;
 
@@ -84,15 +84,12 @@ export class KordenaCommercialSummaryCapability implements CoreReadCapability {
       const snapshot = await this.control.snapshot(context, source.id);
       const asOf = new Date(snapshot.as_of);
       const current = this.now();
-      const maxAgeMs =
-        source.freshnessSeconds === undefined
-          ? null
-          : source.freshnessSeconds * 1000;
+      const maxAgeMs = (source.freshnessSeconds ?? 300) * 1000;
       const ageMs = current.getTime() - asOf.getTime();
       const stale =
         Number.isNaN(asOf.getTime()) ||
         ageMs < -60_000 ||
-        (maxAgeMs !== null && ageMs > maxAgeMs);
+        ageMs > maxAgeMs;
 
       const evidence = {
         kind: "source" as const,
