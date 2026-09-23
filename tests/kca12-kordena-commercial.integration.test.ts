@@ -42,7 +42,19 @@ function snapshot() {
     billing_transactions: [],
     entitlements: [],
     catalog: [],
-    summary: { customers: 0 },
+    summary: {
+      customers: 0,
+      internal_test_customers: 0,
+      active_trials: 0,
+      active_subscriptions: 0,
+      past_due_subscriptions: 0,
+      suspended_subscriptions: 0,
+      confirmed_payments: 0,
+      failed_payments: 0,
+      reconciled_transactions: 0,
+      users: 0,
+      units: 0,
+    },
     facts: [
       {
         external_id: "trial:one:started",
@@ -90,6 +102,24 @@ describe("KCA-12 Kordena commercial connector", () => {
       "https://kordena.example.test/v1/control-plane/fmcc/snapshot",
     );
     expect(calls[0].authorization).toBe(`Bearer ${"x".repeat(40)}`);
+  });
+
+  it("rejects an incomplete snapshot instead of converting absence to zero", async () => {
+    const incomplete = { ...snapshot(), summary: { customers: 0 } };
+    const connector = new KordenaCommercialConnector(
+      () => "x".repeat(40),
+      async () =>
+        new Response(JSON.stringify(incomplete), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      () => ["https://kordena.example.test"],
+      controlTenant,
+    );
+
+    await expect(connector.snapshot(context, source)).rejects.toThrow(
+      "integration.kordena_snapshot_contract_invalid",
+    );
   });
 
   it("forwards catalog command without placing the service token in the payload", async () => {
