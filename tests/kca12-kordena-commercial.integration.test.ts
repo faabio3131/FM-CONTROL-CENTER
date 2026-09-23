@@ -17,7 +17,7 @@ const source: SourceDefinition = {
   authoritativeDomain: "commercial",
   status: "configured",
   syncMode: "pull",
-  secretRef: "env:KORDENA_CONTROL_TOKEN",
+  secretRef: "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN",
   config: { baseUrl: "https://kordena.example.test" },
   mappingVersion: "kordena-commercial-v1",
 };
