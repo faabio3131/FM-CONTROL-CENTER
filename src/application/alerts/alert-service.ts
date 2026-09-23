@@ -20,6 +20,7 @@ const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{8,160}$/;
 export class AlertDefinitionInvalidError extends Error { constructor() { super("alert.definition_invalid"); } }
 export class AlertRuleDuplicateError extends Error { constructor() { super("alert.rule_duplicate"); } }
 export class AlertRuleNotFoundError extends Error { constructor() { super("alert.rule_not_found"); } }
+export class AlertRuleMustBeDisabledError extends Error { constructor() { super("alert.rule_must_be_disabled"); } }
 export class AlertOccurrenceNotFoundError extends Error { constructor() { super("alert.occurrence_not_found"); } }
 export class AlertActionInvalidError extends Error { constructor() { super("alert.action_invalid"); } }
 
@@ -80,6 +81,7 @@ export class AlertService {
       threshold: normalizedThreshold,
       severity: input.severity,
       enabled: true,
+      archived: false,
       createdBy: context.userId,
       createdAt: new Date(),
     };
@@ -93,6 +95,17 @@ export class AlertService {
     const disabled = await this.repository.disableRule(context.tenantId, ruleId, context.userId, context.correlationId);
     if (!disabled) throw new AlertRuleNotFoundError();
     return { ruleId, status: "disabled" as const };
+  }
+
+  async archiveRule(context: TenantContext, ruleId: string) {
+    requirePermission(context, "alert:write");
+    const rule = await this.repository.findRule(context.tenantId, ruleId);
+    if (!rule) throw new AlertRuleNotFoundError();
+    if (rule.enabled) throw new AlertRuleMustBeDisabledError();
+    if (rule.archived) return { ruleId, status: "archived" as const };
+    const archived = await this.repository.archiveRule(context.tenantId, ruleId, context.userId, context.correlationId);
+    if (!archived) throw new AlertRuleNotFoundError();
+    return { ruleId, status: "archived" as const };
   }
 
   async evaluate(context: TenantContext, ruleId: string) {
