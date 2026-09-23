@@ -51,6 +51,7 @@ describe("F17 alert audit repository", () => {
       threshold: "10",
       severity: "warning",
       enabled: true,
+      archived: false,
       createdBy: "user-a",
       createdAt: new Date(),
       idempotencyKey: "rule-disable-12345",
@@ -65,6 +66,37 @@ describe("F17 alert audit repository", () => {
     const rows = await db.select().from(auditEvents).where(and(
       eq(auditEvents.tenantId, TENANT),
       eq(auditEvents.action, "alert.rule.disabled"),
+    ));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("arquiva regra desativada preservando audit trail e idempotência", async () => {
+    const repository = new PostgresAlertRepository();
+    await repository.createRule({
+      id: "rule-archive",
+      tenantId: TENANT,
+      metricId: "trial.starts.count",
+      operator: "gt",
+      threshold: "10",
+      severity: "warning",
+      enabled: true,
+      archived: false,
+      createdBy: "user-a",
+      createdAt: new Date(),
+      idempotencyKey: "rule-archive-12345",
+    });
+
+    expect(await repository.archiveRule(TENANT, "rule-archive", "user-a", "corr-before-disable")).toBe(false);
+    expect(await repository.disableRule(TENANT, "rule-archive", "user-a", "corr-disable")).toBe(true);
+    expect(await repository.archiveRule(TENANT, "rule-archive", "user-a", "corr-archive-a")).toBe(true);
+    expect(await repository.archiveRule(TENANT, "rule-archive", "user-a", "corr-archive-b")).toBe(true);
+
+    const rule = (await repository.listRules(TENANT)).find((item) => item.id === "rule-archive");
+    expect(rule).toMatchObject({ enabled: false, archived: true });
+
+    const rows = await db.select().from(auditEvents).where(and(
+      eq(auditEvents.tenantId, TENANT),
+      eq(auditEvents.action, "alert.rule.archived"),
     ));
     expect(rows).toHaveLength(1);
   });
