@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AlertService } from "@/application/alerts/alert-service";
+import { AlertRuleDuplicateError, AlertService } from "@/application/alerts/alert-service";
 import type { MetricService, MetricView } from "@/application/metrics/metric-service";
 import { evaluateAlertThreshold, type AlertOccurrence, type AlertRepository, type AlertRule, type GovernedActionPreview } from "@/domain/alerts/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
@@ -31,6 +31,12 @@ class MemoryRepository implements AlertRepository {
   async createRule(input: AlertRule) { this.rules.push(input); return { rule: input, created: true }; }
   async listRules(tenantId: string) { return this.rules.filter((item) => item.tenantId === tenantId); }
   async findRule(tenantId: string, ruleId: string) { return this.rules.find((item) => item.tenantId === tenantId && item.id === ruleId) ?? null; }
+  async disableRule(tenantId: string, ruleId: string) {
+    const index = this.rules.findIndex((item) => item.tenantId === tenantId && item.id === ruleId);
+    if (index < 0) return false;
+    this.rules[index] = { ...this.rules[index], enabled: false };
+    return true;
+  }
   async recordOccurrence(input: AlertOccurrence) {
     const existing = this.occurrences.find((item) => item.fingerprint === input.fingerprint);
     if (existing) return { occurrence: existing, created: false };
@@ -61,6 +67,34 @@ describe("F17 governed alerts", () => {
   it("não converte missing ou stale em alerta", () => {
     expect(evaluateAlertThreshold(rule(), metric(null)).status).toBe("unavailable");
     expect(evaluateAlertThreshold(rule(), metric("99", "stale"))).toMatchObject({ status: "unavailable", reason: "stale_or_unavailable" });
+  });
+
+  it("impede regra ativa semanticamente duplicada", async () => {
+    const repository = new MemoryRepository();
+    repository.rules = [{
+      ...rule("gt", "10"),
+      metricId: "trial.starts.count",
+      severity: "warning",
+    }];
+    const metrics = { async query() { return null; } } as unknown as MetricService;
+    const service = new AlertService(repository, metrics);
+
+    await expect(service.createRule(context, {
+      metricId: "trial.starts.count",
+      operator: "gt",
+      threshold: "10",
+      severity: "warning",
+      idempotencyKey: "duplicate-rule-12345",
+    })).rejects.toBeInstanceOf(AlertRuleDuplicateError);
+  });
+
+  it("desativa regra sem apagar o histórico", async () => {
+    const repository = new MemoryRepository();
+    const metrics = { async query() { return null; } } as unknown as MetricService;
+    const service = new AlertService(repository, metrics);
+    const result = await service.disableRule(context, "rule-1");
+    expect(result.status).toBe("disabled");
+    expect(repository.rules[0]?.enabled).toBe(false);
   });
 
   it("é idempotente para a mesma observação e provenance", async () => {
