@@ -10,8 +10,38 @@ import {
 } from "@/domain/security/tenant-context";
 import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
-import { KORDENA_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/kordena-commercial-connector";
+import {
+  KORDENA_COMMERCIAL_SOURCE_TYPE,
+  type KordenaObservabilityMetric,
+} from "@/infrastructure/integration/kordena-commercial-connector";
 import { KordenaCommercialAdminForm } from "./kordena-commercial-admin-form";
+
+function metricDisplay(metric: KordenaObservabilityMetric | undefined): string {
+  if (!metric || metric.status === "unavailable" || metric.value === null) {
+    return "Indisponível";
+  }
+  if (typeof metric.value === "number") return String(metric.value);
+  if (typeof metric.value === "string") {
+    return metric.unit === "percent" ? `${metric.value}%` : metric.value;
+  }
+  if (typeof metric.value === "object" && metric.value) {
+    const value = metric.value as Record<string, unknown>;
+    if (Array.isArray(value.by_currency)) {
+      const amounts = value.by_currency
+        .map((raw) => {
+          if (!raw || typeof raw !== "object") return null;
+          const row = raw as Record<string, unknown>;
+          if (typeof row.currency !== "string" || typeof row.amount !== "string") {
+            return null;
+          }
+          return `${row.currency} ${row.amount}`;
+        })
+        .filter((item): item is string => item !== null);
+      return amounts.length ? amounts.join(" · ") : "Indisponível";
+    }
+  }
+  return "Disponível";
+}
 
 export default async function KordenaCommercialPage() {
   let context;
@@ -66,8 +96,8 @@ export default async function KordenaCommercialPage() {
         <section className="card">
           <strong>Fonte Kordena ainda não configurada.</strong>
           <p>
-            Registre uma source do tipo <code>{KORDENA_COMMERCIAL_SOURCE_TYPE}</code>
-            com URL HTTPS e secretRef. Nenhum dado será presumido.
+            Registre uma fonte do tipo técnico <code>{KORDENA_COMMERCIAL_SOURCE_TYPE}</code>
+            com URL HTTPS e referência de segredo. Nenhum dado será presumido.
           </p>
         </section>
       ) : unavailable || !snapshot ? (
@@ -148,32 +178,81 @@ export default async function KordenaCommercialPage() {
           <section className="executive-section">
             <div className="section-heading">
               <div>
-                <span className="eyebrow">Métricas e fontes pendentes</span>
-                <h2>Semântica governada</h2>
+                <span className="eyebrow">KCA-13 · Observabilidade governada</span>
+                <h2>Métricas comerciais e saúde operacional</h2>
               </div>
               <p>
-                Ausência de fonte ou semântica aprovada é exibida como
-                indisponível, nunca como zero.
+                Ausência de fonte ou semântica comprovada continua exibida como
+                indisponível, nunca como zero inventado.
               </p>
             </div>
-            <div className="metric-grid">
-              {[
-                ["MRR", snapshot.coverage.mrr],
-                ["ARR", snapshot.coverage.arr],
-                ["Taxa de cancelamento", snapshot.coverage.churn],
-                ["Inadimplência monetária", snapshot.coverage.delinquency_amount],
-                ["Saúde operacional", snapshot.coverage.health],
-                ["Custos", snapshot.coverage.costs],
-                ["Suporte", snapshot.coverage.support],
-              ].map(([label, dependency]) => (
-                <article className="metric-card" key={label}>
-                  <span className="metric-label">{label}</span>
-                  <strong className="metric-value unavailable">Indisponível</strong>
-                  <small className="metric-provenance">
-                    Dependência: {dependency ?? "fonte governada não configurada"}
-                  </small>
-                </article>
-              ))}
+            {snapshot.observability ? (
+              <>
+                <div className="metric-grid">
+                  {[
+                    ["Cadastros iniciados", "signup_started"],
+                    ["Cadastros concluídos", "signup_completed"],
+                    ["Organizações provisionadas", "tenant_provisioned"],
+                    ["Testes gratuitos ativos", "trial_active"],
+                    ["Testes expirando", "trial_expiring"],
+                    ["Conversão", "conversion_rate"],
+                    ["Assinaturas ativas", "subscription_active"],
+                    ["Vencidas / em atraso", "past_due"],
+                    ["Taxa de cancelamento", "churn"],
+                    ["MRR", "mrr"],
+                    ["ARR", "arr"],
+                    ["Pagamentos confirmados", "payment_success"],
+                    ["Falhas de pagamento", "payment_failure"],
+                  ].map(([label, metricId]) => {
+                    const metric = snapshot.observability?.metrics[metricId];
+                    return (
+                      <article className="metric-card" key={metricId}>
+                        <span className="metric-label">{label}</span>
+                        <strong
+                          className={
+                            metric?.status === "unavailable"
+                              ? "metric-value unavailable"
+                              : "metric-value"
+                          }
+                        >
+                          {metricDisplay(metric)}
+                        </strong>
+                        <small className="metric-provenance">
+                          {metric
+                            ? `${metric.quality_status} · ${metric.source_authority}`
+                            : "fonte governada indisponível"}
+                        </small>
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="card">
+                  <strong>
+                    Saúde: {String(snapshot.observability.health.status ?? "Desconhecida")}
+                  </strong>
+                  <p>
+                    Alertas ativos: {snapshot.observability.alerts.length}.{" "}
+                    INTERNAL_TEST excluído dos indicadores comerciais:{" "}
+                    {snapshot.observability.internal_test_excluded ? "sim" : "não"}.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="card">
+                <strong>Observabilidade KCA-13 indisponível.</strong>
+                <p>
+                  O FMCC não substitui ausência de telemetria por valores
+                  presumidos.
+                </p>
+              </div>
+            )}
+            <div className="card">
+              <strong>Cobertura ainda externa ao KCA-13</strong>
+              <p>
+                Inadimplência monetária:{" "}
+                {snapshot.coverage.delinquency_amount ?? "indisponível"} ·
+                Suporte: {snapshot.coverage.support ?? "indisponível"}.
+              </p>
             </div>
           </section>
 

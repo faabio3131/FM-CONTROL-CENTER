@@ -14,6 +14,36 @@ export type SecretResolver = (reference: string) => string | undefined;
 export type AllowedOriginResolver = () => readonly string[];
 export type ControlTenantResolver = () => string | undefined;
 
+export type KordenaObservabilityMetricStatus =
+  | "available"
+  | "partial"
+  | "unavailable";
+
+export interface KordenaObservabilityMetric {
+  readonly metric_id: string;
+  readonly status: KordenaObservabilityMetricStatus;
+  readonly value: unknown;
+  readonly unit: string;
+  readonly as_of: string;
+  readonly quality_status: string;
+  readonly source_authority: string;
+  readonly provenance_refs: readonly string[];
+  readonly definition: string;
+}
+
+export interface KordenaCommercialObservability {
+  readonly schema_version: "kordena.observability.kca13.v1";
+  readonly as_of: string;
+  readonly internal_test_excluded: true;
+  readonly metrics: Readonly<Record<string, KordenaObservabilityMetric>>;
+  readonly antiabuse: Readonly<Record<string, unknown>>;
+  readonly health: Readonly<Record<string, unknown>>;
+  readonly finops: Readonly<Record<string, unknown>>;
+  readonly alerts: readonly Readonly<Record<string, unknown>>[];
+  readonly tracing: Readonly<Record<string, unknown>>;
+  readonly coverage: Readonly<Record<string, string>>;
+}
+
 export interface KordenaCommercialSnapshot {
   readonly schema_version: "kordena.fmcc.commercial.v1";
   readonly product_code: "KORDENA";
@@ -32,6 +62,7 @@ export interface KordenaCommercialSnapshot {
     payload: Record<string, unknown>;
     source_timestamp: string;
   }[];
+  readonly observability?: KordenaCommercialObservability;
   readonly coverage: Readonly<Record<string, string>>;
 }
 
@@ -182,6 +213,121 @@ function fact(value: unknown): ConnectorFact {
   };
 }
 
+const KCA13_METRIC_KEYS = [
+  "signup_started",
+  "signup_completed",
+  "tenant_provisioned",
+  "trial_started",
+  "trial_active",
+  "trial_expiring",
+  "trial_expired",
+  "trial_converted",
+  "conversion_rate",
+  "subscription_active",
+  "past_due",
+  "churn",
+  "mrr",
+  "arr",
+  "payment_success",
+  "payment_failure",
+] as const;
+
+function validObservabilityMetric(
+  value: unknown,
+  expectedMetricId: string,
+): value is KordenaObservabilityMetric {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  const status = item.status;
+  return (
+    item.metric_id === expectedMetricId &&
+    (status === "available" ||
+      status === "partial" ||
+      status === "unavailable") &&
+    typeof item.unit === "string" &&
+    typeof item.as_of === "string" &&
+    !Number.isNaN(new Date(item.as_of).getTime()) &&
+    typeof item.quality_status === "string" &&
+    typeof item.source_authority === "string" &&
+    Array.isArray(item.provenance_refs) &&
+    item.provenance_refs.length > 0 &&
+    item.provenance_refs.every(
+      (ref) => typeof ref === "string" && ref.trim().length > 0,
+    ) &&
+    typeof item.source_authority === "string" &&
+    item.source_authority.trim().length > 0 &&
+    typeof item.definition === "string" &&
+    item.definition.trim().length > 0
+  );
+}
+
+function validKca13Alert(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.code === "string" &&
+    item.code.trim().length > 0 &&
+    typeof item.severity === "string" &&
+    ["info", "low", "medium", "high", "critical"].includes(item.severity) &&
+    typeof item.count === "number" &&
+    Number.isInteger(item.count) &&
+    item.count > 0 &&
+    typeof item.message === "string" &&
+    item.message.trim().length > 0
+  );
+}
+
+function validKca13Tracing(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    Array.isArray(item.correlation_ids) &&
+    item.correlation_ids.every(
+      (id) => typeof id === "string" && id.trim().length > 0,
+    ) &&
+    item.correlation_id_required_by_commercial_flows === true
+  );
+}
+
+function validKca13Observability(
+  value: unknown,
+): value is KordenaCommercialObservability {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  const metrics =
+    item.metrics && typeof item.metrics === "object" && !Array.isArray(item.metrics)
+      ? (item.metrics as Record<string, unknown>)
+      : null;
+  return (
+    item.schema_version === "kordena.observability.kca13.v1" &&
+    typeof item.as_of === "string" &&
+    !Number.isNaN(new Date(item.as_of).getTime()) &&
+    item.internal_test_excluded === true &&
+    metrics !== null &&
+    KCA13_METRIC_KEYS.every((key) =>
+      validObservabilityMetric(metrics[key], key),
+    ) &&
+    !!item.antiabuse &&
+    typeof item.antiabuse === "object" &&
+    !Array.isArray(item.antiabuse) &&
+    !!item.health &&
+    typeof item.health === "object" &&
+    !Array.isArray(item.health) &&
+    !!item.finops &&
+    typeof item.finops === "object" &&
+    !Array.isArray(item.finops) &&
+    Array.isArray(item.alerts) &&
+    item.alerts.every(validKca13Alert) &&
+    validKca13Tracing(item.tracing) &&
+    !!item.coverage &&
+    typeof item.coverage === "object" &&
+    !Array.isArray(item.coverage) &&
+    Object.values(item.coverage as Record<string, unknown>).every(
+      (coverage) => typeof coverage === "string" && coverage.trim().length > 0,
+    )
+  );
+}
+
 export class KordenaCommercialConnector implements Connector {
   readonly sourceType = KORDENA_COMMERCIAL_SOURCE_TYPE;
   readonly capabilities = [
@@ -276,6 +422,9 @@ export class KordenaCommercialConnector implements Connector {
           Number.isFinite(summary[key]) &&
           summary[key] >= 0,
       );
+    const observabilityValid =
+      body.observability === undefined ||
+      validKca13Observability(body.observability);
 
     if (
       body.schema_version !== "kordena.fmcc.commercial.v1" ||
@@ -285,7 +434,8 @@ export class KordenaCommercialConnector implements Connector {
       requiredCollections.some((collection) => !Array.isArray(collection)) ||
       !body.coverage ||
       typeof body.coverage !== "object" ||
-      !summaryValid
+      !summaryValid ||
+      !observabilityValid
     ) {
       throw new KordenaCommercialConnectorError(
         "integration.kordena_snapshot_contract_invalid",
