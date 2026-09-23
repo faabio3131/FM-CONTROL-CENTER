@@ -64,6 +64,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
         "Selecione SOMENTE capabilityIds presentes no catálogo de capabilities fornecido.",
         "Selecione SOMENTE productSlugs presentes no catálogo de produtos autorizado.",
         "Use productSlugs vazio quando a pergunta for global e não referir produto específico.",
+        "Nunca use uma capability específica de produto para inferir um total global da empresa.",
         "Escolha até 8 métricas, até 4 capabilities e no máximo 4 produtos.",
         "Selecione ao menos uma métrica ou capability.",
         "Nunca invente produto, métrica, tenant, valor ou causa.",
