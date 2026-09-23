@@ -30,6 +30,7 @@ describe("F19 alert/action tenant isolation", () => {
       threshold: "1",
       severity: "critical",
       enabled: true,
+      archived: false,
       createdBy: "user-a",
       createdAt: new Date("2026-09-23T00:00:00Z"),
       idempotencyKey: "rule-a-idempotency",
