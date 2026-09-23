@@ -3,6 +3,7 @@ import {
   rotuloEstadoOcorrencia,
   rotuloEstadoRegraAlerta,
   rotuloMetrica,
+  rotuloNivelRiscoAcao,
   rotuloOperadorAlerta,
   rotuloSeveridadeAlerta,
 } from "@/presentation/pt-br";
@@ -18,5 +19,8 @@ describe("rótulos pt-BR de alertas", () => {
     expect(rotuloEstadoRegraAlerta(false, false)).toBe("Desativada");
     expect(rotuloEstadoRegraAlerta(false, true)).toBe("Arquivada");
     expect(rotuloEstadoOcorrencia("acknowledged")).toBe("Reconhecida");
+    expect(rotuloNivelRiscoAcao("low")).toBe("Baixo risco");
+    expect(rotuloNivelRiscoAcao("medium")).toBe("Risco médio");
+    expect(rotuloNivelRiscoAcao("high")).toBe("Alto risco");
   });
 });
