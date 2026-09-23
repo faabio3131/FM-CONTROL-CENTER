@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-type Rule = { id: string; metricId: string; operator: string; threshold: string; severity: string; enabled: boolean; productId?: string };
+type Rule = { id: string; metricId: string; operator: string; threshold: string; severity: string; enabled: boolean; archived: boolean; productId?: string };
 type Occurrence = { id: string; metricId: string; observedValue: string; threshold: string; severity: string; status: string };
 type Product = { id: string; name: string };
 type Metric = { metricId: string; displayName: string };
@@ -36,6 +36,7 @@ export function AlertControlPanel(props: {
       };
       if (!response.ok) {
         if (payload.error === "alert.rule_duplicate") setMessage("Já existe uma regra ativa equivalente. Desative a existente antes de criar outra.");
+        else if (payload.error === "alert.rule_must_be_disabled") setMessage("Desative a regra antes de arquivá-la.");
         else setMessage(payload.error ?? "Operação indisponível.");
         return null;
       }
@@ -67,6 +68,9 @@ export function AlertControlPanel(props: {
     if (result) window.location.reload();
   }
 
+  const operationalRules = props.rules.filter((rule) => !rule.archived);
+  const archivedRules = props.rules.filter((rule) => rule.archived);
+
   return (
     <section className="alert-control" aria-labelledby="alert-control-title">
       <div className="section-heading">
@@ -86,27 +90,52 @@ export function AlertControlPanel(props: {
       ) : <p className="empty-state">Seu papel possui leitura de alertas, mas não pode criar ou avaliar regras.</p>}
 
       <div className="alert-list">
-        {props.rules.length ? props.rules.map((rule) => (
+        {operationalRules.length ? operationalRules.map((rule) => (
           <article className="alert-item" key={rule.id}>
             <div>
               <strong>{rule.metricId}</strong>
               <span>{rule.operator} {rule.threshold} · {rule.severity} · {rule.enabled ? "ativa" : "desativada"}</span>
             </div>
-            {props.canWrite && rule.enabled ? (
+            {props.canWrite ? (
               <div className="alert-actions">
-                <button className="button" disabled={busy} onClick={async () => {
-                  const result = await request("/api/alerts/evaluate", { ruleId: rule.id });
-                  if (result?.occurrence) window.location.reload();
-                }}>Avaliar agora</button>
-                <button className="button" disabled={busy} onClick={async () => {
-                  const result = await request("/api/alerts/disable", { ruleId: rule.id });
-                  if (result) window.location.reload();
-                }}>Desativar</button>
+                {rule.enabled ? (
+                  <>
+                    <button className="button" disabled={busy} onClick={async () => {
+                      const result = await request("/api/alerts/evaluate", { ruleId: rule.id });
+                      if (result?.occurrence) window.location.reload();
+                    }}>Avaliar agora</button>
+                    <button className="button" disabled={busy} onClick={async () => {
+                      const result = await request("/api/alerts/disable", { ruleId: rule.id });
+                      if (result) window.location.reload();
+                    }}>Desativar</button>
+                  </>
+                ) : (
+                  <button className="button" disabled={busy} onClick={async () => {
+                    const result = await request("/api/alerts/archive", { ruleId: rule.id });
+                    if (result) window.location.reload();
+                  }}>Arquivar</button>
+                )}
               </div>
             ) : null}
           </article>
-        )) : <div className="empty-state"><strong>Nenhuma regra configurada.</strong><p>Alertas não são inventados sem regra/threshold explícitos.</p></div>}
+        )) : <div className="empty-state"><strong>Nenhuma regra operacional.</strong><p>Crie uma regra explícita ou consulte o histórico arquivado.</p></div>}
       </div>
+
+      {archivedRules.length ? (
+        <details className="alert-history">
+          <summary>Histórico arquivado ({archivedRules.length})</summary>
+          <div className="alert-list">
+            {archivedRules.map((rule) => (
+              <article className="alert-item" key={rule.id}>
+                <div>
+                  <strong>{rule.metricId}</strong>
+                  <span>{rule.operator} {rule.threshold} · {rule.severity} · arquivada</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : null}
 
       <div className="alert-list">
         {props.occurrences.length ? props.occurrences.map((occurrence) => (
