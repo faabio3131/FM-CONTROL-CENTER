@@ -57,8 +57,12 @@ jobs:
         run: npm run db:migrate
       - name: Tests
         run: npm run test
+      - name: High-confidence secret scan
+        run: npm run security:secrets
       - name: Build
         run: npm run build
+      - name: Runtime smoke
+        run: npm run test:runtime-smoke
       - name: Build Docker image without runtime secrets
         run: docker build --tag fmcc-render-smoke:${{ github.sha }} .
       - name: Runtime dependency audit

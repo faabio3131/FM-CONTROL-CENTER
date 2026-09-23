@@ -56,7 +56,7 @@ export function ProductCreateForm() {
       <label>Produto<input name="name" required minLength={2} maxLength={120} autoComplete="off" placeholder="Ex.: Kordena" /></label>
       <label>Identificador<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autoComplete="off" placeholder="kordena" /></label>
       <button className="button" type="submit" disabled={status === "saving"}>{status === "saving" ? "Salvando…" : "Cadastrar produto"}</button>
-      {status === "error" ? <small className="error">{message}</small> : null}
+      {status === "error" ? <small className="error" role="alert">{message}</small> : null}
     </form>
   );
 }

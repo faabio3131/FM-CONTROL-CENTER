@@ -2,7 +2,9 @@
   "name": "fm-control-center",
   "version": "0.1.0",
   "private": true,
-  "engines": {"node": ">=24 <25"},
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +14,9 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate --name=foundation",
     "db:migrate": "drizzle-kit migrate",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "test:runtime-smoke": "node scripts/runtime-smoke.mjs",
+    "security:secrets": "node scripts/secret-scan.mjs"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.5",

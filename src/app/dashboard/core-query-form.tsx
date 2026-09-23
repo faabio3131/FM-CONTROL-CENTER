@@ -212,7 +212,24 @@ export function CoreQueryForm() {
       </div>
 
       <form onSubmit={submit} className="core-form">
-        <label htmlFor="core-question">Pergunta</label>
+        <label htmlFor="core-question">Pergunta executiva</label>
+        <div className="core-suggestions" aria-label="Perguntas sugeridas">
+          {[
+            "O que precisa da minha atenção?",
+            "Explique as principais variações da empresa.",
+            "Quais são os principais riscos?",
+          ].map((suggestion) => (
+            <button
+              className="core-suggestion"
+              type="button"
+              key={suggestion}
+              onClick={() => setQuestion(suggestion)}
+              disabled={state.status === "loading"}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
         <div className="core-input-row">
           <input
             id="core-question"
@@ -241,11 +258,11 @@ export function CoreQueryForm() {
       </form>
 
       {state.answer && (
-        <div className={state.status === "error" ? "core-answer error" : "core-answer"} role="status">
+        <div className={state.status === "error" ? "core-answer error" : "core-answer"} role="status" aria-live="polite">
           <strong>{state.status === "error" ? "Indisponível" : "Resposta"}</strong>
           <p>{state.answer}</p>
           {state.evidence?.length ? (
-            <small>
+            <small className="core-evidence">
               Proveniência: {state.evidence
                 .map((item) => `${rotuloMetrica(item.ref)} · ${rotuloAutoridadeFonte(item.sourceAuthority)}`)
                 .join(", ")}
