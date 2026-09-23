@@ -9,9 +9,11 @@ describe("F17 alerts UI", () => {
     expect(page).toContain("Unknown nunca vira zero");
     expect(page).toContain("Fingerprint + lock");
     expect(page).toContain("Preview somente");
-    expect(control).toContain("Nenhuma regra configurada");
+    expect(control).toContain("Nenhuma regra operacional");
     expect(control).toContain("Preparar investigação");
     expect(control).toContain("Desativar");
+    expect(control).toContain("Arquivar");
+    expect(control).toContain("Histórico arquivado");
     expect(control).toContain("Já existe uma regra ativa equivalente.");
     expect(control).toContain("Avaliação concluída: métrica indisponível; nenhum alerta criado.");
     expect(control).toContain("threshold não atingido; nenhum alerta criado.");
