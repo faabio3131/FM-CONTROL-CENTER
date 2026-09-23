@@ -139,3 +139,26 @@ test("viewport móvel crítico mantém alertas utilizáveis sem rolagem horizont
   );
   expect(hasCriticalHorizontalOverflow).toBe(false);
 });
+
+
+test("viewport de tablet crítico mantém dashboard e alertas utilizáveis sem rolagem horizontal", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await signUpAndCreateOrganization(page, "tablet");
+
+  await expect(page.getByRole("heading", { name: "FM Control Center" })).toBeVisible();
+  let hasCriticalHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasCriticalHorizontalOverflow).toBe(false);
+
+  await page.goto("/dashboard/alerts");
+  await expect(page.getByRole("heading", { name: /Central de atenção governada/ })).toBeVisible();
+  await expect(page.getByLabel("Métrica")).toBeVisible();
+  await expect(page.getByLabel("Limite")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Criar regra" })).toBeVisible();
+
+  hasCriticalHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasCriticalHorizontalOverflow).toBe(false);
+});
