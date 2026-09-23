@@ -141,3 +141,31 @@ O addendum foi reconciliado com a recertificação documental verde do HEAD
 `4821d5bc6c08359c92e0fc1dae053c4d3f2a5206`. O commit de fechamento que
 registra essa evidência deve passar o mesmo gate no SHA exato; o check da PR
 funciona como evidência final sem exigir novo commit documental.
+
+
+## 9. F16-F19 + Kordena cognitive reconciliation
+
+The Kordena governed capability line was reconciled with the later FMCC F16-F19
+CURRENT without restoring any cross-product Core.
+
+Current dependency chain:
+
+```text
+FMCC main F16-F19
+175f4847...
+    |
+    v
+KCA-12 PR #16
+8d420bcd...  Foundation Gate SUCCESS
+    |
+    v
+Cognitive PR #17
+50214ad1...  Cognitive Governed Gate SUCCESS
+```
+
+The adapter keeps F16 reasoning/causality/forecast guardrails together with the
+Kordena capability allowlist. The reconciled candidate passes 51 targeted tests
+and 174 full-regression tests before this documentation closure commit.
+
+The exact HEAD produced by this reconciliation must pass the cognitive governed
+gate; that GitHub check is the final evidence.
