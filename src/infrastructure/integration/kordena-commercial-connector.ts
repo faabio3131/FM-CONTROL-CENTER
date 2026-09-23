@@ -12,6 +12,7 @@ export const KORDENA_COMMERCIAL_SECRET_REF =
 
 export type SecretResolver = (reference: string) => string | undefined;
 export type AllowedOriginResolver = () => readonly string[];
+export type ControlTenantResolver = () => string | undefined;
 
 export interface KordenaCommercialSnapshot {
   readonly schema_version: "kordena.fmcc.commercial.v1";
@@ -77,6 +78,10 @@ export function environmentSecretResolver(reference: string): string | undefined
     );
   }
   return process.env[name]?.trim() || undefined;
+}
+
+export function environmentKordenaControlTenantId(): string | undefined {
+  return process.env.FMCC_KORDENA_CONTROL_TENANT_ID?.trim() || undefined;
 }
 
 export function environmentKordenaAllowedOrigins(): readonly string[] {
@@ -190,6 +195,8 @@ export class KordenaCommercialConnector implements Connector {
     private readonly fetcher: typeof fetch = fetch,
     private readonly allowedOrigins: AllowedOriginResolver =
       environmentKordenaAllowedOrigins,
+    private readonly controlTenantId: ControlTenantResolver =
+      environmentKordenaControlTenantId,
   ) {}
 
   async health(
@@ -286,6 +293,12 @@ export class KordenaCommercialConnector implements Connector {
     path: string,
     init: RequestInit = {},
   ): Promise<Response> {
+    const allowedTenant = this.controlTenantId();
+    if (!allowedTenant || context.tenantId !== allowedTenant) {
+      throw new KordenaCommercialConnectorError(
+        "integration.kordena_control_tenant_denied",
+      );
+    }
     const token = serviceToken(source, this.resolveSecret);
     const headers = new Headers(init.headers);
     headers.set("authorization", `Bearer ${token}`);
