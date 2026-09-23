@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { TenantContext } from "@/domain/security/tenant-context";
 import { db } from "@/infrastructure/db/client";
 import { auditEvents } from "@/infrastructure/db/foundation-schema";
@@ -130,20 +130,22 @@ export async function consumeCommercialApproval(
         eq(auditEvents.tenantId, context.tenantId),
         eq(auditEvents.actorId, context.userId),
         eq(auditEvents.action, "commercial.command.preview_approved"),
+        sql`${auditEvents.metadata}->>'tokenHash' = ${tokenHash}`,
       ))
-      .orderBy(desc(auditEvents.occurredAt))
-      .limit(50);
+      .limit(1);
 
-    const approval = approvals.find((row) => {
-      const metadata = row.metadata;
-      return (
-        metadataString(metadata, "tokenHash") === tokenHash &&
-        metadataString(metadata, "sourceId") === input.sourceId &&
-        metadataString(metadata, "publishAction") === input.publishAction &&
-        (metadataString(metadata, "resourceId") ?? "") === (input.resourceId ?? "") &&
-        metadataString(metadata, "payloadHash") === payloadHash
-      );
-    });
+    const approval = approvals[0];
+    if (approval) {
+      const metadata = approval.metadata;
+      if (
+        metadataString(metadata, "sourceId") !== input.sourceId ||
+        metadataString(metadata, "publishAction") !== input.publishAction ||
+        (metadataString(metadata, "resourceId") ?? "") !== (input.resourceId ?? "") ||
+        metadataString(metadata, "payloadHash") !== payloadHash
+      ) {
+        throw new CommercialApprovalRequiredError();
+      }
+    }
 
     if (!approval) throw new CommercialApprovalRequiredError();
 
@@ -154,16 +156,16 @@ export async function consumeCommercialApproval(
     }
 
     const consumedRows = await tx
-      .select()
+      .select({ id: auditEvents.id })
       .from(auditEvents)
       .where(and(
         eq(auditEvents.tenantId, context.tenantId),
         eq(auditEvents.action, "commercial.command.approval_consumed"),
+        sql`${auditEvents.metadata}->>'tokenHash' = ${tokenHash}`,
       ))
-      .orderBy(desc(auditEvents.occurredAt))
-      .limit(100);
+      .limit(1);
 
-    if (consumedRows.some((row) => metadataString(row.metadata, "tokenHash") === tokenHash)) {
+    if (consumedRows[0]) {
       throw new CommercialApprovalInvalidError("commercial.approval_already_used");
     }
 
