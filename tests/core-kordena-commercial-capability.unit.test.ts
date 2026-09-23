@@ -148,6 +148,15 @@ describe("FMCC cognitive Kordena commercial read capability", () => {
       freshnessStatus: "fresh",
       qualityStatus: "verified",
       asOf: "2026-09-23T18:00:00.000Z",
+      provenanceRefs: [
+        "source:source-kordena",
+        "mapping:kordena-commercial-v1",
+        "schema:kordena.fmcc.commercial.v1",
+      ],
+    });
+    expect(result.fact).toMatchObject({
+      schemaVersion: "kordena.fmcc.commercial.v1",
+      mappingVersion: "kordena-commercial-v1",
     });
     expect(JSON.stringify(result)).not.toContain(
       "FMCC_KORDENA_CONTROL_PLANE_TOKEN",
