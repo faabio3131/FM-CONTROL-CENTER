@@ -30,15 +30,15 @@ export default async function AlertsPage() {
         <div>
           <span className="eyebrow">F17 · Alertas e Automações Governadas</span>
           <h1>Central de atenção governada</h1>
-          <p>Regras explícitas geram alertas determinísticos. Unknown nunca vira zero e output do Core nunca vira autorização.</p>
+          <p>Regras explícitas geram alertas determinísticos. Valor desconhecido nunca vira zero e a saída do Core nunca vira autorização.</p>
         </div>
         <Link href="/dashboard">Voltar</Link>
       </header>
 
       <section className="guardrail-grid" aria-label="Governança de alertas">
         <article><span className="eyebrow">Detecção</span><strong>Determinística</strong><p>Métrica governada + operador + threshold configurado.</p></article>
-        <article><span className="eyebrow">Idempotência</span><strong>Fingerprint + lock</strong><p>A mesma observação não gera ocorrência duplicada.</p></article>
-        <article><span className="eyebrow">Ações</span><strong>Preview somente</strong><p>Nenhum side effect externo crítico é executado na F17.</p></article>
+        <article><span className="eyebrow">Idempotência</span><strong>Identificador único + bloqueio</strong><p>A mesma observação não gera ocorrência duplicada.</p></article>
+        <article><span className="eyebrow">Ações</span><strong>Prévia somente</strong><p>Nenhum efeito externo crítico é executado na F17.</p></article>
         <article><span className="eyebrow">Auditoria</span><strong>Obrigatória</strong><p>Regra, ocorrência, acknowledgement e intent ficam rastreáveis.</p></article>
       </section>
 
