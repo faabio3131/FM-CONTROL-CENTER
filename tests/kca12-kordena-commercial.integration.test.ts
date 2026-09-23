@@ -214,15 +214,18 @@ describe("KCA-12 Kordena commercial connector", () => {
   });
 
   it("aborts a hung Kordena request using the connector context timeout", async () => {
-    let observedSignal: AbortSignal | null = null;
+    let abortObserved = false;
     const connector = new KordenaCommercialConnector(
       () => "x".repeat(40),
       async (_input, init) => {
-        observedSignal = init?.signal as AbortSignal;
+        const signal = init?.signal;
         return await new Promise<Response>((_resolve, reject) => {
-          observedSignal?.addEventListener(
+          signal?.addEventListener(
             "abort",
-            () => reject(new DOMException("aborted", "AbortError")),
+            () => {
+              abortObserved = true;
+              reject(new DOMException("aborted", "AbortError"));
+            },
             { once: true },
           );
         });
@@ -234,7 +237,7 @@ describe("KCA-12 Kordena commercial connector", () => {
     await expect(
       connector.snapshot({ ...context, timeoutMs: 20 }, source),
     ).rejects.toThrow("integration.kordena_request_timeout");
-    expect(observedSignal?.aborted).toBe(true);
+    expect(abortObserved).toBe(true);
   });
 
   it("fails closed for insecure source URL or unavailable secret", async () => {
