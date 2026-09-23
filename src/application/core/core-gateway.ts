@@ -3,33 +3,101 @@ import type { FinancialIntelligenceService } from "@/application/finance/financi
 import type { MetricService, MetricView } from "@/application/metrics/metric-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import type { CoreAnswer, CoreEvidence, CoreOperationalContext } from "@/domain/core/contracts";
+import {
+  CoreReadCapabilityContractError,
+  type CoreReadCapability,
+  type CoreReadCapabilityResult,
+} from "@/domain/core/read-capability";
 import type { ProductDefinition, ProductRepository } from "@/domain/products/contracts";
-import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
+import {
+  CrossTenantAccessError,
+  PermissionDeniedError,
+  requirePermission,
+  type TenantContext,
+} from "@/domain/security/tenant-context";
 import type { CoreContextReader } from "@/infrastructure/core/audit-core-context-reader";
 
 export class CoreArgumentError extends Error {
-  constructor() { super("core.argument_invalid"); }
+  constructor() {
+    super("core.argument_invalid");
+  }
 }
 
-function metricEvidence(metricId: string, value: MetricView, product?: ProductDefinition): CoreEvidence {
+function metricEvidence(
+  metricId: string,
+  value: MetricView,
+  product?: ProductDefinition,
+): CoreEvidence {
   return {
-    kind: "metric", ref: metricId,
-    productId: product?.id, productSlug: product?.slug,
-    sourceAuthority: value.sourceAuthority, freshnessStatus: value.freshnessStatus,
-    qualityStatus: value.qualityStatus, provenanceRefs: value.provenanceRefs,
-    periodStart: value.periodStart?.toISOString(), periodEnd: value.periodEnd?.toISOString(), asOf: value.asOf?.toISOString(),
+    kind: "metric",
+    ref: metricId,
+    productId: product?.id,
+    productSlug: product?.slug,
+    sourceAuthority: value.sourceAuthority,
+    freshnessStatus: value.freshnessStatus,
+    qualityStatus: value.qualityStatus,
+    provenanceRefs: value.provenanceRefs,
+    periodStart: value.periodStart?.toISOString(),
+    periodEnd: value.periodEnd?.toISOString(),
+    asOf: value.asOf?.toISOString(),
   };
 }
 
-function metricFact(metricId: string, value: MetricView, product?: ProductDefinition): Record<string, unknown> {
+function metricFact(
+  metricId: string,
+  value: MetricView,
+  product?: ProductDefinition,
+): Record<string, unknown> {
   return {
-    metricId, productId: product?.id ?? null, productSlug: product?.slug ?? null, productName: product?.name ?? null,
-    value: value.value, unit: value.unit, currency: value.currency ?? null,
-    periodStart: value.periodStart?.toISOString() ?? null, periodEnd: value.periodEnd?.toISOString() ?? null,
-    asOf: value.asOf?.toISOString() ?? null, computedAt: value.computedAt.toISOString(),
+    metricId,
+    productId: product?.id ?? null,
+    productSlug: product?.slug ?? null,
+    productName: product?.name ?? null,
+    value: value.value,
+    unit: value.unit,
+    currency: value.currency ?? null,
+    periodStart: value.periodStart?.toISOString() ?? null,
+    periodEnd: value.periodEnd?.toISOString() ?? null,
+    asOf: value.asOf?.toISOString() ?? null,
+    computedAt: value.computedAt.toISOString(),
     sourceTimestamp: value.sourceTimestamp?.toISOString() ?? null,
-    freshnessStatus: value.freshnessStatus, qualityStatus: value.qualityStatus, provenanceRefs: value.provenanceRefs,
+    freshnessStatus: value.freshnessStatus,
+    qualityStatus: value.qualityStatus,
+    provenanceRefs: value.provenanceRefs,
   };
+}
+
+function validateCapabilityResult(
+  result: CoreReadCapabilityResult,
+): CoreReadCapabilityResult {
+  if (
+    !result ||
+    (result.status !== "available" && result.status !== "unavailable") ||
+    !result.evidence ||
+    result.evidence.kind !== "source" ||
+    typeof result.evidence.ref !== "string" ||
+    !result.evidence.ref.trim()
+  ) {
+    throw new CoreReadCapabilityContractError();
+  }
+  if (result.status === "available") {
+    if (
+      !result.fact ||
+      typeof result.fact !== "object" ||
+      Array.isArray(result.fact) ||
+      typeof result.evidence.sourceAuthority !== "string" ||
+      !result.evidence.sourceAuthority.trim() ||
+      typeof result.evidence.freshnessStatus !== "string" ||
+      !result.evidence.freshnessStatus.trim() ||
+      typeof result.evidence.qualityStatus !== "string" ||
+      !result.evidence.qualityStatus.trim() ||
+      !Array.isArray(result.evidence.provenanceRefs) ||
+      result.evidence.provenanceRefs.length < 1
+    ) {
+      throw new CoreReadCapabilityContractError();
+    }
+  }
+  return result;
 }
 
 export class CoreGateway {
@@ -39,83 +107,217 @@ export class CoreGateway {
     private readonly contextReader?: CoreContextReader,
     private readonly products?: ProductRepository,
     private readonly financial?: FinancialIntelligenceService,
+    private readonly readCapabilities: readonly CoreReadCapability[] = [],
   ) {}
 
   async ask(context: TenantContext, question: string): Promise<CoreAnswer> {
     requirePermission(context, "metric:read");
     const normalized = question.trim();
-    if (!normalized || normalized.length > 4000) throw new CoreArgumentError();
+    if (!normalized || normalized.length > 4000) {
+      throw new CoreArgumentError();
+    }
 
     const operationalContext = await this.loadOperationalContext(context);
     const productCatalog = this.products
-      ? (await new ProductRegistryService(this.products).list(context)).filter((product) => product.status === "active")
+      ? (await new ProductRegistryService(this.products).list(context)).filter(
+          (product) => product.status === "active",
+        )
       : [];
     const plan = await this.core.plan({
       question: normalized,
       operationalContext,
+      capabilityCatalog: this.readCapabilities.map(({ descriptor }) => ({
+        id: descriptor.id,
+        displayName: descriptor.displayName,
+        description: descriptor.description,
+      })),
       productCatalog: productCatalog.map(({ slug, name }) => ({ slug, name })),
     });
 
-    if (plan.metricIds.length < 1 || plan.metricIds.length > 8 || plan.productSlugs.length > 4) throw new CoreArgumentError();
-    const bySlug = new Map(productCatalog.map((product) => [product.slug, product]));
-    const selectedProducts = plan.productSlugs.map((slug) => bySlug.get(slug));
-    if (selectedProducts.some((product) => !product)) throw new CoreArgumentError();
-    const productScopes = selectedProducts.length ? selectedProducts as ProductDefinition[] : [undefined];
-    if (productScopes.length * plan.metricIds.length > 16) throw new CoreArgumentError();
+    if (
+      plan.metricIds.length > 8 ||
+      plan.capabilityIds.length > 4 ||
+      plan.productSlugs.length > 4 ||
+      plan.metricIds.length + plan.capabilityIds.length < 1
+    ) {
+      throw new CoreArgumentError();
+    }
 
-    const resolved = await Promise.all(productScopes.flatMap((product) => plan.metricIds.map(async (metricId) => {
-      try {
-        if (metricId === "finance.operating_result" && this.financial) {
-          const finance = await this.financial.overview(context, product?.id);
-          if (finance.operatingResult.status !== "available") return { metricId, product, value: null };
-          const derived: MetricView = {
-            productId: product?.id,
-            metricId,
-            metricVersion: 1,
-            value: finance.operatingResult.value,
-            unit: "currency",
-            currency: finance.operatingResult.currency,
-            periodStart: finance.operatingResult.periodStart,
-            periodEnd: finance.operatingResult.periodEnd,
-            asOf: finance.operatingResult.asOf,
-            computedAt: new Date(),
-            sourceTimestamp: finance.operatingResult.sourceTimestamp,
-            freshnessStatus: "unknown",
-            qualityStatus: "unknown",
-            sourceAuthority: "fmcc_financial_intelligence",
-            provenanceRefs: finance.operatingResult.provenanceRefs,
-          };
-          return { metricId, product, value: derived };
-        }
-        return { metricId, product, value: await this.metrics.query(context, metricId, product?.id) };
-      } catch {
+    const bySlug = new Map(
+      productCatalog.map((product) => [product.slug, product]),
+    );
+    const selectedProducts = plan.productSlugs.map((slug) => bySlug.get(slug));
+    if (selectedProducts.some((product) => !product)) {
+      throw new CoreArgumentError();
+    }
+    const productScopes = selectedProducts.length
+      ? (selectedProducts as ProductDefinition[])
+      : [undefined];
+    if (productScopes.length * Math.max(plan.metricIds.length, 1) > 16) {
+      throw new CoreArgumentError();
+    }
+
+    const capabilitiesById = new Map(
+      this.readCapabilities.map((capability) => [
+        capability.descriptor.id,
+        capability,
+      ]),
+    );
+    const selectedCapabilities = plan.capabilityIds.map((id) =>
+      capabilitiesById.get(id),
+    );
+    if (selectedCapabilities.some((capability) => !capability)) {
+      throw new CoreArgumentError();
+    }
+
+    const selectedProductSlugs = new Set(plan.productSlugs);
+    for (const capability of selectedCapabilities as CoreReadCapability[]) {
+      const supported = capability.descriptor.productSlugs;
+      if (
+        selectedProductSlugs.size > 0 &&
+        supported &&
+        supported.length > 0 &&
+        !supported.some((slug) => selectedProductSlugs.has(slug))
+      ) {
         throw new CoreArgumentError();
       }
-    })));
+    }
 
-    const available = resolved.filter((entry) => entry.value !== null && entry.value.value !== null) as Array<{
-      metricId: string; product: ProductDefinition | undefined; value: MetricView;
+    const resolvedMetrics = await Promise.all(
+      productScopes.flatMap((product) =>
+        plan.metricIds.map(async (metricId) => {
+          try {
+            if (metricId === "finance.operating_result" && this.financial) {
+              const finance = await this.financial.overview(
+                context,
+                product?.id,
+              );
+              if (finance.operatingResult.status !== "available") {
+                return { metricId, product, value: null };
+              }
+              const derived: MetricView = {
+                productId: product?.id,
+                metricId,
+                metricVersion: 1,
+                value: finance.operatingResult.value,
+                unit: "currency",
+                currency: finance.operatingResult.currency,
+                periodStart: finance.operatingResult.periodStart,
+                periodEnd: finance.operatingResult.periodEnd,
+                asOf: finance.operatingResult.asOf,
+                computedAt: new Date(),
+                sourceTimestamp: finance.operatingResult.sourceTimestamp,
+                freshnessStatus: "unknown",
+                qualityStatus: "unknown",
+                sourceAuthority: "fmcc_financial_intelligence",
+                provenanceRefs: finance.operatingResult.provenanceRefs,
+              };
+              return { metricId, product, value: derived };
+            }
+            return {
+              metricId,
+              product,
+              value: await this.metrics.query(context, metricId, product?.id),
+            };
+          } catch {
+            throw new CoreArgumentError();
+          }
+        }),
+      ),
+    );
+
+    const resolvedCapabilities = await Promise.all(
+      (selectedCapabilities as CoreReadCapability[]).map(async (capability) => {
+        try {
+          const result = await capability.read(context, {
+            productSlugs: plan.productSlugs,
+          });
+          return {
+            capabilityId: capability.descriptor.id,
+            result: validateCapabilityResult(result),
+          };
+        } catch (error) {
+          if (
+            error instanceof PermissionDeniedError ||
+            error instanceof CrossTenantAccessError ||
+            error instanceof CoreReadCapabilityContractError
+          ) {
+            throw error;
+          }
+          throw new CoreReadCapabilityContractError();
+        }
+      }),
+    );
+
+    const availableMetrics = resolvedMetrics.filter(
+      (entry) => entry.value !== null && entry.value.value !== null,
+    ) as Array<{
+      metricId: string;
+      product: ProductDefinition | undefined;
+      value: MetricView;
     }>;
+    const availableCapabilities = resolvedCapabilities.filter(
+      (
+        entry,
+      ): entry is {
+        capabilityId: string;
+        result: Extract<CoreReadCapabilityResult, { status: "available" }>;
+      } => entry.result.status === "available",
+    );
 
-    if (available.length === 0) {
+    if (
+      availableMetrics.length === 0 &&
+      availableCapabilities.length === 0
+    ) {
       return {
-        answer: "As métricas solicitadas estão indisponíveis porque ainda não existem valores governados para as fontes autorizadas.",
-        evidence: resolved.map(({ metricId, product }) => ({
-          kind: "metric" as const, ref: metricId, productId: product?.id, productSlug: product?.slug,
-        })),
+        answer:
+          "Os dados solicitados estão indisponíveis porque ainda não existem valores governados ou uma fonte autorizada disponível para esta consulta.",
+        evidence: [
+          ...resolvedMetrics.map(({ metricId, product }) => ({
+            kind: "metric" as const,
+            ref: metricId,
+            productId: product?.id,
+            productSlug: product?.slug,
+          })),
+          ...resolvedCapabilities.map(({ result }) => result.evidence),
+        ],
         factualStatus: "unavailable",
       };
     }
 
-    const evidence = available.map(({ metricId, product, value }) => metricEvidence(metricId, value, product));
-    const facts = available.map(({ metricId, product, value }) => metricFact(metricId, value, product));
+    const evidence = [
+      ...availableMetrics.map(({ metricId, product, value }) =>
+        metricEvidence(metricId, value, product),
+      ),
+      ...availableCapabilities.map(({ result }) => result.evidence),
+    ];
+    const facts = [
+      ...availableMetrics.map(({ metricId, product, value }) =>
+        metricFact(metricId, value, product),
+      ),
+      ...availableCapabilities.map(({ result }) => result.fact),
+    ];
 
-    return this.core.synthesize({ question: normalized, facts, evidence, operationalContext });
+    return this.core.synthesize({
+      question: normalized,
+      facts,
+      evidence,
+      operationalContext,
+    });
   }
 
-  private async loadOperationalContext(context: TenantContext): Promise<readonly CoreOperationalContext[]> {
+  private async loadOperationalContext(
+    context: TenantContext,
+  ): Promise<readonly CoreOperationalContext[]> {
     if (!this.contextReader) return [];
-    try { return await this.contextReader.recent({ tenantId: context.tenantId, userId: context.userId, limit: 6 }); }
-    catch { return []; }
+    try {
+      return await this.contextReader.recent({
+        tenantId: context.tenantId,
+        userId: context.userId,
+        limit: 6,
+      });
+    } catch {
+      return [];
+    }
   }
 }
