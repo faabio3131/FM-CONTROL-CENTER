@@ -1,5 +1,6 @@
 import type { CognitiveModel } from "@/domain/core/cognitive-model";
 import type { CoreAnswer, CoreEvidence, CoreOperationalContext } from "@/domain/core/contracts";
+import { FINANCIAL_DERIVED_METRICS } from "@/domain/finance/intelligence";
 import { METRIC_REGISTRY } from "@/domain/metrics/registry";
 
 export class FmccVerticalCognitiveCore {
@@ -12,7 +13,10 @@ export class FmccVerticalCognitiveCore {
   }): Promise<{ metricIds: readonly string[]; productSlugs: readonly string[] }> {
     const result = await this.model.plan({
       question: input.question,
-      metricCatalog: METRIC_REGISTRY.map(({ metricId, displayName, description }) => ({ metricId, displayName, description })),
+      metricCatalog: [
+        ...METRIC_REGISTRY.map(({ metricId, displayName, description }) => ({ metricId, displayName, description })),
+        ...FINANCIAL_DERIVED_METRICS,
+      ],
       productCatalog: input.productCatalog ?? [],
       operationalContext: input.operationalContext,
     });

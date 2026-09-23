@@ -3,7 +3,7 @@
 **Missão:** F11 — Inteligência por Produto  
 **Baseline main:** `c199b5bc6fc4ad871523eeaf98f6705b12417bb7`  
 **Branch:** `feat/fmcc-f11-product-intelligence`  
-**PR:** #11 — OPEN/DRAFT  
+**PR:** #11 — MERGED/CLOSED  
 **Candidate funcional recertificado:** `986991e74e53fc8ff41d90d0ca27cabf345163fc`  
 **Foundation Gate funcional:** #184 — SUCCESS  
 **Produção:** fora do escopo
@@ -32,8 +32,8 @@
 | CI funcional | PASS | Gate #184 |
 | Reconciliação documental final | CONCLUÍDA | fechamento de 22/09/2026 |
 | health/ready final | PASS | `/api/health` ok + `/api/ready` ready |
-| Gate final da PR #11 | AGUARDANDO RECERTIFICAÇÃO | resultado será registrado na PR sem novo commit documental |
-| Merge PR #11 | NÃO AUTORIZADO | exige GO final + autorização humana |
+| Gate final da PR #11 | PASS | Foundation Gate #191 — SUCCESS no HEAD final |
+| Merge PR #11 | PASS | autorização humana recebida; squash merge em `2a276f4c57577bf0236ae134311705f294d31b21` |
 
 ## Evidência automática funcional
 
@@ -158,3 +158,16 @@ Este documento é o último ajuste documental. O novo HEAD deve:
 Nenhum novo commit documental é necessário para registrar o resultado do gate final; a evidência final fica na PR para evitar criar um novo HEAD após a certificação.
 
 **F12 permanece proibida até o merge governado da F11 e a recertificação pós-merge da main.**
+
+
+## Fechamento pós-merge — CURRENT
+
+- PR #11: **MERGED/CLOSED**;
+- merge SHA da `main`: `2a276f4c57577bf0236ae134311705f294d31b21`;
+- Foundation Gate pós-merge #192: **SUCCESS**;
+- F11: **CONCLUÍDA COM EVIDÊNCIA**;
+- progresso acumulado: **71%**;
+- F12 liberada para Current Discovery/System Design;
+- F16 continua fora do escopo da tranche F12–F15.
+
+As seções anteriores que descrevem estado pré-merge são preservadas como histórico de execução e não representam o CURRENT pós-merge.

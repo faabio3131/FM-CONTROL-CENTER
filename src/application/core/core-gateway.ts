@@ -1,4 +1,5 @@
 import type { FmccVerticalCognitiveCore } from "@/application/core/fmcc-vertical-cognitive-core";
+import type { FinancialIntelligenceService } from "@/application/finance/financial-intelligence-service";
 import type { MetricService, MetricView } from "@/application/metrics/metric-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import type { CoreAnswer, CoreEvidence, CoreOperationalContext } from "@/domain/core/contracts";
@@ -37,6 +38,7 @@ export class CoreGateway {
     private readonly metrics: MetricService,
     private readonly contextReader?: CoreContextReader,
     private readonly products?: ProductRepository,
+    private readonly financial?: FinancialIntelligenceService,
   ) {}
 
   async ask(context: TenantContext, question: string): Promise<CoreAnswer> {
@@ -63,13 +65,35 @@ export class CoreGateway {
 
     const resolved = await Promise.all(productScopes.flatMap((product) => plan.metricIds.map(async (metricId) => {
       try {
+        if (metricId === "finance.operating_result" && this.financial) {
+          const finance = await this.financial.overview(context, product?.id);
+          if (finance.operatingResult.status !== "available") return { metricId, product, value: null };
+          const derived: MetricView = {
+            productId: product?.id,
+            metricId,
+            metricVersion: 1,
+            value: finance.operatingResult.value,
+            unit: "currency",
+            currency: finance.operatingResult.currency,
+            periodStart: finance.operatingResult.periodStart,
+            periodEnd: finance.operatingResult.periodEnd,
+            asOf: finance.operatingResult.asOf,
+            computedAt: new Date(),
+            sourceTimestamp: finance.operatingResult.sourceTimestamp,
+            freshnessStatus: "unknown",
+            qualityStatus: "unknown",
+            sourceAuthority: "fmcc_financial_intelligence",
+            provenanceRefs: finance.operatingResult.provenanceRefs,
+          };
+          return { metricId, product, value: derived };
+        }
         return { metricId, product, value: await this.metrics.query(context, metricId, product?.id) };
       } catch {
         throw new CoreArgumentError();
       }
     })));
 
-    const available = resolved.filter((entry) => entry.value !== null) as Array<{
+    const available = resolved.filter((entry) => entry.value !== null && entry.value.value !== null) as Array<{
       metricId: string; product: ProductDefinition | undefined; value: MetricView;
     }>;
 

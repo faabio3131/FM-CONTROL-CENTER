@@ -1,4 +1,5 @@
 import { CoreGateway } from "@/application/core/core-gateway";
+import { FinancialIntelligenceService } from "@/application/finance/financial-intelligence-service";
 import { FmccVerticalCognitiveCore } from "@/application/core/fmcc-vertical-cognitive-core";
 import { MetricService } from "@/application/metrics/metric-service";
 import { cognitiveEnv } from "@/config/env";
@@ -17,10 +18,14 @@ export function buildCoreGateway(): CoreGateway {
     new OpenAiCompatibleCognitiveModel(config.baseUrl, config.apiKey, config.modelId),
   );
 
+  const metrics = new MetricService(new PostgresMetricStore());
+  const products = new PostgresProductRepository();
+
   return new CoreGateway(
     verticalCore,
-    new MetricService(new PostgresMetricStore()),
+    metrics,
     new AuditCoreContextReader(),
-    new PostgresProductRepository(),
+    products,
+    new FinancialIntelligenceService(metrics, products),
   );
 }

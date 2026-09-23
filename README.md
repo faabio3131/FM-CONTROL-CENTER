@@ -10,7 +10,8 @@ SaaS comercial independente da Nova FM Tecnologia. A Nova FM é o Tenant Zero.
 - F08: Metric Registry + Metric Engine determinísticos concluídos com evidência na PR #9.
 - F09: FMCC Cognitive Vertical Core **próprio do produto** concluído com evidência em Preview na PR #9.
 - F10: Executive Command Center concluído com evidência em Preview na PR #9.
-- F11: implementação funcional e smoke de Preview concluídos na PR #11 Draft. Product Registry, escopo por produto, Inteligência por Produto, comparação governada, UI pt-BR, Core consciente de produto, ditado por voz e limpeza do campo após envio estão aprovados. `/api/health` e `/api/ready` foram revalidados com sucesso após o Gate #188. Estado: **READY FOR MERGE**, condicionado à recertificação deste HEAD documental e à autorização humana explícita.
+- F11: **CONCLUÍDA COM EVIDÊNCIA**. PR #11 MERGED/CLOSED; squash merge `2a276f4c57577bf0236ae134311705f294d31b21`; Foundation Gate pós-merge #192 em `main` — SUCCESS. Product Registry, escopo por produto, Inteligência por Produto, comparação governada, UI pt-BR e Core consciente de produto integrados. Progresso acumulado: **71%**.
+- F12–F15: implementação funcional e CI concluídos na PR #12 Draft. Gates F12 #205, F13 #210, F14 #211/#212 e F15 #214 em SUCCESS; candidate funcional `545114ce2379178eae05b06d3b2fb66765cf006e` com 31 arquivos de teste / 109 testes PASS / 0 FAIL. **Preview do candidate ainda não comprovado**, pois o serviço Preview vigente acompanha `main`; por isso a tranche ainda não está autorizada para merge nem declarada 88% certificada. F16 permanece fora do escopo.
 
 ## Arquitetura cognitiva vigente
 
@@ -65,7 +66,7 @@ Nunca versione secrets.
 - Audit Ledger e memória cognitiva tenant/user scoped testados em PostgreSQL;
 - PR #9 e PR #10 integradas à `main`; CI pós-merge automático em `push: main`;
 - Render Preview reconciliado para `main` e smoke pós-merge F07–F10 concluído;
-- F11 permanece em branch/PR próprias e não mergeada; smoke funcional, health e ready aprovados. O gate final é registrado na PR #11 após recertificação do HEAD documental.
+- F11 integrada à `main`; Gate pós-merge #192 SUCCESS no commit `2a276f4c57577bf0236ae134311705f294d31b21`. O fechamento pós-merge factual também está registrado na PR #11.
 
 ## Stack
 Node.js 24 LTS · Next.js 16.3.x · TypeScript · PostgreSQL 18 · Drizzle · Better Auth Organizations · GitHub Actions · Render Preview.
