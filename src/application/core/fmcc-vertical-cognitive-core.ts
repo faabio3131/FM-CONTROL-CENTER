@@ -9,18 +9,28 @@ export class FmccVerticalCognitiveCore {
   async plan(input: {
     question: string;
     operationalContext: readonly CoreOperationalContext[];
+    capabilityCatalog?: readonly { id: string; displayName: string; description: string }[];
     productCatalog?: readonly { slug: string; name: string }[];
-  }): Promise<{ metricIds: readonly string[]; productSlugs: readonly string[] }> {
+  }): Promise<{
+    metricIds: readonly string[];
+    capabilityIds: readonly string[];
+    productSlugs: readonly string[];
+  }> {
     const result = await this.model.plan({
       question: input.question,
       metricCatalog: [
         ...METRIC_REGISTRY.map(({ metricId, displayName, description }) => ({ metricId, displayName, description })),
         ...FINANCIAL_DERIVED_METRICS,
       ],
+      capabilityCatalog: input.capabilityCatalog ?? [],
       productCatalog: input.productCatalog ?? [],
       operationalContext: input.operationalContext,
     });
-    return { metricIds: result.metricIds, productSlugs: result.productSlugs ?? [] };
+    return {
+      metricIds: result.metricIds,
+      capabilityIds: result.capabilityIds ?? [],
+      productSlugs: result.productSlugs ?? [],
+    };
   }
 
   async synthesize(input: {

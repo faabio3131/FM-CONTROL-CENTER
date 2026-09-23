@@ -3,8 +3,15 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/application/audit/record-audit-event";
 import { buildCoreGateway } from "@/application/core/core-composition";
 import { CoreArgumentError } from "@/application/core/core-gateway";
+import { CoreReadCapabilityContractError } from "@/domain/core/read-capability";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
-import { AuthenticationRequiredError, TenantScopeRequiredError, type TenantContext } from "@/domain/security/tenant-context";
+import {
+  AuthenticationRequiredError,
+  CrossTenantAccessError,
+  PermissionDeniedError,
+  TenantScopeRequiredError,
+  type TenantContext,
+} from "@/domain/security/tenant-context";
 import { CognitiveModelContractError, CognitiveModelUnavailableError } from "@/domain/core/cognitive-model";
 import { logEvent } from "@/infrastructure/observability/logger";
 
@@ -31,13 +38,26 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(answer);
   } catch (error) {
-    if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: error.message }, { status: 401 });
-    if (error instanceof TenantScopeRequiredError) return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error instanceof AuthenticationRequiredError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (
+      error instanceof TenantScopeRequiredError ||
+      error instanceof PermissionDeniedError ||
+      error instanceof CrossTenantAccessError
+    ) {
+      await auditCoreQuery(context, "denied", { error: error.message });
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     if (error instanceof CoreArgumentError) {
       await auditCoreQuery(context, "failure", { error: error.message });
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    if (error instanceof CognitiveModelUnavailableError || error instanceof CognitiveModelContractError) {
+    if (
+      error instanceof CognitiveModelUnavailableError ||
+      error instanceof CognitiveModelContractError ||
+      error instanceof CoreReadCapabilityContractError
+    ) {
       await auditCoreQuery(context, "failure", { error: error.message });
       return NextResponse.json({ error: error.message }, { status: 503 });
     }

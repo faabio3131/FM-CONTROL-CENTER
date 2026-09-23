@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CoreArgumentError, CoreGateway } from "@/application/core/core-gateway";
+import {
+  CoreReadCapabilityContractError,
+  type CoreReadCapability,
+} from "@/domain/core/read-capability";
 import { FmccVerticalCognitiveCore } from "@/application/core/fmcc-vertical-cognitive-core";
 import type { MetricService } from "@/application/metrics/metric-service";
 import type { CognitiveModel } from "@/domain/core/cognitive-model";
@@ -194,4 +198,294 @@ describe("F09/F11 FMCC Vertical Cognitive Core", () => {
       new FmccVerticalCognitiveCore(cognitiveModel), metrics, undefined, productRepo(),
     ).ask(context, "Consulte foreign")).rejects.toBeInstanceOf(CoreArgumentError);
   });
+});
+
+
+describe("FMCC governed read capabilities", () => {
+  const commercialCapability: CoreReadCapability = {
+    descriptor: {
+      id: "commercial.kordena.summary",
+      displayName: "Resumo comercial Kordena",
+      description: "Estado comercial atual governado.",
+      productSlugs: ["kordena"],
+    },
+    async read(received, input) {
+      expect(received.tenantId).toBe("tenant-b");
+      expect(input.productSlugs).toEqual(["kordena"]);
+      return {
+        status: "available",
+        fact: {
+          capabilityId: "commercial.kordena.summary",
+          productSlug: "kordena",
+          summary: {
+            active_trials: 3,
+            active_subscriptions: 7,
+          },
+        },
+        evidence: {
+          kind: "source",
+          ref: "kordena.fmcc.commercial.v1",
+          productId: "p-kordena",
+          productSlug: "kordena",
+          sourceAuthority: "kordena_fm_commercial_platform",
+          freshnessStatus: "fresh",
+          qualityStatus: "verified",
+          provenanceRefs: ["source:source-kordena"],
+          asOf: "2026-09-23T18:00:00.000Z",
+        },
+      };
+    },
+  };
+
+  it("usa capability comercial governada sem consultar métrica inexistente", async () => {
+    let metricCalled = false;
+    const cognitiveModel: CognitiveModel = {
+      async plan() {
+        return {
+          metricIds: [],
+          capabilityIds: ["commercial.kordena.summary"],
+          productSlugs: ["kordena"],
+        };
+      },
+      async synthesize(input) {
+        expect(input.facts).toEqual([
+          expect.objectContaining({
+            capabilityId: "commercial.kordena.summary",
+            productSlug: "kordena",
+          }),
+        ]);
+        expect(input.evidence).toEqual([
+          expect.objectContaining({
+            kind: "source",
+            ref: "kordena.fmcc.commercial.v1",
+            sourceAuthority: "kordena_fm_commercial_platform",
+          }),
+        ]);
+        return "O Kordena possui 3 trials ativos e 7 assinaturas ativas.";
+      },
+    };
+    const metrics = {
+      async query() {
+        metricCalled = true;
+        throw new Error("metric should not be called");
+      },
+    } as unknown as MetricService;
+
+    const answer = await new CoreGateway(
+      new FmccVerticalCognitiveCore(cognitiveModel),
+      metrics,
+      undefined,
+      productRepo(),
+      undefined,
+      [commercialCapability],
+    ).ask(context, "Quantos trials e assinaturas estão ativos no Kordena?");
+
+    expect(metricCalled).toBe(false);
+    expect(answer).toMatchObject({
+      factualStatus: "grounded",
+      evidence: [{ ref: "kordena.fmcc.commercial.v1" }],
+    });
+  });
+
+  it("não chama síntese quando a capability informa ausência de evidência", async () => {
+    let synthesisCalled = false;
+    const cognitiveModel: CognitiveModel = {
+      async plan() {
+        return {
+          metricIds: [],
+          capabilityIds: ["commercial.kordena.summary"],
+          productSlugs: ["kordena"],
+        };
+      },
+      async synthesize() {
+        synthesisCalled = true;
+        return "não deveria";
+      },
+    };
+    const unavailable: CoreReadCapability = {
+      ...commercialCapability,
+      async read() {
+        return {
+          status: "unavailable",
+          evidence: {
+            kind: "source",
+            ref: "kordena.fmcc.commercial.v1",
+            productSlug: "kordena",
+            freshnessStatus: "unavailable",
+            qualityStatus: "missing",
+          },
+        };
+      },
+    };
+
+    const answer = await new CoreGateway(
+      new FmccVerticalCognitiveCore(cognitiveModel),
+      { async query() { return null; } } as unknown as MetricService,
+      undefined,
+      productRepo(),
+      undefined,
+      [unavailable],
+    ).ask(context, "Quantos trials ativos existem?");
+
+    expect(answer.factualStatus).toBe("unavailable");
+    expect(answer.answer).toContain("indisponíveis");
+    expect(synthesisCalled).toBe(false);
+  });
+
+  it("rejeita resultado incompatível de capability em vez de sintetizar", async () => {
+    const cognitiveModel: CognitiveModel = {
+      async plan() {
+        return {
+          metricIds: [],
+          capabilityIds: ["commercial.kordena.summary"],
+          productSlugs: ["kordena"],
+        };
+      },
+      async synthesize() {
+        return "não deveria";
+      },
+    };
+    const malformed: CoreReadCapability = {
+      ...commercialCapability,
+      async read() {
+        return {
+          status: "available",
+          fact: null,
+          evidence: {
+            kind: "source",
+            ref: "kordena.fmcc.commercial.v1",
+          },
+        } as unknown as Awaited<ReturnType<CoreReadCapability["read"]>>;
+      },
+    };
+
+    await expect(
+      new CoreGateway(
+        new FmccVerticalCognitiveCore(cognitiveModel),
+        { async query() { return null; } } as unknown as MetricService,
+        undefined,
+        productRepo(),
+        undefined,
+        [malformed],
+      ).ask(context, "Consulte o estado comercial."),
+    ).rejects.toBeInstanceOf(CoreReadCapabilityContractError);
+  });
+
+  it("falha fechado quando uma capability Kordena é planejada somente para outro produto", async () => {
+    const cognitiveModel: CognitiveModel = {
+      async plan() {
+        return {
+          metricIds: [],
+          capabilityIds: ["commercial.kordena.summary"],
+          productSlugs: ["iron"],
+        };
+      },
+      async synthesize() {
+        return "não deveria";
+      },
+    };
+
+    await expect(
+      new CoreGateway(
+        new FmccVerticalCognitiveCore(cognitiveModel),
+        { async query() { return null; } } as unknown as MetricService,
+        undefined,
+        productRepo(),
+        undefined,
+        [commercialCapability],
+      ).ask(context, "Use os dados do Kordena para responder sobre o IRON."),
+    ).rejects.toBeInstanceOf(CoreArgumentError);
+  });
+});
+
+
+describe("FMCC capability provenance guard", () => {
+  it("rejeita capability disponível sem provenance", async () => {
+    const cognitiveModel: CognitiveModel = {
+      async plan() {
+        return {
+          metricIds: [],
+          capabilityIds: ["commercial.kordena.summary"],
+          productSlugs: ["kordena"],
+        };
+      },
+      async synthesize() {
+        return "não deveria";
+      },
+    };
+    const withoutProvenance: CoreReadCapability = {
+      descriptor: {
+        id: "commercial.kordena.summary",
+        displayName: "Resumo comercial Kordena",
+        description: "Estado comercial atual governado.",
+        productSlugs: ["kordena"],
+      },
+      async read() {
+        return {
+          status: "available",
+          fact: { active_trials: 3 },
+          evidence: {
+            kind: "source",
+            ref: "kordena.fmcc.commercial.v1",
+            sourceAuthority: "kordena_fm_commercial_platform",
+            freshnessStatus: "fresh",
+            qualityStatus: "verified",
+            provenanceRefs: [],
+          },
+        };
+      },
+    };
+
+    await expect(
+      new CoreGateway(
+        new FmccVerticalCognitiveCore(cognitiveModel),
+        { async query() { return null; } } as unknown as MetricService,
+        undefined,
+        productRepo(),
+        undefined,
+        [withoutProvenance],
+      ).ask(context, "Quantos trials ativos?"),
+    ).rejects.toBeInstanceOf(CoreReadCapabilityContractError);
+  });
+});
+
+
+describe("FMCC executive governed questions", () => {
+  it.each([
+    ["Qual é a inadimplência?", "receivable.delinquent_amount", "350"],
+    ["Existe problema de saúde operacional?", "incident.count", "2"],
+  ])(
+    "responde %s somente por métrica governada",
+    async (_question, metricId, value) => {
+      const requested: string[] = [];
+      const cognitiveModel: CognitiveModel = {
+        async plan() {
+          return { metricIds: [metricId], productSlugs: [] };
+        },
+        async synthesize(input) {
+          expect(input.facts).toEqual([
+            expect.objectContaining({ metricId, value }),
+          ]);
+          expect(input.evidence).toEqual([
+            expect.objectContaining({ kind: "metric", ref: metricId }),
+          ]);
+          return "Resposta executiva baseada em métrica governada.";
+        },
+      };
+      const metrics = {
+        async query(_context: TenantContext, receivedMetricId: string) {
+          requested.push(receivedMetricId);
+          return metric(receivedMetricId, undefined, value);
+        },
+      } as unknown as MetricService;
+
+      const answer = await new CoreGateway(
+        new FmccVerticalCognitiveCore(cognitiveModel),
+        metrics,
+      ).ask(context, String(_question));
+
+      expect(requested).toEqual([metricId]);
+      expect(answer.factualStatus).toBe("grounded");
+    },
+  );
 });
