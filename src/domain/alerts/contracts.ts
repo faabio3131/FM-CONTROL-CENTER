@@ -53,6 +53,7 @@ export interface AlertRepository {
   createRule(input: AlertRule & { idempotencyKey: string }): Promise<{ rule: AlertRule; created: boolean }>;
   listRules(tenantId: string): Promise<readonly AlertRule[]>;
   findRule(tenantId: string, ruleId: string): Promise<AlertRule | null>;
+  disableRule(tenantId: string, ruleId: string, actorId: string, correlationId: string): Promise<boolean>;
   recordOccurrence(input: AlertOccurrence): Promise<{ occurrence: AlertOccurrence; created: boolean }>;
   listOccurrences(tenantId: string, limit?: number): Promise<readonly AlertOccurrence[]>;
   acknowledge(tenantId: string, occurrenceId: string, actorId: string, correlationId: string): Promise<boolean>;
