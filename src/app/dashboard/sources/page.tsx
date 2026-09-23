@@ -64,7 +64,7 @@ export default async function SourcesPage() {
     <main className="dashboard-shell">
       <header className="dashboard-header">
         <div>
-          <span className="eyebrow">Integration Fabric</span>
+          <span className="eyebrow">Malha de Integrações</span>
           <h1>Fontes e Integrações</h1>
           <p>
             Cadastro, teste de saúde e sincronização de fontes governadas.
@@ -83,7 +83,7 @@ export default async function SourcesPage() {
         </article>
         <article>
           <strong>Isolamento</strong>
-          <span>Tenant validado antes de acessar a fonte</span>
+          <span>Organização validada antes de acessar a fonte</span>
         </article>
         <article>
           <strong>Ingestão</strong>
