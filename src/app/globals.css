@@ -58,3 +58,16 @@
 .foundation-grid>a{border:1px solid var(--border);background:var(--card);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:6px}
 .foundation-grid>a:hover{border-color:#475569}
 .foundation-grid>a:focus-visible{outline:2px solid #9aa4b2;outline-offset:3px}
+
+
+.alert-control{max-width:1180px;margin:0 auto 36px}
+.alert-rule-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end;margin-bottom:24px}
+.alert-rule-form label{display:grid;gap:7px}
+.alert-rule-form select{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0c1018;color:var(--text)}
+.alert-list{display:grid;gap:12px;margin-top:16px}
+.alert-item{border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:16px;display:flex;justify-content:space-between;gap:18px;align-items:center}
+.alert-item>div:first-child{display:grid;gap:5px}
+.alert-item span{color:var(--muted);font-size:.88rem}
+.alert-actions{display:flex;gap:8px;flex-wrap:wrap}
+.alert-feedback{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+@media(max-width:720px){.alert-item{align-items:stretch;flex-direction:column}.alert-actions .button{width:100%}}
