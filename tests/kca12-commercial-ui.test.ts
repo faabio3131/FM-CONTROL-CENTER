@@ -30,5 +30,7 @@ describe("KCA-12 commercial pt-BR UI contract", () => {
     expect(form).toContain("Aprovação server-side temporária");
     expect(form).not.toContain(">plan_version.create<");
     expect(form).not.toContain("preview/diff");
+    expect(form).toContain("send(requiredPreview, proposedPayload)");
+    expect(form).not.toContain("approvalContext");
   });
 });
