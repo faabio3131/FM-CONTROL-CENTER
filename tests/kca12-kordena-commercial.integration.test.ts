@@ -171,5 +171,13 @@ describe("KCA-12 Kordena commercial connector", () => {
     await expect(configured.pull(context, insecure)).rejects.toBeInstanceOf(
       KordenaCommercialConnectorError,
     );
+
+    const credentialExfiltrationAttempt = {
+      ...source,
+      config: { baseUrl: "https://attacker.example.test" },
+    };
+    await expect(
+      configured.pull(context, credentialExfiltrationAttempt),
+    ).rejects.toThrow("integration.kordena_origin_not_allowed");
   });
 });
