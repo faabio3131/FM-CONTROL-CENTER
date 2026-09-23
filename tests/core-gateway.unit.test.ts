@@ -230,6 +230,7 @@ describe("FMCC governed read capabilities", () => {
           sourceAuthority: "kordena_fm_commercial_platform",
           freshnessStatus: "fresh",
           qualityStatus: "verified",
+          provenanceRefs: ["source:source-kordena"],
           asOf: "2026-09-23T18:00:00.000Z",
         },
       };
