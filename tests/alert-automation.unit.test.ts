@@ -5,8 +5,11 @@ import type { AlertService } from "@/application/alerts/alert-service";
 class MemoryRuns {
   started = new Set<string>();
   completed: Record<string, unknown>[] = [];
+  failed: Record<string, unknown>[] = [];
+  failListing = false;
 
   async listTenantIdsWithRules() {
+    if (this.failListing) throw new Error("database unavailable");
     return ["tenant-a", "tenant-b"];
   }
 
@@ -18,6 +21,10 @@ class MemoryRuns {
 
   async completeRun(input: Record<string, unknown>) {
     this.completed.push(input);
+  }
+
+  async failRun(input: Record<string, unknown>) {
+    this.failed.push(input);
   }
 
   newCorrelationId() {
@@ -105,6 +112,29 @@ describe("automação proativa de alertas", () => {
 
     expect(duplicate.status).toBe("duplicate");
     expect(alerts.evaluated).toHaveLength(2);
+  });
+
+  it("registra falha terminal quando a execução quebra fora da avaliação por regra", async () => {
+    const runs = new MemoryRuns();
+    runs.failListing = true;
+    const alerts = fakeAlertService();
+    const service = new AlertAutomationService(
+      runs as never,
+      alerts.service,
+    );
+
+    await expect(
+      service.run({
+        runId: "run-automation-failure-0001",
+        correlationId: "corr-automation-failure-0001",
+      }),
+    ).rejects.toThrow("database unavailable");
+
+    expect(runs.failed).toHaveLength(1);
+    expect(runs.failed[0]).toMatchObject({
+      runId: "run-automation-failure-0001",
+      errorCode: "Error",
+    });
   });
 
   it("recusa runId fraco ou inválido", async () => {
