@@ -196,6 +196,13 @@ describe("KCA-13 Kordena observability contract", () => {
 
     expect(page).toContain('metric.status === "unavailable"');
     expect(page).toContain('"Indisponível"');
+    expect(page).toContain("Cadastros iniciados");
+    expect(page).toContain("Cadastros concluídos");
+    expect(page).toContain("Organizações provisionadas");
+    expect(page).toContain("referência de segredo");
+    expect(page).not.toContain("Signups iniciados");
+    expect(page).not.toContain("Tenants provisionados");
+    expect(page).not.toContain("0 assinaturas ativas");
     expect(page).toContain("snapshot.observability");
     expect(capability).toContain("observability: snapshot.observability");
     expect(capability).not.toContain("commercial:write");
