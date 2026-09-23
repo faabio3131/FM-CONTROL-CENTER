@@ -92,6 +92,7 @@ export default async function DashboardPage() {
         <Link href="/dashboard/intelligence"><strong>Inteligência Executiva</strong><span>F16 · análise avançada governada</span></Link>
         <Link href="/dashboard/alerts"><strong>Alertas e Automações</strong><span>F17 · regras e workflows governados</span></Link>
         <Link href="/dashboard/commercial/kordena"><strong>Kordena Comercial</strong><span>Integração comercial governada</span></Link>
+        <Link href="/dashboard/sources"><strong>Fontes e Integrações</strong><span>Integration Fabric · conexões governadas</span></Link>
       </section>
 
       <section className="executive-section" aria-labelledby="executive-overview-title">
