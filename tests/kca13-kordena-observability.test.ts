@@ -112,7 +112,10 @@ function snapshot(): KordenaCommercialSnapshot {
         },
       },
       alerts: [],
-      tracing: { correlation_ids: ["corr-kca13"] },
+      tracing: {
+        correlation_ids: ["corr-kca13"],
+        correlation_id_required_by_commercial_flows: true,
+      },
       coverage: {
         ai_cost: "existing_ai_finops_read_model",
         infrastructure_cost: "unavailable_source_not_configured",
@@ -176,6 +179,55 @@ describe("KCA-13 Kordena observability contract", () => {
     await expect(connector.snapshot(context, source)).rejects.toThrow(
       "integration.kordena_snapshot_contract_invalid",
     );
+  });
+
+  it("fails closed on empty provenance, malformed alerts, or incomplete tracing", async () => {
+    const variants = [
+      {
+        ...snapshot(),
+        observability: {
+          ...snapshot().observability,
+          metrics: {
+            ...snapshot().observability?.metrics,
+            mrr: {
+              ...snapshot().observability?.metrics.mrr,
+              provenance_refs: [],
+            },
+          },
+        },
+      },
+      {
+        ...snapshot(),
+        observability: {
+          ...snapshot().observability,
+          alerts: [{ code: "bad", severity: "high", count: 0, message: "bad" }],
+        },
+      },
+      {
+        ...snapshot(),
+        observability: {
+          ...snapshot().observability,
+          tracing: { correlation_ids: ["corr-kca13"] },
+        },
+      },
+    ];
+
+    for (const malformed of variants) {
+      const connector = new KordenaCommercialConnector(
+        () => "x".repeat(40),
+        async () =>
+          new Response(JSON.stringify(malformed), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        () => ["https://kordena.example.test"],
+        () => "tenant-fmcc",
+      );
+
+      await expect(connector.snapshot(context, source)).rejects.toThrow(
+        "integration.kordena_snapshot_contract_invalid",
+      );
+    }
   });
 
   it("keeps unavailable metrics unavailable in the dashboard and read-only in the Core", () => {
