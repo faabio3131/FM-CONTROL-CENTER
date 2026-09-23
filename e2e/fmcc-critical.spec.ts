@@ -172,7 +172,7 @@ test("fontes: cadastro governado do Kordena permanece fail-closed sem runtime ex
   await page.goto("/dashboard/sources");
   await expect(page.getByRole("heading", { name: "Fontes e Integrações" })).toBeVisible();
 
-  await page.getByLabel("Produto").selectOption({ label: new RegExp("Kordena") });
+  await page.getByLabel("Produto").selectOption({ index: 1 });
   await page.getByLabel("URL HTTPS do Kordena").fill("https://kordena.example.test");
   await page.getByLabel("Atualidade esperada (segundos)").fill("300");
   await page.getByRole("button", { name: "Cadastrar fonte" }).click();
