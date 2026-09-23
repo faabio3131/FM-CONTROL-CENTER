@@ -448,3 +448,44 @@ describe("FMCC capability provenance guard", () => {
     ).rejects.toBeInstanceOf(CoreReadCapabilityContractError);
   });
 });
+
+
+describe("FMCC executive governed questions", () => {
+  it.each([
+    ["Qual é a inadimplência?", "receivable.delinquent_amount", "350"],
+    ["Existe problema de saúde operacional?", "incident.count", "2"],
+  ])(
+    "responde %s somente por métrica governada",
+    async (_question, metricId, value) => {
+      const requested: string[] = [];
+      const cognitiveModel: CognitiveModel = {
+        async plan() {
+          return { metricIds: [metricId], productSlugs: [] };
+        },
+        async synthesize(input) {
+          expect(input.facts).toEqual([
+            expect.objectContaining({ metricId, value }),
+          ]);
+          expect(input.evidence).toEqual([
+            expect.objectContaining({ kind: "metric", ref: metricId }),
+          ]);
+          return "Resposta executiva baseada em métrica governada.";
+        },
+      };
+      const metrics = {
+        async query(_context: TenantContext, receivedMetricId: string) {
+          requested.push(receivedMetricId);
+          return metric(receivedMetricId, undefined, value);
+        },
+      } as unknown as MetricService;
+
+      const answer = await new CoreGateway(
+        new FmccVerticalCognitiveCore(cognitiveModel),
+        metrics,
+      ).ask(context, String(_question));
+
+      expect(requested).toEqual([metricId]);
+      expect(answer.factualStatus).toBe("grounded");
+    },
+  );
+});
