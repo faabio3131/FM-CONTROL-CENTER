@@ -2,6 +2,7 @@ import type { MetricService } from "@/application/metrics/metric-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import {
   actionRisk,
+  compareAlertThresholdDefinition,
   evaluateAlertThreshold,
   stableFingerprint,
   validDecimalThreshold,
@@ -106,6 +107,26 @@ export class AlertService {
     const archived = await this.repository.archiveRule(context.tenantId, ruleId, context.userId, context.correlationId);
     if (!archived) throw new AlertRuleNotFoundError();
     return { ruleId, status: "archived" as const };
+  }
+
+  async ruleDetail(context: TenantContext, ruleId: string) {
+    requirePermission(context, "alert:read");
+    const rule = await this.repository.findRule(context.tenantId, ruleId);
+    if (!rule) throw new AlertRuleNotFoundError();
+    const [lifecycle, occurrences, currentMetric] = await Promise.all([
+      this.repository.listRuleLifecycle(context.tenantId, ruleId),
+      this.repository.listOccurrencesForRule(context.tenantId, ruleId, 100),
+      this.metrics.query(context, rule.metricId, rule.productId),
+    ]);
+    const comparison = compareAlertThresholdDefinition(rule, currentMetric);
+    return {
+      rule,
+      lifecycle,
+      occurrences,
+      currentMetric,
+      comparison,
+      readOnly: true as const,
+    };
   }
 
   async evaluate(context: TenantContext, ruleId: string) {
