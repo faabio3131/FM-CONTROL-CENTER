@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { rotuloEstadoOcorrencia, rotuloEstadoRegraAlerta, rotuloMetrica, rotuloOperadorAlerta, rotuloSeveridadeAlerta } from "@/presentation/pt-br";
 
 type Rule = { id: string; metricId: string; operator: string; threshold: string; severity: string; enabled: boolean; archived: boolean; productId?: string };
 type Occurrence = { id: string; metricId: string; observedValue: string; threshold: string; severity: string; status: string };
@@ -76,15 +77,15 @@ export function AlertControlPanel(props: {
     <section className="alert-control" aria-labelledby="alert-control-title">
       <div className="section-heading">
         <div><span className="eyebrow">Políticas determinísticas</span><h2 id="alert-control-title">Configuração e ações</h2></div>
-        <p>Ações críticas não são executadas pelo Core. F17 gera somente intents/previews auditáveis.</p>
+        <p>Ações críticas não são executadas pelo Core. A F17 gera somente intenções e prévias auditáveis.</p>
       </div>
 
       {props.canWrite ? (
         <form className="alert-rule-form" onSubmit={createRule}>
           <label>Métrica<select name="metricId">{props.metrics.map((metric) => <option value={metric.metricId} key={metric.metricId}>{metric.displayName}</option>)}</select></label>
           <label>Produto<select name="productId"><option value="">Global</option>{props.products.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}</select></label>
-          <label>Operador<select name="operator" defaultValue="gt"><option value="gt">&gt;</option><option value="gte">≥</option><option value="lt">&lt;</option><option value="lte">≤</option><option value="eq">=</option></select></label>
-          <label>Threshold<input name="threshold" inputMode="decimal" required placeholder="Ex.: 10" /></label>
+          <label>Operador<select name="operator" defaultValue="gt"><option value="gt">Maior que (&gt;)</option><option value="gte">Maior ou igual a (≥)</option><option value="lt">Menor que (&lt;)</option><option value="lte">Menor ou igual a (≤)</option><option value="eq">Igual a (=)</option></select></label>
+          <label>Limite<input name="threshold" inputMode="decimal" required placeholder="Ex.: 10" /></label>
           <label>Severidade<select name="severity" defaultValue="warning"><option value="info">Informativa</option><option value="warning">Atenção</option><option value="critical">Crítica</option></select></label>
           <button className="button primary" disabled={busy} type="submit">Criar regra</button>
         </form>
@@ -94,8 +95,9 @@ export function AlertControlPanel(props: {
         {operationalRules.length ? operationalRules.map((rule) => (
           <article className="alert-item" key={rule.id}>
             <div>
-              <strong>{rule.metricId}</strong>
-              <span>{rule.operator} {rule.threshold} · {rule.severity} · {rule.enabled ? "ativa" : "desativada"}</span>
+              <strong>{rotuloMetrica(rule.metricId)}</strong>
+              <span>{rotuloOperadorAlerta(rule.operator)} {rule.threshold} · {rotuloSeveridadeAlerta(rule.severity)} · {rotuloEstadoRegraAlerta(rule.enabled, rule.archived)}</span>
+              <span>Identificador técnico: {rule.metricId}</span>
             </div>
             {props.canWrite ? (
               <div className="alert-actions">
@@ -129,8 +131,9 @@ export function AlertControlPanel(props: {
             {archivedRules.map((rule) => (
               <Link className="alert-item archive-link" href={`/dashboard/alerts/rules/${encodeURIComponent(rule.id)}`} key={rule.id}>
                 <div>
-                  <strong>{rule.metricId}</strong>
-                  <span>{rule.operator} {rule.threshold} · {rule.severity} · arquivada</span>
+                  <strong>{rotuloMetrica(rule.metricId)}</strong>
+                  <span>{rotuloOperadorAlerta(rule.operator)} {rule.threshold} · {rotuloSeveridadeAlerta(rule.severity)} · {rotuloEstadoRegraAlerta(rule.enabled, rule.archived)}</span>
+                  <span>Identificador técnico: {rule.metricId}</span>
                 </div>
                 <span>Abrir arquivo →</span>
               </Link>
@@ -143,8 +146,9 @@ export function AlertControlPanel(props: {
         {props.occurrences.length ? props.occurrences.map((occurrence) => (
           <article className="alert-item" key={occurrence.id}>
             <div>
-              <strong>{occurrence.metricId} · {occurrence.severity}</strong>
-              <span>Observado {occurrence.observedValue} · threshold {occurrence.threshold} · {occurrence.status}</span>
+              <strong>{rotuloMetrica(occurrence.metricId)} · {rotuloSeveridadeAlerta(occurrence.severity)}</strong>
+              <span>Valor observado {occurrence.observedValue} · limite {occurrence.threshold} · {rotuloEstadoOcorrencia(occurrence.status)}</span>
+              <span>Identificador técnico: {occurrence.metricId}</span>
             </div>
             <div className="alert-actions">
               {props.canWrite && occurrence.status === "active" ? <button className="button" disabled={busy} onClick={async () => {
