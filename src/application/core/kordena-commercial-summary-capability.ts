@@ -120,6 +120,7 @@ export class KordenaCommercialSummaryCapability implements CoreReadCapability {
           schemaVersion: snapshot.schema_version,
           mappingVersion: source.mappingVersion,
           summary: snapshot.summary,
+          observability: snapshot.observability,
           coverage: snapshot.coverage,
         },
         evidence,
