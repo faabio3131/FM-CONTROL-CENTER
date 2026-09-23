@@ -250,8 +250,42 @@ function validObservabilityMetric(
     typeof item.quality_status === "string" &&
     typeof item.source_authority === "string" &&
     Array.isArray(item.provenance_refs) &&
-    item.provenance_refs.every((ref) => typeof ref === "string") &&
-    typeof item.definition === "string"
+    item.provenance_refs.length > 0 &&
+    item.provenance_refs.every(
+      (ref) => typeof ref === "string" && ref.trim().length > 0,
+    ) &&
+    typeof item.source_authority === "string" &&
+    item.source_authority.trim().length > 0 &&
+    typeof item.definition === "string" &&
+    item.definition.trim().length > 0
+  );
+}
+
+function validKca13Alert(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.code === "string" &&
+    item.code.trim().length > 0 &&
+    typeof item.severity === "string" &&
+    ["info", "low", "medium", "high", "critical"].includes(item.severity) &&
+    typeof item.count === "number" &&
+    Number.isInteger(item.count) &&
+    item.count > 0 &&
+    typeof item.message === "string" &&
+    item.message.trim().length > 0
+  );
+}
+
+function validKca13Tracing(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    Array.isArray(item.correlation_ids) &&
+    item.correlation_ids.every(
+      (id) => typeof id === "string" && id.trim().length > 0,
+    ) &&
+    item.correlation_id_required_by_commercial_flows === true
   );
 }
 
@@ -283,12 +317,14 @@ function validKca13Observability(
     typeof item.finops === "object" &&
     !Array.isArray(item.finops) &&
     Array.isArray(item.alerts) &&
-    !!item.tracing &&
-    typeof item.tracing === "object" &&
-    !Array.isArray(item.tracing) &&
+    item.alerts.every(validKca13Alert) &&
+    validKca13Tracing(item.tracing) &&
     !!item.coverage &&
     typeof item.coverage === "object" &&
-    !Array.isArray(item.coverage)
+    !Array.isArray(item.coverage) &&
+    Object.values(item.coverage as Record<string, unknown>).every(
+      (coverage) => typeof coverage === "string" && coverage.trim().length > 0,
+    )
   );
 }
 
