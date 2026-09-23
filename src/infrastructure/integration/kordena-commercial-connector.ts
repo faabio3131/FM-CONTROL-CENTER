@@ -66,26 +66,41 @@ export interface KordenaCommercialSnapshot {
   readonly coverage: Readonly<Record<string, string>>;
 }
 
+export const KORDENA_COMMERCIAL_ACTIONS = [
+  "plan_version.create",
+  "plan_version.validate",
+  "plan_version.preview",
+  "plan_version.publish",
+  "price.create",
+  "price.validate",
+  "price.preview",
+  "price.publish",
+  "promotion.create",
+  "promotion_version.create",
+  "promotion_version.validate",
+  "promotion_version.preview",
+  "promotion_version.publish",
+] as const;
+
+export type KordenaCommercialAction =
+  (typeof KORDENA_COMMERCIAL_ACTIONS)[number];
+
+export function isKordenaCommercialAction(
+  value: unknown,
+): value is KordenaCommercialAction {
+  return (
+    typeof value === "string" &&
+    (KORDENA_COMMERCIAL_ACTIONS as readonly string[]).includes(value)
+  );
+}
+
 export interface KordenaCommercialCommand {
   readonly actor: {
     readonly user_id: string;
     readonly role: "owner" | "admin";
     readonly step_up_at: string;
   };
-  readonly action:
-    | "plan_version.create"
-    | "plan_version.validate"
-    | "plan_version.preview"
-    | "plan_version.publish"
-    | "price.create"
-    | "price.validate"
-    | "price.preview"
-    | "price.publish"
-    | "promotion.create"
-    | "promotion_version.create"
-    | "promotion_version.validate"
-    | "promotion_version.preview"
-    | "promotion_version.publish";
+  readonly action: KordenaCommercialAction;
   readonly resource_id?: string;
   readonly payload: Record<string, unknown>;
 }
@@ -476,7 +491,7 @@ export class KordenaCommercialConnector implements Connector {
     return (await response.json()) as Record<string, unknown>;
   }
 
-  private request(
+  private async request(
     context: ConnectorContext,
     source: SourceDefinition,
     path: string,
@@ -488,13 +503,49 @@ export class KordenaCommercialConnector implements Connector {
         "integration.kordena_control_tenant_denied",
       );
     }
+    if (
+      !Number.isFinite(context.timeoutMs) ||
+      context.timeoutMs < 1 ||
+      context.timeoutMs > 120_000
+    ) {
+      throw new KordenaCommercialConnectorError(
+        "integration.kordena_timeout_invalid",
+      );
+    }
+
     const token = serviceToken(source, this.resolveSecret);
     const headers = new Headers(init.headers);
     headers.set("authorization", `Bearer ${token}`);
     headers.set("x-correlation-id", context.correlationId);
-    return this.fetcher(`${sourceBaseUrl(source, this.allowedOrigins())}${path}`, {
-      ...init,
-      headers,
+
+    const controller = new AbortController();
+    const upstreamSignal = init.signal;
+    const abortFromUpstream = () => controller.abort();
+    if (upstreamSignal?.aborted) controller.abort();
+    else upstreamSignal?.addEventListener("abort", abortFromUpstream, {
+      once: true,
     });
+    const timer = setTimeout(() => controller.abort(), context.timeoutMs);
+
+    try {
+      return await this.fetcher(
+        `${sourceBaseUrl(source, this.allowedOrigins())}${path}`,
+        {
+          ...init,
+          headers,
+          signal: controller.signal,
+        },
+      );
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new KordenaCommercialConnectorError(
+          "integration.kordena_request_timeout",
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      upstreamSignal?.removeEventListener("abort", abortFromUpstream);
+    }
   }
 }
