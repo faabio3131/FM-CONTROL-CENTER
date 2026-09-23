@@ -47,67 +47,80 @@ export class AlertAutomationService {
       };
     }
 
-    const tenantIds = await this.runs.listTenantIdsWithRules();
-    let rulesEvaluated = 0;
-    let occurrencesCreated = 0;
-    let unavailable = 0;
-    let clear = 0;
-    let incompatible = 0;
-    let failures = 0;
+    try {
+      const tenantIds = await this.runs.listTenantIdsWithRules();
+      let rulesEvaluated = 0;
+      let occurrencesCreated = 0;
+      let unavailable = 0;
+      let clear = 0;
+      let incompatible = 0;
+      let failures = 0;
 
-    for (const tenantId of tenantIds) {
-      const context: TenantContext = {
-        tenantId,
-        userId: "system:fmcc-alert-scheduler",
-        role: "admin",
-        correlationId: `${correlationId}:${tenantId}`,
-      };
+      for (const tenantId of tenantIds) {
+        const context: TenantContext = {
+          tenantId,
+          userId: "system:fmcc-alert-scheduler",
+          role: "admin",
+          correlationId: `${correlationId}:${tenantId}`,
+        };
 
-      try {
-        const overview = await this.alerts.overview(context);
-        const activeRules = overview.rules.filter(
-          (rule) => rule.enabled && !rule.archived,
-        );
+        try {
+          const overview = await this.alerts.overview(context);
+          const activeRules = overview.rules.filter(
+            (rule) => rule.enabled && !rule.archived,
+          );
 
-        for (const rule of activeRules) {
-          rulesEvaluated += 1;
-          try {
-            const result = await this.alerts.evaluate(context, rule.id);
-            if (result.created) occurrencesCreated += 1;
-            if (result.evaluation.status === "unavailable") unavailable += 1;
-            else if (result.evaluation.status === "clear") clear += 1;
-            else if (result.evaluation.status === "incompatible") incompatible += 1;
-          } catch {
-            failures += 1;
+          for (const rule of activeRules) {
+            rulesEvaluated += 1;
+            try {
+              const result = await this.alerts.evaluate(context, rule.id);
+              if (result.created) occurrencesCreated += 1;
+              if (result.evaluation.status === "unavailable") unavailable += 1;
+              else if (result.evaluation.status === "clear") clear += 1;
+              else if (result.evaluation.status === "incompatible") incompatible += 1;
+            } catch {
+              failures += 1;
+            }
           }
+        } catch {
+          failures += 1;
         }
-      } catch {
-        failures += 1;
       }
+
+      await this.runs.completeRun({
+        runId,
+        correlationId,
+        tenants: tenantIds.length,
+        rulesEvaluated,
+        occurrencesCreated,
+        unavailable,
+        clear,
+        incompatible,
+        failures,
+      });
+
+      return {
+        status: "completed",
+        runId,
+        tenants: tenantIds.length,
+        rulesEvaluated,
+        occurrencesCreated,
+        unavailable,
+        clear,
+        incompatible,
+        failures,
+      };
+    } catch (error) {
+      try {
+        await this.runs.failRun({
+          runId,
+          correlationId,
+          errorCode: error instanceof Error ? error.name : "UnknownError",
+        });
+      } catch {
+        // Preserve the original execution failure.
+      }
+      throw error;
     }
-
-    await this.runs.completeRun({
-      runId,
-      correlationId,
-      tenants: tenantIds.length,
-      rulesEvaluated,
-      occurrencesCreated,
-      unavailable,
-      clear,
-      incompatible,
-      failures,
-    });
-
-    return {
-      status: "completed",
-      runId,
-      tenants: tenantIds.length,
-      rulesEvaluated,
-      occurrencesCreated,
-      unavailable,
-      clear,
-      incompatible,
-      failures,
-    };
   }
 }
