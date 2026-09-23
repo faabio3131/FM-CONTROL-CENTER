@@ -15,7 +15,10 @@ import {
   StepUpRequiredError,
   verifyPasswordStepUp,
 } from "@/application/security/password-step-up";
-import type { KordenaCommercialCommand } from "@/infrastructure/integration/kordena-commercial-connector";
+import {
+  isKordenaCommercialAction,
+  type KordenaCommercialCommand,
+} from "@/infrastructure/integration/kordena-commercial-connector";
 import {
   AuthenticationRequiredError,
   CrossTenantAccessError,
@@ -44,12 +47,11 @@ export async function POST(request: Request) {
       resourceId?: unknown;
       payload?: unknown;
       approvalToken?: unknown;
-      approvalContext?: unknown;
     };
     if (
       typeof body.sourceId !== "string" ||
       typeof body.password !== "string" ||
-      typeof body.action !== "string" ||
+      !isKordenaCommercialAction(body.action) ||
       !body.payload ||
       typeof body.payload !== "object" ||
       Array.isArray(body.payload)
@@ -86,17 +88,6 @@ export async function POST(request: Request) {
     }
 
     const previewPublishAction = publishActionForPreview(body.action);
-    if (
-      previewPublishAction &&
-      (!body.approvalContext ||
-        typeof body.approvalContext !== "object" ||
-        Array.isArray(body.approvalContext))
-    ) {
-      return NextResponse.json(
-        { error: "commercial.approval_context_required" },
-        { status: 400 },
-      );
-    }
 
     const command = {
       actor: {
@@ -123,7 +114,7 @@ export async function POST(request: Request) {
           sourceId: body.sourceId,
           resourceId,
           publishAction: previewPublishAction,
-          publishPayload: body.approvalContext as Record<string, unknown>,
+          publishPayload,
         })
       : null;
     await recordAuditEvent(context, {
