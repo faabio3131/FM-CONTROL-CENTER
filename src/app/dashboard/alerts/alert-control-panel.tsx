@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-type Rule = { id: string; metricId: string; operator: string; threshold: string; severity: string; productId?: string };
+type Rule = { id: string; metricId: string; operator: string; threshold: string; severity: string; enabled: boolean; productId?: string };
 type Occurrence = { id: string; metricId: string; observedValue: string; threshold: string; severity: string; status: string };
 type Product = { id: string; name: string };
 type Metric = { metricId: string; displayName: string };
@@ -35,7 +35,8 @@ export function AlertControlPanel(props: {
         created?: boolean;
       };
       if (!response.ok) {
-        setMessage(payload.error ?? "Operação indisponível.");
+        if (payload.error === "alert.rule_duplicate") setMessage("Já existe uma regra ativa equivalente. Desative a existente antes de criar outra.");
+        else setMessage(payload.error ?? "Operação indisponível.");
         return null;
       }
       if (payload.preview?.reason) setMessage(`Preview ${payload.preview.riskLevel ?? ""}: ${payload.preview.reason}`);
@@ -87,11 +88,22 @@ export function AlertControlPanel(props: {
       <div className="alert-list">
         {props.rules.length ? props.rules.map((rule) => (
           <article className="alert-item" key={rule.id}>
-            <div><strong>{rule.metricId}</strong><span>{rule.operator} {rule.threshold} · {rule.severity}</span></div>
-            {props.canWrite ? <button className="button" disabled={busy} onClick={async () => {
-              const result = await request("/api/alerts/evaluate", { ruleId: rule.id });
-              if (result?.occurrence) window.location.reload();
-            }}>Avaliar agora</button> : null}
+            <div>
+              <strong>{rule.metricId}</strong>
+              <span>{rule.operator} {rule.threshold} · {rule.severity} · {rule.enabled ? "ativa" : "desativada"}</span>
+            </div>
+            {props.canWrite && rule.enabled ? (
+              <div className="alert-actions">
+                <button className="button" disabled={busy} onClick={async () => {
+                  const result = await request("/api/alerts/evaluate", { ruleId: rule.id });
+                  if (result?.occurrence) window.location.reload();
+                }}>Avaliar agora</button>
+                <button className="button" disabled={busy} onClick={async () => {
+                  const result = await request("/api/alerts/disable", { ruleId: rule.id });
+                  if (result) window.location.reload();
+                }}>Desativar</button>
+              </div>
+            ) : null}
           </article>
         )) : <div className="empty-state"><strong>Nenhuma regra configurada.</strong><p>Alertas não são inventados sem regra/threshold explícitos.</p></div>}
       </div>
