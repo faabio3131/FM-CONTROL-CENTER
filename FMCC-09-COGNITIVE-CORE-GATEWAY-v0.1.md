@@ -1,8 +1,8 @@
 # FM CONTROL CENTER — F09 FM COGNITIVE VERTICAL CORE
 
-**Status:** CONCLUÍDA COM EVIDÊNCIA EM PREVIEW / NÃO É PRODUÇÃO  
-**Data de reconciliação arquitetural:** 20/09/2026  
-**Data de certificação F09:** 22/09/2026  
+**Status:** CONCLUÍDA COM EVIDÊNCIA EM PREVIEW / NÃO É PRODUÇÃO
+**Data de reconciliação arquitetural:** 20/09/2026
+**Data de certificação F09:** 22/09/2026
 **Decisão vigente:** ADR-013 — Product-Owned FM Cognitive Vertical Core
 
 ## 1. Arquitetura vigente
@@ -137,5 +137,7 @@ Candidate funcional da extensão:
 
 `362595ea3c93f389d01b7e1d374c3fdb997c2c9c`
 
-A certificação documental final depende do gate do HEAD que contém este
-addendum.
+O addendum foi reconciliado com a recertificação documental verde do HEAD
+`4821d5bc6c08359c92e0fc1dae053c4d3f2a5206`. O commit de fechamento que
+registra essa evidência deve passar o mesmo gate no SHA exato; o check da PR
+funciona como evidência final sem exigir novo commit documental.
