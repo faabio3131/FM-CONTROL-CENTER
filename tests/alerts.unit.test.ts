@@ -19,7 +19,7 @@ function metric(value: string | null, freshness: MetricView["freshnessStatus"] =
 function rule(operator: AlertRule["operator"] = "gte", threshold = "10"): AlertRule {
   return {
     id: "rule-1", tenantId: context.tenantId, metricId: "incident.count",
-    operator, threshold, severity: "warning", enabled: true,
+    operator, threshold, severity: "warning", enabled: true, archived: false,
     createdBy: context.userId, createdAt: new Date(),
   };
 }
@@ -35,6 +35,12 @@ class MemoryRepository implements AlertRepository {
     const index = this.rules.findIndex((item) => item.tenantId === tenantId && item.id === ruleId);
     if (index < 0) return false;
     this.rules[index] = { ...this.rules[index], enabled: false };
+    return true;
+  }
+  async archiveRule(tenantId: string, ruleId: string) {
+    const index = this.rules.findIndex((item) => item.tenantId === tenantId && item.id === ruleId);
+    if (index < 0 || this.rules[index]?.enabled) return false;
+    this.rules[index] = { ...this.rules[index], archived: true };
     return true;
   }
   async recordOccurrence(input: AlertOccurrence) {
@@ -95,6 +101,18 @@ describe("F17 governed alerts", () => {
     const result = await service.disableRule(context, "rule-1");
     expect(result.status).toBe("disabled");
     expect(repository.rules[0]?.enabled).toBe(false);
+  });
+
+  it("arquiva regra somente após desativação e preserva o registro", async () => {
+    const repository = new MemoryRepository();
+    const metrics = { async query() { return null; } } as unknown as MetricService;
+    const service = new AlertService(repository, metrics);
+
+    await expect(service.archiveRule(context, "rule-1")).rejects.toThrow("alert.rule_must_be_disabled");
+    await service.disableRule(context, "rule-1");
+    const archived = await service.archiveRule(context, "rule-1");
+    expect(archived.status).toBe("archived");
+    expect(repository.rules[0]).toMatchObject({ enabled: false, archived: true });
   });
 
   it("é idempotente para a mesma observação e provenance", async () => {
