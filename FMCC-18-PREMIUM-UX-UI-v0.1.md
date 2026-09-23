@@ -144,3 +144,32 @@ Exigir:
 - lint/typecheck/build;
 - CI;
 - Preview visual/funcional.
+
+## 10. Evidência de execução
+
+A F18 evoluiu a mesma aplicação comercial, sem fork e sem segunda UI.
+
+Entregas comprovadas:
+- design tokens e superfícies premium;
+- experiência executiva com central de atenção;
+- refinamento da entrada do produto;
+- Core UX refinado;
+- Alerts UX refinado;
+- grids/cards e ações responsivas;
+- focus-visible;
+- aria-live/status onde aplicável;
+- reduced-motion;
+- feedback acessível;
+- testes de regressão UI.
+
+Gate de engenharia:
+- **Foundation Gate #244 — SUCCESS**
+- HEAD certificado: `84f1db731d81e7fb5bf15768b8376d567da73ccd`
+- 37 test files PASS;
+- 128 tests PASS;
+- 0 FAIL;
+- lint/typecheck/migrations/build/Docker/dependency audit PASS.
+
+Estado: **IMPLEMENTADA E CERTIFICADA EM CI**.
+
+A validação visual/funcional real do candidate será consolidada no Preview da tranche antes do veredito final.
