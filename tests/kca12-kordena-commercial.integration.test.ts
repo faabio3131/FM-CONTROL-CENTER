@@ -28,6 +28,8 @@ const context: ConnectorContext = {
   timeoutMs: 8000,
 };
 
+const controlTenant = () => "tenant-fmcc";
+
 function snapshot() {
   return {
     schema_version: "kordena.fmcc.commercial.v1",
@@ -75,6 +77,7 @@ describe("KCA-12 Kordena commercial connector", () => {
       (ref) => ref === source.secretRef ? "x".repeat(40) : undefined,
       fetcher,
       () => ["https://kordena.example.test"],
+      controlTenant,
     );
 
     const result = await connector.pull(context, source);
@@ -103,6 +106,7 @@ describe("KCA-12 Kordena commercial connector", () => {
         });
       },
       () => ["https://kordena.example.test"],
+      controlTenant,
     );
     const result = await connector.command(
       context,
@@ -142,6 +146,7 @@ describe("KCA-12 Kordena commercial connector", () => {
         () => "x".repeat(40),
         fetch,
         () => ["https://kordena.example.test"],
+        controlTenant,
       ),
     );
     await expect(
@@ -149,11 +154,30 @@ describe("KCA-12 Kordena commercial connector", () => {
     ).rejects.toThrow("security.cross_tenant_access_denied");
   });
 
+  it("denies Kordena access for a different FMCC tenant even with a valid source and secret", async () => {
+    const connector = new KordenaCommercialConnector(
+      () => "x".repeat(40),
+      async () => new Response(JSON.stringify(snapshot()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+      () => ["https://kordena.example.test"],
+      controlTenant,
+    );
+    const otherContext = { ...context, tenantId: "tenant-other" };
+    const otherSource = { ...source, tenantId: "tenant-other" };
+
+    await expect(
+      connector.pull(otherContext, otherSource),
+    ).rejects.toThrow("integration.kordena_control_tenant_denied");
+  });
+
   it("fails closed for insecure source URL or unavailable secret", async () => {
     const connector = new KordenaCommercialConnector(
       () => undefined,
       fetch,
       () => ["https://kordena.example.test"],
+      controlTenant,
     );
     await expect(connector.pull(context, source)).rejects.toBeInstanceOf(
       KordenaCommercialConnectorError,
@@ -167,6 +191,7 @@ describe("KCA-12 Kordena commercial connector", () => {
       () => "t".repeat(40),
       fetch,
       () => ["https://kordena.example.test"],
+      controlTenant,
     );
     await expect(
       dedicated.pull(context, wrongSecretReference),
@@ -180,6 +205,7 @@ describe("KCA-12 Kordena commercial connector", () => {
       () => "t".repeat(40),
       fetch,
       () => ["https://kordena.example.test"],
+      controlTenant,
     );
     await expect(configured.pull(context, insecure)).rejects.toBeInstanceOf(
       KordenaCommercialConnectorError,
