@@ -396,3 +396,54 @@ describe("FMCC governed read capabilities", () => {
     ).rejects.toBeInstanceOf(CoreArgumentError);
   });
 });
+
+
+describe("FMCC capability provenance guard", () => {
+  it("rejeita capability disponível sem provenance", async () => {
+    const cognitiveModel: CognitiveModel = {
+      async plan() {
+        return {
+          metricIds: [],
+          capabilityIds: ["commercial.kordena.summary"],
+          productSlugs: ["kordena"],
+        };
+      },
+      async synthesize() {
+        return "não deveria";
+      },
+    };
+    const withoutProvenance: CoreReadCapability = {
+      descriptor: {
+        id: "commercial.kordena.summary",
+        displayName: "Resumo comercial Kordena",
+        description: "Estado comercial atual governado.",
+        productSlugs: ["kordena"],
+      },
+      async read() {
+        return {
+          status: "available",
+          fact: { active_trials: 3 },
+          evidence: {
+            kind: "source",
+            ref: "kordena.fmcc.commercial.v1",
+            sourceAuthority: "kordena_fm_commercial_platform",
+            freshnessStatus: "fresh",
+            qualityStatus: "verified",
+            provenanceRefs: [],
+          },
+        };
+      },
+    };
+
+    await expect(
+      new CoreGateway(
+        new FmccVerticalCognitiveCore(cognitiveModel),
+        { async query() { return null; } } as unknown as MetricService,
+        undefined,
+        productRepo(),
+        undefined,
+        [withoutProvenance],
+      ).ask(context, "Quantos trials ativos?"),
+    ).rejects.toBeInstanceOf(CoreReadCapabilityContractError);
+  });
+});
