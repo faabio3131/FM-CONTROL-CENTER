@@ -91,6 +91,30 @@ describe("FMCC cognitive model adapter", () => {
     })).rejects.toBeInstanceOf(CognitiveModelContractError);
   });
 
+  it("instrui a síntese avançada a falhar fechado para anomalia risco e previsão", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+      choices: [{ message: { content: "Evidência insuficiente." } }],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
+    await adapter.synthesize({
+      question: "Há anomalias ou riscos?",
+      facts: [{ metricId: "incident.count", value: "2" }],
+      evidence: [{ kind: "metric", ref: "incident.count" }],
+      operationalContext: [],
+    });
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      messages?: Array<{ role?: string; content?: string }>;
+    };
+    const system = request.messages?.find((message) => message.role === "system")?.content ?? "";
+    expect(system).toContain("Separe explicitamente fato, inferência, recomendação e previsão");
+    expect(system).toContain("Não declare causalidade");
+    expect(system).toContain("Não declare anomalia, risco classificado ou previsão numérica");
+    expect(system).toContain("evidência for insuficiente");
+  });
+
   it("preserva síntese como texto sem permitir que o provider substitua evidence", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       choices: [{ message: { content: "A métrica governada indica 10 trials." } }],
