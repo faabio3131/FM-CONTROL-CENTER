@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { rotuloEstadoOcorrencia, rotuloEstadoRegraAlerta, rotuloMetrica, rotuloOperadorAlerta, rotuloSeveridadeAlerta } from "@/presentation/pt-br";
+import { rotuloEstadoOcorrencia, rotuloEstadoRegraAlerta, rotuloMetrica, rotuloNivelRiscoAcao, rotuloOperadorAlerta, rotuloSeveridadeAlerta } from "@/presentation/pt-br";
 
 type Rule = { id: string; metricId: string; operator: string; threshold: string; severity: string; enabled: boolean; archived: boolean; productId?: string };
 type Occurrence = { id: string; metricId: string; observedValue: string; threshold: string; severity: string; status: string };
@@ -42,9 +42,9 @@ export function AlertControlPanel(props: {
         else setMessage(payload.error ?? "Operação indisponível.");
         return null;
       }
-      if (payload.preview?.reason) setMessage(`Preview ${payload.preview.riskLevel ?? ""}: ${payload.preview.reason}`);
+      if (payload.preview?.reason) setMessage(`Prévia — ${rotuloNivelRiscoAcao(payload.preview.riskLevel)}: ${payload.preview.reason}`);
       else if (payload.evaluation?.status === "unavailable") setMessage("Avaliação concluída: métrica indisponível; nenhum alerta criado.");
-      else if (payload.evaluation?.status === "clear") setMessage("Avaliação concluída: threshold não atingido; nenhum alerta criado.");
+      else if (payload.evaluation?.status === "clear") setMessage("Avaliação concluída: limite não atingido; nenhum alerta criado.");
       else if (payload.evaluation?.status === "incompatible") setMessage("Avaliação concluída: valor incompatível; nenhum alerta criado.");
       else setMessage("Operação registrada com sucesso.");
       return payload;
