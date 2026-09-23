@@ -184,3 +184,13 @@ export function rotuloEstadoOcorrencia(status: string): string {
     default: return "Estado desconhecido";
   }
 }
+
+
+export function rotuloNivelRiscoAcao(riskLevel?: string): string {
+  switch (riskLevel) {
+    case "low": return "Baixo risco";
+    case "medium": return "Risco médio";
+    case "high": return "Alto risco";
+    default: return "Risco não classificado";
+  }
+}
