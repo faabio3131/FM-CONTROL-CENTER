@@ -159,6 +159,19 @@ describe("KCA-12 Kordena commercial connector", () => {
       KordenaCommercialConnectorError,
     );
 
+    const wrongSecretReference = {
+      ...source,
+      secretRef: "env:DATABASE_URL",
+    };
+    const dedicated = new KordenaCommercialConnector(
+      () => "t".repeat(40),
+      fetch,
+      () => ["https://kordena.example.test"],
+    );
+    await expect(
+      dedicated.pull(context, wrongSecretReference),
+    ).rejects.toThrow("integration.kordena_secret_reference_invalid");
+
     const insecure = {
       ...source,
       config: { baseUrl: "http://kordena.example.test" },
