@@ -1,12 +1,12 @@
 # FM CONTROL CENTER — F09 ADDENDUM
 # KORDENA GOVERNED COMMERCIAL READ CAPABILITY
 
-**Status:** FUNCTIONAL CERTIFIED / DOCUMENTARY HEAD RECERTIFICATION PENDING  
-**Version:** 0.1  
-**Date:** 2026-09-23  
-**Parent architecture:** F09 — FM Cognitive Vertical Core  
-**Canonical decision:** ADR-013 — Product-Owned FM Cognitive Vertical Core  
-**Cognitive PR:** #17  
+**Status:** FUNCTIONAL CERTIFIED / DOCUMENTARY HEAD RECERTIFICATION PENDING
+**Version:** 0.1
+**Date:** 2026-09-23
+**Parent architecture:** F09 — FM Cognitive Vertical Core
+**Canonical decision:** ADR-013 — Product-Owned FM Cognitive Vertical Core
+**Cognitive PR:** #17
 **Dependency:** FMCC KCA-12 PR #16
 
 ## 1. Purpose
