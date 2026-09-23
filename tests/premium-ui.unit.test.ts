@@ -45,6 +45,11 @@ describe("F18 premium UX/UI", () => {
     expect(home).not.toContain("Fase 06");
   });
 
+  it("não renderiza escapes literais no grid executivo", () => {
+    const dashboard = source("src/app/dashboard/page.tsx");
+    expect(dashboard).not.toContain('\\n        <Link href="/dashboard/');
+  });
+
   it("mantém alertas com preview e sem botão de execução crítica", () => {
     const alerts = source("src/app/dashboard/alerts/alert-control-panel.tsx");
     expect(alerts).toContain("Preparar investigação");
