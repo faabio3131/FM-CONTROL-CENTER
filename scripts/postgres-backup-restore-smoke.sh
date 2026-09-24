@@ -14,6 +14,7 @@ if [[ ! "${FMCC_RESTORE_DATABASE}" =~ ^[a-zA-Z0-9_]+$ ]]; then
 fi
 
 tmpdir="$(mktemp -d)"
+chmod 0777 "${tmpdir}"
 cleanup() {
   docker run --rm --network host -e PGPASSWORD="${PGPASSWORD}" postgres:18 \
     psql -v ON_ERROR_STOP=1 -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d postgres \
