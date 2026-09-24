@@ -56,7 +56,7 @@ export default async function DashboardPage() {
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">Central Executiva de Comando · Prévia</span>
-          <h1>FM Control Center</h1>
+          <h1>FM Command</h1>
           <p>Organização autenticada: <code>{context.tenantId}</code></p>
         </div>
         <SignOutButton />
