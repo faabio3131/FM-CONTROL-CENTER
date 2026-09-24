@@ -4,14 +4,14 @@ Status: TECHNICAL FIX COMPLETE / FINAL EXACT-HEAD PREVIEW PENDING
 
 ## Baseline
 
-Repository: `faabio3131/FM-CONTROL-CENTER`  
-Baseline: `main@e6d6e9b33f126d210651a4adbb3ed14ed12b0492`  
-Branch: `feat/fmcc-f21-readiness-pre-premium-final`  
+Repository: `faabio3131/FM-CONTROL-CENTER`
+Baseline: `main@e6d6e9b33f126d210651a4adbb3ed14ed12b0492`
+Branch: `feat/fmcc-f21-readiness-pre-premium-final`
 PR: `#23`
 
-F20: APPROVED/CLOSED.  
-PR #22: MERGED/CLOSED.  
-Production: NOT AUTHORIZED.  
+F20: APPROVED/CLOSED.
+PR #22: MERGED/CLOSED.
+Production: NOT AUTHORIZED.
 Final Visual Premium: explicitly excluded from F21.
 
 ## Scope closed in this tranche
