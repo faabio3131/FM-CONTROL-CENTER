@@ -1,10 +1,13 @@
-# FM CONTROL CENTER — ADDENDUM F00
+# FM COMMAND — ADDENDUM F00
+
+**Identificador técnico/histórico:** FM Control Center / FMCC  
+**Domínio comercial oficial:** `fmcommand.com.br`
 # OWNERSHIP DO FM COGNITIVE VERTICAL CORE
 
 **Status:** DECISÃO FUNDACIONAL APROVADA  
 **Versão:** 0.2  
 **Data:** 20/09/2026  
-**Produto:** FM Control Center  
+**Produto:** FM Command  
 **Natureza:** SaaS comercial independente  
 **Tenant Zero:** Nova FM Tecnologia
 
@@ -12,11 +15,11 @@
 
 A seção de reutilização do Documento 00 determinava descobrir o Current do Core existente antes de escolher o boundary de reutilização. Durante F05/F09, essa regra foi interpretada como obrigação de consumir um runtime cognitivo compartilhado hospedado em outro produto.
 
-A reconciliação arquitetural identificou que essa interpretação conflita com a independência comercial do FM Control Center e com a exigência de um FM Cognitive Vertical Core como módulo principal de gestão operacional cognitiva do próprio produto.
+A reconciliação arquitetural identificou que essa interpretação conflita com a independência comercial do FM Command (FMCC) e com a exigência de um FM Cognitive Vertical Core como módulo principal de gestão operacional cognitiva do próprio produto.
 
 ## 2. Decisão
 
-O FM Control Center possuirá **seu próprio FM Cognitive Vertical Core**, pertencente ao produto, ao seu repositório, ao seu lifecycle, aos seus tenants e à sua operação.
+O FM Command possuirá **seu próprio FM Cognitive Vertical Core**, pertencente ao produto, ao seu repositório, ao seu lifecycle, aos seus tenants e à sua operação.
 
 Isso significa:
 - cérebro cognitivo vertical próprio;
