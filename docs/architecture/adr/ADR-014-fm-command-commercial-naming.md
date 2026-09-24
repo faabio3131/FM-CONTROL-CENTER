@@ -1,10 +1,10 @@
 # ADR-014 — Commercial Product Naming: FM Command
 
-**Status:** ACCEPTED  
-**Data:** 24/09/2026  
-**Autoridade:** Nova FM Tecnologia  
-**Produto:** FM Command  
-**Identificador técnico/histórico:** FM Control Center / FMCC  
+**Status:** ACCEPTED
+**Data:** 24/09/2026
+**Autoridade:** Nova FM Tecnologia
+**Produto:** FM Command
+**Identificador técnico/histórico:** FM Control Center / FMCC
 **Domínio oficial:** `fmcommand.com.br`
 
 ## Contexto
