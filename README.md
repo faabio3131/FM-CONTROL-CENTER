@@ -1,8 +1,8 @@
 # FM Command
 
-**Nome comercial oficial:** FM Command  
-**Domínio oficial:** `fmcommand.com.br`  
-**Marca-mãe:** Nova FM Tecnologia  
+**Nome comercial oficial:** FM Command
+**Domínio oficial:** `fmcommand.com.br`
+**Marca-mãe:** Nova FM Tecnologia
 **Identificador técnico/histórico:** FM Control Center / FMCC
 
 A adoção de **FM Command** é uma mudança de identidade comercial, não uma reconstrução técnica. O repositório `FM-CONTROL-CENTER`, prefixos `FMCC`, variáveis de ambiente, tabelas, workflows, identificadores de serviço e documentos históricos permanecem preservados quando a renomeação não trouxer benefício técnico ou puder quebrar contratos.
