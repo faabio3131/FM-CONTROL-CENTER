@@ -1,14 +1,14 @@
 # FM COMMAND
 # FMCC-04 — TARGET + SYSTEM DESIGN
 
-**Identidade comercial oficial:** FM Command  
-**Identificador técnico/histórico preservado:** FM Control Center / FMCC  
+**Identidade comercial oficial:** FM Command
+**Identificador técnico/histórico preservado:** FM Control Center / FMCC
 **Domínio oficial:** `fmcommand.com.br`
 
-**Status:** TARGET ARQUITETURAL v0.2 — RECONCILIADO  
-**Versão:** 0.2  
-**Data:** 20/09/2026  
-**Supersedes:** v0.1 no tema de ownership/distribuição do Core  
+**Status:** TARGET ARQUITETURAL v0.2 — RECONCILIADO
+**Versão:** 0.2
+**Data:** 20/09/2026
+**Supersedes:** v0.1 no tema de ownership/distribuição do Core
 **Natureza:** System Design Target
 
 ## 1. Princípio central
