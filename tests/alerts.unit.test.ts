@@ -54,6 +54,7 @@ class MemoryRepository implements AlertRepository {
     this.occurrences.push(input); return { occurrence: input, created: true };
   }
   async listOccurrences(tenantId: string) { return this.occurrences.filter((item) => item.tenantId === tenantId); }
+  async findOccurrence(tenantId: string, occurrenceId: string) { return this.occurrences.find((item) => item.tenantId === tenantId && item.id === occurrenceId) ?? null; }
   async acknowledge(tenantId: string, occurrenceId: string) {
     const index = this.occurrences.findIndex((item) => item.tenantId === tenantId && item.id === occurrenceId);
     if (index < 0) return false;
