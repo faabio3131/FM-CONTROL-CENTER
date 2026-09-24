@@ -1,9 +1,17 @@
-# FMCC — Production Source Integration Discovery v0.2
+# FMCC — Production Source Integration Discovery v0.3
 
 Status: CURRENT DISCOVERY RECONCILIADO — GOVERNED / NÃO HOMOLOGADO EM PRODUÇÃO
 
-Current FMCC certificado:
-`main@eb130c37bdd26c559c517fcfc3cf3731874ffc59`
+Current FMCC baseline integrada antes da F21:
+`main@e6d6e9b33f126d210651a4adbb3ed14ed12b0492`
+
+F21 working branch:
+`feat/fmcc-f21-readiness-pre-premium-final`
+
+F20:
+- PR #22 MERGED/CLOSED;
+- Foundation Gate #434 SUCCESS;
+- Preview Deployment Gate #3 SUCCESS no SHA exato da main.
 
 Current Kordena KCA-13:
 - PR `faabio3131/fm-ai-platform#130`: MERGED;
@@ -15,13 +23,20 @@ Current Kordena KCA-13:
 - WP-031L Regression Channel Parity: SUCCESS;
 - Commercial Runtime Readiness V1: SUCCESS.
 
-Preview FMCC:
-- Render Preview source: `eb130c3`;
+Preview FMCC — último baseline integrado certificado:
+- Render Preview source: `e6d6e9b`;
 - exact SHA automation: PASS;
 - branch: `main`;
 - health: PASS;
 - readiness: PASS;
 - unauthenticated dashboard protection: PASS.
+
+F21:
+- candidate pré-documental `9f7a59072e75d9d3a5d3824e6a3ec12d2d9cc859`;
+- Foundation #436 SUCCESS;
+- Cognitive #111 SUCCESS;
+- F21 Readiness #2 SUCCESS;
+- exact final documentation HEAD Preview: ainda pendente e não pode reutilizar evidência de SHA anterior.
 
 ## Objetivo
 
@@ -130,8 +145,8 @@ Regras KCA-13 validadas no FMCC:
 | finance.operating_margin.rate | pending_semantics | fórmula/base aprovada | Nenhuma | SEMANTICS_PENDING | Não inferir fórmula silenciosamente. |
 | lead.created.count | implemented | fact `lead.created` | Nenhum CRM aprovado | PROVIDER_UNDECIDED | Não inventar CRM/attribution. |
 | incident.count | implemented | fact `incident.opened` | KCA-13 health/alerts são read model | PROVIDER_UNDECIDED | Health/alert != incidente canônico. |
-| job.failure.count | implemented | fact `job.failed` | Scheduler/CI existem, sem adapter canônico | READY_FOR_INTERNAL_ADAPTER | Pode ser implementado com authority interna governada. |
-| integration.failure.count | implemented | fact `integration.failed` | ConnectorRuntime existe, sem adapter canônico | READY_FOR_INTERNAL_ADAPTER | Pode ser implementado com authority interna governada. |
+| job.failure.count | implemented | fact `job.failed` | Scheduler/CI existem, sem source authority canônica aprovada | READY_FOR_INTERNAL_ADAPTER | F21 investigou o boundary; não existe autoridade interna aprovada que permita criar canonical facts silenciosamente. |
+| integration.failure.count | implemented | fact `integration.failed` | ConnectorRuntime existe, sem source authority canônica aprovada | READY_FOR_INTERNAL_ADAPTER | F21 investigou o boundary; criar a source authority sem decisão explícita seria fabricação de autoridade. |
 | service.error.count | implemented | fact `service.error` | Logs/health existem, sem fonte canônica aprovada | PROVIDER_UNDECIDED | Log genérico não vira fato automaticamente. |
 | service.error.rate | pending_semantics | população + janela | Nenhuma | SEMANTICS_PENDING | Exige denominador e janela. |
 | usage.active_users.dau | implemented | fact `usage.active_user.day` | Nenhuma telemetria SaaS canônica conectada | PROVIDER_UNDECIDED | Cada SaaS deve emitir fato governado. |
@@ -236,7 +251,22 @@ Ainda sem provider/authority empresarial aprovada:
 Status:
 **PROVIDER_UNDECIDED** ou **SEMANTICS_PENDING**, conforme a matriz.
 
-## Critério pré-F20
+## Reconciliation F21
+
+A F21 confirmou que os blockers de source/semântica permanecem externos ou de autoridade, não defeitos a serem mascarados por código.
+
+Especificamente:
+- Kordena permanece READY_TO_CONNECT / CREDENTIAL_REQUIRED até runtime real;
+- scheduler permanece READY_TO_CONFIGURE / RUNTIME_SECRET_REQUIRED;
+- providers empresariais não escolhidos permanecem PROVIDER_UNDECIDED;
+- métricas sem contrato canônico permanecem SEMANTICS_PENDING;
+- os dois candidatos a internal adapter não foram promovidos porque o CURRENT não define source authority canônica interna aprovada;
+- missing continua diferente de zero;
+- read model continua diferente de canonical fact.
+
+Nenhum status CONNECTED foi promovido sem evidence real.
+
+## Critério histórico pré-F20
 
 A tranche funcional pode seguir para auditoria independente quando:
 - CURRENT pós-merge estiver verde;
@@ -265,3 +295,10 @@ Com a ressalva:
 - produção não autorizada;
 - sources externas ainda não homologadas como CONNECTED;
 - blockers acima devem permanecer visíveis em F20/F21 e no release candidate.
+
+
+## Veredito F21 de source coverage
+
+**SOURCE COVERAGE RECONCILED — NO FABRICATION**
+
+O fechamento técnico F21 não depende de converter blockers externos em dados fictícios. Eles permanecem explicitamente carregados para a tranche Final Visual Premium / Audit final / release readiness e devem ser resolvidos somente quando as respectivas credenciais, decisões de provider ou semânticas empresariais forem fornecidas pela autoridade competente.
