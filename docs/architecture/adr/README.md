@@ -1,6 +1,6 @@
 # FMCC — Architecture Decision Records
 
-Status em 20/09/2026:
+Status atualizado em 24/09/2026:
 
 | ADR | Assunto | Status |
 |---|---|---|
@@ -17,5 +17,6 @@ Status em 20/09/2026:
 | ADR-011 | Queue/event infra | DEFERRED |
 | ADR-012 | Currency/FX | DEFERRED |
 | ADR-013 | Product-owned FM Cognitive Vertical Core | ACCEPTED |
+| ADR-014 | Commercial product naming — FM Command | ACCEPTED |
 
 ADRs substituídos não devem ser apagados; devem ser marcados SUPERSEDED.
