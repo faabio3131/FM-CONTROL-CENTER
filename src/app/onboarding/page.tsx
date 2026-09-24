@@ -65,7 +65,7 @@ export default function OnboardingPage() {
       <section className="card auth-card">
         <span className="eyebrow">Organização</span>
         <h1>Organização</h1>
-        <p>A organização autenticada é a raiz de isolamento de dados do FM Control Center.</p>
+        <p>A organização autenticada é a raiz de isolamento de dados do FM Command.</p>
 
         <section aria-labelledby="existing-orgs-title">
           <h2 id="existing-orgs-title">Entrar em organização existente</h2>
