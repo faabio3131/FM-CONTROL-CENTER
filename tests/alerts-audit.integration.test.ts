@@ -174,6 +174,53 @@ describe("F17 alert audit repository", () => {
     expect(rows[0]?.id).toBe("occurrence-rule-a");
   });
 
+  it("reconhece ocorrência antiga depois de mais de 100 eventos", async () => {
+    const repository = new PostgresAlertRepository();
+    const base = new Date("2026-09-23T18:00:00Z");
+
+    await db.insert(auditEvents).values(
+      Array.from({ length: 105 }, (_, index) => ({
+        tenantId: TENANT,
+        actorId: "system",
+        actorType: "system",
+        action: "alert.raised",
+        resourceType: "alert_occurrence",
+        resourceId: `occurrence:fingerprint-volume-${index}`,
+        result: "success",
+        correlationId: `fingerprint-volume-${index}`,
+        metadata: {
+          occurrenceId: `occ-volume-${index}`,
+          ruleId: "rule-volume",
+          productId: null,
+          metricId: "incident.count",
+          observedValue: String(index + 1),
+          threshold: "1",
+          operator: "gt",
+          severity: "warning",
+          evidenceRefs: [],
+          fingerprint: `fingerprint-volume-${index}`,
+          occurredAt: new Date(base.getTime() + index).toISOString(),
+        },
+        occurredAt: new Date(base.getTime() + index),
+      })),
+    );
+
+    const old = await repository.findOccurrence(TENANT, "occ-volume-0");
+    expect(old?.id).toBe("occ-volume-0");
+
+    await expect(
+      repository.acknowledge(
+        TENANT,
+        "occ-volume-0",
+        "user-a",
+        "corr-old-ack",
+      ),
+    ).resolves.toBe(true);
+
+    const acknowledged = await repository.findOccurrence(TENANT, "occ-volume-0");
+    expect(acknowledged?.status).toBe("acknowledged");
+  });
+
   it("torna acknowledgement idempotente", async () => {
     const repository = new PostgresAlertRepository();
     await repository.recordOccurrence({
