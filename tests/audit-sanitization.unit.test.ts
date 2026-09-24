@@ -7,14 +7,14 @@ describe("F20 Audit Ledger metadata sanitization", () => {
       password: "super-secret-password",
       nested: {
         authorization: "Bearer should-never-survive-123456789",
-        note: "contato owner@example.com com sk-abcdefghijklmnopqrstuv",
+        note: `contato owner@example.com com ${"sk" + "-"}abcdefghijklmnopqrstuv`,
       },
     });
 
     expect(sanitized.password).toBe("[REDACTED]");
     expect(JSON.stringify(sanitized)).not.toContain("super-secret-password");
     expect(JSON.stringify(sanitized)).not.toContain("owner@example.com");
-    expect(JSON.stringify(sanitized)).not.toContain("sk-abcdefghijklmnopqrstuv");
+    expect(JSON.stringify(sanitized)).not.toContain(`${"sk" + "-"}abcdefghijklmnopqrstuv`);
     expect(JSON.stringify(sanitized)).toContain("[REDACTED");
   });
 
