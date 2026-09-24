@@ -67,6 +67,7 @@ export interface AlertRepository {
   listOccurrencesForRule(tenantId: string, ruleId: string, limit?: number): Promise<readonly AlertOccurrence[]>;
   recordOccurrence(input: AlertOccurrence): Promise<{ occurrence: AlertOccurrence; created: boolean }>;
   listOccurrences(tenantId: string, limit?: number): Promise<readonly AlertOccurrence[]>;
+  findOccurrence(tenantId: string, occurrenceId: string): Promise<AlertOccurrence | null>;
   acknowledge(tenantId: string, occurrenceId: string, actorId: string, correlationId: string): Promise<boolean>;
   recordActionPreview(input: GovernedActionPreview & { actorId: string; correlationId: string }): Promise<{ preview: GovernedActionPreview; created: boolean }>;
 }
