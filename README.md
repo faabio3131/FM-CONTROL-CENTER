@@ -1,4 +1,11 @@
-# FM Control Center
+# FM Command
+
+**Nome comercial oficial:** FM Command  
+**Domínio oficial:** `fmcommand.com.br`  
+**Marca-mãe:** Nova FM Tecnologia  
+**Identificador técnico/histórico:** FM Control Center / FMCC
+
+A adoção de **FM Command** é uma mudança de identidade comercial, não uma reconstrução técnica. O repositório `FM-CONTROL-CENTER`, prefixos `FMCC`, variáveis de ambiente, tabelas, workflows, identificadores de serviço e documentos históricos permanecem preservados quando a renomeação não trouxer benefício técnico ou puder quebrar contratos.
 
 SaaS comercial independente da Nova FM Tecnologia. A Nova FM é o Tenant Zero.
 
@@ -14,13 +21,13 @@ SaaS comercial independente da Nova FM Tecnologia. A Nova FM é o Tenant Zero.
 - F12–F15: **CONCLUÍDAS COM EVIDÊNCIA**. PR #12 MERGED/CLOSED; squash merge `9632dd3871790a8b709fa5bc11211b9649b943fa`; Foundation Gate pós-merge #220 SUCCESS; Render Preview no source `9632dd3` com migration, health, readiness, login/dashboard, F12–F15 e Core fail-closed homologados. Progresso acumulado: **88%**.
 - F16–F19: **CONCLUÍDAS E INTEGRADAS**. Core Executivo Avançado, Alertas/Automações Governadas, base UX/UI da F18 e certificação técnica integral foram reconciliados na mesma linha arquitetural e posteriormente submetidos à auditoria F20.
 - F20: **APPROVED / CLOSED**. PR #22 MERGED/CLOSED; squash merge `e6d6e9b33f126d210651a4adbb3ed14ed12b0492`; Foundation Gate pós-merge #434 SUCCESS; Preview Deployment Gate #3 SUCCESS no SHA exato, com health/readiness e proteção anônima do dashboard verdes. Nenhum BLOCKER/CRITICAL/HIGH/MEDIUM bloqueante permaneceu aberto.
-- F21: **EXECUÇÃO DE READINESS PRÉ-VISUAL-PREMIUM-FINAL NA PR #23**. Foram adicionados gate dedicado de readiness, prova real isolada de PostgreSQL backup→restore, runbook operacional consolidado e reconciliação de blockers externos. No candidate pré-documental `9f7a59072e75d9d3a5d3824e6a3ec12d2d9cc859`: Foundation #436 SUCCESS, Cognitive #111 SUCCESS e F21 Readiness #2 SUCCESS; 51/51 arquivos e 200/200 testes PASS; E2E 6/6 PASS; security/tenant subset 20/20 PASS; secret scan 247 arquivos PASS; backup/restore PASS. O HEAD documental final ainda exige recertificação e Preview exato antes do fechamento.
+- F21: **CLOSED / CERTIFIED**. PR #23 MERGED/CLOSED; `main@edb5b872587c02ee41824dc9f593d9cf0d7c4ea2`; Foundation Gate #442 SUCCESS; F21 Operational Readiness Gate #8 SUCCESS; Preview Deployment Gate #4 attempt 2 SUCCESS no SHA exato, com health/readiness e proteção anônima do dashboard verdes. Veredito: **PRE-PREMIUM FINAL READINESS CERTIFIED WITH EXTERNAL BLOCKERS**.
 - Visual Premium Final: **DELIBERADAMENTE POSTERIOR À F21**. A F18 forneceu base UX/UI; o acabamento visual premium final será uma tranche própria, seguida de Audit & Fix final antes de release.
 - Produção/F22: **NÃO AUTORIZADA**.
 
 ## Arquitetura cognitiva vigente
 
-O FM Control Center possui seu próprio **FM Cognitive Vertical Core**.
+O FM Command possui seu próprio **FM Cognitive Vertical Core**. O identificador técnico FMCC permanece preservado.
 
 Ele não depende operacionalmente do Core do Kordena, IRON ou de qualquer outro SaaS.
 
@@ -73,7 +80,8 @@ Nunca versione secrets.
 - Render Preview reconciliado para `main` e smoke pós-merge F07–F10 concluído;
 - F11 integrada à `main`; Gate pós-merge #192 SUCCESS no commit `2a276f4c57577bf0236ae134311705f294d31b21`.
 - F20 integrada à `main`; Foundation #434 e Preview Deployment #3 SUCCESS no commit `e6d6e9b33f126d210651a4adbb3ed14ed12b0492`.
-- A F21 mantém evidence ledger separado e não promove Kordena/scheduler/providers sem runtime/autoridade real.
+- F21 integrada à `main` e homologada no Render Preview no SHA `edb5b872587c02ee41824dc9f593d9cf0d7c4ea2`; Foundation #442, F21 Readiness #8 e Preview Deployment #4 attempt 2 — SUCCESS.
+- A nomenclatura comercial oficial é **FM Command**; o domínio registrado é `fmcommand.com.br`; FMCC permanece como namespace técnico/histórico.
 
 ## Stack
 Node.js 24 LTS · Next.js 16.3.x · TypeScript · PostgreSQL 18 · Drizzle · Better Auth Organizations · GitHub Actions · Render Preview.
