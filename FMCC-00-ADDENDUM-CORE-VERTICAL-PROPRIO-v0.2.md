@@ -1,14 +1,14 @@
 # FM COMMAND — ADDENDUM F00
 
-**Identificador técnico/histórico:** FM Control Center / FMCC  
+**Identificador técnico/histórico:** FM Control Center / FMCC
 **Domínio comercial oficial:** `fmcommand.com.br`
 # OWNERSHIP DO FM COGNITIVE VERTICAL CORE
 
-**Status:** DECISÃO FUNDACIONAL APROVADA  
-**Versão:** 0.2  
-**Data:** 20/09/2026  
-**Produto:** FM Command  
-**Natureza:** SaaS comercial independente  
+**Status:** DECISÃO FUNDACIONAL APROVADA
+**Versão:** 0.2
+**Data:** 20/09/2026
+**Produto:** FM Command
+**Natureza:** SaaS comercial independente
 **Tenant Zero:** Nova FM Tecnologia
 
 ## 1. Motivo
