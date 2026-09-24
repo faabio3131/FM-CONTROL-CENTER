@@ -43,14 +43,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - name: Install
-        run: npm install
-      - name: Bootstrap F20 lockfile evidence
-        run: |
-          echo "FMCC_LOCKFILE_BEGIN"
-          base64 -w0 package-lock.json
-          echo
-          echo "FMCC_LOCKFILE_END"
+      - name: Install reproducibly
+        run: npm ci
       - name: Lint
         run: npm run lint
       - name: Typecheck
