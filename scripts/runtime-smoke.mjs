@@ -51,6 +51,22 @@ async function expectStatus(path, expectedStatus, init) {
   if (response.status !== expectedStatus) {
     throw new Error(`${path}: expected HTTP ${expectedStatus}, got ${response.status}`);
   }
+  return response;
+}
+
+function expectSecurityHeaders(response, path) {
+  const expected = {
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+  };
+  for (const [name, value] of Object.entries(expected)) {
+    const actual = response.headers.get(name);
+    if (actual !== value) {
+      throw new Error(`${path}: expected ${name}=${value}, got ${actual}`);
+    }
+  }
 }
 
 async function stopServer() {
@@ -72,8 +88,10 @@ try {
 
   await expectJson("/api/health", 200, (p) => p?.service === "fm-control-center" && p?.status === "ok");
   await expectJson("/api/ready", 200, (p) => p?.status === "ready");
-  await expectStatus("/", 200);
-  await expectStatus("/sign-in", 200);
+  const home = await expectStatus("/", 200);
+  expectSecurityHeaders(home, "/");
+  const signIn = await expectStatus("/sign-in", 200);
+  expectSecurityHeaders(signIn, "/sign-in");
 
   await expectStatus("/api/me", 401);
   await expectStatus("/api/alerts", 401);

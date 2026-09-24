@@ -89,6 +89,54 @@ describe("Kordena commercial server-side approval", () => {
     ).rejects.toBeInstanceOf(CommercialApprovalRequiredError);
   });
 
+
+
+  it("continua bloqueando replay mesmo após mais de 100 consumos posteriores", async () => {
+    const approval = await issueCommercialApproval(context, {
+      sourceId: "source-kordena",
+      resourceId: "price-high-volume",
+      publishAction: "price.publish",
+      publishPayload: payload,
+    });
+
+    await consumeCommercialApproval(context, {
+      sourceId: "source-kordena",
+      resourceId: "price-high-volume",
+      publishAction: "price.publish",
+      publishPayload: payload,
+      token: approval.token,
+    });
+
+    const later = Array.from({ length: 150 }, (_, index) => ({
+      tenantId: TENANT,
+      actorId: context.userId,
+      actorType: "user",
+      action: "commercial.command.approval_consumed",
+      resourceType: "kordena_commercial_publish_approval",
+      resourceId: `other-${index}`,
+      result: "success",
+      correlationId: `later-${index}`,
+      metadata: {
+        tokenHash: `other-token-hash-${index}`,
+        sourceId: "source-kordena",
+        publishAction: "price.publish",
+        payloadHash: `other-payload-${index}`,
+      },
+      occurredAt: new Date(Date.now() + 1_000 + index),
+    }));
+    await db.insert(auditEvents).values(later);
+
+    await expect(
+      consumeCommercialApproval(context, {
+        sourceId: "source-kordena",
+        resourceId: "price-high-volume",
+        publishAction: "price.publish",
+        publishPayload: payload,
+        token: approval.token,
+      }),
+    ).rejects.toThrow("commercial.approval_already_used");
+  });
+
   it("recusa reutilização da aprovação por outro usuário", async () => {
     const approval = await issueCommercialApproval(context, {
       sourceId: "source-kordena",

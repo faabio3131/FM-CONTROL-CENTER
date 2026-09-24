@@ -58,6 +58,54 @@ describe("F07/F08 PostgreSQL tenant isolation", () => {
     expect(completed).toMatchObject({ id: first.id, state: "completed" });
   });
 
+
+  it("isola a mesma chave de idempotência entre fontes do mesmo tenant", async () => {
+    const sources = new PostgresSourceRepository();
+    const syncs = new PostgresSyncRepository();
+    const sourceA = await sources.create(TENANTS[0], {
+      name: "Idempotency A", sourceType: "fixture", authoritativeDomain: "billing", syncMode: "pull",
+    });
+    const sourceB = await sources.create(TENANTS[0], {
+      name: "Idempotency B", sourceType: "fixture", authoritativeDomain: "billing", syncMode: "pull",
+    });
+
+    const first = await syncs.begin({
+      tenantId: TENANTS[0],
+      sourceId: sourceA.id,
+      idempotencyKey: "same-client-key",
+      correlationId: "corr-source-a",
+    });
+    const second = await syncs.begin({
+      tenantId: TENANTS[0],
+      sourceId: sourceB.id,
+      idempotencyKey: "same-client-key",
+      correlationId: "corr-source-b",
+    });
+
+    expect(first.state).toBe("started");
+    expect(second.state).toBe("started");
+    expect(second.id).not.toBe(first.id);
+
+    const rows = await db
+      .select({
+        sourceId: syncExecutions.sourceId,
+        idempotencyKey: syncExecutions.idempotencyKey,
+      })
+      .from(syncExecutions)
+      .where(eq(syncExecutions.tenantId, TENANTS[0]));
+
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceId: sourceA.id,
+        idempotencyKey: `${sourceA.id}:same-client-key`,
+      }),
+      expect.objectContaining({
+        sourceId: sourceB.id,
+        idempotencyKey: `${sourceB.id}:same-client-key`,
+      }),
+    ]));
+  });
+
   it("prova F07 → F08 → F09 sobre o mesmo dado governado", async () => {
     const tenantId = TENANTS[0];
     const context: TenantContext = { tenantId, userId: "it-user", role: "owner", correlationId: "it-corr" };

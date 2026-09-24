@@ -104,6 +104,40 @@ describe("F17 alert audit repository", () => {
     expect(lifecycle.map((event) => event.action)).toEqual(["created", "disabled", "archived"]);
   });
 
+
+  it("mantém mais de 100 regras disponíveis para autoridade operacional", async () => {
+    const repository = new PostgresAlertRepository();
+    const createdAt = new Date("2026-09-23T12:00:00Z");
+    await db.insert(auditEvents).values(
+      Array.from({ length: 105 }, (_, index) => ({
+        tenantId: TENANT,
+        actorId: "user-a",
+        actorType: "user",
+        action: "alert.rule.created",
+        resourceType: "alert_rule",
+        resourceId: `rule:rule-volume-${index}`,
+        result: "success",
+        correlationId: `corr-volume-${index}`,
+        metadata: {
+          ruleId: `rule-volume-${index}`,
+          productId: null,
+          metricId: "trial.starts.count",
+          operator: "gt",
+          threshold: String(index + 1),
+          severity: "warning",
+          enabled: true,
+          createdAt: new Date(createdAt.getTime() + index).toISOString(),
+        },
+        occurredAt: new Date(createdAt.getTime() + index),
+      })),
+    );
+
+    const rules = await repository.listRules(TENANT);
+    expect(rules).toHaveLength(105);
+    expect(rules.some((rule) => rule.id === "rule-volume-0")).toBe(true);
+    expect(rules.some((rule) => rule.id === "rule-volume-104")).toBe(true);
+  });
+
   it("lista somente ocorrências persistidas da regra solicitada", async () => {
     const repository = new PostgresAlertRepository();
     await repository.recordOccurrence({
@@ -138,6 +172,53 @@ describe("F17 alert audit repository", () => {
     const rows = await repository.listOccurrencesForRule(TENANT, "rule-a");
     expect(rows).toHaveLength(1);
     expect(rows[0]?.id).toBe("occurrence-rule-a");
+  });
+
+  it("reconhece ocorrência antiga depois de mais de 100 eventos", async () => {
+    const repository = new PostgresAlertRepository();
+    const base = new Date("2026-09-23T18:00:00Z");
+
+    await db.insert(auditEvents).values(
+      Array.from({ length: 105 }, (_, index) => ({
+        tenantId: TENANT,
+        actorId: "system",
+        actorType: "system",
+        action: "alert.raised",
+        resourceType: "alert_occurrence",
+        resourceId: `occurrence:fingerprint-volume-${index}`,
+        result: "success",
+        correlationId: `fingerprint-volume-${index}`,
+        metadata: {
+          occurrenceId: `occ-volume-${index}`,
+          ruleId: "rule-volume",
+          productId: null,
+          metricId: "incident.count",
+          observedValue: String(index + 1),
+          threshold: "1",
+          operator: "gt",
+          severity: "warning",
+          evidenceRefs: [],
+          fingerprint: `fingerprint-volume-${index}`,
+          occurredAt: new Date(base.getTime() + index).toISOString(),
+        },
+        occurredAt: new Date(base.getTime() + index),
+      })),
+    );
+
+    const old = await repository.findOccurrence(TENANT, "occ-volume-0");
+    expect(old?.id).toBe("occ-volume-0");
+
+    await expect(
+      repository.acknowledge(
+        TENANT,
+        "occ-volume-0",
+        "user-a",
+        "corr-old-ack",
+      ),
+    ).resolves.toBe(true);
+
+    const acknowledged = await repository.findOccurrence(TENANT, "occ-volume-0");
+    expect(acknowledged?.status).toBe("acknowledged");
   });
 
   it("torna acknowledgement idempotente", async () => {

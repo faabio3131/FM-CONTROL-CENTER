@@ -37,6 +37,8 @@ describe("KCA-12 commercial control security contract", () => {
     expect(route).toContain("consumeCommercialApproval");
     expect(route).toContain("issueCommercialApproval");
     expect(route).toContain("isHighRiskCommercialPublish");
+    expect(route).toContain("isKordenaCommercialAction");
+    expect(route).not.toContain("approvalContext");
     expect(stepUp).toContain("auth.api.signInEmail");
     expect(stepUp).toContain("current.user.id");
   });

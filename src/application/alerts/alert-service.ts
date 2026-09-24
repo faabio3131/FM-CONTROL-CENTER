@@ -185,8 +185,11 @@ export class AlertService {
         !["acknowledge_alert","investigate","draft_communication","external_change"].includes(input.actionType)) {
       throw new AlertActionInvalidError();
     }
-    const occurrences = await this.repository.listOccurrences(context.tenantId, 100);
-    if (!occurrences.some((item) => item.id === input.occurrenceId)) throw new AlertOccurrenceNotFoundError();
+    const occurrence = await this.repository.findOccurrence(
+      context.tenantId,
+      input.occurrenceId,
+    );
+    if (!occurrence) throw new AlertOccurrenceNotFoundError();
     const riskLevel = actionRisk(input.actionType);
     const fingerprint = stableFingerprint([context.tenantId, input.occurrenceId, input.actionType, input.idempotencyKey]);
     const preview = {

@@ -109,7 +109,7 @@ export class PostgresAlertRepository implements AlertRepository {
     const [rows, disabledRows, archivedRows] = await Promise.all([
       db.select().from(auditEvents).where(and(
         eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.rule.created"),
-      )).orderBy(desc(auditEvents.occurredAt)).limit(100),
+      )).orderBy(desc(auditEvents.occurredAt)),
       db.select({ resourceId: auditEvents.resourceId }).from(auditEvents).where(and(
         eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.rule.disabled"),
       )),
@@ -314,11 +314,28 @@ export class PostgresAlertRepository implements AlertRepository {
     });
   }
 
+  async findOccurrence(tenantId: string, occurrenceId: string) {
+    const rows = await db.select().from(auditEvents).where(and(
+      eq(auditEvents.tenantId, tenantId),
+      eq(auditEvents.action, "alert.raised"),
+      sql`${auditEvents.metadata}->>'occurrenceId' = ${occurrenceId}`,
+    )).limit(1);
+    if (!rows[0]) return null;
+
+    const acknowledgements = await db.select({ resourceId: auditEvents.resourceId }).from(auditEvents).where(and(
+      eq(auditEvents.tenantId, tenantId),
+      eq(auditEvents.action, "alert.acknowledged"),
+      eq(auditEvents.resourceId, `occurrence:${occurrenceId}`),
+    )).limit(1);
+
+    return mapOccurrence(
+      rows[0],
+      acknowledgements[0] ? new Set([occurrenceId]) : new Set(),
+    );
+  }
+
   async acknowledge(tenantId: string, occurrenceId: string, actorId: string, correlationId: string) {
-    const raised = await db.select().from(auditEvents).where(and(
-      eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.raised"),
-    )).orderBy(desc(auditEvents.occurredAt)).limit(100);
-    const target = raised.find((row) => readString(row.metadata.occurrenceId) === occurrenceId);
+    const target = await this.findOccurrence(tenantId, occurrenceId);
     if (!target) return false;
     const resourceId = `occurrence:${occurrenceId}`;
     await db.transaction(async (tx) => {
