@@ -315,3 +315,155 @@ KNOWN EXTERNAL BLOCKERS:
 - retention/SLO policies.
 
 Nenhum desses blockers autoriza mascarar findings de código.
+
+
+# SECOND PASS — FIX VERIFICATION
+
+Status: **FIX COMPLETE / FINAL PREVIEW PENDING / H3 PENDING**
+
+Segundo passe executado depois das correções, sem Visual Premium.
+
+## Findings resolvidos
+
+### F20-H01 — RESOLVED
+A prévia comercial agora recebe exatamente o mesmo payload proposto que será
+posteriormente publicado. O approval hash é emitido sobre o payload realmente
+encaminhado ao preview; o canal paralelo `approvalContext` foi removido.
+
+### F20-H02 — RESOLVED
+Actions comerciais possuem allowlist runtime explícita por
+`isKordenaCommercialAction`. Action desconhecida é recusada antes de forward.
+
+### F20-H03 — RESOLVED
+Replay guard consulta approval/consumo pelo `tokenHash` exato no Audit Ledger,
+sem janela arbitrária dos 100 eventos mais recentes. Lock transacional foi
+preservado. Há cobertura adversarial com mais de 100 consumos posteriores.
+
+### F20-H04 — RESOLVED
+O connector Kordena aplica cancelamento real por AbortController/AbortSignal
+usando o timeout do ConnectorContext em health/snapshot/pull/command.
+Request hung é abortado e falha fechado.
+
+### F20-H05 — RESOLVED
+`package-lock.json` passou a ser versionado.
+Foundation Gate, Cognitive Gate e Docker usam `npm ci`.
+As GitHub Actions relevantes estão SHA-pinned.
+O mesmo SHA passa a resolver a mesma árvore de dependências.
+
+### F20-M01 — RESOLVED
+A identidade de idempotência de sync passou a ser namespaced por `sourceId`
+antes da persistência, tornando a constraint existente tenant-scoped
+equivalente a `tenant + source + client key` sem migration destrutiva.
+Lookup/restart também exige o mesmo source. Teste prova a mesma client key em
+duas sources do mesmo tenant sem colisão.
+
+### F20-M02 — RESOLVED
+`listRules` não trunca mais as regras criadas em 100 registros. Teste com 105
+regras prova visibilidade das mais antigas e mais novas.
+
+### F20-M03 — RESOLVED
+Alert automation possui lifecycle explícito:
+`started/restarted/failed/completed`, recovery de falha e recovery de run
+stale. Run concluído permanece duplicate-safe. O threshold stale é superior ao
+timeout operacional do workflow.
+
+### F20-M04 — RESOLVED
+`recordAuditEvent` aplica sanitizer central de metadata.
+Há redaction de chaves sensíveis, padrões de segredo inline, e-mails, limites de
+profundidade, quantidade de entradas e tamanho de strings.
+A política legal/comercial de retenção continua corretamente deferida à F21.
+
+### F20-M05 — RESOLVED
+Baseline de security headers global:
+- X-Content-Type-Options: nosniff;
+- X-Frame-Options: DENY;
+- Referrer-Policy: strict-origin-when-cross-origin;
+- Permissions-Policy restritiva.
+
+Runtime smoke valida os headers.
+
+### F20-M06 — RESOLVED
+`actions/checkout` e `actions/setup-node` foram fixados em SHAs imutáveis nos
+gates que os utilizam.
+
+### F20-M07 — ACCEPTED / NON-BLOCKING
+Persistem 4 vulnerabilidades transitivas MODERATE do tooling.
+Não há HIGH/CRITICAL. O audit runtime com `--omit=dev --audit-level=high`
+permanece verde.
+Não foi usado `npm audit fix --force` por exigir alteração breaking não
+justificada. A árvore exata agora está congelada pelo lockfile.
+
+### F20-L01 — RESOLVED
+Cross-tenant source health/sync passa a retornar denial governado (403) em vez
+de cair no erro genérico 502.
+
+## Finding adicional do segundo passe
+
+### F20-M08 — MEDIUM — RESOLVED
+O segundo passe detectou que acknowledgement e preparação de ação procuravam
+ocorrências por uma janela dos 100 eventos mais recentes.
+
+Correção:
+- novo lookup exato tenant-scoped por `occurrenceId`;
+- acknowledgement usa lookup exato;
+- `prepareAction` usa lookup exato;
+- teste de integração cria 105 ocorrências e prova acesso/acknowledgement da
+  ocorrência mais antiga.
+
+## Evidência técnica após Fix
+
+Candidate de código auditado antes deste commit documental:
+`b741c854530a608039ed194238c972ad867d85d9`
+
+Foundation Gate #432: **SUCCESS**
+- install reprodutível com `npm ci`;
+- lint PASS;
+- typecheck PASS;
+- migration/schema verification PASS;
+- migrations PASS;
+- 51 test files PASS;
+- 200 tests PASS;
+- secret scan PASS — 241 tracked files;
+- build PASS;
+- Browser E2E 6/6 PASS;
+- runtime smoke PASS;
+- Docker build PASS usando `npm ci`;
+- dependency audit HIGH threshold PASS;
+- 4 MODERATE transitivas conhecidas.
+
+Cognitive Governed Intelligence Gate #108: **SUCCESS**
+- 8 arquivos direcionados PASS;
+- 53 testes cognitivos/integracionais direcionados PASS;
+- regressão integral 51 arquivos / 200 testes PASS;
+- build PASS;
+- whitespace gate PASS;
+- dependency audit HIGH threshold PASS.
+
+## Segundo passe — severidade aberta
+
+- BLOCKER: 0
+- CRITICAL: 0
+- HIGH: 0
+- MEDIUM bloqueante: 0
+- MEDIUM aceita: 1 (`F20-M07`, tooling transitivo MODERATE / não runtime)
+- LOW aberto: 0
+- INFO: 3, não bloqueantes conforme ADRs/governança
+
+## Pendência antes de F20 APPROVED
+
+Este commit documental altera o HEAD da PR #22 e deve ser recertificado.
+
+Depois da recertificação integral, ainda é obrigatório homologar o **HEAD final
+exato da PR #22 em Preview/Staging** antes de emitir:
+
+`FM AUDIT & FIX — APPROVED`
+
+Sem Preview/Staging do HEAD final:
+**F20 permanece FIX COMPLETE / PREVIEW PENDING.**
+
+## H3
+
+Mesmo depois do Preview PASS:
+- PR #22 permanece DRAFT até fechamento;
+- merge exige H3 humano explícito;
+- produção permanece proibida.
