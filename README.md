@@ -12,10 +12,11 @@ SaaS comercial independente da Nova FM Tecnologia. A Nova FM é o Tenant Zero.
 - F10: Executive Command Center concluído com evidência em Preview na PR #9.
 - F11: **CONCLUÍDA COM EVIDÊNCIA**. PR #11 MERGED/CLOSED; squash merge `2a276f4c57577bf0236ae134311705f294d31b21`; Foundation Gate pós-merge #192 em `main` — SUCCESS. Product Registry, escopo por produto, Inteligência por Produto, comparação governada, UI pt-BR e Core consciente de produto integrados. Progresso acumulado: **71%**.
 - F12–F15: **CONCLUÍDAS COM EVIDÊNCIA**. PR #12 MERGED/CLOSED; squash merge `9632dd3871790a8b709fa5bc11211b9649b943fa`; Foundation Gate pós-merge #220 SUCCESS; Render Preview no source `9632dd3` com migration, health, readiness, login/dashboard, F12–F15 e Core fail-closed homologados. Progresso acumulado: **88%**.
-- F16: Core Executivo Avançado implementado; engineering gate #228 SUCCESS — 33 arquivos / 115 testes PASS / 0 FAIL. Preview do candidate da tranche será validado de forma consolidada.
-- F17: Alertas e Automações Governadas implementados com regras determinísticas, Audit Ledger, RBAC, idempotência e action previews sem execução crítica; engineering gate #237 SUCCESS — 36 arquivos / 123 testes PASS / 0 FAIL.
-- F18: Premium UX/UI implementada na mesma aplicação; design system, experiência executiva, Core/alerts UX, responsividade, foco e reduced-motion; engineering gate #244 SUCCESS — 37 arquivos / 128 testes PASS / 0 FAIL.
-- F19: certificação técnica integral executada; Gate de código #252 SUCCESS — 39 arquivos / 135 testes PASS / 0 FAIL, secret scan/runtime smoke/Docker/dependency audit verdes. **Preview do candidate da PR #15 ainda pendente**, portanto a tranche ainda não foi promovida oficialmente a 97%. Sem merge, produção ou F20.
+- F16–F19: **CONCLUÍDAS E INTEGRADAS**. Core Executivo Avançado, Alertas/Automações Governadas, base UX/UI da F18 e certificação técnica integral foram reconciliados na mesma linha arquitetural e posteriormente submetidos à auditoria F20.
+- F20: **APPROVED / CLOSED**. PR #22 MERGED/CLOSED; squash merge `e6d6e9b33f126d210651a4adbb3ed14ed12b0492`; Foundation Gate pós-merge #434 SUCCESS; Preview Deployment Gate #3 SUCCESS no SHA exato, com health/readiness e proteção anônima do dashboard verdes. Nenhum BLOCKER/CRITICAL/HIGH/MEDIUM bloqueante permaneceu aberto.
+- F21: **EXECUÇÃO DE READINESS PRÉ-VISUAL-PREMIUM-FINAL NA PR #23**. Foram adicionados gate dedicado de readiness, prova real isolada de PostgreSQL backup→restore, runbook operacional consolidado e reconciliação de blockers externos. No candidate pré-documental `9f7a59072e75d9d3a5d3824e6a3ec12d2d9cc859`: Foundation #436 SUCCESS, Cognitive #111 SUCCESS e F21 Readiness #2 SUCCESS; 51/51 arquivos e 200/200 testes PASS; E2E 6/6 PASS; security/tenant subset 20/20 PASS; secret scan 247 arquivos PASS; backup/restore PASS. O HEAD documental final ainda exige recertificação e Preview exato antes do fechamento.
+- Visual Premium Final: **DELIBERADAMENTE POSTERIOR À F21**. A F18 forneceu base UX/UI; o acabamento visual premium final será uma tranche própria, seguida de Audit & Fix final antes de release.
+- Produção/F22: **NÃO AUTORIZADA**.
 
 ## Arquitetura cognitiva vigente
 
@@ -70,14 +71,16 @@ Nunca versione secrets.
 - Audit Ledger e memória cognitiva tenant/user scoped testados em PostgreSQL;
 - PR #9 e PR #10 integradas à `main`; CI pós-merge automático em `push: main`;
 - Render Preview reconciliado para `main` e smoke pós-merge F07–F10 concluído;
-- F11 integrada à `main`; Gate pós-merge #192 SUCCESS no commit `2a276f4c57577bf0236ae134311705f294d31b21`. O fechamento pós-merge factual também está registrado na PR #11.
+- F11 integrada à `main`; Gate pós-merge #192 SUCCESS no commit `2a276f4c57577bf0236ae134311705f294d31b21`.
+- F20 integrada à `main`; Foundation #434 e Preview Deployment #3 SUCCESS no commit `e6d6e9b33f126d210651a4adbb3ed14ed12b0492`.
+- A F21 mantém evidence ledger separado e não promove Kordena/scheduler/providers sem runtime/autoridade real.
 
 ## Stack
 Node.js 24 LTS · Next.js 16.3.x · TypeScript · PostgreSQL 18 · Drizzle · Better Auth Organizations · GitHub Actions · Render Preview.
 
 ## Desenvolvimento
 ```bash
-npm install
+npm ci
 npm run db:generate
 npm run db:migrate
 npm run dev
