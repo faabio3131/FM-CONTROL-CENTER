@@ -1,5 +1,9 @@
-# FM CONTROL CENTER
+# FM COMMAND
 # FMCC-04 — TARGET + SYSTEM DESIGN
+
+**Identidade comercial oficial:** FM Command  
+**Identificador técnico/histórico preservado:** FM Control Center / FMCC  
+**Domínio oficial:** `fmcommand.com.br`
 
 **Status:** TARGET ARQUITETURAL v0.2 — RECONCILIADO  
 **Versão:** 0.2  
@@ -9,7 +13,7 @@
 
 ## 1. Princípio central
 
-O FM Control Center é SaaS comercial independente e possui um **FM Cognitive Vertical Core próprio do produto**.
+O **FM Command** é o SaaS comercial independente anteriormente identificado tecnicamente como **FM Control Center (FMCC)** e possui um **FM Cognitive Vertical Core próprio do produto**.
 
 O Core pertence à arquitetura do FMCC. Não depende do runtime cognitivo de outro SaaS para existir, operar ou evoluir.
 
