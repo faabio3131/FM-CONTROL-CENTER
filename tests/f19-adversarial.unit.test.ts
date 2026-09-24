@@ -50,6 +50,7 @@ class MemoryAlertRepository implements AlertRepository {
   }
   async recordOccurrence(input: AlertOccurrence) { this.occurrences.push(input); return { occurrence: input, created: true }; }
   async listOccurrences(tenantId: string) { return this.occurrences.filter((item) => item.tenantId === tenantId); }
+  async findOccurrence(tenantId: string, occurrenceId: string) { return this.occurrences.find((item) => item.tenantId === tenantId && item.id === occurrenceId) ?? null; }
   async acknowledge(tenantId: string, occurrenceId: string) { return this.occurrences.some((item) => item.tenantId === tenantId && item.id === occurrenceId); }
   async recordActionPreview(input: GovernedActionPreview) { this.previews.push(input); return { preview: input, created: true }; }
 }
