@@ -4,6 +4,7 @@ import { buildConnectorRuntime } from "@/application/integration/connector-compo
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import {
   AuthenticationRequiredError,
+  CrossTenantAccessError,
   PermissionDeniedError,
   TenantScopeRequiredError,
 } from "@/domain/security/tenant-context";
@@ -23,7 +24,8 @@ export async function GET(
     }
     if (
       error instanceof TenantScopeRequiredError ||
-      error instanceof PermissionDeniedError
+      error instanceof PermissionDeniedError ||
+      error instanceof CrossTenantAccessError
     ) {
       return NextResponse.json({ error: error.message }, { status: 403 });
     }
