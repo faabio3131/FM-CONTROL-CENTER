@@ -2,7 +2,7 @@
 
 Baseline: main@e6d6e9b33f126d210651a4adbb3ed14ed12b0492
 Working branch: feat/fmcc-f21-readiness-pre-premium-final
-Status: TECHNICAL READINESS VERIFIED / FINAL EXACT-HEAD PREVIEW PENDING
+Status: CLOSED / CERTIFIED — PRE-PREMIUM FINAL READINESS CERTIFIED WITH EXTERNAL BLOCKERS
 
 | Item | CURRENT | TARGET | Evidence / gap | Severity | External blocker | Status |
 |---|---|---|---|---|---|---|
@@ -35,10 +35,10 @@ Status: TECHNICAL READINESS VERIFIED / FINAL EXACT-HEAD PREVIEW PENDING
 | Restore | isolated restore gate added | isolated restore smoke | F21 Gate #2 pg_restore + schema verification PASS | — | no for CI | verified |
 | Rollback | explicit code/config/schema/data procedure documented | preserve/test proportionally | consolidated F21 runbook | — | destructive data rollback still authority-gated | verified procedure |
 | Incident handling | consolidated procedure exists | executable runbook | F21 runbook | — | no | verified |
-| CI | Foundation + cognitive + F21 gates | preserve | #436/#111/#2 SUCCESS on pre-document candidate | — | no | verified; final HEAD recertification pending |
+| CI | Foundation + cognitive + F21 gates | preserve | pre-document #436/#111/#2 SUCCESS; final candidate recertified; pós-merge Foundation #442 e F21 #8 SUCCESS | — | no | verified |
 | Docker | certified | preserve | F20/Foundation | — | no | verified |
 | Supply chain | lockfile/npm ci/SHA-pinned Actions; 4 MODERATE dev tooling | preserve and re-audit | accepted F20 risk | accepted | safe upgrade not established | accepted |
-| Preview/Staging | exact SHA/health/ready/auth gate | homologate final F21 SHA | candidate not yet deployed | gate | Render deployment needed | pending |
+| Preview/Staging | exact SHA/health/ready/auth gate | preserve | Preview Deployment #4 attempt 2 SUCCESS em `edb5b872587c02ee41824dc9f593d9cf0d7c4ea2` | — | no | verified |
 | Runbooks | consolidated F21 operations runbook | preserve | required sections contract PASS | — | no | verified |
 | Config contracts | env example + runtime validation | preserve and validate | readiness contract PASS | — | runtime values external | verified |
 | Operational documentation | F21 matrix/report/runbook reconciled | preserve | second pass documented | — | no | verified |
@@ -58,7 +58,7 @@ External blockers do not authorize fake data, fake providers or a false CONNECTE
 
 `job.failure.count` and `integration.failure.count` remain candidates for an internal governed adapter, but the CURRENT does not define an approved canonical internal source authority/registration contract for those facts. Creating one merely to turn the metrics green would invent authority. Their implementation is therefore deferred until an architectural/domain authority explicitly defines that source boundary.
 
-## Green evidence before final documentation commit
+## Green evidence before final documentation commit — snapshot histórico
 
 - Foundation Gate #436 — SUCCESS.
 - Cognitive Governed Intelligence Gate #111 — SUCCESS.
@@ -70,4 +70,4 @@ External blockers do not authorize fake data, fake providers or a false CONNECTE
 - Isolated PostgreSQL backup/restore: PASS.
 - Runtime smoke/Docker/dependency HIGH threshold: PASS.
 
-The final documentation HEAD must be recertified and homologated in exact-SHA Preview before F21 closure.
+O requisito acima foi satisfeito no fechamento: PR #23 MERGED/CLOSED em `edb5b872587c02ee41824dc9f593d9cf0d7c4ea2`, Foundation #442 SUCCESS, F21 Readiness #8 SUCCESS e Preview Deployment #4 attempt 2 SUCCESS no SHA exato, com health/readiness e proteção anônima do dashboard verdes.

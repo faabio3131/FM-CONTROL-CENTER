@@ -1,6 +1,6 @@
 # FMCC — F21 Homologação e Readiness Operacional — 2026-09-23
 
-Status: TECHNICAL FIX COMPLETE / FINAL EXACT-HEAD PREVIEW PENDING
+Status: CLOSED / CERTIFIED — PRE-PREMIUM FINAL READINESS CERTIFIED WITH EXTERNAL BLOCKERS
 
 ## Baseline
 
@@ -13,6 +13,22 @@ F20: APPROVED/CLOSED.
 PR #22: MERGED/CLOSED.
 Production: NOT AUTHORIZED.
 Final Visual Premium: explicitly excluded from F21.
+
+## Atualização pós-fechamento — 24/09/2026
+
+A exigência de recertificação do HEAD final e de Preview no SHA exato foi satisfeita após o snapshot histórico abaixo.
+
+Evidência de fechamento F21:
+- PR #23: MERGED/CLOSED;
+- merge/main: `edb5b872587c02ee41824dc9f593d9cf0d7c4ea2`;
+- Foundation Gate pós-merge #442 — SUCCESS;
+- F21 Operational Readiness Gate pós-merge #8 — SUCCESS;
+- Preview Deployment Gate #4, attempt 2 — SUCCESS no SHA exato;
+- health — PASS;
+- readiness — PASS;
+- dashboard sem autenticação permaneceu protegido — PASS.
+
+A nomenclatura comercial posterior (**FM Command**) foi integrada sem alterar a decisão de F21. O histórico pré-fechamento permanece abaixo para rastreabilidade.
 
 ## Scope closed in this tranche
 
@@ -152,9 +168,9 @@ Still not invented for:
 ### Pending semantics
 Still explicit for executive metrics whose cohort/window/denominator/accounting definition is not canonically approved.
 
-## Preview / Staging
+## Preview / Staging — critério histórico de fechamento
 
-The final documentation commit changes the PR HEAD and therefore MUST receive:
+O commit documental final alterava o PR HEAD e, para fechamento, precisava receber:
 1. Foundation Gate green;
 2. Cognitive Gate green;
 3. F21 Readiness Gate green;
@@ -164,11 +180,11 @@ The final documentation commit changes the PR HEAD and therefore MUST receive:
 7. unauthenticated dashboard protection PASS;
 8. functional smoke on the same candidate.
 
-No earlier Preview SHA may be reused as proof for the final candidate.
+Nenhum SHA de Preview anterior poderia ser reutilizado como prova do candidate final. Esse requisito foi posteriormente satisfeito pelo Preview Deployment Gate #4, attempt 2, no merge SHA de F21.
 
 ## Final state rule
 
-After final exact-head recertification and Preview evidence, the maximum verdict before the Final Visual Premium is:
+Com a recertificação exact-head e a evidência de Preview concluídas, o veredito antes do Final Visual Premium é:
 
 **FMCC — PRE-PREMIUM FINAL READINESS CERTIFIED WITH EXTERNAL BLOCKERS**
 

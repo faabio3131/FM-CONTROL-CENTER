@@ -44,7 +44,7 @@ class MemoryRepository implements AlertRepository {
     this.rules[index] = { ...this.rules[index], archived: true };
     return true;
   }
-  async listRuleLifecycle(_tenantId: string, _ruleId: string) { return this.lifecycle; }
+  async listRuleLifecycle() { return this.lifecycle; }
   async listOccurrencesForRule(tenantId: string, ruleId: string) {
     return this.occurrences.filter((item) => item.tenantId === tenantId && item.ruleId === ruleId);
   }
