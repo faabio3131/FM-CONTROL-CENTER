@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe("FMCC cognitive model adapter", () => {
   it("aceita apenas metricIds presentes no catálogo governado", async () => {
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({
         metricIds: ["billing.gross_billed", "metric.forbidden"],
       }) } }],
@@ -92,7 +92,7 @@ describe("FMCC cognitive model adapter", () => {
   });
 
   it("instrui a síntese avançada a falhar fechado para anomalia risco e previsão", async () => {
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       choices: [{ message: { content: "Evidência insuficiente." } }],
     }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
