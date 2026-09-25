@@ -8,11 +8,15 @@ afterEach(() => {
 
 describe("FMCC cognitive model adapter", () => {
   it("aceita apenas metricIds presentes no catálogo governado", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      choices: [{ message: { content: JSON.stringify({
-        metricIds: ["billing.gross_billed", "metric.forbidden"],
-      }) } }],
-    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({
+          metricIds: ["billing.gross_billed", "metric.forbidden"],
+        }) } }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
@@ -92,9 +96,13 @@ describe("FMCC cognitive model adapter", () => {
   });
 
   it("instrui a síntese avançada a falhar fechado para anomalia risco e previsão", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      choices: [{ message: { content: "Evidência insuficiente." } }],
-    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "Evidência insuficiente." } }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     const adapter = new OpenAiCompatibleCognitiveModel("https://models.example.test", "unit-test-token", "approved-model");
