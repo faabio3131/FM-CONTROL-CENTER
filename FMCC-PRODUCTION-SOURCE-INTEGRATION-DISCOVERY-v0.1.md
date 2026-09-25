@@ -2,10 +2,10 @@
 
 Status: CURRENT DISCOVERY RECONCILIADO — GOVERNED / NÃO HOMOLOGADO EM PRODUÇÃO
 
-Current FMCC baseline integrada antes da F21:
+Baseline histórica integrada antes da F21:
 `main@e6d6e9b33f126d210651a4adbb3ed14ed12b0492`
 
-F21 working branch:
+Branch histórica de execução F21:
 `feat/fmcc-f21-readiness-pre-premium-final`
 
 F20:
@@ -23,7 +23,7 @@ Current Kordena KCA-13:
 - WP-031L Regression Channel Parity: SUCCESS;
 - Commercial Runtime Readiness V1: SUCCESS.
 
-Preview FMCC — último baseline integrado certificado:
+Preview FMCC — evidência histórica pré-F21:
 - Render Preview source: `e6d6e9b`;
 - exact SHA automation: PASS;
 - branch: `main`;
@@ -31,12 +31,24 @@ Preview FMCC — último baseline integrado certificado:
 - readiness: PASS;
 - unauthenticated dashboard protection: PASS.
 
+Fechamento F21 posterior:
+- PR #23 MERGED/CLOSED em `edb5b872587c02ee41824dc9f593d9cf0d7c4ea2`;
+- Foundation #442 SUCCESS;
+- F21 Readiness #8 SUCCESS;
+- Preview Deployment #4 attempt 2 SUCCESS no SHA exato;
+- health/readiness/auth protection — PASS.
+
+Nomenclatura comercial posterior:
+- **FM Command** adotado como nome comercial oficial;
+- PR #24 MERGED/CLOSED;
+- `main@c7bfca5ab77034a3376bb34434afc20a7c971423` homologada no Preview pelo Deployment Gate #5 attempt 2.
+
 F21:
 - candidate pré-documental `9f7a59072e75d9d3a5d3824e6a3ec12d2d9cc859`;
 - Foundation #436 SUCCESS;
 - Cognitive #111 SUCCESS;
 - F21 Readiness #2 SUCCESS;
-- exact final documentation HEAD Preview: ainda pendente e não pode reutilizar evidência de SHA anterior.
+- exact final documentation HEAD Preview: SATISFEITO posteriormente pelo Preview Deployment #4 attempt 2 no merge SHA de F21.
 
 ## Objetivo
 
@@ -276,7 +288,7 @@ A tranche funcional pode seguir para auditoria independente quando:
 - nenhuma source não homologada for chamada de CONNECTED;
 - nenhuma métrica read-only for promovida indevidamente a Metric Engine.
 
-Esses critérios estão atendidos documentalmente neste v0.2.
+Esses critérios estão atendidos documentalmente neste v0.3.
 
 ## External blockers a carregar para F20/F21
 
