@@ -652,7 +652,8 @@
 }
 
 @media(max-width:680px){
-  .command-auth-shell{overflow:visible}
+  .command-auth-shell{overflow-x:hidden;overflow-y:visible}
+  .command-auth-experience{max-width:100vw;overflow-x:clip}
   .command-auth-brand-lockup{
     gap:9px;
   }
