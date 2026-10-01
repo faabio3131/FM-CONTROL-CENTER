@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { SignOutButton } from "./sign-out-button";
 
 const navigation = [
   { href: "/dashboard", label: "Visão Geral", icon: "⌂", exact: true },
@@ -30,9 +31,12 @@ export function CommandShell({ children }: { children: ReactNode }) {
           <strong>COMMAND</strong>
         </Link>
         <p>Inteligência, controle e crescimento para o seu negócio.</p>
-        <div className="command-topbar-badge" aria-label="Ambiente governado">
-          <span aria-hidden="true">●</span>
-          Ambiente governado
+        <div className="command-topbar-actions">
+          <div className="command-topbar-badge" aria-label="Ambiente governado">
+            <span aria-hidden="true">●</span>
+            Ambiente governado
+          </div>
+          <SignOutButton />
         </div>
       </header>
 
