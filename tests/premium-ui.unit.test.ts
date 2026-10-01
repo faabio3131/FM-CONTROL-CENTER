@@ -56,6 +56,18 @@ describe("F18 premium UX/UI", () => {
     expect(alerts).not.toContain("/execute");
   });
 
+  it("mantém o shell mobile sem navegação sticky sobre o conteúdo e resume o tenant", () => {
+    const dashboard = source("src/app/dashboard/page.tsx");
+    const css = source("src/app/globals.css");
+
+    expect(css).toContain("correção responsiva mobile pós-validação visual");
+    expect(css).toContain(".command-sidebar{\n    position:relative;");
+    expect(css).toContain(".command-content{\n    overflow:visible;");
+    expect(dashboard).toContain("Organização ativa");
+    expect(dashboard).toContain("context.tenantId.slice(0, 6)");
+    expect(dashboard).toContain("context.tenantId.slice(-4)");
+  });
+
   it("aplica o visual premium aprovado no shell global e no FM Command Core", () => {
     const shell = source("src/app/dashboard/command-shell.tsx");
     const layout = source("src/app/dashboard/layout.tsx");

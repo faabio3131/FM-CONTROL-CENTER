@@ -775,3 +775,122 @@ details.alert-history>.alert-list{padding:12px;margin:0}
 form.card{max-width:var(--content);margin:0 auto 38px}
 form.card h2{margin:.25rem 0 .4rem}
 form.card>label{margin-top:2px}
+
+
+/* FM COMMAND — correção responsiva mobile pós-validação visual */
+@media(max-width:760px){
+  .command-topbar{
+    position:sticky;
+    top:0;
+    z-index:50;
+    height:56px;
+    padding:0 12px;
+    gap:8px;
+  }
+  .command-brand{
+    min-width:0;
+    gap:9px;
+  }
+  .command-brand-mark{
+    font-size:1.28rem;
+  }
+  .command-brand-divider{
+    height:18px;
+  }
+  .command-brand strong{
+    font-size:.72rem;
+    letter-spacing:.22em;
+    white-space:nowrap;
+  }
+  .command-topbar-actions{
+    margin-left:auto;
+    flex:0 0 auto;
+  }
+  .command-topbar-actions>.button{
+    min-height:30px;
+    padding:5px 9px;
+    border-radius:9px;
+    font-size:.72rem;
+  }
+  .command-sidebar{
+    position:relative;
+    top:auto;
+    z-index:20;
+    height:auto;
+    overflow-x:auto;
+    overscroll-behavior-inline:contain;
+    scrollbar-width:none;
+    padding:7px 10px 8px;
+    background:rgba(2,8,22,.96);
+  }
+  .command-sidebar::-webkit-scrollbar{display:none}
+  .command-sidebar nav{
+    display:flex;
+    min-width:max-content;
+    gap:6px;
+  }
+  .command-nav-item{
+    min-height:36px;
+    padding:5px 9px;
+    border-radius:9px;
+    font-size:.76rem;
+  }
+  .command-nav-icon{
+    width:23px;
+    height:23px;
+    border-radius:7px;
+  }
+  .command-content{
+    overflow:visible;
+  }
+  .dashboard-shell{
+    min-height:auto;
+    padding:16px 12px 46px;
+  }
+  .dashboard-header{
+    gap:10px;
+    margin-bottom:18px;
+    padding-bottom:16px;
+  }
+  .dashboard-header h1{
+    margin:.12rem 0 .3rem;
+    font-size:clamp(1.9rem,10vw,2.5rem);
+    line-height:1;
+  }
+  .dashboard-header p{
+    font-size:.84rem;
+    line-height:1.5;
+  }
+  .dashboard-header-context{
+    align-self:flex-start;
+    display:inline-flex;
+    align-items:center;
+    max-width:100%;
+    gap:6px;
+    padding:6px 9px;
+    border:1px solid rgba(54,111,230,.22);
+    border-radius:999px;
+    background:rgba(5,17,42,.58);
+    color:#8298c4;
+    font-size:.68rem;
+    white-space:nowrap;
+  }
+  .dashboard-header-context code{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    color:#b9d7ff;
+  }
+}
+
+@media(max-width:420px){
+  .command-brand strong{
+    font-size:.67rem;
+    letter-spacing:.18em;
+  }
+  .command-topbar-actions>.button{
+    padding-inline:8px;
+  }
+  .command-nav-item{
+    padding-inline:8px;
+  }
+}
