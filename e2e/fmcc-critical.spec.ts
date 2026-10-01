@@ -49,7 +49,24 @@ async function createProduct(page: Page, name: string, slug: string) {
 test("abertura premium do FM Command exibe o Core e permanece responsiva", async ({ page }) => {
   await page.goto("/sign-in");
 
-  await expect(page.getByRole("img", { name: "FM Command Core" })).toBeVisible();
+  const approvedArtwork = page.getByRole("img", { name: "FM Command" });
+  await expect(approvedArtwork).toBeVisible();
+  await expect(approvedArtwork).toHaveCSS("mix-blend-mode", "screen");
+  await expect
+    .poll(() =>
+      approvedArtwork.evaluate((image) => ({
+        complete: (image as HTMLImageElement).complete,
+        width: (image as HTMLImageElement).naturalWidth,
+        height: (image as HTMLImageElement).naturalHeight,
+        source: (image as HTMLImageElement).currentSrc,
+      })),
+    )
+    .toMatchObject({
+      complete: true,
+      width: 650,
+      height: 650,
+      source: expect.stringContaining("data:image/webp;base64,"),
+    });
   await expect(page.getByRole("heading", { name: "Acesse sua conta" })).toBeVisible();
   await expect(page.getByText("Comande sua operação com")).toBeVisible();
   await expect(page.getByText("inteligência governada.")).toBeVisible();
@@ -64,7 +81,7 @@ test("abertura premium do FM Command exibe o Core e permanece responsiva", async
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
-  await expect(page.getByRole("img", { name: "FM Command Core" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "FM Command" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
 
   hasCriticalHorizontalOverflow = await page.evaluate(

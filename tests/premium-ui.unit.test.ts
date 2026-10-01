@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { APPROVED_COMMAND_ARTWORK_SRC } from "../src/presentation/command-approved-artwork";
 
 function source(path: string) {
   return readFileSync(resolve(process.cwd(), path), "utf8");
@@ -68,12 +70,14 @@ describe("F18 premium UX/UI", () => {
     expect(dashboard).toContain("context.tenantId.slice(-4)");
   });
 
-  it("aplica a identidade premium aprovada na abertura e preserva o fluxo real de autenticação", () => {
+  it("usa a arte aprovada real na abertura e preserva o fluxo real de autenticação", () => {
     const signIn = source("src/app/sign-in/page.tsx");
     const authCss = source("src/app/command-auth-premium.css");
-    const brain = source("src/presentation/command-brain-logo.tsx");
 
-    expect(signIn).toContain("CommandBrainLogo");
+    expect(signIn).toContain("APPROVED_COMMAND_ARTWORK_SRC");
+    expect(signIn).not.toContain("CommandBrainLogo");
+    expect(signIn).toContain('className="command-approved-artwork"');
+    expect(signIn).toContain('alt="FM Command"');
     expect(signIn).toContain('className="command-auth-shell"');
     expect(signIn).toContain("Comande sua operação com");
     expect(signIn).toContain("inteligência governada.");
@@ -84,10 +88,19 @@ describe("F18 premium UX/UI", () => {
     expect(signIn).not.toContain("Entrar com Google");
     expect(authCss).toContain(".command-auth-layout");
     expect(authCss).toContain(".command-auth-card");
-    expect(authCss).toContain(".command-brain-logo");
+    expect(authCss).toContain(".command-approved-artwork");
+    expect(authCss).toContain("mix-blend-mode:screen");
     expect(authCss).toContain("@media(max-width:680px)");
-    expect(brain).toContain('aria-label="FM Command Core"');
-    expect(brain).toContain("command-neural");
+
+    const prefix = "data:image/webp;base64,";
+    expect(APPROVED_COMMAND_ARTWORK_SRC.startsWith(prefix)).toBe(true);
+    const approvedBytes = Buffer.from(APPROVED_COMMAND_ARTWORK_SRC.slice(prefix.length), "base64");
+    expect(approvedBytes.byteLength).toBe(53526);
+    expect(approvedBytes.subarray(0, 4).toString("ascii")).toBe("RIFF");
+    expect(approvedBytes.subarray(8, 12).toString("ascii")).toBe("WEBP");
+    expect(createHash("sha256").update(approvedBytes).digest("hex")).toBe(
+      "319b6a4a3254b34a75383e1e6013bfa0bf487e421349ee5b37cc2c01cb9dd5a4",
+    );
   });
 
   it("aplica o visual premium aprovado no shell global e no FM Command Core", () => {
