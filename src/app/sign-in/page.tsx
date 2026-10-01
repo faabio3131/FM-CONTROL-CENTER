@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/infrastructure/auth/auth-client";
-import { CommandBrainLogo } from "@/presentation/command-brain-logo";
+import { APPROVED_COMMAND_ARTWORK_SRC } from "@/presentation/command-approved-artwork";
 
 const benefits = [
   ["Mais controle", "Visão executiva governada da operação."],
@@ -86,13 +87,15 @@ export default function SignInPage() {
             </div>
 
             <div className="command-auth-core-stage">
-              <span className="command-auth-orbit command-auth-orbit--one" aria-hidden="true" />
-              <span className="command-auth-orbit command-auth-orbit--two" aria-hidden="true" />
-              <CommandBrainLogo className="command-brain-logo" />
-              <span className="command-auth-signal command-auth-signal--top">Dados em tempo real</span>
-              <span className="command-auth-signal command-auth-signal--right">Operações orientadas</span>
-              <span className="command-auth-signal command-auth-signal--left">Decisões mais rápidas</span>
-              <span className="command-auth-signal command-auth-signal--bottom">Crescimento sustentável</span>
+              <Image
+                className="command-approved-artwork"
+                src={APPROVED_COMMAND_ARTWORK_SRC}
+                alt="FM Command"
+                width={650}
+                height={650}
+                priority
+                unoptimized
+              />
             </div>
           </section>
 
