@@ -151,7 +151,7 @@ export default function SignInPage() {
                   <button
                     className="command-password-toggle"
                     type="button"
-                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-label={showPassword ? "Ocultar caracteres" : "Mostrar caracteres"}
                     aria-pressed={showPassword}
                     onClick={() => setShowPassword((visible) => !visible)}
                   >
