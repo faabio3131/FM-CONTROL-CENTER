@@ -68,6 +68,28 @@ describe("F18 premium UX/UI", () => {
     expect(dashboard).toContain("context.tenantId.slice(-4)");
   });
 
+  it("aplica a identidade premium aprovada na abertura e preserva o fluxo real de autenticação", () => {
+    const signIn = source("src/app/sign-in/page.tsx");
+    const authCss = source("src/app/command-auth-premium.css");
+    const brain = source("src/presentation/command-brain-logo.tsx");
+
+    expect(signIn).toContain("CommandBrainLogo");
+    expect(signIn).toContain('className="command-auth-shell"');
+    expect(signIn).toContain("Comande sua operação com");
+    expect(signIn).toContain("inteligência governada.");
+    expect(signIn).toContain("authClient.signIn.email");
+    expect(signIn).toContain("authClient.signUp.email");
+    expect(signIn).toContain("Criar uma conta");
+    expect(signIn).not.toContain("Entrar com Microsoft");
+    expect(signIn).not.toContain("Entrar com Google");
+    expect(authCss).toContain(".command-auth-layout");
+    expect(authCss).toContain(".command-auth-card");
+    expect(authCss).toContain(".command-brain-logo");
+    expect(authCss).toContain("@media(max-width:680px)");
+    expect(brain).toContain('aria-label="FM Command Core"');
+    expect(brain).toContain("command-neural");
+  });
+
   it("aplica o visual premium aprovado no shell global e no FM Command Core", () => {
     const shell = source("src/app/dashboard/command-shell.tsx");
     const layout = source("src/app/dashboard/layout.tsx");

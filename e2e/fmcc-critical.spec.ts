@@ -45,6 +45,34 @@ async function createProduct(page: Page, name: string, slug: string) {
   return productLink.getAttribute("href");
 }
 
+
+test("abertura premium do FM Command exibe o Core e permanece responsiva", async ({ page }) => {
+  await page.goto("/sign-in");
+
+  await expect(page.getByRole("img", { name: "FM Command Core" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Acesse sua conta" })).toBeVisible();
+  await expect(page.getByText("Comande sua operação com")).toBeVisible();
+  await expect(page.getByText("inteligência governada.")).toBeVisible();
+  await expect(page.getByLabel("E-mail")).toBeVisible();
+  await expect(page.getByLabel("Senha")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
+
+  let hasCriticalHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasCriticalHorizontalOverflow).toBe(false);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.getByRole("img", { name: "FM Command Core" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
+
+  hasCriticalHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasCriticalHorizontalOverflow).toBe(false);
+});
+
 test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ page }) => {
   const identity = await signUpAndCreateOrganization(page, "auth");
 
