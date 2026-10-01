@@ -55,4 +55,30 @@ describe("F18 premium UX/UI", () => {
     expect(alerts).toContain("Preparar investigação");
     expect(alerts).not.toContain("/execute");
   });
+
+  it("aplica o visual premium aprovado no shell global e no FM Command Core", () => {
+    const shell = source("src/app/dashboard/command-shell.tsx");
+    const layout = source("src/app/dashboard/layout.tsx");
+    const core = source("src/app/dashboard/core-query-form.tsx");
+    const css = source("src/app/globals.css");
+
+    expect(layout).toContain("<CommandShell>{children}</CommandShell>");
+    expect(shell).toContain("FM Tecnologia");
+    expect(shell).toContain("COMMAND");
+    expect(shell).toContain("Visão Geral");
+    expect(shell).toContain("Financeiro");
+    expect(shell).toContain("Comercial");
+    expect(shell).toContain("Operações");
+    expect(shell).toContain("Incidentes");
+    expect(shell).toContain("Core");
+    expect(core).toContain("FM COMMAND CORE");
+    expect(core).toContain("Core IA");
+    expect(core).toContain("Dados em tempo real");
+    expect(css).toContain("--command-blue:#1f7aff");
+    expect(css).toContain("--command-cyan:#00d9ff");
+    expect(css).toContain("--command-violet:#8b5cf6");
+    expect(css).toContain(".command-sidebar");
+    expect(css).toContain(".command-topbar");
+    expect(css).toContain(".core-orb");
+  });
 });
