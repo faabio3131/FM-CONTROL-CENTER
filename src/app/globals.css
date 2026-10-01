@@ -762,3 +762,16 @@ input:focus,select:focus,textarea:focus{
   .command-topbar-actions>.button{min-height:32px;padding:6px 9px}
   .dashboard-header-context{white-space:normal}
 }
+
+textarea{width:100%;padding:12px 13px;border-radius:11px;resize:vertical;font:inherit;line-height:1.55}
+pre.card{overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:.78rem;line-height:1.55;color:#bcd1f7}
+details.alert-history{margin-top:18px;border:1px solid rgba(54,111,230,.24);border-radius:13px;background:rgba(5,17,42,.54);overflow:hidden}
+details.alert-history>summary{cursor:pointer;list-style:none;padding:13px 15px;color:#b8c9ec;font-weight:750}
+details.alert-history>summary::-webkit-details-marker{display:none}
+details.alert-history[open]>summary{border-bottom:1px solid rgba(54,111,230,.18)}
+details.alert-history>.alert-list{padding:12px;margin:0}
+.alert-rule-form,.product-create-form,.comparison-form{padding:14px;border:1px solid rgba(54,111,230,.18);border-radius:13px;background:rgba(4,15,37,.58)}
+.alert-actions,.product-card>div{display:flex;flex-wrap:wrap;gap:8px}
+form.card{max-width:var(--content);margin:0 auto 38px}
+form.card h2{margin:.25rem 0 .4rem}
+form.card>label{margin-top:2px}
