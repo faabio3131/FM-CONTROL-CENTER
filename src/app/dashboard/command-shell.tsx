@@ -44,7 +44,7 @@ export function CommandShell({ children }: { children: ReactNode }) {
         <nav>
           {navigation.map((item) => {
             const normalizedHref = item.href.split("#")[0];
-            const active = item.exact
+            const active = "exact" in item && item.exact
               ? pathname === normalizedHref
               : normalizedHref !== "/dashboard" && pathname.startsWith(normalizedHref);
             return (
