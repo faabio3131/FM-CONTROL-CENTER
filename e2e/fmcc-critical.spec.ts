@@ -47,6 +47,7 @@ async function createProduct(page: Page, name: string, slug: string) {
 
 
 test("abertura premium do FM Command exibe o Core e permanece responsiva", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto("/sign-in");
 
   const approvedArtwork = page.getByRole("img", { name: "FM Command" });
@@ -78,6 +79,35 @@ test("abertura premium do FM Command exibe o Core e permanece responsiva", async
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   );
   expect(hasCriticalHorizontalOverflow).toBe(false);
+  const desktopLayout = await page.evaluate(() => {
+    const hero = document.querySelector(".command-auth-hero")?.getBoundingClientRect();
+    const copy = document.querySelector(".command-auth-copy")?.getBoundingClientRect();
+    const artwork = document.querySelector(".command-approved-artwork")?.getBoundingClientRect();
+    const card = document.querySelector(".command-auth-card")?.getBoundingClientRect();
+    const benefits = document.querySelector(".command-auth-benefits")?.getBoundingClientRect();
+
+    return {
+      hero,
+      copy,
+      artwork,
+      card,
+      benefits,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(desktopLayout.copy).toBeTruthy();
+  expect(desktopLayout.artwork).toBeTruthy();
+  expect(desktopLayout.card).toBeTruthy();
+  expect(desktopLayout.benefits).toBeTruthy();
+  expect(desktopLayout.copy!.height).toBeLessThan(360);
+  expect(desktopLayout.artwork!.width).toBeLessThanOrEqual(410);
+  expect(desktopLayout.card!.width).toBeLessThanOrEqual(450);
+  expect(desktopLayout.card!.right).toBeLessThanOrEqual(desktopLayout.viewportWidth);
+  expect(desktopLayout.card!.bottom).toBeLessThanOrEqual(desktopLayout.viewportHeight);
+  expect(desktopLayout.benefits!.bottom).toBeLessThanOrEqual(desktopLayout.viewportHeight + 1);
+
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
