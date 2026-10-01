@@ -39,8 +39,10 @@ async function createProduct(page: Page, name: string, slug: string) {
   await form.getByLabel("Produto").fill(name);
   await form.getByLabel("Identificador").fill(slug);
   await form.getByRole("button", { name: "Cadastrar produto" }).click();
-  await expect(page.getByRole("link", { name: new RegExp(name) })).toBeVisible();
-  return page.getByRole("link", { name: new RegExp(name) }).getAttribute("href");
+  const productSection = page.locator('[aria-labelledby="product-intelligence-title"]');
+  const productLink = productSection.getByRole("link", { name: new RegExp(name) });
+  await expect(productLink).toBeVisible();
+  return productLink.getAttribute("href");
 }
 
 test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ page }) => {
