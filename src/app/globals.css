@@ -753,3 +753,12 @@ input:focus,select:focus,textarea:focus{
   .hero::before{display:none}
   .hero>h1,.hero>p,.hero>.eyebrow,.hero>.actions,.hero>.phase{max-width:none}
 }
+
+.command-topbar-actions{display:flex;align-items:center;gap:10px}
+.command-topbar-actions>.button{min-height:34px;padding:7px 11px;font-size:.76rem}
+.command-topbar-actions>.error{position:absolute;right:16px;top:58px;margin:0;padding:7px 10px;border:1px solid rgba(255,65,95,.28);border-radius:8px;background:#1d0710;font-size:.72rem}
+.dashboard-header-context{align-self:center;color:#7187b3;font-size:.73rem;white-space:nowrap}
+@media(max-width:760px){
+  .command-topbar-actions>.button{min-height:32px;padding:6px 9px}
+  .dashboard-header-context{white-space:normal}
+}
