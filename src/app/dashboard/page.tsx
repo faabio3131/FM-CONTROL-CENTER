@@ -13,7 +13,6 @@ import { rotuloAtualidade, rotuloAutoridadeFonte, rotuloQualidade, rotuloStatusD
 import { CoreQueryForm } from "./core-query-form";
 import { ProductComparisonForm } from "./product-comparison-form";
 import { ProductCreateForm } from "./product-create-form";
-import { SignOutButton } from "./sign-out-button";
 
 function formatTemporalContext(value: { periodStart?: Date; periodEnd?: Date; asOf?: Date }) {
   if (value.asOf) return `Referência temporal: ${value.asOf.toISOString()}`;
@@ -57,9 +56,9 @@ export default async function DashboardPage() {
         <div>
           <span className="eyebrow">Central Executiva de Comando · Prévia</span>
           <h1>FM Command</h1>
-          <p>Organização autenticada: <code>{context.tenantId}</code></p>
+          <p>Visão executiva governada da Nova FM Tecnologia.</p>
         </div>
-        <SignOutButton />
+        <span className="dashboard-header-context">Tenant ativo · <code>{context.tenantId}</code></span>
       </header>
 
       <section className="command-overview" aria-label="Resumo executivo">
