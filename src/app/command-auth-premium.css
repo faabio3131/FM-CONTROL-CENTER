@@ -539,7 +539,7 @@
   }
 
   .command-auth-hero{
-    grid-template-columns:minmax(330px,1.08fr) minmax(320px,.92fr);
+    grid-template-columns:minmax(390px,1.18fr) minmax(300px,.82fr);
     gap:18px;
   }
 
@@ -597,17 +597,23 @@
 
   .command-auth-copy h1{
     margin:.55rem 0 .75rem;
-    font-size:clamp(2.55rem,3.6vw,3.15rem);
-    line-height:1;
+    font-size:clamp(2.35rem,3.2vw,2.8rem);
+    line-height:.98;
   }
 
   .command-auth-copy>p{
-    font-size:.9rem;
-    line-height:1.5;
+    font-size:.86rem;
+    line-height:1.46;
   }
 
   .command-auth-proof{
-    margin-top:.8rem;
+    margin-top:.65rem;
+  }
+
+  .command-auth-proof>span{
+    min-height:28px;
+    padding:.3rem .58rem;
+    font-size:.62rem;
   }
 
   .command-auth-core-stage{
@@ -615,7 +621,7 @@
   }
 
   .command-approved-artwork{
-    width:min(100%,360px);
+    width:min(100%,345px);
   }
 
   .command-auth-card{
