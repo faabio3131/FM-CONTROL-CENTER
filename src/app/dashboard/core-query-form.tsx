@@ -205,10 +205,22 @@ export function CoreQueryForm() {
 
   return (
     <section className="core-panel" aria-labelledby="core-title">
-      <div>
-        <span className="eyebrow">FM Cognitive Core</span>
-        <h2 id="core-title">Consulta executiva governada</h2>
-        <p>O Core usa as mesmas métricas determinísticas do painel e informa quando um dado não existe.</p>
+      <div className="core-panel-head">
+        <div className="core-panel-copy">
+          <span className="eyebrow">Inteligência artificial da FM · FM Cognitive Core</span>
+          <h2 id="core-title">FM COMMAND CORE</h2>
+          <p>Seu copiloto executivo para dados, operações e crescimento. O Core usa as mesmas métricas determinísticas do painel e informa quando um dado não existe.</p>
+        </div>
+        <div className="core-orb-stage" aria-label="FM Command Core IA">
+          <span className="core-orb-note left top">Dados em tempo real</span>
+          <span className="core-orb-note left bottom">Execução orientada</span>
+          <div className="core-orb" aria-hidden="true">
+            <strong>FM</strong>
+            <span>Core IA</span>
+          </div>
+          <span className="core-orb-note right top">Insights com IA</span>
+          <span className="core-orb-note right bottom">Mais controle e eficiência</span>
+        </div>
       </div>
 
       <form onSubmit={submit} className="core-form">

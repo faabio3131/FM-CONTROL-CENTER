@@ -29,7 +29,7 @@ async function signUpAndCreateOrganization(page: Page, prefix: string) {
   await page.getByRole("button", { name: "Criar organização" }).click();
 
   await page.waitForURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "FM Command" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
 
   return { email, password, organizationName, organizationSlug };
 }
@@ -39,8 +39,10 @@ async function createProduct(page: Page, name: string, slug: string) {
   await form.getByLabel("Produto").fill(name);
   await form.getByLabel("Identificador").fill(slug);
   await form.getByRole("button", { name: "Cadastrar produto" }).click();
-  await expect(page.getByRole("link", { name: new RegExp(name) })).toBeVisible();
-  return page.getByRole("link", { name: new RegExp(name) }).getAttribute("href");
+  const productSection = page.locator('[aria-labelledby="product-intelligence-title"]');
+  const productLink = productSection.getByRole("link", { name: new RegExp(name) });
+  await expect(productLink).toBeVisible();
+  return productLink.getAttribute("href");
 }
 
 test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ page }) => {
@@ -59,7 +61,7 @@ test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ 
   await page.getByLabel("Senha").fill(identity.password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "FM Command" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
 });
 
 test("alertas: criação, ausência fail-closed, duplicata, desativação e arquivo", async ({ page }) => {
@@ -145,7 +147,7 @@ test("viewport de tablet crítico mantém dashboard e alertas utilizáveis sem r
   await page.setViewportSize({ width: 768, height: 1024 });
   await signUpAndCreateOrganization(page, "tablet");
 
-  await expect(page.getByRole("heading", { name: "FM Command" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
   let hasCriticalHorizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   );
