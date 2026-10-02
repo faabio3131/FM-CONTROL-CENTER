@@ -28,6 +28,9 @@ describe("F18 premium UX/UI", () => {
     expect(dashboard).toContain("Alertas e Incidentes");
     expect(dashboard).toContain("uptime consolidado");
     expect(dashboard).toContain("Indisponível");
+    expect(dashboard).toContain("OperationalHealthService");
+    expect(dashboard).toContain("operationalHealth.services");
+    expect(dashboard).not.toContain("sources.slice");
     expect(dashboard).toContain("alertOverview.occurrences");
     expect(dashboard).not.toMatch(/health\s*score/i);
     expect(dashboard).not.toContain("Math.random");

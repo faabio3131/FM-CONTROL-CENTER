@@ -2,14 +2,14 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { buildAlertService } from "@/application/alerts/alert-composition";
-import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { MetricService, type MetricView } from "@/application/metrics/metric-service";
+import { OperationalHealthService } from "@/application/operations/operational-health-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { roleHasPermission } from "@/domain/security/permissions";
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
-import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
+import { PostgresOperationalHealthRepository } from "@/infrastructure/operations/postgres-health-repository";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import {
   rotuloAtualidade,
@@ -89,11 +89,11 @@ function relativeTime(date: Date) {
   return `há ${days} d`;
 }
 
-function sourceStatusLabel(status: string) {
-  if (status === "healthy") return "Saudável";
-  if (status === "degraded") return "Degradada";
+function serviceStatusLabel(status?: string) {
+  if (status === "operational") return "Operacional";
+  if (status === "degraded") return "Degradado";
   if (status === "unavailable") return "Indisponível";
-  return "Configurada";
+  return "Sem observação";
 }
 
 function alertSeverityLabel(severity: string) {
@@ -130,15 +130,13 @@ export default async function DashboardPage() {
   const metricService = new MetricService(new PostgresMetricStore());
   const productRepository = new PostgresProductRepository();
   const productService = new ProductRegistryService(productRepository);
-  const sourcePromise = roleHasPermission(context.role, "source:read")
-    ? new SourceRegistryService(new PostgresSourceRepository(), productRepository).list(context)
-    : Promise.resolve([]);
+  const healthService = new OperationalHealthService(new PostgresOperationalHealthRepository(), productRepository);
 
-  const [metrics, products, alertOverview, sources] = await Promise.all([
+  const [metrics, products, alertOverview, operationalHealth] = await Promise.all([
     metricService.overview(context),
     productService.list(context),
     buildAlertService().overview(context),
-    sourcePromise,
+    healthService.overview(context),
   ]);
 
   const productSignalEntries = await Promise.all(
@@ -164,7 +162,7 @@ export default async function DashboardPage() {
     .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
     .slice(0, 8);
 
-  const healthySources = sources.filter((source) => source.status === "healthy").length;
+  const operationalServices = operationalHealth.counts.operational;
   const criticalAlerts = activeAlerts.filter((alert) => alert.severity === "critical").length;
   const warningAlerts = activeAlerts.filter((alert) => alert.severity === "warning").length;
 
@@ -222,7 +220,7 @@ export default async function DashboardPage() {
               <span>uptime consolidado</span>
             </div>
             <div className="command-health-facts">
-              <div><strong>{healthySources}</strong><span>fontes saudáveis</span></div>
+              <div><strong>{operationalServices}</strong><span>serviços operacionais</span></div>
               <div><strong>{criticalAlerts}</strong><span>incidentes críticos</span></div>
               <div><strong>{warningAlerts}</strong><span>avisos ativos</span></div>
             </div>
@@ -248,7 +246,7 @@ export default async function DashboardPage() {
                 <span>disponibilidade</span>
               </div>
               <div className="command-health-detail-facts">
-                <div><strong>{healthySources}</strong><span>Serviços disponíveis</span></div>
+                <div><strong>{operationalServices}</strong><span>Serviços operacionais</span></div>
                 <div><strong>{criticalAlerts}</strong><span>Incidentes críticos</span></div>
                 <div><strong>{warningAlerts}</strong><span>Avisos</span></div>
               </div>
@@ -265,25 +263,25 @@ export default async function DashboardPage() {
                 <Link href="/dashboard/sources">Ver fontes</Link>
               ) : null}
             </div>
-            {sources.length ? (
+            {operationalHealth.services.length ? (
               <div className="command-service-list">
-                {sources.slice(0, 5).map((source) => (
-                  <div className="command-service-row" key={source.id}>
-                    <span className={`command-status-dot ${source.status}`} aria-hidden="true" />
+                {operationalHealth.services.slice(0, 5).map(({ service, observation }) => (
+                  <div className="command-service-row" key={service.id}>
+                    <span className={`command-status-dot ${observation?.status ?? "unknown"}`} aria-hidden="true" />
                     <div>
-                      <strong>{source.name}</strong>
-                      <small>{source.authoritativeDomain}</small>
+                      <strong>{service.name}</strong>
+                      <small>{service.environment} · {observation ? `observado ${relativeTime(observation.observedAt)}` : "sem observação governada"}</small>
                     </div>
-                    <span className={`command-service-status ${source.status}`}>
-                      {sourceStatusLabel(source.status)}
+                    <span className={`command-service-status ${observation?.status ?? "unknown"}`}>
+                      {serviceStatusLabel(observation?.status)}
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="command-empty-compact">
-                <strong>Sem dados</strong>
-                <span>Nenhuma fonte registrada para reportar saúde.</span>
+                <strong>Sem serviços monitorados</strong>
+                <span>Cadastre uma autoridade de saúde antes de reportar disponibilidade.</span>
               </div>
             )}
           </section>

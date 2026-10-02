@@ -1549,10 +1549,11 @@ form.card>label{margin-top:2px}
   background:#6580b5;
   box-shadow:0 0 9px currentColor;
 }
-.command-status-dot.healthy{background:var(--command-green);color:var(--command-green)}
+.command-status-dot.healthy,.command-status-dot.operational{background:var(--command-green);color:var(--command-green)}
 .command-status-dot.degraded{background:var(--command-warning);color:var(--command-warning)}
 .command-status-dot.unavailable{background:var(--command-red);color:var(--command-red)}
 .command-status-dot.configured{background:var(--command-blue);color:var(--command-blue)}
+.command-status-dot.unknown{background:#7583a3;color:#7583a3}
 .command-service-row>div{
   display:grid;
   gap:1px;
@@ -1576,10 +1577,11 @@ form.card>label{margin-top:2px}
   font-size:.54rem;
   font-weight:750;
 }
-.command-service-status.healthy{color:#61deb3}
+.command-service-status.healthy,.command-service-status.operational{color:#61deb3}
 .command-service-status.degraded{color:#ffc95d}
 .command-service-status.unavailable{color:#ff7189}
 .command-service-status.configured{color:#77adff}
+.command-service-status.unknown{color:#91a0c1}
 
 .command-alert-row{
   display:grid;
