@@ -12,7 +12,7 @@ describe("FM Command commercial naming", () => {
     expect(source("src/app/page.tsx")).toContain("<h1>FM Command</h1>");
     expect(source("src/app/page.tsx")).toContain("Abrir FM Command");
     expect(source("src/app/dashboard/page.tsx")).toContain("<h1>FM Command</h1>");
-    expect(source("src/app/onboarding/page.tsx")).toContain("dados do FM Command");
+    expect(source("src/app/onboarding/onboarding-client.tsx")).toContain("dados do FM Command");
   });
 
   it("preserva o namespace técnico FMCC sem rename destrutivo", () => {

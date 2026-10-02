@@ -20,15 +20,18 @@ describe("F18 premium UX/UI", () => {
     expect(css).toContain("--focus:");
   });
 
-  it("mostra resumo executivo factual sem score sintético", () => {
+  it("mostra composição executiva factual sem score ou disponibilidade sintética", () => {
     const dashboard = source("src/app/dashboard/page.tsx");
-    expect(dashboard).toContain('className="command-overview"');
-    expect(dashboard).toContain("Exigem atenção");
-    expect(dashboard).toContain("Cobertura factual");
-    expect(dashboard).toContain("Produtos ativos");
-    expect(dashboard).toContain("alertOverview.occurrences.filter");
+    expect(dashboard).toContain('className="command-kpi-strip"');
+    expect(dashboard).toContain("Saúde Operacional");
+    expect(dashboard).toContain("Status dos Serviços");
+    expect(dashboard).toContain("Alertas e Incidentes");
+    expect(dashboard).toContain("uptime consolidado");
+    expect(dashboard).toContain("Indisponível");
+    expect(dashboard).toContain("alertOverview.occurrences");
     expect(dashboard).not.toMatch(/health\s*score/i);
     expect(dashboard).not.toContain("Math.random");
+    expect(dashboard).not.toContain(">100%<");
   });
 
   it("oferece atalhos governados e evidência acessível no Core", () => {
@@ -106,26 +109,32 @@ describe("F18 premium UX/UI", () => {
   it("aplica o visual premium aprovado no shell global e no FM Command Core", () => {
     const shell = source("src/app/dashboard/command-shell.tsx");
     const layout = source("src/app/dashboard/layout.tsx");
+    const navigation = source("src/presentation/command-navigation.ts");
     const core = source("src/app/dashboard/core-query-form.tsx");
+    const orb = source("src/presentation/command-orb-logo.tsx");
     const css = source("src/app/globals.css");
 
-    expect(layout).toContain("<CommandShell>{children}</CommandShell>");
+    expect(layout).toContain("<CommandShell role={context.role}>{children}</CommandShell>");
     expect(shell).toContain("FM Tecnologia");
     expect(shell).toContain("COMMAND");
-    expect(shell).toContain("Visão Geral");
-    expect(shell).toContain("Financeiro");
-    expect(shell).toContain("Comercial");
-    expect(shell).toContain("Operações");
-    expect(shell).toContain("Incidentes");
-    expect(shell).toContain("Core");
+    expect(navigation).toContain("Visão Geral");
+    expect(navigation).toContain("Financeiro");
+    expect(navigation).toContain("Comercial");
+    expect(navigation).toContain("Operações");
+    expect(navigation).toContain("Incidentes");
+    expect(navigation).toContain("Core");
     expect(core).toContain("FM COMMAND CORE");
-    expect(core).toContain("Core IA");
+    expect(core).toContain("CommandOrbLogo");
+    expect(core).not.toContain("CommandBrainLogo");
     expect(core).toContain("Dados em tempo real");
+    expect(orb).toContain('aria-label="Globo luminoso FM Command"');
+    expect(orb).toContain("COMMAND");
+    expect(orb).toContain("<ellipse");
     expect(css).toContain("--command-blue:#1f7aff");
     expect(css).toContain("--command-cyan:#00d9ff");
     expect(css).toContain("--command-violet:#8b5cf6");
     expect(css).toContain(".command-sidebar");
     expect(css).toContain(".command-topbar");
-    expect(css).toContain(".core-orb");
+    expect(css).toContain(".core-orb-logo");
   });
 });
