@@ -1986,3 +1986,28 @@ form.card>label{margin-top:2px}
   .command-governance-grid{grid-template-columns:1fr}
 }
 
+
+
+/* FM COMMAND — ADMIN DISCLOSURE */
+.command-admin-disclosure{
+  margin:0 0 10px;
+  border:1px solid rgba(54,111,230,.16);
+  border-radius:10px;
+  background:rgba(4,15,37,.38);
+}
+.command-admin-disclosure>summary{
+  cursor:pointer;
+  padding:7px 10px;
+  color:#7489b5;
+  font-size:.6rem;
+  font-weight:800;
+}
+.command-admin-disclosure[open]>summary{
+  border-bottom:1px solid rgba(54,111,230,.12);
+}
+.command-admin-disclosure .product-create-form{
+  margin:0;
+  border:0;
+  border-radius:0 0 10px 10px;
+  background:transparent;
+}
