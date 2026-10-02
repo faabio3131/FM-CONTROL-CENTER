@@ -199,6 +199,23 @@ test("evidência visual do dashboard premium nos quatro viewports oficiais", asy
     );
     expect(hasHorizontalOverflow).toBe(false);
 
+    if (viewport.width === 768) {
+      const tabletLayout = await page.evaluate(() => {
+        const copy = document.querySelector(".core-panel-copy")?.getBoundingClientRect();
+        const orb = document.querySelector(".core-orb-stage")?.getBoundingClientRect();
+        const cards = Array.from(document.querySelectorAll(".command-operations-column .command-ops-card"))
+          .map((element) => element.getBoundingClientRect());
+        return {
+          copyBottom: copy?.bottom,
+          orbTop: orb?.top,
+          firstOpsBottom: cards[0]?.bottom,
+          secondOpsTop: cards[1]?.top,
+        };
+      });
+      expect(tabletLayout.orbTop).toBeGreaterThanOrEqual((tabletLayout.copyBottom ?? 0) - 12);
+      expect(tabletLayout.secondOpsTop).toBeGreaterThanOrEqual((tabletLayout.firstOpsBottom ?? 0) - 1);
+    }
+
     await page.screenshot({
       path: `test-results/fmcc-visual/dashboard-${viewport.name}.png`,
       fullPage: true,
