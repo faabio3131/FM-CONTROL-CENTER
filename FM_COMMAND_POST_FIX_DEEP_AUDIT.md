@@ -1,3 +1,5 @@
+[Reading 43 lines from start (total: 43 lines, 0 remaining)]
+
 # FM Command — Post-Fix Deep Audit
 
 Data: 2026-10-01
@@ -41,3 +43,15 @@ Nenhum secret foi impresso ou persistido nesta mudança.
 - gates finais da PR candidate precisam concluir verdes.
 
 Conclusão pós-fix: findings internos de RBAC/reachability/onboarding/branch governance tratados; release ainda não certificável até gates finais + exact-SHA Preview + runtime real exigido.
+
+[executed on device: DESKTOP-URCTNQ1 (a621fdf8-a56e-492c-8c55-25168019d6a0)]
+
+## Evidência de gates pós-correção
+No code candidate eefd77101dc4f6c0530be0e279c0df715b28b78c:
+- Foundation Gate 36956718236: SUCCESS.
+- F21 Operational Readiness Gate 36956718204: SUCCESS.
+- Browser E2E e upload de evidências visuais: SUCCESS.
+- Runtime smoke e Docker build: SUCCESS.
+- Security/tenant adversarial suite e backup/restore smoke: SUCCESS.
+
+Isto remove regressões internas de CI conhecidas do code candidate, mas não substitui o exact-SHA Preview nem a revalidação dos blockers externos.

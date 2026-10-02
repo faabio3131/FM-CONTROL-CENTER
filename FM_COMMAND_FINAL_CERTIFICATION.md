@@ -1,3 +1,5 @@
+[Reading 41 lines from start (total: 41 lines, 0 remaining)]
+
 # FM Command — Final Certification
 
 Data: 2026-10-01
@@ -39,3 +41,13 @@ Somente após:
 - blockers restantes serem comprovadamente externos e aceitáveis para o escopo de release.
 
 Nenhum merge ou produção real foi executado.
+
+[executed on device: DESKTOP-URCTNQ1 (a621fdf8-a56e-492c-8c55-25168019d6a0)]
+
+## Evidência de CI do code candidate
+SHA: eefd77101dc4f6c0530be0e279c0df715b28b78c
+- Foundation Gate 36956718236 — SUCCESS.
+- F21 Operational Readiness Gate 36956718204 — SUCCESS.
+- E2E/visual/runtime/Docker/audit — SUCCESS dentro do Foundation.
+
+Mesmo com CI verde, o veredito permanece NOT APPROVED porque a especificação exige Preview no SHA exato e os blockers externos/runtime descritos não foram mascarados.

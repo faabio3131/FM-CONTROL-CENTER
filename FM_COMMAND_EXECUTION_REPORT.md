@@ -1,3 +1,5 @@
+[Reading 58 lines from start (total: 58 lines, 0 remaining)]
+
 # FM Command — Execution Report
 
 Data: 2026-10-01
@@ -56,3 +58,13 @@ Nenhum secret real foi adicionado.
 Nenhum bypass de auth/authorization foi criado.
 Nenhuma produção foi promovida.
 Nenhum merge em main foi executado.
+
+[executed on device: DESKTOP-URCTNQ1 (a621fdf8-a56e-492c-8c55-25168019d6a0)]
+
+## Gates do code candidate eefd77101dc4f6c0530be0e279c0df715b28b78c
+- FMCC Foundation Gate run 36956718236: SUCCESS.
+  - lint, typecheck, migration drift, migrate, full tests, secret scan, build, Playwright E2E, visual evidence, runtime smoke, Docker build e npm audit: SUCCESS.
+- FMCC F21 Operational Readiness Gate run 36956718204: SUCCESS.
+  - migrations, readiness contract, security/tenant adversarial suite, secret scan, PostgreSQL backup/restore smoke e dependency audit: SUCCESS.
+
+A atualização documental posterior deve repetir os gates no HEAD final; evidência de SHA anterior não será usada como substituto.
