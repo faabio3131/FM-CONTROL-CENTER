@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 let sequence = 0;
@@ -29,12 +30,18 @@ async function signUpAndCreateOrganization(page: Page, prefix: string) {
   await page.getByRole("button", { name: "Criar organização" }).click();
 
   await page.waitForURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM COMMAND CORE", exact: true })).toBeVisible();
 
   return { email, password, organizationName, organizationSlug };
 }
 
 async function createProduct(page: Page, name: string, slug: string) {
+  const disclosure = page.locator("details.command-admin-disclosure");
+  if (await disclosure.count()) {
+    const isOpen = await disclosure.evaluate((element) => (element as HTMLDetailsElement).open);
+    if (!isOpen) await disclosure.locator("summary").click();
+  }
+
   const form = page.locator("form.product-create-form");
   await form.getByLabel("Produto").fill(name);
   await form.getByLabel("Identificador").fill(slug);
@@ -120,11 +127,117 @@ test("abertura premium do FM Command exibe o Core e permanece responsiva", async
   expect(hasCriticalHorizontalOverflow).toBe(false);
 });
 
+test("dashboard premium em 1366×768 mantém globo aprovado e composição executiva sem overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await signUpAndCreateOrganization(page, "premium-dashboard");
+
+  const coreLogo = page.getByRole("img", { name: "Núcleo de inteligência conectada" });
+  await expect(coreLogo).toBeVisible();
+  await expect(page.locator(".command-kpi-card")).toHaveCount(8);
+  await expect(page.locator(".command-operations-column .command-ops-card")).toHaveCount(3);
+  await expect(page.getByRole("heading", { name: "Saúde Operacional" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Situação dos Serviços" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Alertas e Incidentes" })).toBeVisible();
+
+  expect(await page.locator(".core-orb-logo circle").count()).toBeGreaterThanOrEqual(4);
+  await expect(page.locator(".core-orb-logo text").filter({ hasText: "Inteligência" })).toHaveCount(1);
+  await expect(page.locator(".core-orb-logo text").filter({ hasText: "conectada" })).toHaveCount(1);
+
+  const layout = await page.evaluate(() => {
+    const core = document.querySelector(".core-panel")?.getBoundingClientRect();
+    const logo = document.querySelector(".core-orb-logo")?.getBoundingClientRect();
+    const kpis = document.querySelector(".command-kpi-strip")?.getBoundingClientRect();
+    const operations = document.querySelector(".command-operations-column")?.getBoundingClientRect();
+
+    return {
+      core,
+      logo,
+      kpis,
+      operations,
+      viewportWidth: window.innerWidth,
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    };
+  });
+
+  expect(layout.core).toBeTruthy();
+  expect(layout.logo).toBeTruthy();
+  expect(layout.kpis).toBeTruthy();
+  expect(layout.operations).toBeTruthy();
+  expect(layout.hasHorizontalOverflow).toBe(false);
+  expect(layout.logo!.width).toBeGreaterThan(260);
+  expect(layout.logo!.right).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.kpis!.top).toBeLessThan(layout.core!.top);
+  expect(layout.operations!.top).toBeCloseTo(layout.core!.top, 0);
+});
+
+test("evidência visual do dashboard premium nos quatro viewports oficiais", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await signUpAndCreateOrganization(page, "visual-evidence");
+  await createProduct(page, "Kordena", "kordena");
+  await createProduct(page, "IRON", "iron");
+  await createProduct(page, "CampaIA", "campaia");
+  await mkdir("test-results/fmcc-visual", { recursive: true });
+
+  const viewports = [
+    { width: 1920, height: 1080, name: "1920x1080" },
+    { width: 1366, height: 768, name: "1366x768" },
+    { width: 768, height: 1024, name: "768x1024" },
+    { width: 390, height: 844, name: "390x844" },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto("/dashboard");
+    await expect(page.getByRole("img", { name: "Núcleo de inteligência conectada" })).toBeVisible();
+    await expect(page.locator(".command-kpi-card")).toHaveCount(8);
+    await expect(page.getByRole("heading", { name: "Produtos da FM Tecnologia" })).toBeVisible();
+    await expect(page.locator(".command-product-card")).toHaveCount(3);
+    await expect(page.getByRole("heading", { name: "Atividade Recente" })).toBeVisible();
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    );
+    expect(hasHorizontalOverflow).toBe(false);
+
+    if (viewport.width === 768) {
+      const tabletLayout = await page.evaluate(() => {
+        const copy = document.querySelector(".core-panel-copy")?.getBoundingClientRect();
+        const orb = document.querySelector(".core-orb-stage")?.getBoundingClientRect();
+        const cards = Array.from(document.querySelectorAll(".command-operations-column .command-ops-card"))
+          .map((element) => element.getBoundingClientRect());
+        return {
+          copyBottom: copy?.bottom,
+          orbTop: orb?.top,
+          firstOpsBottom: cards[0]?.bottom,
+          secondOpsTop: cards[1]?.top,
+        };
+      });
+      expect(tabletLayout.orbTop).toBeGreaterThanOrEqual((tabletLayout.copyBottom ?? 0) - 12);
+      expect(tabletLayout.secondOpsTop).toBeGreaterThanOrEqual((tabletLayout.firstOpsBottom ?? 0) - 1);
+    }
+
+    await page.screenshot({
+      path: `test-results/fmcc-visual/dashboard-${viewport.name}.png`,
+      fullPage: true,
+      animations: "disabled",
+    });
+  }
+});
+
+test("onboarding exige autenticacao server-side", async ({ page, context }) => {
+  await page.goto("/onboarding");
+  await page.waitForURL(/\/sign-in$/);
+
+  await context.clearCookies();
+  await page.goto("/onboarding");
+  await page.waitForURL(/\/sign-in$/);
+});
+
 test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ page }) => {
   const identity = await signUpAndCreateOrganization(page, "auth");
 
-  await expect(page.getByText("Cobertura factual")).toBeVisible();
-  await page.getByRole("link", { name: /Kordena Comercial/ }).click();
+  await expect(page.locator(".command-kpi-card").filter({ hasText: "Receita recorrente mensal (MRR)" })).toBeVisible();
+  await page.getByRole("link", { name: "Kordena", exact: true }).click();
   await expect(page.getByText("Fonte Kordena ainda não configurada.")).toBeVisible();
   await expect(page.getByText("Nenhum dado será presumido.")).toBeVisible();
 
@@ -136,7 +249,7 @@ test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ 
   await page.getByLabel("Senha").fill(identity.password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM COMMAND CORE", exact: true })).toBeVisible();
 });
 
 test("alertas: criação, ausência fail-closed, duplicata, desativação e arquivo", async ({ page }) => {
@@ -222,7 +335,7 @@ test("viewport de tablet crítico mantém dashboard e alertas utilizáveis sem r
   await page.setViewportSize({ width: 768, height: 1024 });
   await signUpAndCreateOrganization(page, "tablet");
 
-  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM COMMAND CORE", exact: true })).toBeVisible();
   let hasCriticalHorizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   );

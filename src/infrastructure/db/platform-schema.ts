@@ -71,6 +71,39 @@ export const canonicalFacts = pgTable("fmcc_canonical_fact", {
   index("fmcc_fact_tenant_product_type_time_idx").on(t.tenantId, t.productId, t.factType, t.sourceTimestamp),
 ]);
 
+export const monitoredServices = pgTable("fmcc_monitored_service", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id"),
+  name: text("name").notNull(),
+  serviceType: text("service_type").notNull(),
+  authority: text("authority").notNull(),
+  environment: text("environment").notNull(),
+  expectedHealthContract: text("expected_health_contract").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("fmcc_monitored_service_tenant_name_env_uq").on(t.tenantId, t.name, t.environment),
+  index("fmcc_monitored_service_tenant_product_idx").on(t.tenantId, t.productId),
+]);
+
+export const serviceHealthObservations = pgTable("fmcc_service_health_observation", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  serviceId: uuid("service_id").notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull(),
+  availability: text("availability"),
+  latencyP95Ms: integer("latency_p95_ms"),
+  errorRate: text("error_rate"),
+  sourceAuthority: text("source_authority").notNull(),
+  freshnessStatus: text("freshness_status").notNull(),
+  provenanceRefs: jsonb("provenance_refs").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("fmcc_service_health_tenant_service_time_idx").on(t.tenantId, t.serviceId, t.observedAt),
+]);
+
 export const metricValues = pgTable("fmcc_metric_value", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: text("tenant_id").notNull(),

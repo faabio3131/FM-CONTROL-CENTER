@@ -210,7 +210,7 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
           {products.length === 0 ? (
             <div className="empty-state">
               <strong>Nenhum produto ativo disponível.</strong>
-              <p>Cadastre primeiro o produto Kordena no dashboard.</p>
+              <p>Cadastre primeiro o produto Kordena no painel.</p>
             </div>
           ) : (
             <form className="product-create-form" onSubmit={register}>

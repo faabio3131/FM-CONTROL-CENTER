@@ -26,9 +26,9 @@ export default async function GrowthPage() {
     <main className="dashboard-shell">
       <header className="dashboard-header">
         <div>
-          <span className="eyebrow">F13 · Growth / Comercial</span>
-          <h1>Growth governado</h1>
-          <p>Leads e trials usam fatos autorizados. Conversão, CAC e atribuição não são inferidos sem contrato semântico.</p>
+          <span className="eyebrow">F13 · Crescimento / Comercial</span>
+          <h1>Crescimento governado</h1>
+          <p>Potenciais clientes e testes gratuitos usam fatos autorizados. Conversão, CAC e atribuição não são inferidos sem contrato semântico.</p>
         </div>
         <Link href="/dashboard">Voltar</Link>
       </header>

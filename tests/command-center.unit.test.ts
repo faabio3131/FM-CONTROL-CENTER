@@ -11,6 +11,17 @@ describe("F10 Executive Command Center contract", () => {
     expect(source).not.toContain("Math.random");
   });
 
+  it("keeps executive labels semantically aligned with their metric ids", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/page.tsx"), "utf8");
+    expect(source).toContain('"revenue.cash_collected": "Caixa recebido"');
+    expect(source).toContain('"subscription.active.count": "Assinaturas ativas"');
+    expect(source).toContain(">Usuários ativos (DAU)<");
+    expect(source).toContain(">Caixa recebido<");
+    expect(source).toContain(">Trials iniciados<");
+    expect(source).not.toContain(">Receita<");
+    expect(source).not.toContain(">Testes<");
+  });
+
   it("keeps Core query behind the governed API boundary", () => {
     const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/core-query-form.tsx"), "utf8");
     expect(source).toContain('fetch("/api/core/query"');
