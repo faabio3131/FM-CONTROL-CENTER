@@ -237,7 +237,7 @@ test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ 
   const identity = await signUpAndCreateOrganization(page, "auth");
 
   await expect(page.locator(".command-kpi-card").filter({ hasText: "Receita recorrente mensal (MRR)" })).toBeVisible();
-  await page.locator(".command-action-grid").getByRole("link", { name: /Kordena/ }).click();
+  await page.getByRole("link", { name: "Kordena", exact: true }).click();
   await expect(page.getByText("Fonte Kordena ainda não configurada.")).toBeVisible();
   await expect(page.getByText("Nenhum dado será presumido.")).toBeVisible();
 
