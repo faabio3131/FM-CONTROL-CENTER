@@ -305,7 +305,12 @@ export default async function DashboardPage() {
           <p>Os indicadores por produto são exibidos somente quando existe valor governado para aquele escopo.</p>
         </div>
 
-        {context.role === "owner" || context.role === "admin" ? <ProductCreateForm /> : null}
+        {context.role === "owner" || context.role === "admin" ? (
+          <details className="command-admin-disclosure">
+            <summary>Administrar portfólio</summary>
+            <ProductCreateForm />
+          </details>
+        ) : null}
 
         {products.length ? (
           <div className="product-grid command-product-grid">
