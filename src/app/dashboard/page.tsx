@@ -84,6 +84,8 @@ export default async function DashboardPage() {
         </article>
       </section>
 
+      <CoreQueryForm />
+
       <section className="foundation-grid" aria-label="Inteligência empresarial">
         <Link href="/dashboard/finance"><strong>Financeiro</strong><span>F12 · dados governados</span></Link>
         <Link href="/dashboard/growth"><strong>Growth / Comercial</strong><span>F13 · funil governado</span></Link>
@@ -154,7 +156,7 @@ export default async function DashboardPage() {
         <article><strong>Acesso ao Core</strong><span>Serviço canônico / bloqueio por padrão</span></article>
       </section>
 
-      <CoreQueryForm />
+
     </main>
   );
 }
