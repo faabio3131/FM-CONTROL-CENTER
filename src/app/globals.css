@@ -3197,3 +3197,78 @@ form.card>label{margin-top:2px}
 .command-products-section>.section-heading p{
   max-width:330px;
 }
+
+/* Composição desktop fiel à referência: coluna operacional acompanha Core, produtos e atividade */
+@media(min-width:1101px){
+  .dashboard-shell{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 350px;
+    column-gap:10px;
+    align-items:start;
+  }
+  .dashboard-shell>.command-overview-grid{
+    grid-column:1/-1;
+    grid-row:1;
+    width:100%;
+    max-width:none;
+  }
+  .dashboard-shell>.command-primary-grid{
+    display:contents;
+  }
+  .command-primary-grid>.core-panel{
+    grid-column:1;
+    grid-row:2;
+    width:100%;
+    max-width:none;
+    min-height:286px;
+  }
+  .command-primary-grid>.command-operations-column{
+    grid-column:2;
+    grid-row:2 / span 3;
+    align-self:stretch;
+    height:100%;
+    display:grid;
+    grid-template-rows:auto minmax(170px,1fr) minmax(170px,1fr);
+    gap:8px;
+  }
+  .dashboard-shell>.command-products-section{
+    grid-column:1;
+    grid-row:3;
+    width:100%;
+    max-width:none;
+    margin-top:8px;
+  }
+  .dashboard-shell>.command-activity-section{
+    grid-column:1;
+    grid-row:4;
+    width:100%;
+    max-width:none;
+    margin-top:8px;
+  }
+  .dashboard-shell>.command-detail-disclosure,
+  .dashboard-shell>.executive-section:not(.command-products-section):not(.command-activity-section),
+  .dashboard-shell>.comparison-section,
+  .dashboard-shell>.foundation-grid{
+    grid-column:1/-1;
+  }
+  .command-primary-grid .core-panel-head{
+    min-height:168px;
+  }
+  .command-primary-grid .core-orb-stage{
+    min-height:168px;
+  }
+  .core-orb-visual{
+    width:min(100%,248px);
+  }
+  .command-products-section>.section-heading{
+    margin-top:0;
+  }
+  .command-product-card{
+    min-height:190px;
+  }
+}
+@media(min-width:1101px) and (max-width:1280px){
+  .dashboard-shell{
+    grid-template-columns:minmax(0,1fr) 310px;
+  }
+}
