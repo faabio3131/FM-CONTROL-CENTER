@@ -26,7 +26,7 @@ export default async function OperationsPage() {
     <main className="dashboard-shell">
       <header className="dashboard-header">
         <div>
-          <span className="eyebrow">F14 · Operações, SRE e Incidentes</span>
+          <span className="eyebrow">F14 · Operações, Confiabilidade e Incidentes</span>
           <h1>Saúde operacional governada</h1>
           <p>Saúde pontual não representa disponibilidade contínua. A disponibilidade só aparece quando houver série temporal governada.</p>
         </div>
@@ -44,7 +44,7 @@ export default async function OperationsPage() {
       </section>
 
       <section className="panel">
-        <h2>Runtime</h2>
+        <h2>Ambiente de execução</h2>
         <p><code>{overview.runtime.healthEndpoint}</code> e <code>{overview.runtime.readinessEndpoint}</code> são contratos pontuais de saúde e prontidão.</p>
         <p>{overview.availability.reason}</p>
       </section>

@@ -109,6 +109,14 @@ function activityCategory(metricId: string) {
   return "Sistema";
 }
 
+function productDescription(slug: string) {
+  const normalized = slug.toLowerCase();
+  if (normalized.includes("kordena")) return "Gestão e automação de operações";
+  if (normalized.includes("iron")) return "Inteligência e risco operacional";
+  if (normalized.includes("campa")) return "Inteligência para campanhas";
+  return "Produto governado da FM Tecnologia";
+}
+
 export default async function DashboardPage() {
   let context;
   try {
@@ -240,7 +248,7 @@ export default async function DashboardPage() {
                 <span>disponibilidade</span>
               </div>
               <div className="command-health-detail-facts">
-                <div><strong>{healthySources}</strong><span>Serviços online</span></div>
+                <div><strong>{healthySources}</strong><span>Serviços disponíveis</span></div>
                 <div><strong>{criticalAlerts}</strong><span>Incidentes críticos</span></div>
                 <div><strong>{warningAlerts}</strong><span>Avisos</span></div>
               </div>
@@ -322,7 +330,7 @@ export default async function DashboardPage() {
         <div className="foundation-grid command-action-grid">
           <Link href="/dashboard/finance"><strong>Financeiro</strong><span>Dados e unit economics governados</span></Link>
           <Link href="/dashboard/growth"><strong>Comercial</strong><span>Funil e crescimento governados</span></Link>
-          <Link href="/dashboard/operations"><strong>Operações</strong><span>Sinais operacionais e SRE</span></Link>
+          <Link href="/dashboard/operations"><strong>Operações</strong><span>Sinais operacionais e confiabilidade</span></Link>
           <Link href="/dashboard/customers"><strong>Clientes</strong><span>Uso, suporte e engajamento</span></Link>
           <Link href="/dashboard/intelligence"><strong>Inteligência</strong><span>Análise executiva governada</span></Link>
           <Link href="/dashboard/alerts"><strong>Alertas</strong><span>Regras e fluxos de trabalho governados</span></Link>
@@ -360,7 +368,7 @@ export default async function DashboardPage() {
                       <span className="command-product-logo" aria-hidden="true">{product.name.slice(0, 1).toUpperCase()}</span>
                       <div>
                         <strong>{product.name}</strong>
-                        <small>{product.slug}</small>
+                        <small>{productDescription(product.slug)}</small>
                       </div>
                     </div>
                     <div className="command-product-badges">

@@ -3156,3 +3156,44 @@ form.card>label{margin-top:2px}
 @media(max-width:760px){
   .command-core-suggestions{grid-template-columns:1fr}
 }
+
+/* Refinamentos finais da referência aprovada */
+@media(max-width:1500px) and (min-width:1101px){
+  .command-topbar>p{
+    display:block!important;
+    max-width:285px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:.7rem;
+    color:#8496bd;
+  }
+  .command-topbar-actions .command-global-search{
+    min-width:205px;
+    width:205px;
+  }
+}
+.command-activity-empty{
+  min-height:58px;
+  padding:10px 14px!important;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  border:1px solid rgba(45,103,225,.22);
+  border-radius:9px;
+  background:rgba(5,18,46,.58);
+}
+.command-activity-empty strong{
+  font-size:.72rem;
+  white-space:nowrap;
+}
+.command-activity-empty p{
+  margin:0;
+  color:#7185b0;
+  font-size:.58rem;
+  text-align:right;
+}
+.command-products-section>.section-heading p{
+  max-width:330px;
+}
