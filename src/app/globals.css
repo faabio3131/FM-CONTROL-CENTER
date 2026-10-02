@@ -2806,3 +2806,55 @@ form.card>label{margin-top:2px}
   .command-overview-grid{grid-template-columns:1fr}
   .command-topbar-actions .command-global-search{display:none}
 }
+
+/* FM Command approved reference — final structural pass */
+.command-overview-grid{grid-template-columns:minmax(0,1fr) 174px;gap:10px;margin-bottom:8px}
+.command-overview-grid .command-kpi-strip{grid-template-columns:repeat(8,minmax(0,1fr));gap:8px}
+.command-kpi-card{min-height:118px;padding:11px 12px}
+.command-kpi-label{min-height:auto;font-size:.7rem;color:#c4d0ec}
+.command-kpi-card strong{font-size:1.22rem}
+.command-kpi-card small{font-size:.58rem}
+.command-health-card-top{min-height:118px;padding:11px}
+.command-health-card-top .command-health-summary{grid-template-columns:1fr}
+.command-health-card-top .command-health-ring{width:76px;margin:auto}
+.command-health-card-top .command-health-facts{display:none}
+
+.command-primary-grid{grid-template-columns:minmax(0,1fr) 350px;gap:10px;margin-bottom:8px}
+.command-primary-grid>.core-panel{min-height:318px}
+.command-primary-grid .core-panel-head{min-height:190px;grid-template-columns:minmax(0,1fr) 330px}
+.command-primary-grid .core-orb-stage{min-height:190px}
+.core-orb-visual{width:min(100%,250px)}
+.command-primary-grid .core-panel-copy h2{font-size:2.35rem;line-height:.96}
+.command-primary-grid .core-panel-copy p{font-size:.84rem;max-width:46ch}
+
+.command-operations-column{grid-template-rows:auto auto auto;gap:8px}
+.command-health-card-detail{padding:11px 12px}
+.command-health-detail-grid{display:grid;grid-template-columns:98px 1fr;gap:10px;align-items:center}
+.command-health-detail-ring{width:86px;aspect-ratio:1;display:grid;place-content:center;text-align:center;border-radius:50%;border:7px solid rgba(0,230,190,.26);outline:1px solid rgba(0,210,255,.35);background:radial-gradient(circle,rgba(22,67,148,.28),rgba(2,11,31,.94) 70%);box-shadow:0 0 18px rgba(0,220,210,.14),inset 0 0 18px rgba(0,140,255,.12)}
+.command-health-detail-ring strong{font-size:.58rem;color:#d6e6ff}
+.command-health-detail-ring span{font-size:.44rem;color:#7187b2;margin-top:2px}
+.command-health-detail-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.command-health-detail-facts>div{min-height:36px;padding:5px 6px;border:1px solid rgba(46,107,225,.16);border-radius:7px;background:rgba(3,13,35,.45);display:grid;gap:1px}
+.command-health-detail-facts strong{font-size:.78rem;color:#eff5ff}
+.command-health-detail-facts span{font-size:.48rem;color:#7187b2}
+.command-health-detail-facts>div:last-child{grid-column:1/-1}
+
+.command-ops-card{padding:10px 12px}
+.command-service-row{min-height:27px}
+.command-alert-row{min-height:31px}
+
+.command-products-section{margin-top:0;margin-bottom:8px}
+.command-products-section>.section-heading{margin-bottom:5px}
+.command-product-card{min-height:176px;padding:10px 11px}
+.command-product-grid{gap:8px}
+.command-product-health{padding:5px 7px}
+.command-product-stats>div{padding:5px 6px}
+.command-product-footer{padding-top:5px}
+
+.command-activity-section{margin-bottom:8px}
+.command-activity-row{min-height:48px}
+@media(max-width:1500px){
+  .command-overview-grid{grid-template-columns:minmax(0,1fr) 170px}
+  .command-primary-grid{grid-template-columns:minmax(0,1fr) 330px}
+  .command-primary-grid .core-panel-head{grid-template-columns:minmax(0,1fr) 305px}
+}

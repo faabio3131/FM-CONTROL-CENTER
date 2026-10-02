@@ -34,6 +34,17 @@ const EXECUTIVE_KPI_IDS = [
   "cost.infrastructure.total",
 ] as const;
 
+const EXECUTIVE_KPI_LABELS: Record<(typeof EXECUTIVE_KPI_IDS)[number], string> = {
+  "revenue.mrr": "MRR",
+  "revenue.arr": "ARR",
+  "revenue.cash_collected": "Receita do dia",
+  "trial.active.count": "Trials ativos",
+  "trial.conversion.rate": "Conversão trial",
+  "subscription.active.count": "Assinantes",
+  "subscription.logo_churn.rate": "Churn (mensal)",
+  "cost.infrastructure.total": "Custo de infra",
+};
+
 function formatTemporalContext(value: { periodStart?: Date; periodEnd?: Date; asOf?: Date }) {
   if (value.asOf) return `Referência temporal: ${value.asOf.toISOString()}`;
   if (value.periodStart || value.periodEnd) {
@@ -170,7 +181,7 @@ export default async function DashboardPage() {
         <div className="command-kpi-strip" aria-label="Indicadores executivos">
           {executiveKpis.map(({ target, definition, value }) => (
             <article className="command-kpi-card" key={target.metricId}>
-              <span className="command-kpi-label">{target.displayName}</span>
+              <span className="command-kpi-label">{EXECUTIVE_KPI_LABELS[target.metricId as (typeof EXECUTIVE_KPI_IDS)[number]] ?? target.displayName}</span>
               <strong className={value?.value === null || !value ? "unavailable" : undefined}>
                 {value ? formatMetric(value.value, value.unit, value.currency) : "Indisponível"}
               </strong>
@@ -212,6 +223,27 @@ export default async function DashboardPage() {
         <CoreQueryForm />
 
         <aside className="command-operations-column" aria-label="Operação e saúde">
+          <section className="command-ops-card command-health-card command-health-card-detail" aria-labelledby="health-detail-title">
+            <div className="command-ops-heading">
+              <div>
+                <span className="eyebrow">Operação</span>
+                <h2 id="health-detail-title">Saúde Operacional</h2>
+              </div>
+              <span className="command-health-state">Governada</span>
+            </div>
+            <div className="command-health-detail-grid">
+              <div className="command-health-detail-ring">
+                <strong>Indisponível</strong>
+                <span>disponibilidade</span>
+              </div>
+              <div className="command-health-detail-facts">
+                <div><strong>{healthySources}</strong><span>Serviços online</span></div>
+                <div><strong>{criticalAlerts}</strong><span>Incidentes críticos</span></div>
+                <div><strong>{warningAlerts}</strong><span>Avisos</span></div>
+              </div>
+            </div>
+          </section>
+
           <section className="command-ops-card" aria-labelledby="services-title">
             <div className="command-ops-heading compact">
               <div>
