@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { rotuloAutoridadeFonte, rotuloMetrica } from "@/presentation/pt-br";
+import { CommandBrainLogo } from "@/presentation/command-brain-logo";
 
 type State = {
   status: "idle" | "loading" | "success" | "error";
@@ -213,12 +214,13 @@ export function CoreQueryForm() {
         </div>
         <div className="core-orb-stage" aria-label="FM Command Core IA">
           <span className="core-orb-note left top">Dados em tempo real</span>
+          <span className="core-orb-note left middle">Análise estratégica</span>
           <span className="core-orb-note left bottom">Execução orientada</span>
-          <div className="core-orb" aria-hidden="true">
-            <strong>FM</strong>
-            <span>Core IA</span>
+          <div className="core-orb-visual">
+            <CommandBrainLogo className="core-brain-logo" />
           </div>
           <span className="core-orb-note right top">Insights com IA</span>
+          <span className="core-orb-note right middle">Cenários de crescimento</span>
           <span className="core-orb-note right bottom">Mais controle e eficiência</span>
         </div>
       </div>
@@ -247,7 +249,7 @@ export function CoreQueryForm() {
             id="core-question"
             name="question"
             maxLength={4000}
-            placeholder="Ex.: Quanto faturamos no período?"
+            placeholder="Pergunte ao Core sobre faturamento, trials, churn ou operação..."
             autoComplete="off"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
