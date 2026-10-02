@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { rotuloAutoridadeFonte, rotuloMetrica } from "@/presentation/pt-br";
-import { CommandBrainLogo } from "@/presentation/command-brain-logo";
+import { CommandOrbLogo } from "@/presentation/command-orb-logo";
 
 type State = {
   status: "idle" | "loading" | "success" | "error";
@@ -217,7 +217,7 @@ export function CoreQueryForm() {
           <span className="core-orb-note left middle">Análise estratégica</span>
           <span className="core-orb-note left bottom">Execução orientada</span>
           <div className="core-orb-visual">
-            <CommandBrainLogo className="core-brain-logo" />
+            <CommandOrbLogo className="core-orb-logo" />
           </div>
           <span className="core-orb-note right top">Insights com IA</span>
           <span className="core-orb-note right middle">Cenários de crescimento</span>
