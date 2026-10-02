@@ -2858,3 +2858,10 @@ form.card>label{margin-top:2px}
   .command-primary-grid{grid-template-columns:minmax(0,1fr) 330px}
   .command-primary-grid .core-panel-head{grid-template-columns:minmax(0,1fr) 305px}
 }
+
+@media(max-width:900px){
+  .command-primary-grid .core-panel-head{grid-template-columns:1fr}
+  .command-primary-grid .core-panel-copy{order:1}
+  .command-primary-grid .core-orb-stage{order:2;min-height:245px}
+  .command-operations-column{grid-template-columns:1fr;grid-template-rows:auto}
+}
