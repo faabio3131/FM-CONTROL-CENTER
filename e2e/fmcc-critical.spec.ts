@@ -210,7 +210,7 @@ test("evidência visual do dashboard premium nos quatro viewports oficiais", asy
 test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ page }) => {
   const identity = await signUpAndCreateOrganization(page, "auth");
 
-  await expect(page.getByText("Receita recorrente mensal (MRR)")).toBeVisible();
+  await expect(page.locator(".command-kpi-card").filter({ hasText: "Receita recorrente mensal (MRR)" })).toBeVisible();
   await page.getByRole("link", { name: /Kordena Comercial/ }).click();
   await expect(page.getByText("Fonte Kordena ainda não configurada.")).toBeVisible();
   await expect(page.getByText("Nenhum dado será presumido.")).toBeVisible();
