@@ -34,6 +34,17 @@ const EXECUTIVE_KPI_IDS = [
   "cost.infrastructure.total",
 ] as const;
 
+const EXECUTIVE_KPI_LABELS: Record<(typeof EXECUTIVE_KPI_IDS)[number], string> = {
+  "revenue.mrr": "MRR",
+  "revenue.arr": "ARR",
+  "revenue.cash_collected": "Receita do dia",
+  "trial.active.count": "Testes gratuitos ativos",
+  "trial.conversion.rate": "Conversão de teste",
+  "subscription.active.count": "Assinantes",
+  "subscription.logo_churn.rate": "Cancelamento mensal",
+  "cost.infrastructure.total": "Custo de infra",
+};
+
 function formatTemporalContext(value: { periodStart?: Date; periodEnd?: Date; asOf?: Date }) {
   if (value.asOf) return `Referência temporal: ${value.asOf.toISOString()}`;
   if (value.periodStart || value.periodEnd) {
@@ -96,6 +107,14 @@ function activityCategory(metricId: string) {
   if (/^(lead|trial|subscription)\./.test(metricId)) return "Comercial";
   if (/^(incident|job|integration|service)\./.test(metricId)) return "Operações";
   return "Sistema";
+}
+
+function productDescription(slug: string) {
+  const normalized = slug.toLowerCase();
+  if (normalized.includes("kordena")) return "Gestão e automação de operações";
+  if (normalized.includes("iron")) return "Inteligência e risco operacional";
+  if (normalized.includes("campa")) return "Inteligência para campanhas";
+  return "Produto governado da FM Tecnologia";
 }
 
 export default async function DashboardPage() {
@@ -166,46 +185,72 @@ export default async function DashboardPage() {
         </span>
       </header>
 
-      <section className="command-kpi-strip" aria-label="Indicadores executivos">
-        {executiveKpis.map(({ target, definition, value }) => (
-          <article className="command-kpi-card" key={target.metricId}>
-            <span className="command-kpi-label">{target.displayName}</span>
-            <strong className={value?.value === null || !value ? "unavailable" : undefined}>
-              {value ? formatMetric(value.value, value.unit, value.currency) : "Indisponível"}
-            </strong>
-            <small>
-              {value
-                ? `${rotuloQualidade(value.qualityStatus)} · ${rotuloAtualidade(value.freshnessStatus)}`
-                : definition
-                  ? "Sem valor governado"
-                  : "Sem definição semântica"}
-            </small>
-          </article>
-        ))}
+      <section className="command-overview-grid" aria-label="Visão executiva">
+        <div className="command-kpi-strip" aria-label="Indicadores executivos">
+          {executiveKpis.map(({ target, definition, value }, index) => (
+            <article className={`command-kpi-card command-kpi-card-${(index % 4) + 1}`} key={target.metricId}>
+              <span className="command-kpi-label">{EXECUTIVE_KPI_LABELS[target.metricId as (typeof EXECUTIVE_KPI_IDS)[number]] ?? target.displayName}</span>
+              <strong className={value?.value === null || !value ? "unavailable" : undefined}>
+                {value ? formatMetric(value.value, value.unit, value.currency) : "Indisponível"}
+              </strong>
+              <small>
+                {value
+                  ? `${rotuloQualidade(value.qualityStatus)} · ${rotuloAtualidade(value.freshnessStatus)}`
+                  : definition
+                    ? "Sem valor governado"
+                    : "Sem definição semântica"}
+              </small>
+              <span className="command-kpi-mini-chart" aria-hidden="true">
+                <i /><i /><i /><i /><i /><i /><i />
+              </span>
+            </article>
+          ))}
+        </div>
+
+        <section className="command-ops-card command-health-card command-health-card-top" aria-labelledby="health-title">
+          <div className="command-ops-heading">
+            <div>
+              <span className="eyebrow">Operação</span>
+              <h2 id="health-title">Saúde Operacional</h2>
+            </div>
+            <span className="command-health-state">Governada</span>
+          </div>
+
+          <div className="command-health-summary">
+            <div className="command-health-ring" aria-label="Disponibilidade consolidada indisponível">
+              <strong>Indisponível</strong>
+              <span>uptime consolidado</span>
+            </div>
+            <div className="command-health-facts">
+              <div><strong>{healthySources}</strong><span>fontes saudáveis</span></div>
+              <div><strong>{criticalAlerts}</strong><span>incidentes críticos</span></div>
+              <div><strong>{warningAlerts}</strong><span>avisos ativos</span></div>
+            </div>
+          </div>
+        </section>
       </section>
 
       <div className="command-primary-grid">
         <CoreQueryForm />
 
         <aside className="command-operations-column" aria-label="Operação e saúde">
-          <section className="command-ops-card command-health-card" aria-labelledby="health-title">
+          <section className="command-ops-card command-health-card command-health-card-detail" aria-labelledby="health-detail-title">
             <div className="command-ops-heading">
               <div>
                 <span className="eyebrow">Operação</span>
-                <h2 id="health-title">Saúde Operacional</h2>
+                <h2 id="health-detail-title">Saúde Operacional</h2>
               </div>
               <span className="command-health-state">Governada</span>
             </div>
-
-            <div className="command-health-summary">
-              <div className="command-health-ring" aria-label="Disponibilidade consolidada indisponível">
+            <div className="command-health-detail-grid">
+              <div className="command-health-detail-ring">
                 <strong>Indisponível</strong>
-                <span>uptime consolidado</span>
+                <span>disponibilidade</span>
               </div>
-              <div className="command-health-facts">
-                <div><strong>{healthySources}</strong><span>fontes saudáveis</span></div>
-                <div><strong>{criticalAlerts}</strong><span>incidentes críticos</span></div>
-                <div><strong>{warningAlerts}</strong><span>avisos ativos</span></div>
+              <div className="command-health-detail-facts">
+                <div><strong>{healthySources}</strong><span>Serviços disponíveis</span></div>
+                <div><strong>{criticalAlerts}</strong><span>Incidentes críticos</span></div>
+                <div><strong>{warningAlerts}</strong><span>Avisos</span></div>
               </div>
             </div>
           </section>
@@ -214,7 +259,7 @@ export default async function DashboardPage() {
             <div className="command-ops-heading compact">
               <div>
                 <span className="eyebrow">Conectividade</span>
-                <h2 id="services-title">Status dos Serviços</h2>
+                <h2 id="services-title">Situação dos Serviços</h2>
               </div>
               {roleHasPermission(context.role, "source:read") ? (
                 <Link href="/dashboard/sources">Ver fontes</Link>
@@ -285,10 +330,10 @@ export default async function DashboardPage() {
         <div className="foundation-grid command-action-grid">
           <Link href="/dashboard/finance"><strong>Financeiro</strong><span>Dados e unit economics governados</span></Link>
           <Link href="/dashboard/growth"><strong>Comercial</strong><span>Funil e crescimento governados</span></Link>
-          <Link href="/dashboard/operations"><strong>Operações</strong><span>Sinais operacionais e SRE</span></Link>
+          <Link href="/dashboard/operations"><strong>Operações</strong><span>Sinais operacionais e confiabilidade</span></Link>
           <Link href="/dashboard/customers"><strong>Clientes</strong><span>Uso, suporte e engajamento</span></Link>
           <Link href="/dashboard/intelligence"><strong>Inteligência</strong><span>Análise executiva governada</span></Link>
-          <Link href="/dashboard/alerts"><strong>Alertas</strong><span>Regras e workflows governados</span></Link>
+          <Link href="/dashboard/alerts"><strong>Alertas</strong><span>Regras e fluxos de trabalho governados</span></Link>
           <Link href="/dashboard/commercial/kordena"><strong>Kordena</strong><span>Integração comercial governada</span></Link>
           {roleHasPermission(context.role, "source:read") ? (
             <Link href="/dashboard/sources"><strong>Fontes</strong><span>Integrações e conectividade</span></Link>
@@ -323,25 +368,29 @@ export default async function DashboardPage() {
                       <span className="command-product-logo" aria-hidden="true">{product.name.slice(0, 1).toUpperCase()}</span>
                       <div>
                         <strong>{product.name}</strong>
-                        <small>{product.slug}</small>
+                        <small>{productDescription(product.slug)}</small>
                       </div>
                     </div>
                     <div className="command-product-badges">
-                      <span className="command-product-tag">SaaS</span>
+                      <span className="command-product-tag">Software</span>
                       <span className={`command-product-status ${product.status}`}>{rotuloStatusProduto(product.status)}</span>
                     </div>
                   </div>
 
                   <div className="command-product-health">
                     <span>Saúde</span>
-                    <strong>Sem dados de uptime</strong>
+                    <strong>Sem dados de disponibilidade</strong>
                   </div>
 
                   <div className="command-product-stats">
                     <div><span>Usuários</span><strong>{metricValue(signal?.users)}</strong></div>
                     <div><span>Receita</span><strong>{metricValue(signal?.revenue)}</strong></div>
-                    <div><span>Trials</span><strong>{metricValue(signal?.trials)}</strong></div>
+                    <div><span>Testes</span><strong>{metricValue(signal?.trials)}</strong></div>
                   </div>
+
+                  <span className="command-product-mini-chart" aria-hidden="true">
+                    <i /><i /><i /><i /><i /><i /><i /><i />
+                  </span>
 
                   <div className="command-product-footer">
                     <span>Dados governados por escopo</span>
@@ -354,7 +403,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="empty-state">
             <strong>Nenhum produto configurado.</strong>
-            <p>Cadastre um SaaS para habilitar visão e comparação por produto. Nenhum valor é presumido.</p>
+            <p>Cadastre um produto para habilitar visão e comparação. Nenhum valor é presumido.</p>
           </div>
         )}
       </section>

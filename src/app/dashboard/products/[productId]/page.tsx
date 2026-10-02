@@ -57,7 +57,7 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
 
       <section className="executive-section">
         <div className="section-heading">
-          <div><span className="eyebrow">Visão por SaaS</span><h2>Métricas por produto</h2></div>
+          <div><span className="eyebrow">Visão por produto</span><h2>Métricas por produto</h2></div>
           <p>Sem fonte ou semântica aprovada, o estado permanece indisponível.</p>
         </div>
         <div className="metric-grid">

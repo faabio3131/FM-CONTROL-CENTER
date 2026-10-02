@@ -24,7 +24,7 @@ describe("F18 premium UX/UI", () => {
     const dashboard = source("src/app/dashboard/page.tsx");
     expect(dashboard).toContain('className="command-kpi-strip"');
     expect(dashboard).toContain("Saúde Operacional");
-    expect(dashboard).toContain("Status dos Serviços");
+    expect(dashboard).toContain("Situação dos Serviços");
     expect(dashboard).toContain("Alertas e Incidentes");
     expect(dashboard).toContain("uptime consolidado");
     expect(dashboard).toContain("Indisponível");
@@ -36,9 +36,9 @@ describe("F18 premium UX/UI", () => {
 
   it("oferece atalhos governados e evidência acessível no Core", () => {
     const core = source("src/app/dashboard/core-query-form.tsx");
-    expect(core).toContain("O que precisa da minha atenção?");
-    expect(core).toContain("Explique as principais variações da empresa.");
-    expect(core).toContain("Quais são os principais riscos?");
+    expect(core).toContain("Qual a receita recorrente mensal deste mês?");
+    expect(core).toContain("Por que o cancelamento aumentou?");
+    expect(core).toContain("Previsão de receita para o próximo trimestre");
     expect(core).toContain('className="core-evidence"');
     expect(core).toContain('aria-live="polite"');
     expect(core).toContain('type="button"');
@@ -127,9 +127,10 @@ describe("F18 premium UX/UI", () => {
     expect(core).toContain("CommandOrbLogo");
     expect(core).not.toContain("CommandBrainLogo");
     expect(core).toContain("Dados em tempo real");
-    expect(orb).toContain('aria-label="Globo luminoso FM Command"');
-    expect(orb).toContain("COMMAND");
-    expect(orb).toContain("<ellipse");
+    expect(orb).toContain('aria-label="Núcleo de inteligência conectada"');
+    expect(orb).toContain("Inteligência");
+    expect(orb).toContain("conectada");
+    expect(orb).toContain("<circle");
     expect(css).toContain("--command-blue:#1f7aff");
     expect(css).toContain("--command-cyan:#00d9ff");
     expect(css).toContain("--command-violet:#8b5cf6");

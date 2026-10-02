@@ -30,7 +30,7 @@ async function signUpAndCreateOrganization(page: Page, prefix: string) {
   await page.getByRole("button", { name: "Criar organização" }).click();
 
   await page.waitForURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM COMMAND CORE", exact: true })).toBeVisible();
 
   return { email, password, organizationName, organizationSlug };
 }
@@ -131,17 +131,17 @@ test("dashboard premium em 1366×768 mantém globo aprovado e composição execu
   await page.setViewportSize({ width: 1366, height: 768 });
   await signUpAndCreateOrganization(page, "premium-dashboard");
 
-  const coreLogo = page.getByRole("img", { name: "Globo luminoso FM Command" });
+  const coreLogo = page.getByRole("img", { name: "Núcleo de inteligência conectada" });
   await expect(coreLogo).toBeVisible();
   await expect(page.locator(".command-kpi-card")).toHaveCount(8);
   await expect(page.locator(".command-operations-column .command-ops-card")).toHaveCount(3);
   await expect(page.getByRole("heading", { name: "Saúde Operacional" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Status dos Serviços" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Situação dos Serviços" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Alertas e Incidentes" })).toBeVisible();
 
-  expect(await page.locator(".core-orb-logo circle").count()).toBeGreaterThan(20);
-  expect(await page.locator(".core-orb-logo ellipse").count()).toBeGreaterThan(5);
-  await expect(page.locator(".core-orb-logo text").filter({ hasText: "COMMAND" })).toHaveCount(1);
+  expect(await page.locator(".core-orb-logo circle").count()).toBeGreaterThanOrEqual(4);
+  await expect(page.locator(".core-orb-logo text").filter({ hasText: "Inteligência" })).toHaveCount(1);
+  await expect(page.locator(".core-orb-logo text").filter({ hasText: "conectada" })).toHaveCount(1);
 
   const layout = await page.evaluate(() => {
     const core = document.querySelector(".core-panel")?.getBoundingClientRect();
@@ -188,7 +188,7 @@ test("evidência visual do dashboard premium nos quatro viewports oficiais", asy
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto("/dashboard");
-    await expect(page.getByRole("img", { name: "Globo luminoso FM Command" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Núcleo de inteligência conectada" })).toBeVisible();
     await expect(page.locator(".command-kpi-card")).toHaveCount(8);
     await expect(page.getByRole("heading", { name: "Produtos da FM Tecnologia" })).toBeVisible();
     await expect(page.locator(".command-product-card")).toHaveCount(3);
@@ -237,7 +237,7 @@ test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ 
   const identity = await signUpAndCreateOrganization(page, "auth");
 
   await expect(page.locator(".command-kpi-card").filter({ hasText: "Receita recorrente mensal (MRR)" })).toBeVisible();
-  await page.locator(".command-action-grid").getByRole("link", { name: /Kordena/ }).click();
+  await page.getByRole("link", { name: "Kordena", exact: true }).click();
   await expect(page.getByText("Fonte Kordena ainda não configurada.")).toBeVisible();
   await expect(page.getByText("Nenhum dado será presumido.")).toBeVisible();
 
@@ -249,7 +249,7 @@ test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ 
   await page.getByLabel("Senha").fill(identity.password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM COMMAND CORE", exact: true })).toBeVisible();
 });
 
 test("alertas: criação, ausência fail-closed, duplicata, desativação e arquivo", async ({ page }) => {
@@ -335,7 +335,7 @@ test("viewport de tablet crítico mantém dashboard e alertas utilizáveis sem r
   await page.setViewportSize({ width: 768, height: 1024 });
   await signUpAndCreateOrganization(page, "tablet");
 
-  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "FM COMMAND CORE", exact: true })).toBeVisible();
   let hasCriticalHorizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   );
