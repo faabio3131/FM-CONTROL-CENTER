@@ -37,12 +37,12 @@ const EXECUTIVE_KPI_IDS = [
 const EXECUTIVE_KPI_LABELS: Record<(typeof EXECUTIVE_KPI_IDS)[number], string> = {
   "revenue.mrr": "MRR",
   "revenue.arr": "ARR",
-  "revenue.cash_collected": "Receita do dia",
+  "revenue.cash_collected": "Caixa recebido",
   "trial.active.count": "Testes gratuitos ativos",
-  "trial.conversion.rate": "Conversão de teste",
-  "subscription.active.count": "Assinantes",
-  "subscription.logo_churn.rate": "Cancelamento mensal",
-  "cost.infrastructure.total": "Custo de infra",
+  "trial.conversion.rate": "Conversão trial → assinatura",
+  "subscription.active.count": "Assinaturas ativas",
+  "subscription.logo_churn.rate": "Churn de clientes",
+  "cost.infrastructure.total": "Custos de infraestrutura",
 };
 
 function formatTemporalContext(value: { periodStart?: Date; periodEnd?: Date; asOf?: Date }) {
@@ -383,9 +383,9 @@ export default async function DashboardPage() {
                   </div>
 
                   <div className="command-product-stats">
-                    <div><span>Usuários</span><strong>{metricValue(signal?.users)}</strong></div>
-                    <div><span>Receita</span><strong>{metricValue(signal?.revenue)}</strong></div>
-                    <div><span>Testes</span><strong>{metricValue(signal?.trials)}</strong></div>
+                    <div><span>Usuários ativos (DAU)</span><strong>{metricValue(signal?.users)}</strong></div>
+                    <div><span>Caixa recebido</span><strong>{metricValue(signal?.revenue)}</strong></div>
+                    <div><span>Trials iniciados</span><strong>{metricValue(signal?.trials)}</strong></div>
                   </div>
 
                   <span className="command-product-mini-chart" aria-hidden="true">
