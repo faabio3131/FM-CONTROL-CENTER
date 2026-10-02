@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 describe("F11 Product Intelligence UI/API contract", () => {
   it("dashboard expõe produtos e comparação sem criar score mágico", () => {
     const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/page.tsx"), "utf8");
-    expect(source).toContain("Inteligência por produto");
+    expect(source).toContain("Produtos da FM Tecnologia");
     expect(source).toContain("Comparação governada");
     expect(source).toContain("ProductCreateForm");
     expect(source).not.toContain("product.performance.score");
