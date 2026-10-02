@@ -65,6 +65,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser E2E
         run: npm run test:e2e
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fmcc-visual-evidence-${{ github.sha }}
+          path: test-results/fmcc-visual/*.png
+          if-no-files-found: warn
+          retention-days: 14
       - name: Runtime smoke
         run: npm run test:runtime-smoke
       - name: Build Docker image without runtime secrets

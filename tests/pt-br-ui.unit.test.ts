@@ -42,7 +42,7 @@ describe("interface pt-BR", () => {
 
     expect(dashboard).not.toContain("{product.status}</span>");
     expect(dashboard).toContain("rotuloStatusProduto(product.status)");
-    expect(dashboard).toContain("F11 · Inteligência por Produto");
+    expect(dashboard).toContain("Produtos da FM Tecnologia");
     expect(dashboard).toContain("Portfólio");
     expect(dashboard).toContain("Atualidade:");
 
