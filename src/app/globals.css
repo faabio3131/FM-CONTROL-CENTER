@@ -2635,3 +2635,28 @@ form.card>label{margin-top:2px}
   .command-activity-list{grid-template-columns:1fr}
   .command-activity-row{border-right:0;border-bottom:1px solid rgba(54,111,230,.13)}
 }
+
+
+/* Dashboard aprovado — reconciliação tablet 768–980 */
+@media(max-width:980px) and (min-width:761px){
+  .command-app-shell{grid-template-columns:156px minmax(0,1fr)}
+  .command-primary-grid .core-panel-head{
+    grid-template-columns:1fr;
+    min-height:0;
+    gap:0;
+  }
+  .command-primary-grid .core-panel-copy{
+    max-width:640px;
+    padding-right:0;
+  }
+  .command-primary-grid .core-orb-stage{
+    min-height:280px;
+    margin-top:0;
+  }
+  .core-orb-visual{width:min(100%,300px)}
+  .command-core-suggestions{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .command-operations-column{
+    grid-template-columns:1fr;
+    grid-template-rows:auto;
+  }
+}
