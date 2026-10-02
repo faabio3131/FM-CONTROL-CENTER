@@ -166,50 +166,52 @@ export default async function DashboardPage() {
         </span>
       </header>
 
-      <section className="command-kpi-strip" aria-label="Indicadores executivos">
-        {executiveKpis.map(({ target, definition, value }) => (
-          <article className="command-kpi-card" key={target.metricId}>
-            <span className="command-kpi-label">{target.displayName}</span>
-            <strong className={value?.value === null || !value ? "unavailable" : undefined}>
-              {value ? formatMetric(value.value, value.unit, value.currency) : "Indisponível"}
-            </strong>
-            <small>
-              {value
-                ? `${rotuloQualidade(value.qualityStatus)} · ${rotuloAtualidade(value.freshnessStatus)}`
-                : definition
-                  ? "Sem valor governado"
-                  : "Sem definição semântica"}
-            </small>
-          </article>
-        ))}
+      <section className="command-overview-grid" aria-label="Visão executiva">
+        <div className="command-kpi-strip" aria-label="Indicadores executivos">
+          {executiveKpis.map(({ target, definition, value }) => (
+            <article className="command-kpi-card" key={target.metricId}>
+              <span className="command-kpi-label">{target.displayName}</span>
+              <strong className={value?.value === null || !value ? "unavailable" : undefined}>
+                {value ? formatMetric(value.value, value.unit, value.currency) : "Indisponível"}
+              </strong>
+              <small>
+                {value
+                  ? `${rotuloQualidade(value.qualityStatus)} · ${rotuloAtualidade(value.freshnessStatus)}`
+                  : definition
+                    ? "Sem valor governado"
+                    : "Sem definição semântica"}
+              </small>
+            </article>
+          ))}
+        </div>
+
+        <section className="command-ops-card command-health-card command-health-card-top" aria-labelledby="health-title">
+          <div className="command-ops-heading">
+            <div>
+              <span className="eyebrow">Operação</span>
+              <h2 id="health-title">Saúde Operacional</h2>
+            </div>
+            <span className="command-health-state">Governada</span>
+          </div>
+
+          <div className="command-health-summary">
+            <div className="command-health-ring" aria-label="Disponibilidade consolidada indisponível">
+              <strong>Indisponível</strong>
+              <span>uptime consolidado</span>
+            </div>
+            <div className="command-health-facts">
+              <div><strong>{healthySources}</strong><span>fontes saudáveis</span></div>
+              <div><strong>{criticalAlerts}</strong><span>incidentes críticos</span></div>
+              <div><strong>{warningAlerts}</strong><span>avisos ativos</span></div>
+            </div>
+          </div>
+        </section>
       </section>
 
       <div className="command-primary-grid">
         <CoreQueryForm />
 
         <aside className="command-operations-column" aria-label="Operação e saúde">
-          <section className="command-ops-card command-health-card" aria-labelledby="health-title">
-            <div className="command-ops-heading">
-              <div>
-                <span className="eyebrow">Operação</span>
-                <h2 id="health-title">Saúde Operacional</h2>
-              </div>
-              <span className="command-health-state">Governada</span>
-            </div>
-
-            <div className="command-health-summary">
-              <div className="command-health-ring" aria-label="Disponibilidade consolidada indisponível">
-                <strong>Indisponível</strong>
-                <span>uptime consolidado</span>
-              </div>
-              <div className="command-health-facts">
-                <div><strong>{healthySources}</strong><span>fontes saudáveis</span></div>
-                <div><strong>{criticalAlerts}</strong><span>incidentes críticos</span></div>
-                <div><strong>{warningAlerts}</strong><span>avisos ativos</span></div>
-              </div>
-            </div>
-          </section>
-
           <section className="command-ops-card" aria-labelledby="services-title">
             <div className="command-ops-heading compact">
               <div>
