@@ -120,9 +120,12 @@ describe("F18 premium UX/UI", () => {
     expect(navigation).toContain("Visão Geral");
     expect(navigation).toContain("Financeiro");
     expect(navigation).toContain("Comercial");
+    expect(navigation).toContain("Trials");
+    expect(navigation).toContain("Assinaturas");
     expect(navigation).toContain("Operações");
     expect(navigation).toContain("Incidentes");
     expect(navigation).toContain("Core");
+    expect(navigation).toContain("Configurações");
     expect(core).toContain("FM COMMAND CORE");
     expect(core).toContain("CommandOrbLogo");
     expect(core).not.toContain("CommandBrainLogo");

@@ -2,21 +2,21 @@ import { describe, expect, it } from "vitest";
 import { commandNavigationForRole } from "@/presentation/command-navigation";
 
 describe("FM Command navigation RBAC", () => {
-  it("oculta administracao de fontes de viewer/member", () => {
-    for (const role of ["viewer", "member"] as const) {
+  it("expõe a navegação executiva aprovada sem perder o gate por permissão", () => {
+    for (const role of ["owner", "admin", "analyst", "viewer", "member"] as const) {
       const items = commandNavigationForRole(role);
-      expect(items.some((item) => item.href === "/dashboard/sources")).toBe(false);
-      expect(items.some((item) => item.href === "/dashboard/commercial/kordena")).toBe(true);
-    }
-  });
-
-  it("mantem fontes visivel para owner/admin/analyst", () => {
-    for (const role of ["owner", "admin", "analyst"] as const) {
-      expect(
-        commandNavigationForRole(role).some(
-          (item) => item.href === "/dashboard/sources",
-        ),
-      ).toBe(true);
+      const labels = items.map((item) => item.label);
+      expect(labels).toContain("Visão Geral");
+      expect(labels).toContain("Financeiro");
+      expect(labels).toContain("Comercial");
+      expect(labels).toContain("Trials");
+      expect(labels).toContain("Assinaturas");
+      expect(labels).toContain("Operações");
+      expect(labels).toContain("Incidentes");
+      expect(labels).toContain("Core");
+      expect(labels).toContain("Configurações");
+      expect(labels).not.toContain("Fontes e Integrações");
+      expect(labels).not.toContain("Kordena");
     }
   });
 
