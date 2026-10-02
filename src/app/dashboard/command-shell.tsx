@@ -67,7 +67,7 @@ export function CommandShell({ children, role }: { children: ReactNode; role: Fm
         </nav>
         <div className="command-sidebar-footer">
           <strong>FM COMMAND</strong>
-          <span>Visual Premium · governado</span>
+          <span>Visual avançado · governado</span>
         </div>
       </aside>
 

@@ -28,7 +28,7 @@ export default async function OperationsPage() {
         <div>
           <span className="eyebrow">F14 · Operações, SRE e Incidentes</span>
           <h1>Saúde operacional governada</h1>
-          <p>Health pontual não é uptime. Disponibilidade só aparece quando houver série temporal governada.</p>
+          <p>Saúde pontual não representa disponibilidade contínua. A disponibilidade só aparece quando houver série temporal governada.</p>
         </div>
         <Link href="/dashboard">Voltar</Link>
       </header>

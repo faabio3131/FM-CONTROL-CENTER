@@ -1,120 +1,54 @@
-export function CommandOrbLogo({
-  className = "",
-}: {
-  className?: string;
-}) {
-  const nodes = [
-    [244, 176, 8], [318, 132, 9], [405, 150, 8], [477, 192, 8],
-    [204, 239, 7], [285, 228, 8], [360, 211, 7], [447, 235, 8], [516, 258, 7],
-    [174, 317, 8], [252, 307, 8], [332, 292, 7], [413, 302, 8], [503, 326, 8],
-    [183, 398, 7], [265, 389, 8], [344, 383, 7], [428, 392, 8], [520, 405, 7],
-    [221, 470, 8], [306, 464, 8], [392, 471, 7], [478, 476, 8],
-    [278, 531, 7], [365, 544, 9], [447, 524, 7],
-  ] as const;
-
+export function CommandOrbLogo({ className = "" }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 720 650"
+      viewBox="0 0 520 520"
       role="img"
-      aria-label="Globo de inteligência conectada"
+      aria-label="Núcleo de inteligência conectada"
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        <radialGradient id="fm-orb-fill" cx="40%" cy="32%" r="72%">
-          <stop offset="0%" stopColor="#123d92" stopOpacity=".72" />
-          <stop offset="42%" stopColor="#071f63" stopOpacity=".88" />
-          <stop offset="76%" stopColor="#030b2b" stopOpacity=".98" />
-          <stop offset="100%" stopColor="#010516" stopOpacity="1" />
+        <radialGradient id="orb-center" cx="50%" cy="46%" r="58%">
+          <stop offset="0%" stopColor="#122c78" />
+          <stop offset="55%" stopColor="#071a52" />
+          <stop offset="100%" stopColor="#02091f" />
         </radialGradient>
-        <linearGradient id="fm-orb-stroke" x1="4%" y1="2%" x2="96%" y2="96%">
-          <stop offset="0%" stopColor="#00e6ff" />
-          <stop offset="50%" stopColor="#327cff" />
-          <stop offset="100%" stopColor="#9a5cff" />
+        <linearGradient id="orb-ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#00e5ff" />
+          <stop offset="36%" stopColor="#1689ff" />
+          <stop offset="67%" stopColor="#7748ff" />
+          <stop offset="100%" stopColor="#00d8ff" />
         </linearGradient>
-        <linearGradient id="fm-command-word" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#58ecff" />
-          <stop offset="44%" stopColor="#4c8dff" />
-          <stop offset="100%" stopColor="#bd6cff" />
-        </linearGradient>
-        <filter id="fm-orb-glow" x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="8" result="blur" />
+        <filter id="orb-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="12" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        <filter id="fm-node-glow" x="-120%" y="-120%" width="340%" height="340%">
-          <feGaussianBlur stdDeviation="5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
+        <filter id="orb-soft" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="28" />
         </filter>
-        <clipPath id="fm-orb-clip">
-          <circle cx="360" cy="332" r="245" />
-        </clipPath>
       </defs>
 
-      <g>
-        <circle cx="360" cy="332" r="284" fill="none" stroke="#1468ff" strokeOpacity=".14" strokeWidth="2" />
-        <circle cx="360" cy="332" r="268" fill="none" stroke="#9a5cff" strokeOpacity=".15" strokeWidth="2" strokeDasharray="4 13" />
-        <circle
-          cx="360"
-          cy="332"
-          r="249"
-          fill="url(#fm-orb-fill)"
-          stroke="url(#fm-orb-stroke)"
-          strokeWidth="3"
-          filter="url(#fm-orb-glow)"
-        />
+      <circle cx="260" cy="260" r="190" fill="#064dff" opacity=".16" filter="url(#orb-soft)" />
+      <circle cx="260" cy="260" r="164" fill="none" stroke="#00ddff" strokeOpacity=".18" strokeWidth="18" />
+      <circle cx="260" cy="260" r="153" fill="url(#orb-center)" stroke="url(#orb-ring)" strokeWidth="10" filter="url(#orb-glow)" />
+      <circle cx="260" cy="260" r="137" fill="none" stroke="#5b4fff" strokeOpacity=".46" strokeWidth="2" />
+      <circle cx="260" cy="260" r="122" fill="none" stroke="#00ddff" strokeOpacity=".18" strokeWidth="1" />
 
-        <g clipPath="url(#fm-orb-clip)" fill="none" strokeLinecap="round">
-          <g stroke="#00dfff" strokeOpacity=".52" strokeWidth="2.1" filter="url(#fm-node-glow)">
-            <ellipse cx="360" cy="332" rx="226" ry="72" />
-            <ellipse cx="360" cy="332" rx="226" ry="138" />
-            <ellipse cx="360" cy="332" rx="226" ry="205" />
-            <ellipse cx="360" cy="332" rx="94" ry="232" />
-            <ellipse cx="360" cy="332" rx="170" ry="232" />
-            <path d="M116 332h488" />
-            <path d="M140 246c112 58 330 58 440 0" />
-            <path d="M140 418c112-58 330-58 440 0" />
-          </g>
-          <g stroke="#8465ff" strokeOpacity=".32" strokeWidth="1.8">
-            <ellipse cx="360" cy="332" rx="236" ry="112" transform="rotate(24 360 332)" />
-            <ellipse cx="360" cy="332" rx="236" ry="112" transform="rotate(-24 360 332)" />
-            <ellipse cx="360" cy="332" rx="206" ry="155" transform="rotate(49 360 332)" />
-            <ellipse cx="360" cy="332" rx="206" ry="155" transform="rotate(-49 360 332)" />
-          </g>
+      <path d="M132 245 C198 204 326 204 388 245" fill="none" stroke="#48caff" strokeOpacity=".28" strokeWidth="2" />
+      <path d="M138 282 C202 320 320 320 382 282" fill="none" stroke="#7a66ff" strokeOpacity=".25" strokeWidth="2" />
+      <path d="M181 142 C232 190 287 334 339 379" fill="none" stroke="#00dfff" strokeOpacity=".18" strokeWidth="2" />
+      <path d="M339 142 C286 190 232 334 181 379" fill="none" stroke="#7c57ff" strokeOpacity=".2" strokeWidth="2" />
 
-          <g stroke="url(#fm-orb-stroke)" strokeOpacity=".7" strokeWidth="2.2">
-            <path d="M176 221L285 228 360 211 447 235 516 258" />
-            <path d="M174 317L252 307 332 292 413 302 503 326" />
-            <path d="M183 398L265 389 344 383 428 392 520 405" />
-            <path d="M221 470L306 464 392 471 478 476" />
-            <path d="M244 176L285 228 252 307 265 389 221 470 278 531" />
-            <path d="M318 132L360 211 332 292 344 383 306 464 365 544" />
-            <path d="M405 150L447 235 413 302 428 392 392 471 447 524" />
-            <path d="M477 192L516 258 503 326 520 405 478 476" />
-          </g>
-        </g>
-
-        <g fill="#eafcff" stroke="#00dfff" strokeWidth="3" filter="url(#fm-node-glow)">
-          {nodes.map(([cx, cy, r]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} />)}
-        </g>
-
-        <g textAnchor="middle">
-          <text
-            x="360"
-            y="342"
-            fill="#dff7ff"
-            fontSize="24"
-            fontWeight="600"
-            letterSpacing=".3"
-          >
-            Inteligência conectada
-          </text>
-        </g>
+      <g textAnchor="middle">
+        <text x="260" y="252" fill="#e8f7ff" fontSize="24" fontWeight="700" letterSpacing=".2">
+          Inteligência
+        </text>
+        <text x="260" y="282" fill="#aeefff" fontSize="20" fontWeight="600" letterSpacing=".4">
+          conectada
+        </text>
       </g>
     </svg>
   );

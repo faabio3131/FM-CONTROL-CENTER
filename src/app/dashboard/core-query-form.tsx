@@ -208,18 +208,18 @@ export function CoreQueryForm() {
     <section className="core-panel" aria-labelledby="core-title">
       <div className="core-panel-head">
         <div className="core-panel-copy">
-          <span className="eyebrow">Inteligência artificial da FM · FM Cognitive Core</span>
+          <span className="eyebrow">Inteligência artificial da FM</span>
           <h2 id="core-title">FM COMMAND CORE</h2>
-          <p>Seu copiloto executivo para dados, operações e crescimento. O Core usa as mesmas métricas determinísticas do painel e informa quando um dado não existe.</p>
+          <p>Seu copiloto executivo para dados, operações e crescimento. Pergunte, analise cenários e tome decisões mais rápidas com base nos dados governados da empresa.</p>
         </div>
-        <div className="core-orb-stage" aria-label="FM Command Core IA">
+        <div className="core-orb-stage" aria-label="Núcleo de inteligência conectada">
           <span className="core-orb-note left top">Dados em tempo real</span>
           <span className="core-orb-note left middle">Análise estratégica</span>
           <span className="core-orb-note left bottom">Execução orientada</span>
           <div className="core-orb-visual">
             <CommandOrbLogo className="core-orb-logo" />
           </div>
-          <span className="core-orb-note right top">Insights com IA</span>
+          <span className="core-orb-note right top">Análises com IA</span>
           <span className="core-orb-note right middle">Cenários de crescimento</span>
           <span className="core-orb-note right bottom">Mais controle e eficiência</span>
         </div>
@@ -233,7 +233,7 @@ export function CoreQueryForm() {
             id="core-question"
             name="question"
             maxLength={4000}
-            placeholder="Pergunte ao Core sobre faturamento, trials, churn ou operação..."
+            placeholder="Pergunte ao Core sobre faturamento, testes gratuitos, cancelamentos ou operação..."
             autoComplete="off"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
@@ -255,9 +255,10 @@ export function CoreQueryForm() {
         </div>
         <div className="core-suggestions command-core-suggestions" aria-label="Perguntas sugeridas">
           {[
-            "O que precisa da minha atenção?",
-            "Explique as principais variações da empresa.",
-            "Quais são os principais riscos?",
+            "Qual a receita recorrente mensal deste mês?",
+            "Por que o cancelamento aumentou?",
+            "Comparar desempenho dos produtos",
+            "Previsão de receita para o próximo trimestre",
           ].map((suggestion) => (
             <button
               className="core-suggestion"

@@ -38,10 +38,10 @@ const EXECUTIVE_KPI_LABELS: Record<(typeof EXECUTIVE_KPI_IDS)[number], string> =
   "revenue.mrr": "MRR",
   "revenue.arr": "ARR",
   "revenue.cash_collected": "Receita do dia",
-  "trial.active.count": "Trials ativos",
-  "trial.conversion.rate": "Conversão trial",
+  "trial.active.count": "Testes gratuitos ativos",
+  "trial.conversion.rate": "Conversão de teste",
   "subscription.active.count": "Assinantes",
-  "subscription.logo_churn.rate": "Churn (mensal)",
+  "subscription.logo_churn.rate": "Cancelamento mensal",
   "cost.infrastructure.total": "Custo de infra",
 };
 
@@ -179,8 +179,8 @@ export default async function DashboardPage() {
 
       <section className="command-overview-grid" aria-label="Visão executiva">
         <div className="command-kpi-strip" aria-label="Indicadores executivos">
-          {executiveKpis.map(({ target, definition, value }) => (
-            <article className="command-kpi-card" key={target.metricId}>
+          {executiveKpis.map(({ target, definition, value }, index) => (
+            <article className={`command-kpi-card command-kpi-card-${(index % 4) + 1}`} key={target.metricId}>
               <span className="command-kpi-label">{EXECUTIVE_KPI_LABELS[target.metricId as (typeof EXECUTIVE_KPI_IDS)[number]] ?? target.displayName}</span>
               <strong className={value?.value === null || !value ? "unavailable" : undefined}>
                 {value ? formatMetric(value.value, value.unit, value.currency) : "Indisponível"}
@@ -192,6 +192,9 @@ export default async function DashboardPage() {
                     ? "Sem valor governado"
                     : "Sem definição semântica"}
               </small>
+              <span className="command-kpi-mini-chart" aria-hidden="true">
+                <i /><i /><i /><i /><i /><i /><i />
+              </span>
             </article>
           ))}
         </div>
@@ -248,7 +251,7 @@ export default async function DashboardPage() {
             <div className="command-ops-heading compact">
               <div>
                 <span className="eyebrow">Conectividade</span>
-                <h2 id="services-title">Status dos Serviços</h2>
+                <h2 id="services-title">Situação dos Serviços</h2>
               </div>
               {roleHasPermission(context.role, "source:read") ? (
                 <Link href="/dashboard/sources">Ver fontes</Link>
@@ -322,7 +325,7 @@ export default async function DashboardPage() {
           <Link href="/dashboard/operations"><strong>Operações</strong><span>Sinais operacionais e SRE</span></Link>
           <Link href="/dashboard/customers"><strong>Clientes</strong><span>Uso, suporte e engajamento</span></Link>
           <Link href="/dashboard/intelligence"><strong>Inteligência</strong><span>Análise executiva governada</span></Link>
-          <Link href="/dashboard/alerts"><strong>Alertas</strong><span>Regras e workflows governados</span></Link>
+          <Link href="/dashboard/alerts"><strong>Alertas</strong><span>Regras e fluxos de trabalho governados</span></Link>
           <Link href="/dashboard/commercial/kordena"><strong>Kordena</strong><span>Integração comercial governada</span></Link>
           {roleHasPermission(context.role, "source:read") ? (
             <Link href="/dashboard/sources"><strong>Fontes</strong><span>Integrações e conectividade</span></Link>
@@ -361,21 +364,25 @@ export default async function DashboardPage() {
                       </div>
                     </div>
                     <div className="command-product-badges">
-                      <span className="command-product-tag">SaaS</span>
+                      <span className="command-product-tag">Software</span>
                       <span className={`command-product-status ${product.status}`}>{rotuloStatusProduto(product.status)}</span>
                     </div>
                   </div>
 
                   <div className="command-product-health">
                     <span>Saúde</span>
-                    <strong>Sem dados de uptime</strong>
+                    <strong>Sem dados de disponibilidade</strong>
                   </div>
 
                   <div className="command-product-stats">
                     <div><span>Usuários</span><strong>{metricValue(signal?.users)}</strong></div>
                     <div><span>Receita</span><strong>{metricValue(signal?.revenue)}</strong></div>
-                    <div><span>Trials</span><strong>{metricValue(signal?.trials)}</strong></div>
+                    <div><span>Testes</span><strong>{metricValue(signal?.trials)}</strong></div>
                   </div>
+
+                  <span className="command-product-mini-chart" aria-hidden="true">
+                    <i /><i /><i /><i /><i /><i /><i /><i />
+                  </span>
 
                   <div className="command-product-footer">
                     <span>Dados governados por escopo</span>
@@ -388,7 +395,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="empty-state">
             <strong>Nenhum produto configurado.</strong>
-            <p>Cadastre um SaaS para habilitar visão e comparação por produto. Nenhum valor é presumido.</p>
+            <p>Cadastre um produto para habilitar visão e comparação. Nenhum valor é presumido.</p>
           </div>
         )}
       </section>

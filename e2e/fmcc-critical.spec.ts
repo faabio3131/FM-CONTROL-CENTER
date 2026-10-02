@@ -131,17 +131,17 @@ test("dashboard premium em 1366×768 mantém globo aprovado e composição execu
   await page.setViewportSize({ width: 1366, height: 768 });
   await signUpAndCreateOrganization(page, "premium-dashboard");
 
-  const coreLogo = page.getByRole("img", { name: "Globo de inteligência conectada" });
+  const coreLogo = page.getByRole("img", { name: "Núcleo de inteligência conectada" });
   await expect(coreLogo).toBeVisible();
   await expect(page.locator(".command-kpi-card")).toHaveCount(8);
   await expect(page.locator(".command-operations-column .command-ops-card")).toHaveCount(3);
   await expect(page.getByRole("heading", { name: "Saúde Operacional" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Status dos Serviços" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Situação dos Serviços" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Alertas e Incidentes" })).toBeVisible();
 
-  expect(await page.locator(".core-orb-logo circle").count()).toBeGreaterThan(20);
-  expect(await page.locator(".core-orb-logo ellipse").count()).toBeGreaterThan(5);
-  await expect(page.locator(".core-orb-logo text").filter({ hasText: "Inteligência conectada" })).toHaveCount(1);
+  expect(await page.locator(".core-orb-logo circle").count()).toBeGreaterThanOrEqual(4);
+  await expect(page.locator(".core-orb-logo text").filter({ hasText: "Inteligência" })).toHaveCount(1);
+  await expect(page.locator(".core-orb-logo text").filter({ hasText: "conectada" })).toHaveCount(1);
 
   const layout = await page.evaluate(() => {
     const core = document.querySelector(".core-panel")?.getBoundingClientRect();
@@ -188,7 +188,7 @@ test("evidência visual do dashboard premium nos quatro viewports oficiais", asy
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto("/dashboard");
-    await expect(page.getByRole("img", { name: "Globo de inteligência conectada" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Núcleo de inteligência conectada" })).toBeVisible();
     await expect(page.locator(".command-kpi-card")).toHaveCount(8);
     await expect(page.getByRole("heading", { name: "Produtos da FM Tecnologia" })).toBeVisible();
     await expect(page.locator(".command-product-card")).toHaveCount(3);
