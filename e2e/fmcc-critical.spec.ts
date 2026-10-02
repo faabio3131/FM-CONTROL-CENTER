@@ -120,6 +120,36 @@ test("abertura premium do FM Command exibe o Core e permanece responsiva", async
   expect(hasCriticalHorizontalOverflow).toBe(false);
 });
 
+test("dashboard premium em 1366×768 mantém o Core protagonista sem overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await signUpAndCreateOrganization(page, "premium-dashboard");
+
+  const coreLogo = page.getByRole("img", { name: "FM Command Core" });
+  await expect(coreLogo).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const core = document.querySelector(".core-panel")?.getBoundingClientRect();
+    const logo = document.querySelector(".core-brain-logo")?.getBoundingClientRect();
+    const metrics = document.querySelector("#executive-overview-title")?.getBoundingClientRect();
+
+    return {
+      core,
+      logo,
+      metrics,
+      viewportWidth: window.innerWidth,
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    };
+  });
+
+  expect(layout.core).toBeTruthy();
+  expect(layout.logo).toBeTruthy();
+  expect(layout.metrics).toBeTruthy();
+  expect(layout.hasHorizontalOverflow).toBe(false);
+  expect(layout.logo!.width).toBeGreaterThan(220);
+  expect(layout.logo!.right).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.core!.top).toBeLessThan(layout.metrics!.top);
+});
+
 test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ page }) => {
   const identity = await signUpAndCreateOrganization(page, "auth");
 
