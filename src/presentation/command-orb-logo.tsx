@@ -15,9 +15,9 @@ export function CommandOrbLogo({
   return (
     <svg
       className={className}
-      viewBox="0 0 720 820"
+      viewBox="0 0 720 650"
       role="img"
-      aria-label="Globo luminoso FM Command"
+      aria-label="Globo de inteligência conectada"
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
@@ -103,26 +103,16 @@ export function CommandOrbLogo({
           {nodes.map(([cx, cy, r]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} />)}
         </g>
 
-        <g textAnchor="middle" filter="url(#fm-node-glow)">
-          <text x="360" y="365" fill="#f8fbff" fontSize="112" fontWeight="900" letterSpacing="-9">
-            FM
-          </text>
-        </g>
-
-        <g transform="translate(130 620)" filter="url(#fm-orb-glow)">
-          <rect width="460" height="112" rx="46" fill="#02081d" fillOpacity=".96" stroke="#286fff" strokeWidth="3" />
-          <rect x="4" y="4" width="452" height="104" rx="42" fill="none" stroke="#00dfff" strokeOpacity=".28" strokeWidth="2" />
-          <rect x="10" y="10" width="440" height="92" rx="37" fill="none" stroke="#8b5cf6" strokeOpacity=".24" />
+        <g textAnchor="middle">
           <text
-            x="230"
-            y="72"
-            textAnchor="middle"
-            fill="url(#fm-command-word)"
-            fontSize="49"
-            fontWeight="900"
-            letterSpacing="12"
+            x="360"
+            y="342"
+            fill="#dff7ff"
+            fontSize="24"
+            fontWeight="600"
+            letterSpacing=".3"
           >
-            COMMAND
+            Inteligência conectada
           </text>
         </g>
       </g>

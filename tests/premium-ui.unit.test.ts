@@ -127,8 +127,8 @@ describe("F18 premium UX/UI", () => {
     expect(core).toContain("CommandOrbLogo");
     expect(core).not.toContain("CommandBrainLogo");
     expect(core).toContain("Dados em tempo real");
-    expect(orb).toContain('aria-label="Globo luminoso FM Command"');
-    expect(orb).toContain("COMMAND");
+    expect(orb).toContain('aria-label="Globo de inteligência conectada"');
+    expect(orb).toContain("Inteligência conectada");
     expect(orb).toContain("<ellipse");
     expect(css).toContain("--command-blue:#1f7aff");
     expect(css).toContain("--command-cyan:#00d9ff");

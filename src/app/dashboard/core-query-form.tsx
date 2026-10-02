@@ -225,9 +225,35 @@ export function CoreQueryForm() {
         </div>
       </div>
 
-      <form onSubmit={submit} className="core-form">
-        <label htmlFor="core-question">Pergunta executiva</label>
-        <div className="core-suggestions" aria-label="Perguntas sugeridas">
+      <form onSubmit={submit} className="core-form command-core-form">
+        <label className="sr-only" htmlFor="core-question">Pergunta executiva</label>
+        <div className="core-input-row command-core-input-row">
+          <span className="command-core-spark" aria-hidden="true">✦</span>
+          <input
+            id="core-question"
+            name="question"
+            maxLength={4000}
+            placeholder="Pergunte ao Core sobre faturamento, trials, churn ou operação..."
+            autoComplete="off"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+          />
+          <button
+            className="button core-voice-button command-core-voice"
+            type="button"
+            onClick={toggleVoice}
+            aria-pressed={listening}
+            aria-label={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}
+            title={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}
+          >
+            <span aria-hidden="true">◉</span>
+          </button>
+          <button className="button core-submit-button command-core-submit" type="submit" disabled={state.status === "loading" || !question.trim()}>
+            <span aria-hidden="true">→</span>
+            <span className="sr-only">{state.status === "loading" ? "Consultando" : "Consultar"}</span>
+          </button>
+        </div>
+        <div className="core-suggestions command-core-suggestions" aria-label="Perguntas sugeridas">
           {[
             "O que precisa da minha atenção?",
             "Explique as principais variações da empresa.",
@@ -243,30 +269,6 @@ export function CoreQueryForm() {
               {suggestion}
             </button>
           ))}
-        </div>
-        <div className="core-input-row">
-          <input
-            id="core-question"
-            name="question"
-            maxLength={4000}
-            placeholder="Pergunte ao Core sobre faturamento, trials, churn ou operação..."
-            autoComplete="off"
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-          />
-          <button
-            className="button core-voice-button"
-            type="button"
-            onClick={toggleVoice}
-            aria-pressed={listening}
-            aria-label={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}
-            title={listening ? "Parar reconhecimento de voz" : "Falar a pergunta"}
-          >
-            <span aria-hidden="true">🎙️</span> {listening ? "Parar" : "Falar"}
-          </button>
-          <button className="button core-submit-button" type="submit" disabled={state.status === "loading" || !question.trim()}>
-            {state.status === "loading" ? "Consultando…" : "Consultar"}
-          </button>
         </div>
         {voiceMessage ? <small className="core-voice-status" aria-live="polite">{voiceMessage}</small> : null}
       </form>
