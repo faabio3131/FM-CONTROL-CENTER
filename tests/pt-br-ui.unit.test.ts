@@ -57,7 +57,7 @@ describe("interface pt-BR", () => {
 
   it("mantém autenticação e onboarding sem mensagens brutas do provedor", () => {
     const signIn = readFileSync(resolve(process.cwd(), "src/app/sign-in/page.tsx"), "utf8");
-    const onboarding = readFileSync(resolve(process.cwd(), "src/app/onboarding/page.tsx"), "utf8");
+    const onboarding = readFileSync(resolve(process.cwd(), "src/app/onboarding/onboarding-client.tsx"), "utf8");
     expect(signIn).not.toContain("result.error.message");
     expect(onboarding).not.toContain("result.error.message");
     expect(onboarding).not.toContain('>Tenant<');

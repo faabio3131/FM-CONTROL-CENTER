@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { CommercialSourceResolver } from "@/application/integration/commercial-source-resolver";
 import { KordenaCommercialControlService } from "@/application/integration/kordena-commercial-control-service";
-import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import {
   AuthenticationRequiredError,
   TenantScopeRequiredError,
 } from "@/domain/security/tenant-context";
 import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
-import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import {
   KORDENA_COMMERCIAL_SOURCE_TYPE,
   type KordenaObservabilityMetric,
@@ -53,13 +52,9 @@ export default async function KordenaCommercialPage() {
     throw error;
   }
 
-  const sources = await new SourceRegistryService(
+  const source = await new CommercialSourceResolver(
     new PostgresSourceRepository(),
-    new PostgresProductRepository(),
-  ).list(context);
-  const source = sources.find(
-    (item) => item.sourceType === KORDENA_COMMERCIAL_SOURCE_TYPE,
-  );
+  ).findByType(context, KORDENA_COMMERCIAL_SOURCE_TYPE);
 
   let snapshot:
     | Awaited<ReturnType<KordenaCommercialControlService["snapshot"]>>

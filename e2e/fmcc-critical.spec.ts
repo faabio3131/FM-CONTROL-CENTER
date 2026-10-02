@@ -120,6 +120,16 @@ test("abertura premium do FM Command exibe o Core e permanece responsiva", async
   expect(hasCriticalHorizontalOverflow).toBe(false);
 });
 
+test("onboarding exige autenticacao server-side", async ({ page, context }) => {
+  const anonymous = await page.goto("/onboarding");
+  expect(anonymous?.status()).toBeLessThan(400);
+  await page.waitForURL(/\/sign-in$/);
+
+  await context.clearCookies();
+  await page.goto("/onboarding");
+  await page.waitForURL(/\/sign-in$/);
+});
+
 test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ page }) => {
   const identity = await signUpAndCreateOrganization(page, "auth");
 
