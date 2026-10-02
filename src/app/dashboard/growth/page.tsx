@@ -28,7 +28,7 @@ export default async function GrowthPage() {
         <div>
           <span className="eyebrow">F13 · Crescimento / Comercial</span>
           <h1>Crescimento governado</h1>
-          <p>Potenciais clientes e testes gratuitos usam fatos autorizados. Conversão, custo de aquisição e atribuição não são inferidos sem contrato semântico.</p>
+          <p>Potenciais clientes e testes gratuitos usam fatos autorizados. Conversão, CAC e atribuição não são inferidos sem contrato semântico.</p>
         </div>
         <Link href="/dashboard">Voltar</Link>
       </header>
