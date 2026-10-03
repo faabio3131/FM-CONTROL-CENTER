@@ -109,6 +109,14 @@ export type KordenaBillingLegalEntityType = "individual" | "company";
 
 export interface KordenaBillingConfigurationOptions {
   readonly provider_codes: readonly string[];
+  readonly provider_options?: readonly {
+    readonly provider_code: string;
+    readonly credential_fields: readonly {
+      readonly key: string;
+      readonly label: string;
+      readonly secret: boolean;
+    }[];
+  }[];
   readonly legal_entity_types: readonly {
     readonly value: KordenaBillingLegalEntityType;
     readonly label: string;
