@@ -22,8 +22,13 @@ function mapMetric(row: typeof metricValues.$inferSelect): MetricView {
   };
 }
 
+function referenceMode(): boolean {
+  return process.env.FMCC_REFERENCE_MODE === "pr31";
+}
+
 export class PostgresMetricStore implements MetricStore {
   async factsForMetric(input: { tenantId: string; productId?: string; factType: string; periodStart?: Date; periodEnd?: Date }) {
+    if (referenceMode()) return [];
     const clauses = [
       eq(canonicalFacts.tenantId, input.tenantId),
       eq(canonicalFacts.factType, input.factType),
@@ -43,6 +48,7 @@ export class PostgresMetricStore implements MetricStore {
     periodStart?: Date; periodEnd?: Date; asOf?: Date; computedAt: Date; sourceTimestamp?: Date; freshnessStatus: MetricFreshnessStatus;
     qualityStatus: MetricQualityStatus; sourceAuthority: string; provenanceRefs: readonly string[];
   }) {
+    if (referenceMode()) return;
     await db.insert(metricValues).values({
       tenantId: input.tenantId, productId: input.productId, metricId: input.metricId, metricVersion: input.metricVersion, value: input.value,
       unit: input.unit, currency: input.currency, periodStart: input.periodStart, periodEnd: input.periodEnd, asOf: input.asOf,
@@ -52,6 +58,7 @@ export class PostgresMetricStore implements MetricStore {
   }
 
   async latestValue(tenantId: string, metricId: string, productId?: string): Promise<MetricView | null> {
+    if (referenceMode()) return null;
     const productClause = productId ? eq(metricValues.productId, productId) : isNull(metricValues.productId);
     const rows = await db.select().from(metricValues).where(and(
       eq(metricValues.tenantId, tenantId), eq(metricValues.metricId, metricId), productClause,
@@ -60,6 +67,7 @@ export class PostgresMetricStore implements MetricStore {
   }
 
   async recentValues(tenantId: string, metricId: string, productId: string, limit: number): Promise<readonly MetricView[]> {
+    if (referenceMode()) return [];
     const rows = await db.select().from(metricValues).where(and(
       eq(metricValues.tenantId, tenantId), eq(metricValues.metricId, metricId), eq(metricValues.productId, productId),
     )).orderBy(desc(metricValues.computedAt)).limit(limit);
