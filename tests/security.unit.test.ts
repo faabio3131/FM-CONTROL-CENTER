@@ -12,14 +12,18 @@ describe("tenant security",()=>{
     expect(()=>requirePermission(viewer,"alert:write")).toThrow(PermissionDeniedError);
     expect(()=>requirePermission(viewer,"action:prepare")).toThrow(PermissionDeniedError);
   });
-  it("restringe Billing a owner/admin",()=>{
+  it("restringe Billing e Receivables a owner/admin",()=>{
     const admin:TenantContext={...owner,role:"admin"};
     const analyst:TenantContext={...owner,role:"analyst"};
     expect(()=>requirePermission(owner,"billing:read")).not.toThrow();
     expect(()=>requirePermission(owner,"billing:write")).not.toThrow();
+    expect(()=>requirePermission(owner,"receivable:read")).not.toThrow();
     expect(()=>requirePermission(admin,"billing:read")).not.toThrow();
     expect(()=>requirePermission(admin,"billing:write")).not.toThrow();
+    expect(()=>requirePermission(admin,"receivable:read")).not.toThrow();
     expect(()=>requirePermission(analyst,"billing:read")).toThrow(PermissionDeniedError);
+    expect(()=>requirePermission(analyst,"receivable:read")).toThrow(PermissionDeniedError);
     expect(()=>requirePermission(viewer,"billing:read")).toThrow(PermissionDeniedError);
+    expect(()=>requirePermission(viewer,"receivable:read")).toThrow(PermissionDeniedError);
   });
 });

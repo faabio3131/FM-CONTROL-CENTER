@@ -111,7 +111,15 @@ export default async function ProductPage({
               className="button"
               href={`/dashboard/products/${productId}/billing`}
             >
-              Billing e Recebimentos
+              Billing
+            </Link>
+          ) : null}
+          {roleHasPermission(context.role, "receivable:read") ? (
+            <Link
+              className="button"
+              href={`/dashboard/products/${productId}/receivables`}
+            >
+              Recebimentos
             </Link>
           ) : null}
           <Link className="button" href="/dashboard">
