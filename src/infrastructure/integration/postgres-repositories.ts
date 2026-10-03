@@ -19,14 +19,17 @@ function mapSource(row: typeof sourceDefinitions.$inferSelect): SourceDefinition
 
 export class PostgresSourceRepository implements SourceRepository {
   async findById(tenantId: string, sourceId: string): Promise<SourceDefinition | null> {
+    if (process.env.FMCC_REFERENCE_MODE === "pr31") return null;
     const rows = await db.select().from(sourceDefinitions).where(and(eq(sourceDefinitions.tenantId, tenantId), eq(sourceDefinitions.id, sourceId))).limit(1);
     return rows[0] ? mapSource(rows[0]) : null;
   }
   async list(tenantId: string): Promise<readonly SourceDefinition[]> {
+    if (process.env.FMCC_REFERENCE_MODE === "pr31") return [];
     const rows = await db.select().from(sourceDefinitions).where(eq(sourceDefinitions.tenantId, tenantId));
     return rows.map(mapSource);
   }
   async create(tenantId: string, input: NewSourceDefinition): Promise<SourceDefinition> {
+    if (process.env.FMCC_REFERENCE_MODE === "pr31") throw new Error("reference_mode.read_only");
     const rows = await db.insert(sourceDefinitions).values({
       tenantId, productId: input.productId, name: input.name, sourceType: input.sourceType,
       authoritativeDomain: input.authoritativeDomain, syncMode: input.syncMode, secretRef: input.secretRef,
