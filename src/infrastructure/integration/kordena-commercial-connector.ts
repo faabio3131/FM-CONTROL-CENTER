@@ -105,6 +105,85 @@ export interface KordenaCommercialCommand {
   readonly payload: Record<string, unknown>;
 }
 
+export type KordenaBillingLegalEntityType = "individual" | "company";
+
+export interface KordenaBillingConfigurationOptions {
+  readonly provider_codes: readonly string[];
+  readonly provider_options?: readonly {
+    readonly provider_code: string;
+    readonly credential_fields: readonly {
+      readonly key: string;
+      readonly label: string;
+      readonly secret: boolean;
+    }[];
+  }[];
+  readonly legal_entity_types: readonly {
+    readonly value: KordenaBillingLegalEntityType;
+    readonly label: string;
+  }[];
+  readonly payment_methods: readonly string[];
+  readonly environments: readonly string[];
+}
+
+export interface KordenaBillingProviderAccount {
+  readonly provider_account_id: string;
+  readonly provider_code: string;
+  readonly display_name: string;
+  readonly legal_entity_type: KordenaBillingLegalEntityType | null;
+  readonly legal_entity_ref: string | null;
+  readonly environment: "sandbox" | "production";
+  readonly status: "draft" | "validating" | "active" | "suspended" | "disabled";
+  readonly credential_configured: boolean;
+  readonly supported_payment_methods: readonly string[];
+  readonly supports_recurring: boolean;
+  readonly supports_webhooks: boolean;
+  readonly priority: number;
+  readonly last_test_status: "never" | "pass" | "fail";
+  readonly last_tested_at: string | null;
+  readonly version: number;
+  readonly updated_at: string;
+}
+
+export interface KordenaBillingRoutingPolicy {
+  readonly routing_policy_id: string;
+  readonly product_code: string;
+  readonly payment_method: string;
+  readonly environment: "sandbox" | "production";
+  readonly requires_recurring: boolean;
+  readonly requires_webhooks: boolean;
+  readonly primary_provider_account_id: string;
+  readonly fallback_provider_account_ids: readonly string[];
+  readonly active: boolean;
+  readonly version: number;
+  readonly updated_at: string;
+}
+
+export interface KordenaBillingOverview {
+  readonly options: KordenaBillingConfigurationOptions;
+  readonly providerAccounts: readonly KordenaBillingProviderAccount[];
+  readonly routingPolicies: readonly KordenaBillingRoutingPolicy[];
+}
+
+export type KordenaBillingAction =
+  | "provider.create"
+  | "provider.update"
+  | "provider.credential"
+  | "provider.test"
+  | "provider.status"
+  | "routing.create"
+  | "routing.update";
+
+export interface KordenaBillingCommand {
+  readonly actor: {
+    readonly user_id: string;
+    readonly role: "owner" | "admin";
+    readonly step_up_at: string;
+  };
+  readonly action: KordenaBillingAction;
+  readonly resource_id?: string;
+  readonly payload: Record<string, unknown>;
+}
+
 export class KordenaCommercialConnectorError extends Error {
   constructor(code = "integration.kordena_commercial_failure") {
     super(code);
@@ -349,6 +428,8 @@ export class KordenaCommercialConnector implements Connector {
     "commercial.snapshot",
     "commercial.facts",
     "commercial.catalog.commands",
+    "commercial.billing.read",
+    "commercial.billing.write",
   ] as const;
 
   constructor(

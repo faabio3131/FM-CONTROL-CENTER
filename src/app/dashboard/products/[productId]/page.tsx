@@ -5,6 +5,7 @@ import type { MetricView } from "@/application/metrics/metric-service";
 import { buildProductCockpitService } from "@/application/products/product-cockpit-composition";
 import { ProductNotFoundError } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
+import { roleHasPermission } from "@/domain/security/permissions";
 import {
   AuthenticationRequiredError,
   TenantScopeRequiredError,
@@ -105,6 +106,14 @@ export default async function ProductPage({
           </p>
         </div>
         <div>
+          {roleHasPermission(context.role, "billing:read") ? (
+            <Link
+              className="button"
+              href={`/dashboard/products/${productId}/billing`}
+            >
+              Billing e Recebimentos
+            </Link>
+          ) : null}
           <Link className="button" href="/dashboard">
             Voltar
           </Link>
