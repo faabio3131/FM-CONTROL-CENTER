@@ -3,11 +3,13 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { buildAlertService } from "@/application/alerts/alert-composition";
 import { MetricService } from "@/application/metrics/metric-service";
+import { OperationalHealthService } from "@/application/operations/operational-health-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { roleHasPermission } from "@/domain/security/permissions";
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
+import { PostgresOperationalHealthRepository } from "@/infrastructure/operations/postgres-health-repository";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import { rotuloAtualidade, rotuloAutoridadeFonte, rotuloQualidade, rotuloStatusDefinicao, rotuloStatusProduto } from "@/presentation/pt-br";
 import { CoreQueryForm } from "./core-query-form";
@@ -41,10 +43,15 @@ export default async function DashboardPage() {
   }
 
   const metricService = new MetricService(new PostgresMetricStore());
-  const [metrics, products, alertOverview] = await Promise.all([
+  const productsRepository = new PostgresProductRepository();
+  const [metrics, products, alertOverview, operationalHealth] = await Promise.all([
     metricService.overview(context),
-    new ProductRegistryService(new PostgresProductRepository()).list(context),
+    new ProductRegistryService(productsRepository).list(context),
     buildAlertService().overview(context),
+    new OperationalHealthService(
+      new PostgresOperationalHealthRepository(),
+      productsRepository,
+    ).overview(context),
   ]);
   const governedAvailable = metrics.filter(({ value }) => value?.value !== null && value).length;
   const activeProducts = products.filter((product) => product.status === "active").length;
@@ -82,6 +89,24 @@ export default async function DashboardPage() {
           <strong>Governado</strong>
           <small><a href="#core-title">Consultar com evidência</a></small>
         </article>
+      </section>
+
+      <section className="panel" aria-labelledby="dashboard-operational-health-title">
+        <h2 id="dashboard-operational-health-title">Saúde Operacional</h2>
+        {operationalHealth.services.length ? (
+          <p>
+            Operacionais: <strong>{operationalHealth.counts.operational}</strong> ·
+            Degradados: <strong>{operationalHealth.counts.degraded}</strong> ·
+            Indisponíveis: <strong>{operationalHealth.counts.unavailable}</strong> ·
+            Desconhecidos/stale: <strong>{operationalHealth.counts.unknown}</strong>.{" "}
+            <Link href="/dashboard/operations">Ver Status dos Serviços</Link>
+          </p>
+        ) : (
+          <p>
+            Indisponível — nenhuma autoridade de saúde foi registrada.{" "}
+            <Link href="/dashboard/operations">Abrir Operações</Link>
+          </p>
+        )}
       </section>
 
       <section className="foundation-grid" aria-label="Inteligência empresarial">
