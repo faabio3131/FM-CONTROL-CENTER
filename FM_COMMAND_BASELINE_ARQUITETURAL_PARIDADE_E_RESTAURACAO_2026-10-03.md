@@ -31,6 +31,26 @@ Referência: ADR-014 e Documento 00 de Fundação e Governança.
 
 ## 2. REGRA DE AUTORIDADE
 
+### 2.1 Fonte operacional de verdade desta restauração
+
+Para esta restauração, o **GitHub remoto é a fonte oficial de CURRENT**.
+
+O working tree local do computador do proprietário não será usado como
+referência de estado porque o fluxo operacional recente foi executado
+majoritariamente por GitHub/ChatGPT e a cópia local não vem sendo sincronizada
+nem utilizada há semanas.
+
+Portanto:
+
+- `main` remota é a baseline funcional preservada;
+- branches e PRs remotas são fontes de trabalho ainda não integrado;
+- histórico Git remoto é a autoridade para saber o que foi versionado;
+- Render/Vercel/outros previews são evidência de runtime, nunca substituem o
+  commit remoto correspondente;
+- conteúdo existente apenas localmente, se algum dia reaparecer, será tratado
+  como material não canônico até ser comparado e explicitamente promovido;
+- nenhuma decisão de restauração dependerá de estado local desatualizado.
+
 A restauração deverá obedecer à hierarquia:
 
 1. Documento Mestre da Nova FM Tecnologia;
