@@ -160,6 +160,65 @@ describe("F09/F11 FMCC Vertical Cognitive Core", () => {
     expect(answer.evidence[0]).toMatchObject({ productId: "p-kordena", productSlug: "kordena" });
   });
 
+  it("mantém escopo explícito do cockpit mesmo quando o planner não retorna produto", async () => {
+    let visibleCatalog: readonly { slug: string; name: string }[] = [];
+    const requestedProducts: Array<string | undefined> = [];
+    const cognitiveModel: CognitiveModel = {
+      async plan(input) {
+        visibleCatalog = input.productCatalog ?? [];
+        return { metricIds: ["billing.gross_billed"], productSlugs: [] };
+      },
+      async synthesize(input) {
+        expect(input.facts).toEqual([
+          expect.objectContaining({
+            productId: "p-kordena",
+            productSlug: "kordena",
+          }),
+        ]);
+        return "Resposta contextual do Kordena.";
+      },
+    };
+    const metrics = {
+      async query(_context: TenantContext, metricId: string, productId?: string) {
+        requestedProducts.push(productId);
+        return metric(metricId, productId);
+      },
+    } as unknown as MetricService;
+
+    await new CoreGateway(
+      new FmccVerticalCognitiveCore(cognitiveModel),
+      metrics,
+      undefined,
+      productRepo(),
+    ).ask(context, "Como está este produto?", { productSlugs: ["kordena"] });
+
+    expect(visibleCatalog).toEqual([{ slug: "kordena", name: "Kordena" }]);
+    expect(requestedProducts).toEqual(["p-kordena"]);
+  });
+
+  it("rejeita planner que tente ampliar o escopo explícito do cockpit", async () => {
+    const cognitiveModel: CognitiveModel = {
+      async plan() {
+        return {
+          metricIds: ["billing.gross_billed"],
+          productSlugs: ["iron"],
+        };
+      },
+      async synthesize() {
+        return "não deveria";
+      },
+    };
+
+    await expect(
+      new CoreGateway(
+        new FmccVerticalCognitiveCore(cognitiveModel),
+        { async query() { return metric("billing.gross_billed"); } } as unknown as MetricService,
+        undefined,
+        productRepo(),
+      ).ask(context, "Consulte este produto.", { productSlugs: ["kordena"] }),
+    ).rejects.toBeInstanceOf(CoreArgumentError);
+  });
+
   it("consulta múltiplos produtos autorizados sem cruzar tenant", async () => {
     const requested: Array<{ metricId: string; productId?: string }> = [];
     const cognitiveModel: CognitiveModel = {

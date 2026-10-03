@@ -26,14 +26,28 @@ export async function POST(request: Request) {
   let context: TenantContext | null = null;
   try {
     context = await resolveTenantContext(await headers());
-    const body = await request.json() as { question?: unknown };
+    const body = await request.json() as {
+      question?: unknown;
+      productSlugs?: unknown;
+    };
     if (typeof body.question !== "string") throw new CoreArgumentError();
-    const answer = await buildCoreGateway().ask(context, body.question);
+    if (
+      body.productSlugs !== undefined &&
+      (!Array.isArray(body.productSlugs) ||
+        body.productSlugs.some((slug) => typeof slug !== "string"))
+    ) {
+      throw new CoreArgumentError();
+    }
+    const productSlugs = body.productSlugs as string[] | undefined;
+    const answer = await buildCoreGateway().ask(context, body.question, {
+      productSlugs,
+    });
     await auditCoreQuery(context, "success", {
       question: body.question,
       answer: answer.answer,
       factualStatus: answer.factualStatus,
       evidenceRefs: answer.evidence.map((item) => item.ref),
+      requestedProductSlugs: productSlugs ?? [],
       productRefs: [...new Set(answer.evidence.map((item) => item.productSlug).filter((item): item is string => Boolean(item)))],
     });
     return NextResponse.json(answer);
