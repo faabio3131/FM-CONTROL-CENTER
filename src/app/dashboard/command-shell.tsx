@@ -3,23 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import type { FmccRole } from "@/domain/security/permissions";
+import { commandNavigationForRole } from "@/presentation/command-navigation";
 import { SignOutButton } from "./sign-out-button";
 
-const navigation = [
-  { href: "/dashboard", label: "Visão Geral", icon: "⌂", exact: true },
-  { href: "/dashboard#product-intelligence-title", label: "Produtos", icon: "◇" },
-  { href: "/dashboard/finance", label: "Financeiro", icon: "▥" },
-  { href: "/dashboard/growth", label: "Comercial", icon: "↗" },
-  { href: "/dashboard/customers", label: "Clientes", icon: "◎" },
-  { href: "/dashboard/operations", label: "Operações", icon: "◉" },
-  { href: "/dashboard/alerts", label: "Incidentes", icon: "△" },
-  { href: "/dashboard/intelligence", label: "Core", icon: "⬡" },
-  { href: "/dashboard/commercial/kordena", label: "Kordena", icon: "K" },
-  { href: "/dashboard/sources", label: "Fontes e Integrações", icon: "⚙" },
-] as const;
-
-export function CommandShell({ children }: { children: ReactNode }) {
+export function CommandShell({ children, role }: { children: ReactNode; role: FmccRole }) {
   const pathname = usePathname();
+  const navigation = commandNavigationForRole(role);
 
   return (
     <div className="command-app-shell">
