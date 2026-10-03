@@ -17,17 +17,26 @@ export class OperationalHealthCapability implements CoreReadCapability {
     if (!observed.length) {
       return { status: "unavailable", evidence: { kind: "source", ref: "operational-health" } };
     }
-    const provenanceRefs = [...new Set(observed.flatMap(({ observation }) => observation?.provenanceRefs ?? []))];
+
+    const provenanceRefs = [
+      ...new Set(
+        observed.flatMap(({ observation }) => observation?.provenanceRefs ?? []),
+      ),
+    ];
     if (!provenanceRefs.length) {
       return { status: "unavailable", evidence: { kind: "source", ref: "operational-health" } };
     }
+
     return {
       status: "available",
       fact: {
-        services: observed.map(({ service, observation }) => ({
+        services: observed.map(({ service, observation, effectiveStatus }) => ({
           name: service.name,
+          productId: service.productId ?? null,
           environment: service.environment,
-          status: observation?.status,
+          status: effectiveStatus,
+          observedStatus: observation?.status ?? null,
+          freshnessStatus: observation?.freshnessStatus ?? "unknown",
           observedAt: observation?.observedAt.toISOString(),
           latencyP95Ms: observation?.latencyP95Ms ?? null,
           errorRate: observation?.errorRate ?? null,
@@ -39,7 +48,11 @@ export class OperationalHealthCapability implements CoreReadCapability {
         kind: "source",
         ref: "operational-health",
         sourceAuthority: "fmcc_operational_health",
-        freshnessStatus: observed.some(({ observation }) => observation?.freshnessStatus === "stale") ? "stale" : "source-governed",
+        freshnessStatus: observed.some(
+          ({ observation }) => observation?.freshnessStatus === "stale",
+        )
+          ? "stale"
+          : "source-governed",
         qualityStatus: "governed",
         provenanceRefs,
       },
