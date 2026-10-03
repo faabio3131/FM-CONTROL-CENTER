@@ -130,13 +130,30 @@ export default async function OperationsPage() {
         ))}
       </section>
 
-      <section className="panel">
-        <h2>Runtime</h2>
+      <section className="panel" aria-labelledby="platform-health-title">
+        <h2 id="platform-health-title">Saúde técnica da plataforma</h2>
         <p>
-          <code>{overview.runtime.healthEndpoint}</code> e{" "}
-          <code>{overview.runtime.readinessEndpoint}</code> são contratos pontuais
-          de saúde e prontidão.
+          Diagnósticos de infraestrutura pertencem ao FM Command. Clientes dos
+          produtos não precisam visualizar detalhes de backend, contratos de health
+          ou fronteiras técnicas da plataforma.
         </p>
+        <div className="foundation-grid">
+          <article>
+            <strong>Health contract</strong>
+            <span><code>{overview.runtime.healthEndpoint}</code></span>
+            <small>Saúde pontual do runtime do FM Command.</small>
+          </article>
+          <article>
+            <strong>Readiness contract</strong>
+            <span><code>{overview.runtime.readinessEndpoint}</code></span>
+            <small>Prontidão técnica para receber tráfego.</small>
+          </article>
+          <article>
+            <strong>Segurança</strong>
+            <span>Escopo governado por organização e papel</span>
+            <small>Diagnóstico técnico restrito ao ambiente administrativo da FM Tecnologia.</small>
+          </article>
+        </div>
         <p>{overview.availability.reason}</p>
       </section>
 
