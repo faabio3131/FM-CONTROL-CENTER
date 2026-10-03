@@ -9,6 +9,13 @@ type State = {
   evidence?: Array<{ ref: string; sourceAuthority?: string }>;
 };
 
+type CoreQueryFormProps = {
+  readonly productContext?: {
+    readonly slug: string;
+    readonly name: string;
+  };
+};
+
 interface SpeechRecognitionAlternativeLike {
   readonly transcript: string;
 }
@@ -79,13 +86,26 @@ function voiceErrorMessage(code?: string): string {
   return "Não foi possível reconhecer a fala neste momento.";
 }
 
-export function CoreQueryForm() {
+export function CoreQueryForm({
+  productContext,
+}: CoreQueryFormProps = {}) {
   const [state, setState] = useState<State>({ status: "idle" });
   const [question, setQuestion] = useState("");
   const [listening, setListening] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceBaseRef = useRef("");
+  const suggestions = productContext
+    ? [
+        `O que precisa da minha atenção no ${productContext.name}?`,
+        `Explique as principais variações do ${productContext.name}.`,
+        `Quais são os principais riscos do ${productContext.name}?`,
+      ]
+    : [
+        "O que precisa da minha atenção?",
+        "Explique as principais variações da empresa.",
+        "Quais são os principais riscos?",
+      ];
 
   useEffect(() => {
     return () => {
@@ -178,7 +198,12 @@ export function CoreQueryForm() {
       const response = await fetch("/api/core/query", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: normalizedQuestion }),
+        body: JSON.stringify({
+          question: normalizedQuestion,
+          ...(productContext
+            ? { productSlugs: [productContext.slug] }
+            : {}),
+        }),
       });
 
       const payload = await response.json() as {
@@ -210,6 +235,12 @@ export function CoreQueryForm() {
           <span className="eyebrow">Inteligência artificial da FM · FM Cognitive Core</span>
           <h2 id="core-title">FM COMMAND CORE</h2>
           <p>Seu copiloto executivo para dados, operações e crescimento. O Core usa as mesmas métricas determinísticas do painel e informa quando um dado não existe.</p>
+          {productContext ? (
+            <p className="core-context">
+              Contexto governado: <strong>{productContext.name}</strong> ·{" "}
+              <code>{productContext.slug}</code>
+            </p>
+          ) : null}
         </div>
         <div className="core-orb-stage" aria-label="FM Command Core IA">
           <span className="core-orb-note left top">Dados em tempo real</span>
@@ -226,11 +257,7 @@ export function CoreQueryForm() {
       <form onSubmit={submit} className="core-form">
         <label htmlFor="core-question">Pergunta executiva</label>
         <div className="core-suggestions" aria-label="Perguntas sugeridas">
-          {[
-            "O que precisa da minha atenção?",
-            "Explique as principais variações da empresa.",
-            "Quais são os principais riscos?",
-          ].map((suggestion) => (
+          {suggestions.map((suggestion) => (
             <button
               className="core-suggestion"
               type="button"
@@ -247,7 +274,11 @@ export function CoreQueryForm() {
             id="core-question"
             name="question"
             maxLength={4000}
-            placeholder="Ex.: Quanto faturamos no período?"
+            placeholder={
+              productContext
+                ? `Ex.: Quanto o ${productContext.name} faturou no período?`
+                : "Ex.: Quanto faturamos no período?"
+            }
             autoComplete="off"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}

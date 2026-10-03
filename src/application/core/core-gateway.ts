@@ -23,6 +23,10 @@ export class CoreArgumentError extends Error {
   }
 }
 
+export interface CoreQueryScope {
+  readonly productSlugs?: readonly string[];
+}
+
 function metricEvidence(
   metricId: string,
   value: MetricView,
@@ -110,7 +114,11 @@ export class CoreGateway {
     private readonly readCapabilities: readonly CoreReadCapability[] = [],
   ) {}
 
-  async ask(context: TenantContext, question: string): Promise<CoreAnswer> {
+  async ask(
+    context: TenantContext,
+    question: string,
+    scope?: CoreQueryScope,
+  ): Promise<CoreAnswer> {
     requirePermission(context, "metric:read");
     const normalized = question.trim();
     if (!normalized || normalized.length > 4000) {
@@ -123,6 +131,25 @@ export class CoreGateway {
           (product) => product.status === "active",
         )
       : [];
+    const requestedProductSlugs =
+      scope?.productSlugs?.map((slug) => slug.trim()).filter(Boolean) ?? [];
+    if (
+      requestedProductSlugs.length > 4 ||
+      new Set(requestedProductSlugs).size !== requestedProductSlugs.length
+    ) {
+      throw new CoreArgumentError();
+    }
+
+    const bySlug = new Map(
+      productCatalog.map((product) => [product.slug, product]),
+    );
+    const scopedProductCatalog = requestedProductSlugs.length
+      ? requestedProductSlugs.map((slug) => bySlug.get(slug))
+      : productCatalog;
+    if (scopedProductCatalog.some((product) => !product)) {
+      throw new CoreArgumentError();
+    }
+
     const plan = await this.core.plan({
       question: normalized,
       operationalContext,
@@ -131,7 +158,9 @@ export class CoreGateway {
         displayName: descriptor.displayName,
         description: descriptor.description,
       })),
-      productCatalog: productCatalog.map(({ slug, name }) => ({ slug, name })),
+      productCatalog: (scopedProductCatalog as ProductDefinition[]).map(
+        ({ slug, name }) => ({ slug, name }),
+      ),
     });
 
     if (
@@ -143,10 +172,27 @@ export class CoreGateway {
       throw new CoreArgumentError();
     }
 
-    const bySlug = new Map(
-      productCatalog.map((product) => [product.slug, product]),
+    const requestedProductSet = new Set(requestedProductSlugs);
+    if (
+      requestedProductSlugs.length > 0 &&
+      plan.productSlugs.some((slug) => !requestedProductSet.has(slug))
+    ) {
+      throw new CoreArgumentError();
+    }
+    const effectiveProductSlugs =
+      requestedProductSlugs.length > 0 && plan.productSlugs.length === 0
+        ? requestedProductSlugs
+        : plan.productSlugs;
+    if (
+      effectiveProductSlugs.length > 4 ||
+      new Set(effectiveProductSlugs).size !== effectiveProductSlugs.length
+    ) {
+      throw new CoreArgumentError();
+    }
+
+    const selectedProducts = effectiveProductSlugs.map((slug) =>
+      bySlug.get(slug),
     );
-    const selectedProducts = plan.productSlugs.map((slug) => bySlug.get(slug));
     if (selectedProducts.some((product) => !product)) {
       throw new CoreArgumentError();
     }
@@ -170,7 +216,7 @@ export class CoreGateway {
       throw new CoreArgumentError();
     }
 
-    const selectedProductSlugs = new Set(plan.productSlugs);
+    const selectedProductSlugs = new Set(effectiveProductSlugs);
     for (const capability of selectedCapabilities as CoreReadCapability[]) {
       const supported = capability.descriptor.productSlugs;
       if (
@@ -230,7 +276,7 @@ export class CoreGateway {
       (selectedCapabilities as CoreReadCapability[]).map(async (capability) => {
         try {
           const result = await capability.read(context, {
-            productSlugs: plan.productSlugs,
+            productSlugs: effectiveProductSlugs,
           });
           return {
             capabilityId: capability.descriptor.id,
