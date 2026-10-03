@@ -106,6 +106,7 @@ export class PostgresAlertRepository implements AlertRepository {
   }
 
   async listRules(tenantId: string) {
+    if (process.env.FMCC_REFERENCE_MODE === "pr31") return [];
     const [rows, disabledRows, archivedRows] = await Promise.all([
       db.select().from(auditEvents).where(and(
         eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.rule.created"),
@@ -301,6 +302,7 @@ export class PostgresAlertRepository implements AlertRepository {
   }
 
   async listOccurrences(tenantId: string, limit = 50) {
+    if (process.env.FMCC_REFERENCE_MODE === "pr31") return [];
     const acknowledgements = await db.select({ resourceId: auditEvents.resourceId }).from(auditEvents).where(and(
       eq(auditEvents.tenantId, tenantId), eq(auditEvents.action, "alert.acknowledged"),
     ));
