@@ -52,7 +52,12 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
           <h1>{overview.product.name}</h1>
           <p>Produto governado: <code>{overview.product.slug}</code> · {rotuloStatusProduto(overview.product.status)}</p>
         </div>
-        <Link className="button" href="/dashboard">Voltar</Link>
+        <div>
+          <Link className="button" href={`/dashboard/products/${productId}/billing`}>
+            Billing e Recebimentos
+          </Link>
+          <Link className="button" href="/dashboard">Voltar</Link>
+        </div>
       </header>
 
       <section className="executive-section">
