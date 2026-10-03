@@ -11,6 +11,19 @@ describe("F10 Executive Command Center contract", () => {
     expect(source).not.toContain("Math.random");
   });
 
+  it("renders canonical metric labels instead of widening their meaning in the UI", () => {
+    const dashboard = readFileSync(resolve(process.cwd(), "src/app/dashboard/page.tsx"), "utf8");
+    const registry = readFileSync(resolve(process.cwd(), "src/domain/metrics/registry.ts"), "utf8");
+    expect(dashboard).toContain("{target.displayName}");
+    expect(dashboard).toContain("Identificador técnico: ${target.metricId}");
+    expect(registry).toContain('metricId: "revenue.cash_collected"');
+    expect(registry).toContain('displayName: "Caixa recebido"');
+    expect(registry).toContain('metricId: "usage.active_users.dau"');
+    expect(registry).toContain('displayName: "Usuários ativos diários (DAU)"');
+    expect(registry).toContain('metricId: "trial.starts.count"');
+    expect(registry).toContain('displayName: "Testes gratuitos iniciados"');
+  });
+
   it("keeps Core query behind the governed API boundary", () => {
     const source = readFileSync(resolve(process.cwd(), "src/app/dashboard/core-query-form.tsx"), "utf8");
     expect(source).toContain('fetch("/api/core/query"');
