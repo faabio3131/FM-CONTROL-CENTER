@@ -29,7 +29,7 @@ export default async function ProductBillingPage({
     throw error;
   }
 
-  if (!roleHasPermission(context.role, "commercial:read")) {
+  if (!roleHasPermission(context.role, "billing:read")) {
     redirect("/dashboard");
   }
 
@@ -118,9 +118,9 @@ export default async function ProductBillingPage({
       ) : overview ? (
         <BillingControlPanel
           sourceId={source.id}
-          productCode="KORDENA"
+          productCode={product.slug.toUpperCase()}
           initialOverview={overview}
-          canWrite={roleHasPermission(context.role, "commercial:write")}
+          canWrite={roleHasPermission(context.role, "billing:write")}
         />
       ) : (
         <section className="panel">

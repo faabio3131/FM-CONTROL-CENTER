@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       throw new StepUpRequiredError();
     }
     if (context.role !== "owner" && context.role !== "admin") {
-      throw new PermissionDeniedError("commercial:write");
+      throw new PermissionDeniedError("billing:write");
     }
 
     const command: KordenaBillingCommand = {

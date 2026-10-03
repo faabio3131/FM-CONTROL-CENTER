@@ -28,7 +28,7 @@ export class KordenaBillingControlService {
     context: TenantContext,
     sourceId: string,
   ): Promise<KordenaBillingOverview> {
-    requirePermission(context, "commercial:read");
+    requirePermission(context, "billing:read");
     const source = await this.source(context, sourceId);
     return this.connector.overview(this.connectorContext(context), source);
   }
@@ -41,7 +41,7 @@ export class KordenaBillingControlService {
       idempotencyKey?: string;
     },
   ): Promise<Record<string, unknown>> {
-    requirePermission(context, "commercial:write");
+    requirePermission(context, "billing:write");
     const source = await this.source(context, input.sourceId);
     return this.connector.command(
       this.connectorContext(context),

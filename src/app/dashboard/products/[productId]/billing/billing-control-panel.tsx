@@ -62,16 +62,17 @@ export function BillingControlPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const providerOptions = initialOverview.options.provider_options ?? [];
   const providerAccounts = initialOverview.providerAccounts;
   const routingPolicies = initialOverview.routingPolicies;
 
   const providerByCode = useMemo(
     () =>
       new Map(
-        providerOptions.map((item) => [item.provider_code, item] as const),
+        (initialOverview.options.provider_options ?? []).map(
+          (item) => [item.provider_code, item] as const,
+        ),
       ),
-    [providerOptions],
+    [initialOverview.options.provider_options],
   );
 
   async function command(input: {
