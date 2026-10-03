@@ -103,21 +103,23 @@ describe("F18 premium UX/UI", () => {
     );
   });
 
-  it("aplica o visual premium aprovado no shell global e no FM Command Core", () => {
+  it("aplica o visual premium aprovado no shell global e mantém a navegação governada", () => {
     const shell = source("src/app/dashboard/command-shell.tsx");
     const layout = source("src/app/dashboard/layout.tsx");
+    const navigation = source("src/presentation/command-navigation.ts");
     const core = source("src/app/dashboard/core-query-form.tsx");
     const css = source("src/app/globals.css");
 
-    expect(layout).toContain("<CommandShell>{children}</CommandShell>");
+    expect(layout).toContain("<CommandShell role={context.role}>{children}</CommandShell>");
     expect(shell).toContain("FM Tecnologia");
     expect(shell).toContain("COMMAND");
-    expect(shell).toContain("Visão Geral");
-    expect(shell).toContain("Financeiro");
-    expect(shell).toContain("Comercial");
-    expect(shell).toContain("Operações");
-    expect(shell).toContain("Incidentes");
-    expect(shell).toContain("Core");
+    expect(shell).toContain("commandNavigationForRole(role)");
+    expect(navigation).toContain("Visão Geral");
+    expect(navigation).toContain("Financeiro");
+    expect(navigation).toContain("Comercial");
+    expect(navigation).toContain("Operações");
+    expect(navigation).toContain("Incidentes");
+    expect(navigation).toContain("Core");
     expect(core).toContain("FM COMMAND CORE");
     expect(core).toContain("Core IA");
     expect(core).toContain("Dados em tempo real");
