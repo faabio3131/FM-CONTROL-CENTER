@@ -195,16 +195,18 @@ export function CoreQueryForm({
     setState({ status: "loading" });
 
     try {
-      const response = await fetch("/api/core/query", {
+      const requestInit: RequestInit = {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify({ question: normalizedQuestion }),
+      };
+      if (productContext) {
+        requestInit.body = JSON.stringify({
           question: normalizedQuestion,
-          ...(productContext
-            ? { productSlugs: [productContext.slug] }
-            : {}),
-        }),
-      });
+          productSlugs: [productContext.slug],
+        });
+      }
+      const response = await fetch("/api/core/query", requestInit);
 
       const payload = await response.json() as {
         answer?: string;
