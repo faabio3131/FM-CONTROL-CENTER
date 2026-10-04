@@ -12,6 +12,11 @@ describe("tenant security",()=>{
     expect(()=>requirePermission(viewer,"alert:write")).toThrow(PermissionDeniedError);
     expect(()=>requirePermission(viewer,"action:prepare")).toThrow(PermissionDeniedError);
   });
+  it("permite busca governada para todos os papéis autenticados",()=>{
+    for (const role of ["owner","admin","analyst","viewer","member"] as const) {
+      expect(()=>requirePermission({...owner,role},"search:use")).not.toThrow();
+    }
+  });
   it("restringe Billing e Receivables a owner/admin",()=>{
     const admin:TenantContext={...owner,role:"admin"};
     const analyst:TenantContext={...owner,role:"analyst"};
