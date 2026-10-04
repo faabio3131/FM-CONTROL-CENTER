@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { buildConnectorRuntime } from "@/application/integration/connector-composition";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { kordenaRuntimeBootstrapConfig } from "@/config/kordena-runtime-bootstrap";
@@ -16,7 +17,7 @@ const PRODUCT_SLUG = "kordena";
 const AUTHORITATIVE_DOMAIN = "commercial";
 const MAPPING_VERSION = "kordena-commercial-v1";
 const FRESHNESS_SECONDS = 300;
-const BOOTSTRAP_IDEMPOTENCY_KEY = "kf03-kordena-runtime-bootstrap-v1";
+const BOOTSTRAP_IDEMPOTENCY_PREFIX = "kf03-kordena-runtime-bootstrap-v2";
 
 type BootstrapDependencies = {
   readonly sources?: PostgresSourceRepository;
@@ -29,7 +30,7 @@ function systemContext(tenantId: string): TenantContext {
     tenantId,
     userId: "system:kordena-runtime-bootstrap",
     role: "owner",
-    correlationId: `kf03-bootstrap-${Date.now()}`,
+    correlationId: `kf03-bootstrap-${randomUUID()}`,
   };
 }
 
@@ -132,7 +133,7 @@ export async function bootstrapKordenaCommercialRuntime(
 
   const sync = await runtime.syncPull(context, {
     sourceId: source.id,
-    idempotencyKey: BOOTSTRAP_IDEMPOTENCY_KEY,
+    idempotencyKey: `${BOOTSTRAP_IDEMPOTENCY_PREFIX}:${context.correlationId}`,
   });
   if (sync.status !== "completed" && sync.status !== "duplicate" && sync.status !== "in_progress") {
     throw new Error("integration.kordena_bootstrap_sync_failed");
