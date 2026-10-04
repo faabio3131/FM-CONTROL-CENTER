@@ -45,6 +45,14 @@ export function CommandShell({
           <strong>COMMAND</strong>
         </Link>
         <p>Inteligência, controle e crescimento para o seu negócio.</p>
+        <Link
+          href="/dashboard/search"
+          className="command-global-search"
+          aria-label="Abrir busca global do FM Command"
+        >
+          <span aria-hidden="true">⌕</span>
+          <span>Buscar no COMMAND...</span>
+        </Link>
         <div className="command-topbar-actions">
           <details className="command-notification-menu">
             <summary
@@ -149,7 +157,7 @@ export function CommandShell({
         </nav>
         <div className="command-sidebar-footer">
           <strong>FM COMMAND</strong>
-          <span>{identity?.organizationName ?? "Organização ativa"}</span>
+          <span>{environmentLabel} · {identity?.organizationName ?? "Organização ativa"}</span>
         </div>
       </aside>
 
