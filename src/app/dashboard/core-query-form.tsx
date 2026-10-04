@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { rotuloAutoridadeFonte, rotuloMetrica } from "@/presentation/pt-br";
-import { CommandBrainLogo } from "@/presentation/command-brain-logo";
+import { APPROVED_COMMAND_ARTWORK_SRC } from "@/presentation/command-approved-artwork";
 
 type State = {
   status: "idle" | "loading" | "success" | "error";
@@ -235,9 +236,10 @@ export function CoreQueryForm({
     <section className="core-panel" aria-labelledby="core-title">
       <div className="core-panel-head">
         <div className="core-panel-copy">
-          <span className="eyebrow">Inteligência artificial da FM · FM Cognitive Core</span>
+          <span className="eyebrow">INTELIGÊNCIA COGNITIVA VERTICAL</span>
           <h2 id="core-title">FM COMMAND CORE</h2>
-          <p>Seu copiloto executivo para dados, operações e crescimento. O Core usa as mesmas métricas determinísticas do painel e informa quando um dado não existe.</p>
+          <p>A inteligência cognitiva que entende sua operação, conecta informações e transforma contexto em decisões mais precisas.</p>
+          <p className="core-supporting-copy">Analisa, contextualiza, recomenda e coordena capacidades com governança e rastreabilidade.</p>
           {productContext ? (
             <p className="core-context">
               Contexto governado: <strong>{productContext.name}</strong> ·{" "}
@@ -245,12 +247,16 @@ export function CoreQueryForm({
             </p>
           ) : null}
         </div>
-        <div className="core-orb-stage" aria-label="FM Command Core IA">
-          <span className="core-orb-note left top">Dados em tempo real</span>
-          <span className="core-orb-note left bottom">Execução orientada</span>
-          <CommandBrainLogo className="core-brain-logo" />
-          <span className="core-orb-note right top">Insights com IA</span>
-          <span className="core-orb-note right bottom">Mais controle e eficiência</span>
+        <div className="core-orb-stage core-approved-artwork-stage" aria-label="FM Command Core">
+          <Image
+            className="command-approved-artwork core-approved-artwork"
+            src={APPROVED_COMMAND_ARTWORK_SRC}
+            alt="FM Command"
+            width={650}
+            height={650}
+            priority
+            unoptimized
+          />
         </div>
       </div>
 

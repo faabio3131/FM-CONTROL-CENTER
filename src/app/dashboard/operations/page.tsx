@@ -42,7 +42,7 @@ export default async function OperationsPage() {
   const hasMonitoredServices = health.services.length > 0;
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-shell-compact">
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">F14 · Operações, SRE e Incidentes</span>

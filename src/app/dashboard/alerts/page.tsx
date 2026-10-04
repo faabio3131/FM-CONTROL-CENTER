@@ -25,7 +25,7 @@ export default async function AlertsPage() {
   ]);
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-shell-compact">
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">F17 · Alertas e Automações Governadas</span>

@@ -4,7 +4,7 @@
 **Repositório:** `faabio3131/FM-CONTROL-CENTER`
 **Baseline:** `main@f6a9a287b8eb7d82ea5ad2daf5dbeecce3617ce7`
 **Branch:** `feat/fm-command-cme11-visual-premium-final`
-**Status:** PRE_MERGE_CERTIFIED / POST_MERGE_PENDING
+**Status:** PRE_MERGE_CERTIFIED / POST_MERGE_CORRECTIONS_PENDING
 
 ## Autoridade visual
 
@@ -28,13 +28,24 @@ A implementação deve preservar integralmente:
 
 - busca global governada exposta no topbar;
 - identidade FM Tecnologia / COMMAND preservada;
-- artwork oficial do FM Command Core aplicado ao painel cognitivo;
+- artwork aprovado do FM Command confirmado na tela de login e aplicado localmente ao painel cognitivo do dashboard usando a mesma autoridade `APPROVED_COMMAND_ARTWORK_SRC`; aguardando validação visual antes do deploy;
 - Visão Geral recomposta com hierarquia executiva equivalente à referência;
 - rail de Saúde Operacional, Status dos Serviços e Alertas;
 - Activity Feed compactado em cards executivos;
 - design system final reforçado para tabelas, estados, responsividade e densidade;
 - nenhuma métrica conceitual do mock foi hardcoded;
 - ausência de fonte continua sendo `Indisponível`, nunca zero presumido.
+
+## Revisão visual pós-merge — pendências antes do deploy
+
+- copy do hero do Core aprovada para `INTELIGÊNCIA COGNITIVA VERTICAL` e aplicada localmente;
+- artwork do dashboard substituído localmente pelo mesmo asset oficial aprovado usado na tela de login; validação visual do proprietário ainda pendente;
+- microtextos sobrepostos removidos localmente da composição do artwork; validação visual ainda pendente;
+- compactação desktop aplicada localmente em Financeiro, Assinaturas, Clientes, Operações, Atividades e Alertas, reduzindo cabeçalhos, cards, gaps, painéis, filtros e controles;
+- CME-11.2 aplicado localmente em Visão Geral + Notificações: em 1366×768 o header da Visão Geral caiu de 114px para 81px, os quatro cards executivos de 144px para 92px e o Core subiu de Y=386 para Y=269; Notificações passou de scrollHeight 1033/overflow 265px para scrollHeight 768/overflow 0 após compactação e scroll interno governado da sidebar;
+- responsividade CME-11.2 validada sem overflow horizontal em 1440×900, 900×900 e 390×844;
+- opção de voz registrada como pendência funcional: na prévia local o navegador retorna `Permissão do microfone não concedida.`; validar permissão do browser e fluxo de voz ponta a ponta antes do deploy;
+- nenhuma destas correções está publicada no Render.
 
 ## Gates exigidos
 

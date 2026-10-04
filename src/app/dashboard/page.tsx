@@ -72,7 +72,7 @@ export default async function DashboardPage() {
   const activeAlerts = alertOverview.occurrences.filter((occurrence) => occurrence.status === "active").length;
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-home-compact">
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">Central Executiva de Comando · Prévia</span>

@@ -22,7 +22,7 @@ export default async function SubscriptionsPage() {
   const overview = await new MetricService(new PostgresMetricStore()).overview(context);
   const metrics = overview.filter(({ target }) => SUBSCRIPTION_METRICS.has(target.metricId));
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-shell-compact">
       <header className="dashboard-header">
         <div><span className="eyebrow">Assinaturas</span><h1>Base recorrente</h1>
           <p>Assinaturas, cancelamentos, churn, MRR, ARR e inadimplência sem confundir faturamento, caixa ou receita recorrente.</p></div>
