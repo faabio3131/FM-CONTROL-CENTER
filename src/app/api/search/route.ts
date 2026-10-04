@@ -2,7 +2,10 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { buildGlobalSearchService } from "@/application/search/global-search-composition";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
-import { GlobalSearchQueryError } from "@/domain/search/contracts";
+import {
+  GlobalSearchQueryError,
+  GlobalSearchRateLimitError,
+} from "@/domain/search/contracts";
 import {
   AuthenticationRequiredError,
   PermissionDeniedError,
@@ -35,6 +38,15 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof GlobalSearchQueryError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof GlobalSearchRateLimitError) {
+      return NextResponse.json(
+        { error: error.message },
+        {
+          status: 429,
+          headers: { "Retry-After": String(error.retryAfterSeconds) },
+        },
+      );
     }
     if (error instanceof AuthenticationRequiredError) {
       return NextResponse.json({ error: error.message }, { status: 401 });

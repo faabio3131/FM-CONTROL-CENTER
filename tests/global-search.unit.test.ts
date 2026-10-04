@@ -10,7 +10,11 @@ const owner: TenantContext = {
   correlationId: "corr-a",
 };
 
-function buildService(options?: { sourceCounter?: { value: number } }) {
+function buildService(options?: {
+  sourceCounter?: { value: number };
+  activityCounter?: { value: number };
+  rateLimitCounter?: { value: number };
+}) {
   return new GlobalSearchService(
     {
       async list() {
@@ -95,6 +99,64 @@ function buildService(options?: { sourceCounter?: { value: number } }) {
           },
         ];
       },
+      async listOccurrences() {
+        return [
+          {
+            id: "occurrence-service-errors",
+            tenantId: "tenant-a",
+            ruleId: "rule-service-errors",
+            metricId: "service.error.count",
+            observedValue: "12",
+            threshold: "10",
+            operator: "gt" as const,
+            severity: "critical" as const,
+            evidenceRefs: ["private-evidence-ref"],
+            fingerprint: "private-fingerprint",
+            occurredAt: new Date("2026-10-03T10:05:00Z"),
+            status: "active" as const,
+          },
+          {
+            id: "occurrence-cross-tenant",
+            tenantId: "tenant-b",
+            ruleId: "rule-cross-tenant",
+            metricId: "incident.count",
+            observedValue: "2",
+            threshold: "1",
+            operator: "gt" as const,
+            severity: "warning" as const,
+            evidenceRefs: [],
+            fingerprint: "other",
+            occurredAt: new Date("2026-10-03T10:05:00Z"),
+            status: "active" as const,
+          },
+        ];
+      },
+    },
+    {
+      async recent(tenantId) {
+        if (options?.activityCounter) options.activityCounter.value += 1;
+        expect(tenantId).toBe("tenant-a");
+        return [
+          {
+            id: "activity-payment",
+            actorId: "sensitive-actor@example.test",
+            actorType: "user",
+            action: "billing.payment.settled",
+            resourceType: "payment",
+            resourceId: "customer-sensitive-id",
+            result: "success",
+            correlationId: "corr-sensitive",
+            occurredAt: new Date("2026-10-03T10:06:00Z"),
+          },
+        ];
+      },
+    },
+    {
+      async consume(input) {
+        if (options?.rateLimitCounter) options.rateLimitCounter.value += 1;
+        expect(input.tenantId).toBe("tenant-a");
+        expect(input.userId).toBe("owner-a");
+      },
     },
   );
 }
@@ -115,19 +177,22 @@ describe("R9 Global Search", () => {
     expect(serialized).not.toContain("private.example.test");
   });
 
-  it("não consulta nem retorna Source Registry para papel sem source:read", async () => {
+  it("não consulta Source Registry nem atividades sem as permissões correspondentes", async () => {
     const sourceCounter = { value: 0 };
-    const result = await buildService({ sourceCounter }).search(
+    const activityCounter = { value: 0 };
+    const result = await buildService({ sourceCounter, activityCounter }).search(
       { ...owner, role: "viewer" },
       "kordena",
     );
 
     expect(sourceCounter.value).toBe(0);
+    expect(activityCounter.value).toBe(0);
     expect(result.items.some((item) => item.kind === "source")).toBe(false);
+    expect(result.items.some((item) => item.kind === "activity")).toBe(false);
     expect(result.items.some((item) => item.kind === "product")).toBe(true);
   });
 
-  it("normaliza acentos na busca de navegação", async () => {
+  it("normaliza acentos e localiza Configurações apenas como superfície autorizada", async () => {
     const result = await buildService().search(owner, "configuracoes");
     expect(
       result.items.some(
@@ -150,36 +215,57 @@ describe("R9 Global Search", () => {
     expect(metric?.href).toBe("/dashboard/finance");
   });
 
-  it("localiza regra de alerta pela métrica e mantém escopo do tenant", async () => {
+  it("localiza regra e ocorrência de alerta mantendo escopo do tenant", async () => {
     const result = await buildService().search(owner, "service.error");
-    const rule = result.items.find(
-      (item) => item.id === "alert_rule:rule-service-errors",
-    );
 
-    expect(rule?.href).toBe(
-      "/dashboard/alerts/rules/rule-service-errors",
-    );
     expect(
       result.items.some(
-        (item) => item.id === "alert_rule:rule-cross-tenant",
+        (item) => item.id === "alert_rule:rule-service-errors",
+      ),
+    ).toBe(true);
+    expect(
+      result.items.some(
+        (item) => item.id === "alert_occurrence:occurrence-service-errors",
+      ),
+    ).toBe(true);
+    expect(
+      result.items.some(
+        (item) =>
+          item.id === "alert_rule:rule-cross-tenant" ||
+          item.id === "alert_occurrence:occurrence-cross-tenant",
       ),
     ).toBe(false);
   });
 
-  it("rejeita consultas fora do contrato e limita resultados", async () => {
-    await expect(buildService().search(owner, "x")).rejects.toBeInstanceOf(
+  it("busca atividade auditável sem expor ator, resourceId, correlação ou metadata", async () => {
+    const result = await buildService().search(owner, "payment");
+    const activity = result.items.find(
+      (item) => item.id === "activity:activity-payment",
+    );
+
+    expect(activity?.authority).toBe("audit_ledger");
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("sensitive-actor@example.test");
+    expect(serialized).not.toContain("customer-sensitive-id");
+    expect(serialized).not.toContain("corr-sensitive");
+    expect(serialized).not.toContain("private-evidence-ref");
+    expect(serialized).not.toContain("private-fingerprint");
+  });
+
+  it("aplica rate limit somente a consultas válidas e limita resultados", async () => {
+    const rateLimitCounter = { value: 0 };
+    const service = buildService({ rateLimitCounter });
+
+    await expect(service.search(owner, "x")).rejects.toBeInstanceOf(
       GlobalSearchQueryError,
     );
     await expect(
-      buildService().search(owner, "a".repeat(81)),
+      service.search(owner, "a".repeat(81)),
     ).rejects.toBeInstanceOf(GlobalSearchQueryError);
+    expect(rateLimitCounter.value).toBe(0);
 
-    const limited = await buildService().search(owner, "a", 1).catch(
-      () => null,
-    );
-    expect(limited).toBeNull();
-
-    const validLimited = await buildService().search(owner, "co", 1);
+    const validLimited = await service.search(owner, "co", 1);
+    expect(rateLimitCounter.value).toBe(1);
     expect(validLimited.items).toHaveLength(1);
     expect(validLimited.counts.returned).toBe(1);
   });

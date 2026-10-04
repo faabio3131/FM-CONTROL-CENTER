@@ -1,3 +1,4 @@
+import type { ActivityRepository } from "@/domain/activity/contracts";
 import type { AlertRepository } from "@/domain/alerts/contracts";
 import {
   EXECUTIVE_METRIC_TARGETS,
@@ -9,6 +10,7 @@ import {
   type GlobalSearchOverview,
   type GlobalSearchResult,
   type GlobalSearchResultKind,
+  type SearchRateLimiter,
 } from "@/domain/search/contracts";
 import { roleHasPermission } from "@/domain/security/permissions";
 import {
@@ -82,7 +84,9 @@ export class GlobalSearchService {
   constructor(
     private readonly products: Pick<ProductRepository, "list">,
     private readonly sources: Pick<SourceRepository, "list">,
-    private readonly alerts: Pick<AlertRepository, "listRules">,
+    private readonly alerts: Pick<AlertRepository, "listRules" | "listOccurrences">,
+    private readonly activities: Pick<ActivityRepository, "recent">,
+    private readonly rateLimiter: SearchRateLimiter,
   ) {}
 
   async search(
@@ -96,6 +100,13 @@ export class GlobalSearchService {
     if (query.length < 2 || query.length > 80) {
       throw new GlobalSearchQueryError();
     }
+
+    await this.rateLimiter.consume({
+      tenantId: context.tenantId,
+      userId: context.userId,
+      correlationId: context.correlationId,
+    });
+
     const normalizedQuery = normalize(query);
     const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 50);
     const ranked: RankedResult[] = [];
@@ -149,17 +160,24 @@ export class GlobalSearchService {
       }
     }
 
-    const [products, sources, alertRules] = await Promise.all([
-      roleHasPermission(context.role, "product:read")
-        ? this.products.list(context.tenantId)
-        : Promise.resolve([]),
-      roleHasPermission(context.role, "source:read")
-        ? this.sources.list(context.tenantId)
-        : Promise.resolve([]),
-      roleHasPermission(context.role, "alert:read")
-        ? this.alerts.listRules(context.tenantId)
-        : Promise.resolve([]),
-    ]);
+    const [products, sources, alertRules, alertOccurrences, activities] =
+      await Promise.all([
+        roleHasPermission(context.role, "product:read")
+          ? this.products.list(context.tenantId)
+          : Promise.resolve([]),
+        roleHasPermission(context.role, "source:read")
+          ? this.sources.list(context.tenantId)
+          : Promise.resolve([]),
+        roleHasPermission(context.role, "alert:read")
+          ? this.alerts.listRules(context.tenantId)
+          : Promise.resolve([]),
+        roleHasPermission(context.role, "alert:read")
+          ? this.alerts.listOccurrences(context.tenantId, 100)
+          : Promise.resolve([]),
+        roleHasPermission(context.role, "audit:read")
+          ? this.activities.recent(context.tenantId, 100)
+          : Promise.resolve([]),
+      ]);
 
     for (const product of products) {
       if (product.tenantId !== context.tenantId) continue;
@@ -222,6 +240,44 @@ export class GlobalSearchService {
       );
     }
 
+    for (const occurrence of alertOccurrences) {
+      if (occurrence.tenantId !== context.tenantId) continue;
+      const metric = getMetricDefinition(occurrence.metricId);
+      push(
+        {
+          id: `alert_occurrence:${occurrence.id}`,
+          kind: "alert_occurrence",
+          label: metric?.displayName ?? occurrence.metricId,
+          description:
+            `${occurrence.severity} · ${occurrence.status} · ${occurrence.occurredAt.toISOString()}`,
+          href: "/dashboard/alerts",
+          authority: "alert_repository",
+        },
+        [
+          occurrence.metricId,
+          metric?.displayName ?? "",
+          occurrence.severity,
+          occurrence.status,
+          occurrence.ruleId,
+        ],
+      );
+    }
+
+    for (const activity of activities) {
+      push(
+        {
+          id: `activity:${activity.id}`,
+          kind: "activity",
+          label: activity.action,
+          description:
+            `${activity.resourceType} · ${activity.result} · ${activity.occurredAt.toISOString()}`,
+          href: "/dashboard/activity",
+          authority: "audit_ledger",
+        },
+        [activity.action, activity.resourceType, activity.result],
+      );
+    }
+
     ranked.sort(
       (left, right) =>
         left.rank - right.rank ||
@@ -248,9 +304,11 @@ export class GlobalSearchService {
         products: countKind(ranked, "product"),
         sources: countKind(ranked, "source"),
         alertRules: countKind(ranked, "alert_rule"),
+        alertOccurrences: countKind(ranked, "alert_occurrence"),
+        activities: countKind(ranked, "activity"),
       },
       coverageNote:
-        "Busca determinística sobre navegação autorizada, Metric Registry, Product Registry, Source Registry e regras de alerta do tenant. Segredos, config de integração, metadata bruto e PII operacional não são indexados nesta superfície.",
+        "Busca determinística sobre navegação/configurações autorizadas, Metric Registry, Product Registry, Source Registry, alertas/incidentes e atividades auditáveis permitidas do tenant. Segredos, config de integração, metadata bruto, ator e PII operacional não são indexados nesta superfície.",
     };
   }
 }
