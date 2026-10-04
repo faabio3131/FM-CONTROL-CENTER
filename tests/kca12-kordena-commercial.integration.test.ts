@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ConnectorRuntime } from "@/application/integration/connector-runtime";
 import { KordenaCommercialControlService } from "@/application/integration/kordena-commercial-control-service";
 import type { ConnectorContext, SourceDefinition } from "@/domain/integration/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
@@ -103,6 +104,77 @@ describe("KCA-12 Kordena commercial connector", () => {
       "https://kordena.example.test/v1/control-plane/fmcc/snapshot",
     );
     expect(calls[0].authorization).toBe(`Bearer ${"x".repeat(40)}`);
+  });
+
+  it("retries Kordena 5xx/429 through the governed connector runtime", async () => {
+    let attempts = 0;
+    const connector = new KordenaCommercialConnector(
+      () => "x".repeat(40),
+      async () => {
+        attempts += 1;
+        if (attempts < 3) {
+          return new Response("temporarily unavailable", {
+            status: attempts === 1 ? 503 : 429,
+          });
+        }
+        return new Response(JSON.stringify(snapshot()), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+      () => ["https://kordena.example.test"],
+      controlTenant,
+    );
+    const tenantContext: TenantContext = {
+      tenantId: "tenant-fmcc",
+      userId: "owner-fmcc",
+      role: "owner",
+      correlationId: "corr-kordena-retry",
+    };
+    const facts: unknown[] = [];
+    const runtime = new ConnectorRuntime(
+      {
+        async findById(tenantId, sourceId) {
+          return tenantId === source.tenantId && sourceId === source.id
+            ? source
+            : null;
+        },
+        async list() {
+          return [source];
+        },
+        async create() {
+          throw new Error("unused");
+        },
+      },
+      {
+        async begin() {
+          return { id: "sync-kordena-retry", state: "started" as const };
+        },
+        async complete() {},
+        async fail() {},
+      },
+      {
+        async ingest(input) {
+          facts.push(input);
+        },
+      },
+      [connector],
+      1_000,
+      3,
+      0,
+    );
+
+    const result = await runtime.syncPull(tenantContext, {
+      sourceId: source.id,
+      idempotencyKey: "retry-kordena",
+    });
+
+    expect(attempts).toBe(3);
+    expect(result).toMatchObject({
+      status: "completed",
+      ingested: 1,
+    });
+    expect(facts).toHaveLength(1);
   });
 
   it("rejects an incomplete snapshot instead of converting absence to zero", async () => {

@@ -9,7 +9,10 @@ import {
   AuthenticationRequiredError,
   TenantScopeRequiredError,
 } from "@/domain/security/tenant-context";
-import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
+import {
+  PostgresSourceRepository,
+  PostgresSyncRepository,
+} from "@/infrastructure/integration/postgres-repositories";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import { SourceControlPanel } from "./source-control-panel";
 
@@ -18,8 +21,12 @@ export default async function SourcesPage() {
   try {
     context = await resolveTenantContext(await headers());
   } catch (error) {
-    if (error instanceof AuthenticationRequiredError) redirect("/sign-in");
-    if (error instanceof TenantScopeRequiredError) redirect("/onboarding");
+    if (error instanceof AuthenticationRequiredError) {
+      redirect("/sign-in");
+    }
+    if (error instanceof TenantScopeRequiredError) {
+      redirect("/onboarding");
+    }
     throw error;
   }
 
@@ -27,38 +34,63 @@ export default async function SourcesPage() {
     redirect("/dashboard");
   }
 
+  const sourceRepository = new PostgresSourceRepository();
   const sourceService = new SourceRegistryService(
-    new PostgresSourceRepository(),
+    sourceRepository,
     new PostgresProductRepository(),
   );
   const productService = new ProductRegistryService(
     new PostgresProductRepository(),
   );
+  const syncRepository = new PostgresSyncRepository();
 
   const [sources, products] = await Promise.all([
     sourceService.list(context),
     productService.list(context),
   ]);
 
-  const safeSources = sources.map((source) => ({
-    id: source.id,
-    productId: source.productId,
-    name: source.name,
-    sourceType: source.sourceType,
-    authoritativeDomain: source.authoritativeDomain,
-    status: source.status,
-    syncMode: source.syncMode,
-    freshnessSeconds: source.freshnessSeconds,
-    hasSecretReference: Boolean(source.secretRef),
-    baseUrl:
-      typeof source.config.baseUrl === "string"
-        ? source.config.baseUrl
-        : undefined,
-  }));
+  const operationalStates = new Map(
+    await Promise.all(
+      sources.map(async (source) => [
+        source.id,
+        await syncRepository.operationalState(
+          context.tenantId,
+          source.id,
+        ),
+      ] as const),
+    ),
+  );
+
+  const safeSources = sources.map((source) => {
+    const operational = operationalStates.get(source.id);
+    return {
+      id: source.id,
+      productId: source.productId,
+      name: source.name,
+      sourceType: source.sourceType,
+      authoritativeDomain: source.authoritativeDomain,
+      status: source.status,
+      syncMode: source.syncMode,
+      freshnessSeconds: source.freshnessSeconds,
+      hasSecretReference: Boolean(source.secretRef),
+      baseUrl:
+        typeof source.config.baseUrl === "string"
+          ? source.config.baseUrl
+          : undefined,
+      lastAttemptAt: operational?.lastAttemptAt?.toISOString(),
+      lastAttemptStatus: operational?.lastAttemptStatus,
+      lastSuccessfulSyncAt:
+        operational?.lastSuccessfulAt?.toISOString(),
+    };
+  });
 
   const activeProducts = products
     .filter((product) => product.status === "active")
-    .map(({ id, name, slug }) => ({ id, name, slug }));
+    .map(({ id, name, slug }) => ({
+      id,
+      name,
+      slug,
+    }));
 
   return (
     <main className="dashboard-shell">
@@ -67,8 +99,9 @@ export default async function SourcesPage() {
           <span className="eyebrow">Malha de Integrações</span>
           <h1>Fontes e Integrações</h1>
           <p>
-            Cadastro, teste de saúde e sincronização de fontes governadas.
-            Nenhuma fonte é considerada conectada apenas por estar cadastrada.
+            Cadastro, teste de saúde e sincronização de fontes
+            governadas. Nenhuma fonte é considerada conectada apenas
+            por estar cadastrada.
           </p>
         </div>
         <Link className="button" href="/dashboard">
@@ -76,7 +109,10 @@ export default async function SourcesPage() {
         </Link>
       </header>
 
-      <section className="foundation-grid" aria-label="Princípios das integrações">
+      <section
+        className="foundation-grid"
+        aria-label="Princípios das integrações"
+      >
         <article>
           <strong>Segredos</strong>
           <span>Somente por referência no servidor</span>

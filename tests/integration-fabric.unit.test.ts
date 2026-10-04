@@ -114,4 +114,44 @@ describe("F07 integration fabric", () => {
     const { runtime } = runtimeFor();
     await expect(runtime.health(context, "source-1")).resolves.toBe("healthy");
   });
+
+  it("persiste o health quando o repositório suporta estado operacional", async () => {
+    const updates: string[] = [];
+    const sources = {
+      ...sourceRepo(source),
+      async updateStatus(
+        tenantId: string,
+        sourceId: string,
+        status: "configured" | "healthy" | "degraded" | "unavailable",
+      ) {
+        expect(tenantId).toBe("tenant-a");
+        expect(sourceId).toBe("source-1");
+        updates.push(status);
+      },
+    };
+    const runtime = new ConnectorRuntime(
+      sources,
+      {
+        async begin() {
+          return { id: "unused", state: "started" as const };
+        },
+        async complete() {},
+        async fail() {},
+      },
+      { async ingest() {} },
+      [{
+        sourceType: "fixture",
+        capabilities: ["billing.read"],
+        async health() {
+          return "degraded";
+        },
+      }],
+      100,
+      1,
+      0,
+    );
+
+    await expect(runtime.health(context, "source-1")).resolves.toBe("degraded");
+    expect(updates).toEqual(["degraded"]);
+  });
 });

@@ -59,6 +59,61 @@ describe("F07/F08 PostgreSQL tenant isolation", () => {
   });
 
 
+  it("persiste health e expõe último sync bem-sucedido sem cruzar tenants", async () => {
+    const sources = new PostgresSourceRepository();
+    const syncs = new PostgresSyncRepository();
+    const source = await sources.create(TENANTS[0], {
+      name: "Operational state",
+      sourceType: "fixture",
+      authoritativeDomain: "billing",
+      syncMode: "pull",
+    });
+
+    await sources.updateStatus(TENANTS[0], source.id, "healthy");
+    const healthy = await sources.findById(TENANTS[0], source.id);
+    expect(healthy?.status).toBe("healthy");
+
+    const first = await syncs.begin({
+      tenantId: TENANTS[0],
+      sourceId: source.id,
+      idempotencyKey: "operational-success",
+      correlationId: "corr-success",
+    });
+    await syncs.complete({
+      id: first.id,
+      tenantId: TENANTS[0],
+      cursorAfter: "cursor-success",
+    });
+
+    const second = await syncs.begin({
+      tenantId: TENANTS[0],
+      sourceId: source.id,
+      idempotencyKey: "operational-failure",
+      correlationId: "corr-failure",
+    });
+    await syncs.fail({
+      id: second.id,
+      tenantId: TENANTS[0],
+      errorCode: "provider_unavailable",
+      errorMessage: "integration.connector_failure",
+    });
+
+    const state = await syncs.operationalState(
+      TENANTS[0],
+      source.id,
+    );
+    expect(state.lastAttemptStatus).toBe("failed");
+    expect(state.lastAttemptAt).toBeInstanceOf(Date);
+    expect(state.lastSuccessfulAt).toBeInstanceOf(Date);
+    expect(state.lastSuccessfulCursor).toBe("cursor-success");
+
+    const foreign = await syncs.operationalState(
+      TENANTS[1],
+      source.id,
+    );
+    expect(foreign).toEqual({});
+  });
+
   it("isola a mesma chave de idempotência entre fontes do mesmo tenant", async () => {
     const sources = new PostgresSourceRepository();
     const syncs = new PostgresSyncRepository();

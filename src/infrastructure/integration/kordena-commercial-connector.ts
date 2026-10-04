@@ -1,9 +1,10 @@
-import type {
-  Connector,
-  ConnectorContext,
-  ConnectorFact,
-  ConnectorPullResult,
-  SourceDefinition,
+import {
+  RetryableConnectorError,
+  type Connector,
+  type ConnectorContext,
+  type ConnectorFact,
+  type ConnectorPullResult,
+  type SourceDefinition,
 } from "@/domain/integration/contracts";
 
 export const KORDENA_COMMERCIAL_SOURCE_TYPE = "kordena-commercial-v1";
@@ -609,7 +610,7 @@ export class KordenaCommercialConnector implements Connector {
     const timer = setTimeout(() => controller.abort(), context.timeoutMs);
 
     try {
-      return await this.fetcher(
+      const response = await this.fetcher(
         `${sourceBaseUrl(source, this.allowedOrigins())}${path}`,
         {
           ...init,
@@ -617,6 +618,12 @@ export class KordenaCommercialConnector implements Connector {
           signal: controller.signal,
         },
       );
+      if (response.status === 429 || response.status >= 500) {
+        throw new RetryableConnectorError(
+          "integration.kordena_upstream_retryable",
+        );
+      }
+      return response;
     } catch (error) {
       if (controller.signal.aborted) {
         throw new KordenaCommercialConnectorError(
