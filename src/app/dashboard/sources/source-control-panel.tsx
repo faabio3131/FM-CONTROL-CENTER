@@ -20,6 +20,9 @@ type SourceView = {
   freshnessSeconds?: number;
   hasSecretReference: boolean;
   baseUrl?: string;
+  lastAttemptAt?: string;
+  lastAttemptStatus?: string;
+  lastSuccessfulSyncAt?: string;
 };
 
 type Props = {
@@ -37,7 +40,23 @@ function rotuloSaude(status: string) {
   if (status === "healthy") return "Saudável";
   if (status === "degraded") return "Degradada";
   if (status === "unavailable") return "Indisponível";
+  if (status === "configured") return "Configurada — ainda não testada";
   return "Desconhecida";
+}
+
+function rotuloSync(status?: string) {
+  if (status === "completed") return "Concluída";
+  if (status === "running") return "Em andamento";
+  if (status === "failed") return "Falhou";
+  return "Nunca executada";
+}
+
+function dataHora(value?: string) {
+  if (!value) return "Nunca";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function mensagemErro(codigo?: string) {
@@ -133,6 +152,7 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
           health: `Saúde: ${rotuloSaude(status)}`,
         },
       }));
+      router.refresh();
     } catch {
       setStates((current) => ({
         ...current,
@@ -282,6 +302,11 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
                 <small>Tipo técnico: {source.sourceType}</small>
                 <small>Modo: {source.syncMode === "pull" ? "Consulta periódica" : source.syncMode}</small>
                 <small>Referência de segredo: {source.hasSecretReference ? "Configurada por referência" : "Ausente"}</small>
+                <small>Saúde persistida: {rotuloSaude(source.status)}</small>
+                <small>Último sync bem-sucedido: {dataHora(source.lastSuccessfulSyncAt)}</small>
+                <small>
+                  Última tentativa: {dataHora(source.lastAttemptAt)} · {rotuloSync(source.lastAttemptStatus)}
+                </small>
                 {source.baseUrl ? <small>Origem: {source.baseUrl}</small> : null}
                 <div>
                   <button
