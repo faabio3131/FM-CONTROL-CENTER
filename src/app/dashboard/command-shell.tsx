@@ -88,7 +88,7 @@ export function CommandShell({
           </details>
 
           <div
-            className="command-topbar-badge"
+            className="command-topbar-badge command-environment-badge"
             aria-label={"Ambiente: " + environmentLabel}
           >
             <span aria-hidden="true">●</span>
@@ -118,6 +118,7 @@ export function CommandShell({
               <p>
                 Organização: {identity?.organizationName ?? "Nome indisponível"}
               </p>
+              <p>Ambiente: {environmentLabel}</p>
               <Link href="/dashboard/settings">Abrir configurações</Link>
             </div>
           </details>

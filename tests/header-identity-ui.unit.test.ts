@@ -38,10 +38,15 @@ describe("CME-07 header identity UI contract", () => {
   it("mantém identidade e menus funcionais também no mobile", () => {
     const css = source("src/app/globals.css");
     expect(css).toContain(".command-notification-menu,.command-user-menu{position:relative}");
+    expect(css).toContain("@media(max-width:900px)");
     expect(css).toContain(".command-user-menu>.command-topbar-badge");
+    expect(css).toContain(".command-environment-badge{display:none}");
     expect(css).toContain("display:inline-flex");
     expect(css).toContain(".command-user-avatar");
     expect(css).toContain("max-height:min(70vh,480px)");
+
+    const shell = source("src/app/dashboard/command-shell.tsx");
+    expect(shell).toContain("<p>Ambiente: {environmentLabel}</p>");
   });
 
   it("não exibe role técnica em Configurações", () => {

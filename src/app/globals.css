@@ -787,6 +787,21 @@ input:focus,select:focus,textarea:focus{
 .command-user-menu>summary>span:last-child{display:grid;gap:1px;color:#d9edff}
 .command-user-menu>summary small{color:#8ea5d1;font-size:.64rem;font-weight:650}
 .dashboard-header-context{align-self:center;color:#7187b3;font-size:.73rem;white-space:nowrap}
+@media(max-width:900px){
+  .command-topbar{gap:10px;padding-inline:14px}
+  .command-topbar-actions{margin-left:auto;gap:6px}
+  .command-environment-badge{display:none}
+  .command-notification-menu>.command-topbar-badge,
+  .command-user-menu>.command-topbar-badge{
+    display:inline-flex;
+    min-width:auto;
+    padding:5px 7px;
+  }
+  .command-notification-menu>summary{font-size:0}
+  .command-notification-menu>summary>span,
+  .command-notification-menu>summary>strong{font-size:.76rem}
+  .command-user-menu>summary>span:last-child{display:none}
+}
 @media(max-width:760px){
   .command-topbar-actions>.button{min-height:32px;padding:6px 9px}
   .dashboard-header-context{white-space:normal}
