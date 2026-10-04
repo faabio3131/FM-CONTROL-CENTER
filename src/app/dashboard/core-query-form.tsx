@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { rotuloAutoridadeFonte, rotuloMetrica } from "@/presentation/pt-br";
+import { CommandBrainLogo } from "@/presentation/command-brain-logo";
 
 type State = {
   status: "idle" | "loading" | "success" | "error";
@@ -247,10 +248,7 @@ export function CoreQueryForm({
         <div className="core-orb-stage" aria-label="FM Command Core IA">
           <span className="core-orb-note left top">Dados em tempo real</span>
           <span className="core-orb-note left bottom">Execução orientada</span>
-          <div className="core-orb" aria-hidden="true">
-            <strong>FM</strong>
-            <span>Core IA</span>
-          </div>
+          <CommandBrainLogo className="core-brain-logo" />
           <span className="core-orb-note right top">Insights com IA</span>
           <span className="core-orb-note right bottom">Mais controle e eficiência</span>
         </div>
@@ -279,7 +277,7 @@ export function CoreQueryForm({
             placeholder={
               productContext
                 ? `Ex.: Quanto o ${productContext.name} faturou no período?`
-                : "Ex.: Quanto faturamos no período?"
+                : "Pergunte ao Core sobre faturamento, trials, churn ou operação..."
             }
             autoComplete="off"
             value={question}

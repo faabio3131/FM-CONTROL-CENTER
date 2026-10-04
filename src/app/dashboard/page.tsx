@@ -12,7 +12,7 @@ import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 import { PostgresOperationalHealthRepository } from "@/infrastructure/operations/postgres-health-repository";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
-import { rotuloAtualidade, rotuloAutoridadeFonte, rotuloQualidade, rotuloStatusDefinicao, rotuloStatusProduto } from "@/presentation/pt-br";
+import { rotuloAtualidade, rotuloAutoridadeFonte, rotuloMetrica, rotuloQualidade, rotuloSeveridadeAlerta, rotuloStatusDefinicao, rotuloStatusProduto } from "@/presentation/pt-br";
 import { CoreQueryForm } from "./core-query-form";
 import { ProductComparisonForm } from "./product-comparison-form";
 import { ProductCreateForm } from "./product-create-form";
@@ -32,6 +32,15 @@ function formatMetric(value: string | null, unit: string, currency?: string) {
     }
   }
   return value;
+}
+
+function healthStatusLabel(
+  status: "operational" | "degraded" | "unavailable" | "unknown",
+) {
+  if (status === "operational") return "Operacional";
+  if (status === "degraded") return "Degradado";
+  if (status === "unavailable") return "Indisponível";
+  return "Desconhecido";
 }
 
 export default async function DashboardPage() {
@@ -96,46 +105,118 @@ export default async function DashboardPage() {
         </article>
       </section>
 
-      <section className="panel" aria-labelledby="dashboard-operational-health-title">
-        <h2 id="dashboard-operational-health-title">Saúde Operacional</h2>
-        {operationalHealth.services.length ? (
-          <p>
-            Operacionais: <strong>{operationalHealth.counts.operational}</strong> ·
-            Degradados: <strong>{operationalHealth.counts.degraded}</strong> ·
-            Indisponíveis: <strong>{operationalHealth.counts.unavailable}</strong> ·
-            Desconhecidos/stale: <strong>{operationalHealth.counts.unknown}</strong>.{" "}
-            <Link href="/dashboard/operations">Ver Status dos Serviços</Link>
-          </p>
-        ) : (
-          <p>
-            Indisponível — nenhuma autoridade de saúde foi registrada.{" "}
-            <Link href="/dashboard/operations">Abrir Operações</Link>
-          </p>
-        )}
+      <section className="command-home-stage" aria-label="Command Core e operação">
+        <div className="command-home-main">
+          <CoreQueryForm />
+        </div>
+
+        <aside className="command-home-rail" aria-label="Saúde, serviços e alertas">
+          <section className="panel command-rail-panel" aria-labelledby="dashboard-operational-health-title">
+            <div className="command-rail-heading">
+              <div>
+                <span className="eyebrow">Operação</span>
+                <h2 id="dashboard-operational-health-title">Saúde Operacional</h2>
+              </div>
+              <Link href="/dashboard/operations">Ver todos</Link>
+            </div>
+
+            {operationalHealth.services.length ? (
+              <>
+                <div className="command-health-summary">
+                  <div
+                    className="command-health-ring"
+                    aria-label={`${operationalHealth.counts.operational} de ${operationalHealth.services.length} serviços operacionais`}
+                  >
+                    <strong>{operationalHealth.counts.operational}/{operationalHealth.services.length}</strong>
+                    <span>serviços operacionais</span>
+                  </div>
+                  <div className="command-health-counts">
+                    <span><strong>{operationalHealth.counts.degraded}</strong> degradados</span>
+                    <span><strong>{operationalHealth.counts.unavailable}</strong> indisponíveis</span>
+                    <span><strong>{operationalHealth.counts.unknown}</strong> desconhecidos/stale</span>
+                  </div>
+                </div>
+
+                <ul className="command-service-list">
+                  {operationalHealth.services.slice(0, 6).map(({ service, effectiveStatus }) => (
+                    <li key={service.id}>
+                      <div>
+                        <strong>{service.name}</strong>
+                        <small>{service.environment}</small>
+                      </div>
+                      <span className={`command-status-pill ${effectiveStatus}`}>
+                        {healthStatusLabel(effectiveStatus)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p>
+                Indisponível — nenhuma autoridade de saúde foi registrada.
+              </p>
+            )}
+          </section>
+
+          <section className="panel command-rail-panel" aria-labelledby="dashboard-alerts-title">
+            <div className="command-rail-heading">
+              <div>
+                <span className="eyebrow">Atenção governada</span>
+                <h2 id="dashboard-alerts-title">Alertas e Incidentes</h2>
+              </div>
+              <Link href="/dashboard/alerts">Ver todos</Link>
+            </div>
+            <div className={activeAlerts > 0 ? "command-alert-summary attention" : "command-alert-summary"}>
+              <strong>{activeAlerts}</strong>
+              <span>{activeAlerts === 1 ? "alerta ativo" : "alertas ativos"}</span>
+            </div>
+            {alertOverview.occurrences.length ? (
+              <ul className="command-alert-list">
+                {alertOverview.occurrences.slice(0, 4).map((occurrence) => (
+                  <li key={occurrence.id}>
+                    <span className={`command-alert-dot ${occurrence.severity}`} aria-hidden="true" />
+                    <div>
+                      <strong>{rotuloMetrica(occurrence.metricId)}</strong>
+                      <small>{rotuloSeveridadeAlerta(occurrence.severity)}</small>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>Nenhuma ocorrência governada na janela atual.</p>
+            )}
+          </section>
+        </aside>
       </section>
 
       {activityFeed ? (
-        <section className="panel" aria-labelledby="dashboard-activity-title">
-          <h2 id="dashboard-activity-title">Atividades recentes</h2>
+        <section className="panel command-activity-panel" aria-labelledby="dashboard-activity-title">
+          <div className="command-rail-heading">
+            <div>
+              <span className="eyebrow">Auditoria</span>
+              <h2 id="dashboard-activity-title">Atividades recentes</h2>
+            </div>
+            <Link href="/dashboard/activity">Ver histórico completo</Link>
+          </div>
           {activityFeed.items.length ? (
-            <ul>
+            <ul className="command-activity-grid">
               {activityFeed.items.map((item) => (
                 <li key={item.id}>
-                  <strong>{item.title}</strong> · {item.category} ·{" "}
-                  {new Intl.DateTimeFormat("pt-BR", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                    timeZone: "America/Sao_Paulo",
-                  }).format(new Date(item.occurredAt))}
+                  <strong>{item.title}</strong>
+                  <span>{item.category}</span>
+                  <small>
+                    {new Intl.DateTimeFormat("pt-BR", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                      timeZone: "America/Sao_Paulo",
+                    }).format(new Date(item.occurredAt))}
+                  </small>
                 </li>
               ))}
             </ul>
           ) : (
             <p>Nenhuma atividade auditável encontrada na janela atual.</p>
           )}
-          <p>
-            <Link href="/dashboard/activity">Abrir Activity Feed</Link>
-          </p>
         </section>
       ) : null}
 
@@ -209,7 +290,6 @@ export default async function DashboardPage() {
         <article><strong>Acesso ao Core</strong><span>Serviço canônico / bloqueio por padrão</span></article>
       </section>
 
-      <CoreQueryForm />
     </main>
   );
 }

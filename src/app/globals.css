@@ -960,3 +960,286 @@ form.card>label{margin-top:2px}
     padding-inline:8px;
   }
 }
+
+
+/* =========================================================
+   CME-11 — VISUAL PREMIUM FINAL
+   Fidelidade ao dashboard aprovado sem alterar contratos.
+   ========================================================= */
+.command-global-search{
+  min-width:260px;
+  max-width:360px;
+  height:38px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:0 13px;
+  border:1px solid rgba(63,105,255,.48);
+  border-radius:10px;
+  background:linear-gradient(180deg,rgba(8,25,61,.88),rgba(3,12,32,.94));
+  color:#8297c3;
+  font-size:.78rem;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 0 22px rgba(31,122,255,.06);
+}
+.command-global-search:hover{
+  color:#d9e7ff;
+  border-color:rgba(0,217,255,.68);
+  box-shadow:0 0 24px rgba(31,122,255,.14),inset 0 1px 0 rgba(255,255,255,.04);
+}
+.command-global-search>span:first-child{
+  width:21px;
+  height:21px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(80,142,255,.38);
+  border-radius:7px;
+  color:#7edfff;
+  font-size:.88rem;
+}
+.command-global-search>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.command-home-stage{
+  width:min(var(--content),100%);
+  margin:0 auto 14px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(300px,336px);
+  gap:12px;
+  align-items:stretch;
+}
+.command-home-main{min-width:0}
+.command-home-main>.core-panel{
+  max-width:none;
+  height:100%;
+  margin:0;
+}
+.command-home-rail{
+  min-width:0;
+  display:grid;
+  grid-template-rows:auto 1fr;
+  gap:12px;
+}
+.command-rail-panel{
+  margin:0;
+  max-width:none;
+  padding:16px;
+  border-color:rgba(43,107,232,.38);
+  background:
+    radial-gradient(circle at 100% 0,rgba(0,217,255,.055),transparent 15rem),
+    linear-gradient(180deg,rgba(5,19,45,.98),rgba(2,9,24,.99));
+}
+.command-rail-heading{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:12px;
+}
+.command-rail-heading h2{
+  margin:.24rem 0 0;
+  font-size:1rem;
+  letter-spacing:-.01em;
+}
+.command-rail-heading>a{
+  flex:0 0 auto;
+  color:#22cfff;
+  font-size:.72rem;
+  font-weight:750;
+}
+.command-rail-heading>a:hover{color:#84e9ff}
+
+.command-health-summary{
+  display:grid;
+  grid-template-columns:114px minmax(0,1fr);
+  gap:13px;
+  align-items:center;
+  padding:4px 0 12px;
+  border-bottom:1px solid rgba(54,111,230,.16);
+}
+.command-health-ring{
+  width:108px;
+  aspect-ratio:1;
+  display:grid;
+  place-content:center;
+  gap:4px;
+  text-align:center;
+  border-radius:50%;
+  border:7px solid rgba(0,231,162,.78);
+  background:
+    radial-gradient(circle,rgba(0,231,162,.08),transparent 68%),
+    rgba(1,8,22,.82);
+  box-shadow:0 0 20px rgba(0,231,162,.16),inset 0 0 24px rgba(0,231,162,.08);
+}
+.command-health-ring strong{font-size:1.4rem;color:#f7fffc}
+.command-health-ring span{max-width:78px;color:#85d9bc;font-size:.58rem;line-height:1.25}
+.command-health-counts{display:grid;gap:7px;color:#8295be;font-size:.72rem}
+.command-health-counts strong{color:#eef6ff;font-size:.82rem}
+
+.command-service-list,.command-alert-list,.command-activity-grid{
+  list-style:none;
+  padding:0;
+  margin:12px 0 0;
+}
+.command-service-list{display:grid;gap:6px}
+.command-service-list li{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:7px 9px;
+  border:1px solid rgba(50,103,210,.18);
+  border-radius:9px;
+  background:rgba(6,20,48,.54);
+}
+.command-service-list li>div{min-width:0;display:grid;gap:1px}
+.command-service-list strong{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#dbe8ff;
+  font-size:.72rem;
+}
+.command-service-list small{color:#6f84b0;font-size:.61rem}
+
+.command-status-pill{
+  flex:0 0 auto;
+  padding:4px 7px;
+  border:1px solid rgba(104,128,180,.30);
+  border-radius:999px;
+  color:#9aaed4;
+  font-size:.59rem;
+  font-weight:800;
+}
+.command-status-pill.operational{border-color:rgba(0,231,162,.30);background:rgba(0,231,162,.07);color:#58efbd}
+.command-status-pill.degraded{border-color:rgba(255,189,63,.34);background:rgba(255,189,63,.07);color:#ffd071}
+.command-status-pill.unavailable{border-color:rgba(255,65,95,.35);background:rgba(255,65,95,.07);color:#ff7389}
+.command-status-pill.unknown{border-color:rgba(126,143,180,.30);background:rgba(126,143,180,.06);color:#9bacce}
+
+.command-alert-summary{
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  padding:9px 11px;
+  border:1px solid rgba(50,103,210,.20);
+  border-radius:10px;
+  background:rgba(7,21,51,.62);
+}
+.command-alert-summary strong{font-size:1.35rem;color:#70e8c0}
+.command-alert-summary span{color:#8094bd;font-size:.68rem}
+.command-alert-summary.attention{border-color:rgba(255,189,63,.28);background:rgba(255,189,63,.045)}
+.command-alert-summary.attention strong{color:#ffd06a}
+
+.command-alert-list{display:grid;gap:6px}
+.command-alert-list li{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 4px;
+  border-bottom:1px solid rgba(54,111,230,.12);
+}
+.command-alert-list li:last-child{border-bottom:0}
+.command-alert-list li>div{display:grid;gap:1px;min-width:0}
+.command-alert-list strong{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#d8e5ff;
+  font-size:.70rem;
+}
+.command-alert-list small{color:#7286b1;font-size:.60rem}
+.command-alert-dot{
+  width:8px;
+  height:8px;
+  flex:0 0 auto;
+  border-radius:50%;
+  background:#58a8ff;
+  box-shadow:0 0 10px currentColor;
+}
+.command-alert-dot.info{background:#39bfff;color:#39bfff}
+.command-alert-dot.warning{background:#ffbd3f;color:#ffbd3f}
+.command-alert-dot.critical{background:#ff415f;color:#ff415f}
+
+.command-activity-panel{
+  width:min(var(--content),100%);
+  max-width:var(--content);
+  margin:0 auto 20px;
+  padding:14px 16px 15px;
+}
+.command-activity-grid{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(150px,1fr));
+  gap:7px;
+}
+.command-activity-grid li{
+  min-width:0;
+  display:grid;
+  gap:3px;
+  padding:9px 10px;
+  border:1px solid rgba(50,103,210,.19);
+  border-radius:9px;
+  background:linear-gradient(180deg,rgba(8,23,54,.72),rgba(3,12,30,.82));
+}
+.command-activity-grid strong{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#e6efff;
+  font-size:.69rem;
+}
+.command-activity-grid span{color:#52dfff;font-size:.61rem}
+.command-activity-grid small{color:#687da8;font-size:.58rem}
+
+.core-brain-logo{
+  width:min(250px,94%);
+  height:auto;
+  filter:drop-shadow(0 0 22px rgba(0,217,255,.20)) drop-shadow(0 0 42px rgba(98,79,255,.13));
+}
+.core-orb-stage:has(.core-brain-logo){min-height:270px}
+.core-orb-stage:has(.core-brain-logo) .core-orb-note{z-index:2}
+
+.dashboard-shell table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  overflow:hidden;
+  border:1px solid rgba(49,104,216,.24);
+  border-radius:12px;
+  background:rgba(3,12,31,.66);
+}
+.dashboard-shell th{
+  padding:10px 12px;
+  border-bottom:1px solid rgba(55,110,222,.22);
+  color:#8fa6d4;
+  font-size:.69rem;
+  text-align:left;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.dashboard-shell td{
+  padding:10px 12px;
+  border-bottom:1px solid rgba(55,110,222,.10);
+  color:#c9d6ef;
+  font-size:.76rem;
+}
+.dashboard-shell tr:last-child td{border-bottom:0}
+.dashboard-shell tbody tr:hover{background:rgba(31,122,255,.045)}
+
+@media(max-width:1180px){
+  .command-global-search{min-width:200px;max-width:260px}
+  .command-home-stage{grid-template-columns:minmax(0,1fr) 300px}
+  .command-activity-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:980px){
+  .command-global-search{display:none}
+  .command-home-stage{grid-template-columns:1fr}
+  .command-home-rail{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto}
+  .command-activity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .command-home-rail{grid-template-columns:1fr}
+  .command-health-summary{grid-template-columns:96px minmax(0,1fr)}
+  .command-health-ring{width:92px;border-width:6px}
+  .command-activity-grid{grid-template-columns:1fr}
+  .core-brain-logo{width:min(210px,88%)}
+  .core-orb-stage:has(.core-brain-logo){min-height:238px}
+}
