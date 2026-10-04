@@ -1,9 +1,9 @@
 # CME-11 — Visual Premium Final
 
-**Projeto:** FM Command  
-**Repositório:** `faabio3131/FM-CONTROL-CENTER`  
-**Baseline:** `main@f6a9a287b8eb7d82ea5ad2daf5dbeecce3617ce7`  
-**Branch:** `feat/fm-command-cme11-visual-premium-final`  
+**Projeto:** FM Command
+**Repositório:** `faabio3131/FM-CONTROL-CENTER`
+**Baseline:** `main@f6a9a287b8eb7d82ea5ad2daf5dbeecce3617ce7`
+**Branch:** `feat/fm-command-cme11-visual-premium-final`
 **Status:** IMPLEMENTED_PENDING_CERTIFICATION
 
 ## Autoridade visual
