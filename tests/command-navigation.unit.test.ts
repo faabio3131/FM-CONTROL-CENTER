@@ -10,6 +10,7 @@ describe("FM Command navigation RBAC", () => {
       expect(hrefs).toContain("/dashboard/subscriptions");
       expect(hrefs).toContain("/dashboard/settings");
       expect(hrefs).toContain("/dashboard/search");
+      expect(hrefs).toContain("/dashboard/notifications");
       expect(hrefs).toContain("/dashboard/commercial/kordena");
     }
   });

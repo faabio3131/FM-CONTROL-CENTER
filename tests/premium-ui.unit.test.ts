@@ -110,7 +110,7 @@ describe("F18 premium UX/UI", () => {
     const core = source("src/app/dashboard/core-query-form.tsx");
     const css = source("src/app/globals.css");
 
-    expect(layout).toContain("<CommandShell role={context.role}>{children}</CommandShell>");
+    expect(layout).toContain("notifications={notifications}");
     expect(shell).toContain("FM Tecnologia");
     expect(shell).toContain("COMMAND");
     expect(shell).toContain("commandNavigationForRole(role)");
