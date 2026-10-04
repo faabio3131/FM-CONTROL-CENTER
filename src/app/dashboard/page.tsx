@@ -55,7 +55,7 @@ export default async function DashboardPage() {
       productsRepository,
     ).overview(context),
     canReadActivity
-      ? buildActivityFeedService().recent(context, 6)
+      ? buildActivityFeedService().page(context, { page: 1, pageSize: 6 })
       : Promise.resolve(null),
   ]);
   const governedAvailable = metrics.filter(({ value }) => value?.value !== null && value).length;
@@ -121,7 +121,7 @@ export default async function DashboardPage() {
             <ul>
               {activityFeed.items.map((item) => (
                 <li key={item.id}>
-                  <code>{item.action}</code> · {item.result} ·{" "}
+                  <strong>{item.title}</strong> · {item.category} ·{" "}
                   {new Intl.DateTimeFormat("pt-BR", {
                     dateStyle: "short",
                     timeStyle: "short",
