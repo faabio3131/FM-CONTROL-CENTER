@@ -757,7 +757,51 @@ input:focus,select:focus,textarea:focus{
 .command-topbar-actions{display:flex;align-items:center;gap:10px}
 .command-topbar-actions>.button{min-height:34px;padding:7px 11px;font-size:.76rem}
 .command-topbar-actions>.error{position:absolute;right:16px;top:58px;margin:0;padding:7px 10px;border:1px solid rgba(255,65,95,.28);border-radius:8px;background:#1d0710;font-size:.72rem}
+.command-notification-menu,.command-user-menu{position:relative}
+.command-notification-menu>summary,.command-user-menu>summary{cursor:pointer;list-style:none}
+.command-notification-menu>summary::-webkit-details-marker,.command-user-menu>summary::-webkit-details-marker{display:none}
+.command-notification-menu>.panel,.command-user-menu>.panel{
+  position:absolute;
+  right:0;
+  top:calc(100% + 8px);
+  z-index:80;
+  width:min(320px,calc(100vw - 24px));
+  max-height:min(70vh,480px);
+  overflow:auto;
+  margin:0;
+}
+.command-user-avatar{
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  border-radius:50%;
+  background-color:rgba(31,122,255,.18);
+  background-size:cover;
+  background-position:center;
+  color:#d9edff;
+  font-size:.72rem;
+  font-weight:850;
+}
+.command-user-menu>summary>span:last-child{display:grid;gap:1px;color:#d9edff}
+.command-user-menu>summary small{color:#8ea5d1;font-size:.64rem;font-weight:650}
 .dashboard-header-context{align-self:center;color:#7187b3;font-size:.73rem;white-space:nowrap}
+@media(max-width:900px){
+  .command-topbar{gap:10px;padding-inline:14px}
+  .command-topbar-actions{margin-left:auto;gap:6px}
+  .command-environment-badge{display:none}
+  .command-notification-menu>.command-topbar-badge,
+  .command-user-menu>.command-topbar-badge{
+    display:inline-flex;
+    min-width:auto;
+    padding:5px 7px;
+  }
+  .command-notification-menu>summary{font-size:0}
+  .command-notification-menu>summary>span,
+  .command-notification-menu>summary>strong{font-size:.76rem}
+  .command-user-menu>summary>span:last-child{display:none}
+}
 @media(max-width:760px){
   .command-topbar-actions>.button{min-height:32px;padding:6px 9px}
   .dashboard-header-context{white-space:normal}
@@ -805,6 +849,28 @@ form.card>label{margin-top:2px}
   .command-topbar-actions{
     margin-left:auto;
     flex:0 0 auto;
+    gap:6px;
+  }
+  .command-notification-menu>.command-topbar-badge,
+  .command-user-menu>.command-topbar-badge{
+    display:inline-flex;
+    min-width:auto;
+    padding:5px 7px;
+  }
+  .command-notification-menu>summary{
+    font-size:0;
+  }
+  .command-notification-menu>summary>span,
+  .command-notification-menu>summary>strong{
+    font-size:.76rem;
+  }
+  .command-user-menu>summary>span:last-child{
+    display:none;
+  }
+  .command-user-avatar{
+    width:26px;
+    height:26px;
+    font-size:.68rem;
   }
   .command-topbar-actions>.button{
     min-height:30px;

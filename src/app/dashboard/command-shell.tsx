@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { NotificationItem } from "@/domain/notifications/contracts";
+import type { DashboardIdentity } from "@/domain/security/dashboard-identity";
 import type { FmccRole } from "@/domain/security/permissions";
 import { commandNavigationForRole } from "@/presentation/command-navigation";
+import { rotuloPapelFmcc } from "@/presentation/pt-br";
 import { SignOutButton } from "./sign-out-button";
 
 export function CommandShell({
   children,
   role,
   notifications,
+  identity,
+  environmentLabel,
 }: {
   children: ReactNode;
   role: FmccRole;
@@ -19,10 +23,17 @@ export function CommandShell({
     readonly unreadCount: number;
     readonly items: readonly NotificationItem[];
   } | null;
+  identity: DashboardIdentity | null;
+  environmentLabel: string;
 }) {
   const pathname = usePathname();
   const navigation = commandNavigationForRole(role);
   const unread = notifications?.unreadCount ?? 0;
+  const roleLabel = rotuloPapelFmcc(role);
+  const userName = identity?.name ?? "Usuário autenticado";
+  const avatarStyle: CSSProperties | undefined = identity?.imageUrl
+    ? { backgroundImage: "url(" + JSON.stringify(identity.imageUrl) + ")" }
+    : undefined;
 
   return (
     <div className="command-app-shell">
@@ -75,10 +86,43 @@ export function CommandShell({
               <Link href="/dashboard/notifications">Abrir central</Link>
             </div>
           </details>
-          <div className="command-topbar-badge" aria-label="Ambiente governado">
+
+          <div
+            className="command-topbar-badge command-environment-badge"
+            aria-label={"Ambiente: " + environmentLabel}
+          >
             <span aria-hidden="true">●</span>
-            Ambiente governado
+            {environmentLabel}
           </div>
+
+          <details className="command-user-menu">
+            <summary
+              className="command-topbar-badge"
+              aria-label={"Usuário: " + userName + ", " + roleLabel}
+            >
+              <span
+                className="command-user-avatar"
+                style={avatarStyle}
+                aria-hidden="true"
+              >
+                {identity?.imageUrl ? "" : identity?.initials ?? "○"}
+              </span>
+              <span>
+                <strong>{userName}</strong>
+                <small>{roleLabel}</small>
+              </span>
+            </summary>
+            <div className="panel">
+              <strong>{userName}</strong>
+              <p>Papel: {roleLabel}</p>
+              <p>
+                Organização: {identity?.organizationName ?? "Nome indisponível"}
+              </p>
+              <p>Ambiente: {environmentLabel}</p>
+              <Link href="/dashboard/settings">Abrir configurações</Link>
+            </div>
+          </details>
+
           <SignOutButton />
         </div>
       </header>
@@ -105,7 +149,7 @@ export function CommandShell({
         </nav>
         <div className="command-sidebar-footer">
           <strong>FM COMMAND</strong>
-          <span>Visual Premium · governado</span>
+          <span>{identity?.organizationName ?? "Organização ativa"}</span>
         </div>
       </aside>
 

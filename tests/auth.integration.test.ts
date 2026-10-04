@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe,expect,it } from "vitest";
+import { loadDashboardIdentity } from "@/application/security/dashboard-identity";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { assertTenantScope,CrossTenantAccessError } from "@/domain/security/tenant-context";
 import { auth } from "@/infrastructure/auth/auth";
@@ -20,7 +21,17 @@ async function createUserAndTenant(label:string){
   expect(createOrg.status).toBeLessThan(400);const organization=await createOrg.json() as {id:string};return {cookie,organization,email,password};
 }
 describe("auth + tenancy integration",()=>{
-  it("cria sessão, organização e contexto confiável",async()=>{const a=await createUserAndTenant("a");const c=await resolveTenantContext(new Headers({cookie:a.cookie}));expect(c.tenantId).toBe(a.organization.id);expect(c.role).toBe("owner")});
+  it("cria sessão, organização, contexto e identidade confiáveis",async()=>{
+    const a=await createUserAndTenant("a");
+    const c=await resolveTenantContext(new Headers({cookie:a.cookie}));
+    expect(c.tenantId).toBe(a.organization.id);
+    expect(c.role).toBe("owner");
+    await expect(loadDashboardIdentity(c)).resolves.toMatchObject({
+      name:"User a",
+      initials:"UA",
+      organizationName:"Tenant a",
+    });
+  });
   it("restaura automaticamente o único tenant após novo login",async()=>{
     const a=await createUserAndTenant("relogin");
     const signOut=await request("/sign-out",{method:"POST",headers:{cookie:a.cookie}});
