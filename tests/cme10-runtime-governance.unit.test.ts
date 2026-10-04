@@ -7,28 +7,31 @@ function source(path: string): string {
 }
 
 describe("CME-10 runtime homologation governance", () => {
-  it("não declara Kordena conectado enquanto o Preview está fora do exact SHA", () => {
+  it("certifica Kordena conectado sem fabricar canonical facts ou métricas", () => {
     const register = source(
       "docs/governance/CME-10-runtime-homologation-register.md",
     );
 
+    expect(register).toContain("KORDENA_CONNECTED = TRUE");
+    expect(register).toContain("KORDENA_SYNC_FRESH = COMPLETED");
+    expect(register).toContain("KORDENA_CANONICAL_DATASET = EMPTY");
     expect(register).toContain(
-      "KORDENA_RUNTIME_CURRENT_SHA = BLOCKED / PREVIEW_EXACT_SHA_REQUIRED",
+      "KORDENA_METRICS = UNAVAILABLE / NO_CANONICAL_FACTS",
     );
-    expect(register).toContain("KORDENA_CONNECTED = NOT_PROVEN");
-    expect(register).toContain("CME_10_FINAL = HOLD");
+    expect(register).toContain("MISSING_TO_ZERO = 0");
   });
 
-  it("mantém scheduler runtime bloqueado quando base URL e secret estão ausentes", () => {
+  it("certifica scheduler real ativo com execução e idempotência runtime", () => {
     const register = source(
       "docs/governance/CME-10-runtime-homologation-register.md",
     );
 
+    expect(register).toContain("SCHEDULER_REAL_EXECUTION = PASS");
     expect(register).toContain(
-      "SCHEDULER_RUNTIME = EXTERNAL_BLOCKED / RUNTIME_SECRET_REQUIRED",
+      "SCHEDULER_IDEMPOTENCY_RUNTIME = PASS",
     );
-    expect(register).toContain("SCHEDULER_REAL_EVALUATION = NOT_EXECUTED");
-    expect(register).toContain("SCHEDULER_ACTIVE = FALSE");
+    expect(register).toContain("SCHEDULER_AUDIT_TRAIL = PASS");
+    expect(register).toContain("SCHEDULER_ACTIVE = TRUE");
   });
 
   it("preserva o boundary de autenticação e recuperação do scheduler", () => {
@@ -51,7 +54,7 @@ describe("CME-10 runtime homologation governance", () => {
     expect(workflow).toContain("X-Correlation-ID");
   });
 
-  it("mantém Preview exact-SHA como pré-condição de homologação real", () => {
+  it("mantém Preview exact-SHA como pré-condição e registra o SHA certificado", () => {
     const workflow = source(
       ".github/workflows/fmcc-preview-deployment-gate.yml",
     );
@@ -62,7 +65,18 @@ describe("CME-10 runtime homologation governance", () => {
     expect(workflow).toContain('expected="$GITHUB_SHA"');
     expect(workflow).toContain("Preview exact SHA confirmed");
     expect(register).toContain(
-      "expected main SHA = 0cffb09353c39d706c6f22e8559aea8e4fa4ae5e",
+      "f2b817ec2f5e6e4124a0dbe2f10f2e27ece0a9c3",
     );
+    expect(register).toContain("PREVIEW_EXACT_SHA = PASS");
+  });
+
+  it("fecha o CME-10 somente com claims compatíveis com a evidência", () => {
+    const register = source(
+      "docs/governance/CME-10-runtime-homologation-register.md",
+    );
+
+    expect(register).toContain("FALSE_CONNECTED_CLAIMS = 0");
+    expect(register).toContain("SECRET_DISCLOSURES = 0");
+    expect(register).toContain("CME_10_FINAL = PASS");
   });
 });
