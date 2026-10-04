@@ -17,7 +17,12 @@ describe("FM Command commercial naming", () => {
 
   it("preserva o namespace técnico FMCC sem rename destrutivo", () => {
     expect(source("package.json")).toContain('"name": "fm-control-center"');
-    expect(source("src/app/api/version/route.ts")).toContain('"fm-control-center"');
+    expect(
+      source("src/application/deployment/deployment-identity.ts"),
+    ).toContain('service: "fm-control-center"');
+    expect(source("src/app/api/version/route.ts")).toContain(
+      "readDeploymentIdentity()",
+    );
     expect(source("README.md")).toContain("FM Control Center / FMCC");
     expect(source("README.md")).toContain("fmcommand.com.br");
   });
