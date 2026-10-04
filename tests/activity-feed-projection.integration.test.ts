@@ -91,7 +91,7 @@ describe("CME-04 Activity Feed PostgreSQL projection", () => {
       fact: {
         externalId: "payment-b",
         factType: "payment.settled",
-        payload: { amount: "99", currency: "BRL" },
+        payload: { amount: "990000.01", currency: "BRL" },
         sourceTimestamp: new Date("2026-10-04T10:01:00Z"),
       },
     });
@@ -104,7 +104,7 @@ describe("CME-04 Activity Feed PostgreSQL projection", () => {
       fact: {
         externalId: "payment-other",
         factType: "payment.settled",
-        payload: { amount: "777", currency: "BRL" },
+        payload: { amount: "777000.02", currency: "BRL" },
         sourceTimestamp: new Date("2026-10-04T10:02:00Z"),
       },
     });
@@ -164,8 +164,8 @@ describe("CME-04 Activity Feed PostgreSQL projection", () => {
     ]);
 
     const serialized = JSON.stringify(financeA);
-    expect(serialized).not.toContain("99");
-    expect(serialized).not.toContain("777");
+    expect(serialized).not.toContain("990000.01");
+    expect(serialized).not.toContain("777000.02");
     expect(serialized).not.toContain("must-not-leak@example.test");
     expect(serialized).not.toContain("must-not-leak");
     expect(serialized).not.toContain("rawSecret");
@@ -186,7 +186,7 @@ describe("CME-04 Activity Feed PostgreSQL projection", () => {
     expect(otherTenant).toHaveLength(1);
     expect(otherTenant[0]).toMatchObject({
       productId: productOtherTenant.id,
-      amount: "777",
+      amount: "777000.02",
     });
   });
 });

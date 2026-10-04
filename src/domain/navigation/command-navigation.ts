@@ -12,6 +12,7 @@ export interface CommandNavigationItem {
 export const COMMAND_NAVIGATION: readonly CommandNavigationItem[] = [
   { href: "/dashboard", label: "Visão Geral", icon: "⌂", permission: "metric:read", exact: true },
   { href: "/dashboard/search", label: "Busca", icon: "⌕", permission: "search:use" },
+  { href: "/dashboard/notifications", label: "Notificações", icon: "◌", permission: "notification:use" },
   { href: "/dashboard#product-intelligence-title", label: "Produtos", icon: "◇", permission: "product:read" },
   { href: "/dashboard/finance", label: "Financeiro", icon: "▥", permission: "metric:read" },
   { href: "/dashboard/growth", label: "Comercial", icon: "↗", permission: "metric:read" },

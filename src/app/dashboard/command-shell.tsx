@@ -3,13 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import type { NotificationItem } from "@/domain/notifications/contracts";
 import type { FmccRole } from "@/domain/security/permissions";
 import { commandNavigationForRole } from "@/presentation/command-navigation";
 import { SignOutButton } from "./sign-out-button";
 
-export function CommandShell({ children, role }: { children: ReactNode; role: FmccRole }) {
+export function CommandShell({
+  children,
+  role,
+  notifications,
+}: {
+  children: ReactNode;
+  role: FmccRole;
+  notifications: {
+    readonly unreadCount: number;
+    readonly items: readonly NotificationItem[];
+  } | null;
+}) {
   const pathname = usePathname();
   const navigation = commandNavigationForRole(role);
+  const unread = notifications?.unreadCount ?? 0;
 
   return (
     <div className="command-app-shell">
@@ -22,6 +35,46 @@ export function CommandShell({ children, role }: { children: ReactNode; role: Fm
         </Link>
         <p>Inteligência, controle e crescimento para o seu negócio.</p>
         <div className="command-topbar-actions">
+          <details className="command-notification-menu">
+            <summary
+              className="command-topbar-badge"
+              aria-label={
+                notifications
+                  ? "Notificações: " + unread + " não lidas"
+                  : "Notificações: estado indisponível"
+              }
+            >
+              <span aria-hidden="true">◌</span>
+              Notificações
+              {notifications && unread > 0 ? (
+                <strong aria-label={unread + " notificações não lidas"}>
+                  {unread}
+                </strong>
+              ) : null}
+            </summary>
+            <div className="panel">
+              <strong>Central de Notificações</strong>
+              {notifications ? (
+                notifications.items.length ? (
+                  <ul>
+                    {notifications.items.map((item) => (
+                      <li key={item.id}>
+                        <Link href={item.href}>
+                          {item.read ? "" : "● "}
+                          {item.title}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>Nenhuma notificação governada.</p>
+                )
+              ) : (
+                <p>Estado de notificações indisponível.</p>
+              )}
+              <Link href="/dashboard/notifications">Abrir central</Link>
+            </div>
+          </details>
           <div className="command-topbar-badge" aria-label="Ambiente governado">
             <span aria-hidden="true">●</span>
             Ambiente governado
