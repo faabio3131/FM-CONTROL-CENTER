@@ -31,6 +31,23 @@ describe("FM Command navigation RBAC", () => {
     }
   });
 
+  it("expõe Atividades somente para papéis com audit:read", () => {
+    for (const role of ["owner", "admin", "analyst"] as const) {
+      expect(
+        commandNavigationForRole(role).some(
+          (item) => item.href === "/dashboard/activity",
+        ),
+      ).toBe(true);
+    }
+    for (const role of ["viewer", "member"] as const) {
+      expect(
+        commandNavigationForRole(role).some(
+          (item) => item.href === "/dashboard/activity",
+        ),
+      ).toBe(false);
+    }
+  });
+
   it("deriva cada item de uma permissão canônica", () => {
     for (const role of ["owner", "admin", "analyst", "viewer", "member"] as const) {
       const items = commandNavigationForRole(role);

@@ -19,6 +19,7 @@ export const COMMAND_NAVIGATION: readonly CommandNavigationItem[] = [
   { href: "/dashboard/customers", label: "Clientes", icon: "◎", permission: "metric:read" },
   { href: "/dashboard/operations", label: "Operações", icon: "◉", permission: "metric:read" },
   { href: "/dashboard/alerts", label: "Incidentes", icon: "△", permission: "alert:read" },
+  { href: "/dashboard/activity", label: "Atividades", icon: "≡", permission: "audit:read" },
   { href: "/dashboard/intelligence", label: "Core", icon: "⬡", permission: "metric:read" },
   { href: "/dashboard/commercial/kordena", label: "Kordena", icon: "K", permission: "commercial:read" },
   { href: "/dashboard/sources", label: "Fontes e Integrações", icon: "⚙", permission: "source:read" },

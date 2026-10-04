@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { buildActivityFeedService } from "@/application/activity/activity-feed-composition";
 import { buildAlertService } from "@/application/alerts/alert-composition";
 import { MetricService } from "@/application/metrics/metric-service";
 import { OperationalHealthService } from "@/application/operations/operational-health-service";
@@ -44,7 +45,8 @@ export default async function DashboardPage() {
 
   const metricService = new MetricService(new PostgresMetricStore());
   const productsRepository = new PostgresProductRepository();
-  const [metrics, products, alertOverview, operationalHealth] = await Promise.all([
+  const canReadActivity = roleHasPermission(context.role, "audit:read");
+  const [metrics, products, alertOverview, operationalHealth, activityFeed] = await Promise.all([
     metricService.overview(context),
     new ProductRegistryService(productsRepository).list(context),
     buildAlertService().overview(context),
@@ -52,6 +54,9 @@ export default async function DashboardPage() {
       new PostgresOperationalHealthRepository(),
       productsRepository,
     ).overview(context),
+    canReadActivity
+      ? buildActivityFeedService().recent(context, 6)
+      : Promise.resolve(null),
   ]);
   const governedAvailable = metrics.filter(({ value }) => value?.value !== null && value).length;
   const activeProducts = products.filter((product) => product.status === "active").length;
@@ -108,6 +113,31 @@ export default async function DashboardPage() {
           </p>
         )}
       </section>
+
+      {activityFeed ? (
+        <section className="panel" aria-labelledby="dashboard-activity-title">
+          <h2 id="dashboard-activity-title">Atividades recentes</h2>
+          {activityFeed.items.length ? (
+            <ul>
+              {activityFeed.items.map((item) => (
+                <li key={item.id}>
+                  <code>{item.action}</code> · {item.result} ·{" "}
+                  {new Intl.DateTimeFormat("pt-BR", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                    timeZone: "America/Sao_Paulo",
+                  }).format(new Date(item.occurredAt))}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>Nenhuma atividade auditável encontrada na janela atual.</p>
+          )}
+          <p>
+            <Link href="/dashboard/activity">Abrir Activity Feed</Link>
+          </p>
+        </section>
+      ) : null}
 
       <section className="foundation-grid" aria-label="Inteligência empresarial">
         <Link href="/dashboard/finance"><strong>Financeiro</strong><span>F12 · dados governados</span></Link>
