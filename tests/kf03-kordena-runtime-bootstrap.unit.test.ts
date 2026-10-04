@@ -96,6 +96,20 @@ describe("KF-03 Kordena runtime bootstrap", () => {
       sync: "completed",
       ingested: 12,
     });
+    const firstSyncInput = runtime.syncPull.mock.calls[0][1];
+    expect(firstSyncInput.idempotencyKey).toMatch(
+      /^kf03-kordena-runtime-bootstrap-v2:kf03-bootstrap-[0-9a-f-]{36}$/,
+    );
+
+    await bootstrapKordenaCommercialRuntime({
+      sources: sources as never,
+      products: products as never,
+      runtime: runtime as never,
+    });
+    const secondSyncInput = runtime.syncPull.mock.calls[1][1];
+    expect(secondSyncInput.idempotencyKey).not.toBe(
+      firstSyncInput.idempotencyKey,
+    );
     expect(sources.create).not.toHaveBeenCalled();
   });
 
