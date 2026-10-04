@@ -9,14 +9,15 @@ export type Permission =
   | "action:prepare"
   | "commercial:read" | "commercial:write"
   | "billing:read" | "billing:write"
-  | "receivable:read";
+  | "receivable:read"
+  | "search:use";
 
 const ROLE_PERMISSIONS: Record<FmccRole, ReadonlySet<Permission>> = {
-  owner: new Set(["tenant:manage","member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write","alert:read","alert:write","action:prepare","commercial:read","commercial:write","billing:read","billing:write","receivable:read"]),
-  admin: new Set(["member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write","alert:read","alert:write","action:prepare","commercial:read","commercial:write","billing:read","billing:write","receivable:read"]),
-  analyst: new Set(["source:read","metric:read","audit:read","integration:read","product:read","alert:read","action:prepare","commercial:read"]),
-  viewer: new Set(["metric:read","integration:read","product:read","alert:read","commercial:read"]),
-  member: new Set(["metric:read","integration:read","product:read","alert:read","commercial:read"]),
+  owner: new Set(["tenant:manage","member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write","alert:read","alert:write","action:prepare","commercial:read","commercial:write","billing:read","billing:write","receivable:read","search:use"]),
+  admin: new Set(["member:manage","source:read","source:write","metric:read","audit:read","integration:read","integration:write","product:read","product:write","alert:read","alert:write","action:prepare","commercial:read","commercial:write","billing:read","billing:write","receivable:read","search:use"]),
+  analyst: new Set(["source:read","metric:read","audit:read","integration:read","product:read","alert:read","action:prepare","commercial:read","search:use"]),
+  viewer: new Set(["metric:read","integration:read","product:read","alert:read","commercial:read","search:use"]),
+  member: new Set(["metric:read","integration:read","product:read","alert:read","commercial:read","search:use"]),
 };
 
 export function normalizeRole(role: string): FmccRole {

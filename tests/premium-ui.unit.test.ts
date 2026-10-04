@@ -106,7 +106,7 @@ describe("F18 premium UX/UI", () => {
   it("aplica o visual premium aprovado no shell global e mantém a navegação governada", () => {
     const shell = source("src/app/dashboard/command-shell.tsx");
     const layout = source("src/app/dashboard/layout.tsx");
-    const navigation = source("src/presentation/command-navigation.ts");
+    const navigation = source("src/domain/navigation/command-navigation.ts");
     const core = source("src/app/dashboard/core-query-form.tsx");
     const css = source("src/app/globals.css");
 

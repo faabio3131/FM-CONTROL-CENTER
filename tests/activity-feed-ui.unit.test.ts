@@ -25,7 +25,7 @@ describe("R8 Activity Feed UI/API contract", () => {
   });
 
   it("liga navegação e visão geral ao feed somente via audit:read", () => {
-    const navigation = source("src/presentation/command-navigation.ts");
+    const navigation = source("src/domain/navigation/command-navigation.ts");
     const dashboard = source("src/app/dashboard/page.tsx");
     expect(navigation).toContain('href: "/dashboard/activity"');
     expect(navigation).toContain('permission: "audit:read"');

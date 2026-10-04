@@ -1,0 +1,16 @@
+import { GlobalSearchService } from "@/application/search/global-search-service";
+import { PostgresActivityRepository } from "@/infrastructure/activity/postgres-activity-repository";
+import { PostgresAlertRepository } from "@/infrastructure/alerts/postgres-alert-repository";
+import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
+import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
+import { PostgresSearchRateLimiter } from "@/infrastructure/search/postgres-search-rate-limiter";
+
+export function buildGlobalSearchService(): GlobalSearchService {
+  return new GlobalSearchService(
+    new PostgresProductRepository(),
+    new PostgresSourceRepository(),
+    new PostgresAlertRepository(),
+    new PostgresActivityRepository(),
+    new PostgresSearchRateLimiter(),
+  );
+}
