@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { roleHasPermission } from "@/domain/security/permissions";
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
+import { rotuloPapelFmcc } from "@/presentation/pt-br";
 
 export default async function SettingsPage() {
   let context;
@@ -42,7 +43,7 @@ export default async function SettingsPage() {
         </div>
       </section>
       <section className="panel"><h2>Escopo ativo</h2>
-        <p>Papel atual: <strong>{context.role}</strong>. O identificador técnico da organização permanece disponível apenas para diagnóstico autorizado.</p>
+        <p>Papel atual: <strong>{rotuloPapelFmcc(context.role)}</strong>. O identificador técnico da organização permanece disponível apenas para diagnóstico autorizado.</p>
       </section>
     </main>
   );

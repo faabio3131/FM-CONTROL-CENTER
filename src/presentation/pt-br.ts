@@ -194,3 +194,14 @@ export function rotuloNivelRiscoAcao(riskLevel?: string): string {
     default: return "Risco não classificado";
   }
 }
+
+export function rotuloPapelFmcc(role: string): string {
+  switch (role) {
+    case "owner": return "Proprietário";
+    case "admin": return "Administrador";
+    case "analyst": return "Analista";
+    case "viewer": return "Visualizador";
+    case "member": return "Membro";
+    default: return "Papel não identificado";
+  }
+}

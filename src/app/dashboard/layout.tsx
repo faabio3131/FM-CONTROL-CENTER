@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { deploymentEnvironmentLabel, readDeploymentIdentity } from "@/application/deployment/deployment-identity";
 import { buildNotificationService } from "@/application/notifications/notification-composition";
+import { loadDashboardIdentity } from "@/application/security/dashboard-identity";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { roleHasPermission } from "@/domain/security/permissions";
 import {
@@ -20,18 +22,27 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     throw error;
   }
 
-  const notifications = roleHasPermission(context.role, "notification:use")
-    ? await buildNotificationService()
-        .inbox(context, 5)
-        .then((inbox) => ({
-          unreadCount: inbox.unreadCount,
-          items: inbox.items,
-        }))
-        .catch(() => null)
-    : null;
+  const [notifications, identity] = await Promise.all([
+    roleHasPermission(context.role, "notification:use")
+      ? buildNotificationService()
+          .inbox(context, 5)
+          .then((inbox) => ({
+            unreadCount: inbox.unreadCount,
+            items: inbox.items,
+          }))
+          .catch(() => null)
+      : Promise.resolve(null),
+    loadDashboardIdentity(context).catch(() => null),
+  ]);
+  const environmentLabel = deploymentEnvironmentLabel(readDeploymentIdentity());
 
   return (
-    <CommandShell role={context.role} notifications={notifications}>
+    <CommandShell
+      role={context.role}
+      notifications={notifications}
+      identity={identity}
+      environmentLabel={environmentLabel}
+    >
       {children}
     </CommandShell>
   );
