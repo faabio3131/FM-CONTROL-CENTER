@@ -1,3 +1,4 @@
+import { loadTenantIntegrationFeatures } from "@/application/integration/tenant-integration-features";
 import { GlobalSearchService } from "@/application/search/global-search-service";
 import { PostgresActivityRepository } from "@/infrastructure/activity/postgres-activity-repository";
 import { PostgresAlertRepository } from "@/infrastructure/alerts/postgres-alert-repository";
@@ -6,11 +7,13 @@ import { PostgresProductRepository } from "@/infrastructure/products/postgres-pr
 import { PostgresSearchRateLimiter } from "@/infrastructure/search/postgres-search-rate-limiter";
 
 export function buildGlobalSearchService(): GlobalSearchService {
+  const sources = new PostgresSourceRepository();
   return new GlobalSearchService(
     new PostgresProductRepository(),
-    new PostgresSourceRepository(),
+    sources,
     new PostgresAlertRepository(),
     new PostgresActivityRepository(),
     new PostgresSearchRateLimiter(),
+    (context) => loadTenantIntegrationFeatures(context, sources),
   );
 }

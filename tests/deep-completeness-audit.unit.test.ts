@@ -25,7 +25,7 @@ describe("FM Command deep completeness audit — internal findings", () => {
 
   it("remove tenant ID técnico da UX principal", () => {
     const dashboard = source("src/app/dashboard/page.tsx");
-    expect(dashboard).toContain(">Organização ativa</span>");
+    expect(dashboard).toContain('identity?.organizationName ?? "Organização ativa"');
     expect(dashboard).not.toContain("context.tenantId.slice");
     expect(dashboard).not.toContain("Identificador do tenant");
   });

@@ -14,6 +14,7 @@ function buildService(options?: {
   sourceCounter?: { value: number };
   activityCounter?: { value: number };
   rateLimitCounter?: { value: number };
+  kordenaCommercial?: boolean;
 }) {
   return new GlobalSearchService(
     {
@@ -158,6 +159,9 @@ function buildService(options?: {
         expect(input.userId).toBe("owner-a");
       },
     },
+    async () => ({
+      kordenaCommercial: options?.kordenaCommercial ?? true,
+    }),
   );
 }
 
@@ -175,6 +179,24 @@ describe("R9 Global Search", () => {
     expect(serialized).not.toContain("SEARCH_MUST_NOT_EXPOSE_ME");
     expect(serialized).not.toContain("api-secret-must-not-be-searchable");
     expect(serialized).not.toContain("private.example.test");
+  });
+
+  it("não inventa módulo Kordena quando a feature não está configurada no tenant", async () => {
+    const result = await buildService({ kordenaCommercial: false }).search(
+      owner,
+      "kordena",
+      20,
+    );
+
+    expect(
+      result.items.some(
+        (item) =>
+          item.kind === "navigation" &&
+          item.href === "/dashboard/commercial/kordena",
+      ),
+    ).toBe(false);
+    expect(result.items.some((item) => item.kind === "product")).toBe(true);
+    expect(result.items.some((item) => item.kind === "source")).toBe(true);
   });
 
   it("não consulta Source Registry nem atividades sem as permissões correspondentes", async () => {

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { deploymentEnvironmentLabel, readDeploymentIdentity } from "@/application/deployment/deployment-identity";
+import { loadTenantIntegrationFeatures } from "@/application/integration/tenant-integration-features";
 import { buildNotificationService } from "@/application/notifications/notification-composition";
 import { loadDashboardIdentity } from "@/application/security/dashboard-identity";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -22,7 +23,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     throw error;
   }
 
-  const [notifications, identity] = await Promise.all([
+  const [notifications, identity, integrationFeatures] = await Promise.all([
     roleHasPermission(context.role, "notification:use")
       ? buildNotificationService()
           .inbox(context, 5)
@@ -33,6 +34,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           .catch(() => null)
       : Promise.resolve(null),
     loadDashboardIdentity(context).catch(() => null),
+    loadTenantIntegrationFeatures(context).catch(() => ({
+      kordenaCommercial: false,
+    })),
   ]);
   const environmentLabel = deploymentEnvironmentLabel(readDeploymentIdentity());
 
@@ -42,6 +46,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       notifications={notifications}
       identity={identity}
       environmentLabel={environmentLabel}
+      integrationFeatures={integrationFeatures}
     >
       {children}
     </CommandShell>

@@ -3,9 +3,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { buildActivityFeedService } from "@/application/activity/activity-feed-composition";
 import { buildAlertService } from "@/application/alerts/alert-composition";
+import { loadTenantIntegrationFeatures } from "@/application/integration/tenant-integration-features";
 import { MetricService } from "@/application/metrics/metric-service";
 import { OperationalHealthService } from "@/application/operations/operational-health-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
+import { loadDashboardIdentity } from "@/application/security/dashboard-identity";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { roleHasPermission } from "@/domain/security/permissions";
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
@@ -55,7 +57,7 @@ export default async function DashboardPage() {
   const metricService = new MetricService(new PostgresMetricStore());
   const productsRepository = new PostgresProductRepository();
   const canReadActivity = roleHasPermission(context.role, "audit:read");
-  const [metrics, products, alertOverview, operationalHealth, activityFeed] = await Promise.all([
+  const [metrics, products, alertOverview, operationalHealth, activityFeed, identity, integrationFeatures] = await Promise.all([
     metricService.overview(context),
     new ProductRegistryService(productsRepository).list(context),
     buildAlertService().overview(context),
@@ -66,6 +68,10 @@ export default async function DashboardPage() {
     canReadActivity
       ? buildActivityFeedService().page(context, { page: 1, pageSize: 6 })
       : Promise.resolve(null),
+    loadDashboardIdentity(context).catch(() => null),
+    loadTenantIntegrationFeatures(context).catch(() => ({
+      kordenaCommercial: false,
+    })),
   ]);
   const governedAvailable = metrics.filter(({ value }) => value?.value !== null && value).length;
   const activeProducts = products.filter((product) => product.status === "active").length;
@@ -77,9 +83,9 @@ export default async function DashboardPage() {
         <div>
           <span className="eyebrow">Central Executiva de Comando · Prévia</span>
           <h1>FM Command</h1>
-          <p>Visão executiva governada da Nova FM Tecnologia.</p>
+          <p>Visão executiva governada de {identity?.organizationName ?? "sua organização"}.</p>
         </div>
-        <span className="dashboard-header-context">Organização ativa</span>
+        <span className="dashboard-header-context">{identity?.organizationName ?? "Organização ativa"}</span>
       </header>
 
       <section className="command-overview" aria-label="Resumo executivo">
@@ -227,7 +233,9 @@ export default async function DashboardPage() {
         <Link href="/dashboard/customers"><strong>Clientes / Uso / Suporte</strong><span>F15 · agregados governados</span></Link>
         <Link href="/dashboard/intelligence"><strong>Inteligência Executiva</strong><span>F16 · análise avançada governada</span></Link>
         <Link href="/dashboard/alerts"><strong>Alertas e Automações</strong><span>F17 · regras e workflows governados</span></Link>
-        <Link href="/dashboard/commercial/kordena"><strong>Kordena Comercial</strong><span>Integração comercial governada</span></Link>
+        {integrationFeatures.kordenaCommercial ? (
+          <Link href="/dashboard/commercial/kordena"><strong>Kordena Comercial</strong><span>Integração comercial governada</span></Link>
+        ) : null}
         {roleHasPermission(context.role, "source:read") ? <Link href="/dashboard/sources"><strong>Fontes e Integrações</strong><span>Malha de Integrações · conexões governadas</span></Link> : null}
       </section>
 
