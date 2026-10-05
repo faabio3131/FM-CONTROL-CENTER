@@ -162,4 +162,4 @@ PR_MERGE = PENDING
 RENDER_EXACT_SHA = PENDING_POST_MERGE
 ```
 
-A recertificação integral foi executada em PostgreSQL novo com migrations aplicadas e runner Vitest determinístico (`fileParallelism: false`). Nenhum timeout foi aumentado e nenhum assert foi enfraquecido. A prévia local aprovada permanece separada do Render até o merge.
+A recertificação integral foi executada em PostgreSQL novo com migrations aplicadas e runner Vitest determinístico (`fileParallelism: false`). Um único teste de rota do scheduler recebeu timeout explícito de 15s para absorver carregamento frio de módulos no Windows; nenhuma asserção foi removida ou enfraquecida, e o endpoint continuou fail-closed. A prévia local aprovada permanece separada do Render até o merge.

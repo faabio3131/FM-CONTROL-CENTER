@@ -136,7 +136,7 @@ DIFF_WHITESPACE = PASS
 CME_11_3_VISUAL = APPROVED
 ```
 
-A primeira execução integral local expôs dois timeouts por contenção de 81 workers e banco previamente reutilizado, sem falha de assertion. A recertificação foi repetida em PostgreSQL novo, com migrations aplicadas e execução determinística sem paralelismo entre arquivos. Resultado: 81/81 arquivos e 338/338 testes verdes. O `vitest.config.ts` foi endurecido com `fileParallelism: false`, sem aumentar timeout e sem enfraquecer asserts.
+A primeira execução integral local expôs dois timeouts por contenção de 81 workers e banco previamente reutilizado, sem falha de assertion. A recertificação foi repetida em PostgreSQL novo, com migrations aplicadas e execução determinística sem paralelismo entre arquivos. Resultado: 81/81 arquivos e 338/338 testes verdes. O `vitest.config.ts` foi endurecido com `fileParallelism: false`. O teste de rota do scheduler recebeu timeout explícito de 15s apenas para absorver carregamento frio de módulos no Windows; nenhuma asserção foi removida ou enfraquecida.
 
 O E2E foi executado em porta isolada para não interferir com a prévia local do Kordena. O Playwright e o runtime smoke agora aceitam porta por variável de ambiente, mantendo `3000` como default do CI.
 
