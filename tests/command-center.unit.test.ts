@@ -38,7 +38,8 @@ describe("F10 Executive Command Center contract", () => {
     expect(source).toContain("const normalizedQuestion = question.trim()");
     expect(source).toContain('setQuestion("")');
     expect(source).toContain("value={question}");
-    expect(source).toContain("body: JSON.stringify({ question: normalizedQuestion })");
+    expect(source).toContain("const scopedQuestion = domainContext");
+    expect(source).toContain("body: JSON.stringify({ question: scopedQuestion })");
   });
 
   it("oferece ditado por microfone em português sem substituir a digitação", () => {

@@ -79,7 +79,7 @@ export default async function DashboardPage() {
           <h1>FM Command</h1>
           <p>Visão executiva governada da Nova FM Tecnologia.</p>
         </div>
-        <span className="dashboard-header-context" title={`Tenant ${context.tenantId}`} aria-label={`Organização ativa. Identificador do tenant ${context.tenantId}`}>Organização ativa · <code>{context.tenantId.slice(0, 6)}…{context.tenantId.slice(-4)}</code></span>
+        <span className="dashboard-header-context">Organização ativa</span>
       </header>
 
       <section className="command-overview" aria-label="Resumo executivo">

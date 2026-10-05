@@ -16,6 +16,10 @@ type CoreQueryFormProps = {
     readonly slug: string;
     readonly name: string;
   };
+  readonly domainContext?: {
+    readonly label: string;
+    readonly promptPrefix: string;
+  };
 };
 
 interface SpeechRecognitionAlternativeLike {
@@ -90,6 +94,7 @@ function voiceErrorMessage(code?: string): string {
 
 export function CoreQueryForm({
   productContext,
+  domainContext,
 }: CoreQueryFormProps = {}) {
   const [state, setState] = useState<State>({ status: "idle" });
   const [question, setQuestion] = useState("");
@@ -97,11 +102,12 @@ export function CoreQueryForm({
   const [voiceMessage, setVoiceMessage] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceBaseRef = useRef("");
-  const suggestions = productContext
+  const contextLabel = domainContext?.label ?? productContext?.name;
+  const suggestions = contextLabel
     ? [
-        `O que precisa da minha atenção no ${productContext.name}?`,
-        `Explique as principais variações do ${productContext.name}.`,
-        `Quais são os principais riscos do ${productContext.name}?`,
+        `O que precisa da minha atenção em ${contextLabel}?`,
+        `Explique as principais variações de ${contextLabel}.`,
+        `Quais são os principais riscos em ${contextLabel}?`,
       ]
     : [
         "O que precisa da minha atenção?",
@@ -181,6 +187,9 @@ export function CoreQueryForm({
     event.preventDefault();
     const normalizedQuestion = question.trim();
     if (!normalizedQuestion) return;
+    const scopedQuestion = domainContext
+      ? `${domainContext.promptPrefix}\n\n${normalizedQuestion}`
+      : normalizedQuestion;
 
     const activeRecognition = recognitionRef.current;
     if (activeRecognition) {
@@ -200,11 +209,11 @@ export function CoreQueryForm({
       const requestInit: RequestInit = {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: normalizedQuestion }),
+        body: JSON.stringify({ question: scopedQuestion }),
       };
       if (productContext) {
         requestInit.body = JSON.stringify({
-          question: normalizedQuestion,
+          question: scopedQuestion,
           productSlugs: [productContext.slug],
         });
       }
@@ -245,6 +254,10 @@ export function CoreQueryForm({
               Contexto governado: <strong>{productContext.name}</strong> ·{" "}
               <code>{productContext.slug}</code>
             </p>
+          ) : domainContext ? (
+            <p className="core-context">
+              Contexto governado: <strong>{domainContext.label}</strong>
+            </p>
           ) : null}
         </div>
         <div className="core-orb-stage core-approved-artwork-stage" aria-label="FM Command Core">
@@ -283,7 +296,9 @@ export function CoreQueryForm({
             placeholder={
               productContext
                 ? `Ex.: Quanto o ${productContext.name} faturou no período?`
-                : "Pergunte ao Core sobre faturamento, trials, churn ou operação..."
+                : domainContext
+                  ? `Pergunte ao Core sobre ${domainContext.label}...`
+                  : "Pergunte ao Core sobre faturamento, trials, churn ou operação..."
             }
             autoComplete="off"
             value={question}

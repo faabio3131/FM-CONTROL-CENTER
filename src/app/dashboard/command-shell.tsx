@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { CSSProperties, ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
 import type { NotificationItem } from "@/domain/notifications/contracts";
 import type { DashboardIdentity } from "@/domain/security/dashboard-identity";
 import type { FmccRole } from "@/domain/security/permissions";
@@ -27,7 +27,29 @@ export function CommandShell({
   environmentLabel: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const navigation = commandNavigationForRole(role);
+
+  useEffect(() => {
+    const onGlobalSearchShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k") return;
+      event.preventDefault();
+
+      if (pathname === "/dashboard/search") {
+        const input = document.getElementById("global-search-query");
+        if (input instanceof HTMLInputElement) {
+          input.focus();
+          input.select();
+        }
+        return;
+      }
+
+      router.push("/dashboard/search");
+    };
+
+    window.addEventListener("keydown", onGlobalSearchShortcut);
+    return () => window.removeEventListener("keydown", onGlobalSearchShortcut);
+  }, [pathname, router]);
   const unread = notifications?.unreadCount ?? 0;
   const roleLabel = rotuloPapelFmcc(role);
   const userName = identity?.name ?? "Usuário autenticado";

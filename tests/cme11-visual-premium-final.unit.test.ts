@@ -43,10 +43,12 @@ describe("CME-11 Visual Premium Final", () => {
 
   it("compacta notificações sem alterar seu contrato funcional", () => {
     const notifications = source("src/app/dashboard/notifications/page.tsx");
+    const notificationList = source("src/app/dashboard/notifications/notification-list.tsx");
 
     expect(notifications).toContain('className="dashboard-shell dashboard-shell-compact notifications-compact"');
-    expect(notifications).toContain("Nenhuma notificação governada");
     expect(notifications).toContain("buildNotificationService().inbox");
+    expect(notificationList).toContain("Nenhuma notificação governada");
+    expect(notificationList).toContain('fetch("/api/notifications"');
   });
 
   it("preserva a política de dados ausentes e não introduz números conceituais do mock", () => {

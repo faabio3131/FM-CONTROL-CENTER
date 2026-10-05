@@ -1502,6 +1502,56 @@ form.card>label{margin-top:2px}
   }
 }
 
+
+.settings-governance-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:12px;
+}
+.settings-governance-grid .panel{margin:0}
+.settings-governance-grid form{
+  display:grid;
+  gap:8px;
+  margin-top:10px;
+}
+.settings-governance-grid label{
+  color:#9fb2da;
+  font-size:.72rem;
+  font-weight:700;
+}
+.settings-governance-grid input,
+.settings-governance-grid select,
+.settings-member-row select,
+.dashboard-shell-compact .command-quick-actions select{
+  min-height:38px;
+  padding:8px 10px;
+  border:1px solid rgba(55,111,231,.42);
+  border-radius:10px;
+  background:rgba(3,13,34,.96);
+  color:#e9f2ff;
+}
+.settings-member-list{display:grid;gap:8px;margin-top:10px}
+.settings-member-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:10px 12px;
+  border:1px solid rgba(49,104,216,.22);
+  border-radius:10px;
+  background:rgba(5,18,43,.58);
+}
+.settings-member-row>div{display:flex;align-items:center;gap:8px;min-width:0}
+.settings-member-row>div:first-child{display:grid;gap:2px}
+.settings-member-row strong{color:#eef5ff;font-size:.82rem}
+.settings-member-row span{color:#8296bf;font-size:.7rem}
+@media(max-width:980px){
+  .settings-governance-grid{grid-template-columns:1fr}
+  .settings-member-row{align-items:flex-start;flex-direction:column}
+  .settings-member-row>div:last-child{width:100%;flex-wrap:wrap}
+}
+
 @media(max-width:1180px){
   .command-global-search{min-width:200px;max-width:260px}
   .command-home-stage{grid-template-columns:minmax(0,1fr) 300px}
@@ -1520,4 +1570,296 @@ form.card>label{margin-top:2px}
   .command-activity-grid{grid-template-columns:1fr}
   .core-brain-logo{width:min(210px,88%)}
   .core-orb-stage:has(.core-brain-logo){min-height:238px}
+}
+
+/* CME-11.3 — final premium density: Growth + Customers + Settings */
+@media(min-width:981px){
+  .growth-compact,
+  .customers-compact,
+  .settings-compact{
+    padding:10px clamp(16px,2.5vw,32px) 14px;
+  }
+
+  .growth-compact .dashboard-header,
+  .customers-compact .dashboard-header,
+  .settings-compact .dashboard-header{
+    margin-bottom:8px;
+    padding-bottom:7px;
+    gap:14px;
+  }
+
+  .growth-compact .dashboard-header h1,
+  .customers-compact .dashboard-header h1,
+  .settings-compact .dashboard-header h1{
+    font-size:clamp(1.48rem,2vw,1.92rem);
+    line-height:1;
+    margin:.06rem 0 .16rem;
+  }
+
+  .growth-compact .dashboard-header p,
+  .customers-compact .dashboard-header p,
+  .settings-compact .dashboard-header p{
+    font-size:.74rem;
+    line-height:1.3;
+  }
+
+  .growth-compact .dashboard-header>a,
+  .customers-compact .dashboard-header>a,
+  .settings-compact .dashboard-header>a{
+    min-height:34px;
+    padding:6px 12px;
+    font-size:.78rem;
+  }
+
+  .growth-compact .metric-grid,
+  .customers-compact .metric-grid{
+    gap:7px;
+    margin-bottom:8px;
+  }
+
+  .growth-compact .metric-card,
+  .customers-compact .metric-card{
+    min-height:94px;
+    padding:9px 11px;
+    gap:3px;
+    border-radius:11px;
+  }
+
+  .growth-compact .metric-label,
+  .customers-compact .metric-label{
+    min-height:1.6em;
+    font-size:.71rem;
+    line-height:1.18;
+  }
+
+  .growth-compact .metric-card>strong,
+  .growth-compact .metric-value,
+  .customers-compact .metric-card>strong,
+  .customers-compact .metric-value{
+    font-size:clamp(1rem,1.45vw,1.28rem);
+    line-height:1.02;
+  }
+
+  .growth-compact .metric-card small,
+  .customers-compact .metric-card small{
+    font-size:.64rem;
+    line-height:1.23;
+  }
+
+  .growth-compact .panel,
+  .customers-compact .panel{
+    padding:9px 13px;
+    margin-bottom:7px;
+    border-radius:11px;
+  }
+
+  .growth-compact .panel h2,
+  .customers-compact .panel h2{
+    margin:0 0 .2rem;
+    font-size:.94rem;
+    line-height:1.15;
+  }
+
+  .growth-compact .panel p,
+  .customers-compact .panel p{
+    margin:.14rem 0;
+    font-size:.7rem;
+    line-height:1.3;
+  }
+
+  .customers-compact .panel ul{
+    margin:.25rem 0 0;
+    padding-left:1.05rem;
+  }
+
+  .customers-compact .panel li{
+    margin:.08rem 0;
+    font-size:.7rem;
+    line-height:1.28;
+  }
+
+  .settings-compact .executive-section{
+    margin-bottom:7px;
+  }
+
+  .settings-compact .section-heading{
+    margin-bottom:6px;
+    gap:12px;
+  }
+
+  .settings-compact .section-heading h2{
+    margin:.06rem 0 .1rem;
+    font-size:1.02rem;
+    line-height:1.08;
+  }
+
+  .settings-compact .section-heading p{
+    max-width:52ch;
+    font-size:.68rem;
+    line-height:1.28;
+  }
+
+  .settings-compact .settings-governance-grid{
+    gap:7px;
+    margin-bottom:7px;
+  }
+
+  .settings-compact .settings-governance-grid .panel{
+    padding:8px 11px;
+    border-radius:10px;
+  }
+
+  .settings-compact .settings-governance-grid .panel h3{
+    margin:0 0 .18rem;
+    font-size:.88rem;
+    line-height:1.12;
+  }
+
+  .settings-compact .settings-governance-grid .panel p{
+    margin:.12rem 0;
+    font-size:.67rem;
+    line-height:1.27;
+  }
+
+  .settings-compact .settings-governance-grid form{
+    gap:5px;
+    margin-top:6px;
+  }
+
+  .settings-compact .settings-governance-grid label{
+    font-size:.66rem;
+  }
+
+  .settings-compact .settings-governance-grid input,
+  .settings-compact .settings-governance-grid select,
+  .settings-compact .settings-member-row select{
+    min-height:32px;
+    padding:5px 8px;
+    border-radius:8px;
+    font-size:.7rem;
+  }
+
+  .settings-compact .settings-governance-grid .button,
+  .settings-compact .settings-member-row .button{
+    min-height:32px;
+    padding:5px 9px;
+    border-radius:8px;
+    font-size:.7rem;
+  }
+
+  .settings-compact .settings-member-list{
+    gap:5px;
+    margin-top:6px;
+  }
+
+  .settings-compact .settings-member-row{
+    gap:9px;
+    padding:7px 9px;
+    border-radius:9px;
+  }
+
+  .settings-compact .settings-member-row strong{font-size:.75rem}
+  .settings-compact .settings-member-row span{font-size:.64rem}
+
+  .settings-compact .foundation-grid{
+    gap:6px;
+    margin-bottom:7px;
+  }
+
+  .settings-compact .command-action-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+  }
+
+  .settings-compact .foundation-grid article,
+  .settings-compact .foundation-grid>a{
+    min-height:54px;
+    padding:7px 10px;
+    gap:2px;
+    border-radius:10px;
+  }
+
+  .settings-compact .foundation-grid strong{
+    font-size:.78rem;
+    line-height:1.12;
+  }
+
+  .settings-compact .foundation-grid span,
+  .settings-compact .foundation-grid small{
+    font-size:.61rem;
+    line-height:1.2;
+  }
+
+  .settings-compact>.panel{
+    padding:8px 12px;
+    margin-bottom:6px;
+    border-radius:10px;
+  }
+
+  .settings-compact>.panel h2{
+    margin:0 0 .16rem;
+    font-size:.92rem;
+  }
+
+  .settings-compact>.panel p{
+    margin:.1rem 0;
+    font-size:.68rem;
+    line-height:1.28;
+  }
+
+  body:has(.settings-compact) .command-sidebar-footer{
+    gap:2px;
+    padding:9px 10px;
+    border-radius:10px;
+  }
+
+  body:has(.settings-compact) .command-sidebar-footer strong{font-size:.72rem}
+  body:has(.settings-compact) .command-sidebar-footer span{font-size:.62rem}
+}
+
+@media(min-width:981px) and (max-width:1180px){
+  .settings-compact .command-action-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
+
+/* CME-11.3 — settings final fit at 1366x768 */
+@media(min-width:981px){
+  .settings-compact .settings-governance-grid .panel{
+    padding:6px 10px;
+  }
+  .settings-compact .settings-governance-grid form{
+    gap:3px;
+    margin-top:4px;
+  }
+  .settings-compact .settings-governance-grid input,
+  .settings-compact .settings-governance-grid select,
+  .settings-compact .settings-governance-grid .button,
+  .settings-compact .settings-member-row select,
+  .settings-compact .settings-member-row .button{
+    min-height:30px;
+    padding:4px 8px;
+  }
+  .settings-compact .executive-section>.panel{
+    padding:8px 11px;
+    margin-bottom:5px;
+  }
+  .settings-compact .executive-section>.panel h3{
+    margin:0 0 .18rem;
+    font-size:.9rem;
+  }
+  .settings-compact .settings-member-list{
+    gap:4px;
+    margin-top:4px;
+  }
+  .settings-compact .settings-member-row{
+    padding:5px 8px;
+  }
+  .settings-compact .foundation-grid article,
+  .settings-compact .foundation-grid>a{
+    min-height:48px;
+    padding:6px 9px;
+  }
+  .settings-compact>.panel{
+    padding:7px 11px;
+  }
 }
