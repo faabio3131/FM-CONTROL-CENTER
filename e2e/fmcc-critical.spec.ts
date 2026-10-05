@@ -124,7 +124,10 @@ test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ 
   const identity = await signUpAndCreateOrganization(page, "auth");
 
   await expect(page.getByText("Cobertura factual")).toBeVisible();
-  await page.getByRole("link", { name: /Kordena Comercial/ }).click();
+  await expect(
+    page.getByRole("link", { name: /Kordena Comercial/ }),
+  ).toHaveCount(0);
+  await page.goto("/dashboard/commercial/kordena");
   await expect(page.getByText("Fonte Kordena ainda não configurada.")).toBeVisible();
   await expect(page.getByText("Nenhum dado será presumido.")).toBeVisible();
 
