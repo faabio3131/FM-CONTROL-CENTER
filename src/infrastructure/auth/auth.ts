@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { serverEnv } from "@/config/env";
 import { db } from "@/infrastructure/db/client";
 import * as authSchema from "@/infrastructure/db/auth-schema";
+import { organizationAc, organizationRoles } from "@/infrastructure/auth/organization-access";
 
 const env = serverEnv();
 
@@ -40,5 +41,5 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [organization({ allowUserToCreateOrganization: true })],
+  plugins: [organization({ allowUserToCreateOrganization: true, ac: organizationAc, roles: organizationRoles })],
 });

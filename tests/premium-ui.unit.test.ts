@@ -66,8 +66,8 @@ describe("F18 premium UX/UI", () => {
     expect(css).toContain(".command-sidebar{\n    position:relative;");
     expect(css).toContain(".command-content{\n    overflow:visible;");
     expect(dashboard).toContain("Organização ativa");
-    expect(dashboard).toContain("context.tenantId.slice(0, 6)");
-    expect(dashboard).toContain("context.tenantId.slice(-4)");
+    expect(dashboard).not.toContain("context.tenantId.slice(0, 6)");
+    expect(dashboard).not.toContain("context.tenantId.slice(-4)");
   });
 
   it("usa a arte aprovada real na abertura e preserva o fluxo real de autenticação", () => {
@@ -121,13 +121,14 @@ describe("F18 premium UX/UI", () => {
     expect(navigation).toContain("Incidentes");
     expect(navigation).toContain("Core");
     expect(core).toContain("FM COMMAND CORE");
-    expect(core).toContain("Core IA");
-    expect(core).toContain("Dados em tempo real");
+    expect(core).toContain("INTELIGÊNCIA COGNITIVA VERTICAL");
+    expect(core).toContain("APPROVED_COMMAND_ARTWORK_SRC");
+    expect(core).not.toContain("core-orb-note");
     expect(css).toContain("--command-blue:#1f7aff");
     expect(css).toContain("--command-cyan:#00d9ff");
     expect(css).toContain("--command-violet:#8b5cf6");
     expect(css).toContain(".command-sidebar");
     expect(css).toContain(".command-topbar");
-    expect(css).toContain(".core-orb");
+    expect(css).toContain(".core-approved-artwork");
   });
 });

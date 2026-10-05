@@ -23,7 +23,7 @@ export default async function CustomersPage() {
   ).overview(context);
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-shell-compact customers-compact">
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">F15 · Clientes, Uso e Suporte</span>

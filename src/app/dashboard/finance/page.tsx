@@ -29,7 +29,7 @@ export default async function FinancePage() {
   ).overview(context);
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-shell-compact">
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">F12 · Financeiro e Unit Economics</span>

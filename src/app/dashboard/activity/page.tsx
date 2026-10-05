@@ -116,7 +116,7 @@ export default async function ActivityPage({
   });
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-shell-compact">
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">CME-04 · Activity Feed governado</span>

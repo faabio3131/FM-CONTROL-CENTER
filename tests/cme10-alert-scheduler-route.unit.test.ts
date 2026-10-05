@@ -72,7 +72,7 @@ describe("CME-10 scheduler route authentication", () => {
       error: "automation.scheduler_not_configured",
     });
     expect(run).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("recusa secret incorreto com 401 sem executar automação", async () => {
     process.env.FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET =

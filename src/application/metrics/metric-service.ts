@@ -72,11 +72,17 @@ export class MetricService {
     return this.store.recentValues(context.tenantId, metricId, productId, limit);
   }
 
-  async overview(context: TenantContext) {
+  async overview(context: TenantContext, productId?: string) {
     requirePermission(context, "metric:read");
     return Promise.all(EXECUTIVE_METRIC_TARGETS.map(async (target) => {
       const definition = getMetricDefinition(target.metricId);
-      return { target, definition, value: definition ? await this.store.latestValue(context.tenantId, definition.metricId) : null };
+      return {
+        target,
+        definition,
+        value: definition
+          ? await this.store.latestValue(context.tenantId, definition.metricId, productId)
+          : null,
+      };
     }));
   }
 }

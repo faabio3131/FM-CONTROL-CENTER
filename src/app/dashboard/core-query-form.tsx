@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { rotuloAutoridadeFonte, rotuloMetrica } from "@/presentation/pt-br";
-import { CommandBrainLogo } from "@/presentation/command-brain-logo";
+import { APPROVED_COMMAND_ARTWORK_SRC } from "@/presentation/command-approved-artwork";
 
 type State = {
   status: "idle" | "loading" | "success" | "error";
@@ -14,6 +15,10 @@ type CoreQueryFormProps = {
   readonly productContext?: {
     readonly slug: string;
     readonly name: string;
+  };
+  readonly domainContext?: {
+    readonly label: string;
+    readonly promptPrefix: string;
   };
 };
 
@@ -89,6 +94,7 @@ function voiceErrorMessage(code?: string): string {
 
 export function CoreQueryForm({
   productContext,
+  domainContext,
 }: CoreQueryFormProps = {}) {
   const [state, setState] = useState<State>({ status: "idle" });
   const [question, setQuestion] = useState("");
@@ -96,11 +102,12 @@ export function CoreQueryForm({
   const [voiceMessage, setVoiceMessage] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceBaseRef = useRef("");
-  const suggestions = productContext
+  const contextLabel = domainContext?.label ?? productContext?.name;
+  const suggestions = contextLabel
     ? [
-        `O que precisa da minha atenção no ${productContext.name}?`,
-        `Explique as principais variações do ${productContext.name}.`,
-        `Quais são os principais riscos do ${productContext.name}?`,
+        `O que precisa da minha atenção em ${contextLabel}?`,
+        `Explique as principais variações de ${contextLabel}.`,
+        `Quais são os principais riscos em ${contextLabel}?`,
       ]
     : [
         "O que precisa da minha atenção?",
@@ -180,6 +187,9 @@ export function CoreQueryForm({
     event.preventDefault();
     const normalizedQuestion = question.trim();
     if (!normalizedQuestion) return;
+    const scopedQuestion = domainContext
+      ? `${domainContext.promptPrefix}\n\n${normalizedQuestion}`
+      : normalizedQuestion;
 
     const activeRecognition = recognitionRef.current;
     if (activeRecognition) {
@@ -199,11 +209,11 @@ export function CoreQueryForm({
       const requestInit: RequestInit = {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: normalizedQuestion }),
+        body: JSON.stringify({ question: scopedQuestion }),
       };
       if (productContext) {
         requestInit.body = JSON.stringify({
-          question: normalizedQuestion,
+          question: scopedQuestion,
           productSlugs: [productContext.slug],
         });
       }
@@ -235,22 +245,31 @@ export function CoreQueryForm({
     <section className="core-panel" aria-labelledby="core-title">
       <div className="core-panel-head">
         <div className="core-panel-copy">
-          <span className="eyebrow">Inteligência artificial da FM · FM Cognitive Core</span>
+          <span className="eyebrow">INTELIGÊNCIA COGNITIVA VERTICAL</span>
           <h2 id="core-title">FM COMMAND CORE</h2>
-          <p>Seu copiloto executivo para dados, operações e crescimento. O Core usa as mesmas métricas determinísticas do painel e informa quando um dado não existe.</p>
+          <p>A inteligência cognitiva que entende sua operação, conecta informações e transforma contexto em decisões mais precisas.</p>
+          <p className="core-supporting-copy">Analisa, contextualiza, recomenda e coordena capacidades com governança e rastreabilidade.</p>
           {productContext ? (
             <p className="core-context">
               Contexto governado: <strong>{productContext.name}</strong> ·{" "}
               <code>{productContext.slug}</code>
             </p>
+          ) : domainContext ? (
+            <p className="core-context">
+              Contexto governado: <strong>{domainContext.label}</strong>
+            </p>
           ) : null}
         </div>
-        <div className="core-orb-stage" aria-label="FM Command Core IA">
-          <span className="core-orb-note left top">Dados em tempo real</span>
-          <span className="core-orb-note left bottom">Execução orientada</span>
-          <CommandBrainLogo className="core-brain-logo" />
-          <span className="core-orb-note right top">Insights com IA</span>
-          <span className="core-orb-note right bottom">Mais controle e eficiência</span>
+        <div className="core-orb-stage core-approved-artwork-stage" aria-label="FM Command Core">
+          <Image
+            className="command-approved-artwork core-approved-artwork"
+            src={APPROVED_COMMAND_ARTWORK_SRC}
+            alt="FM Command"
+            width={650}
+            height={650}
+            priority
+            unoptimized
+          />
         </div>
       </div>
 
@@ -277,7 +296,9 @@ export function CoreQueryForm({
             placeholder={
               productContext
                 ? `Ex.: Quanto o ${productContext.name} faturou no período?`
-                : "Pergunte ao Core sobre faturamento, trials, churn ou operação..."
+                : domainContext
+                  ? `Pergunte ao Core sobre ${domainContext.label}...`
+                  : "Pergunte ao Core sobre faturamento, trials, churn ou operação..."
             }
             autoComplete="off"
             value={question}

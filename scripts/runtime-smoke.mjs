@@ -1,13 +1,14 @@
 import { spawn } from "node:child_process";
 
-const baseUrl = "http://127.0.0.1:3000";
+const runtimePort = process.env.FMCC_RUNTIME_PORT ?? "3000";
+const baseUrl = `http://127.0.0.1:${runtimePort}`;
 let output = "";
 
 const server = spawn(
   process.execPath,
-  ["node_modules/next/dist/bin/next", "start", "-p", "3000"],
+  ["node_modules/next/dist/bin/next", "start", "-p", runtimePort],
   {
-    env: { ...process.env, NODE_ENV: "production", PORT: "3000" },
+    env: { ...process.env, NODE_ENV: "production", PORT: runtimePort },
     stdio: ["ignore", "pipe", "pipe"],
   },
 );
@@ -59,7 +60,7 @@ function expectSecurityHeaders(response, path) {
     "x-content-type-options": "nosniff",
     "x-frame-options": "DENY",
     "referrer-policy": "strict-origin-when-cross-origin",
-    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "permissions-policy": "camera=(), microphone=(self), geolocation=()",
   };
   for (const [name, value] of Object.entries(expected)) {
     const actual = response.headers.get(name);

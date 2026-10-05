@@ -23,7 +23,7 @@ export default async function GrowthPage() {
   ).overview(context);
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-shell-compact growth-compact">
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">F13 · Growth / Comercial</span>

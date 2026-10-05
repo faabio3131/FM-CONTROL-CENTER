@@ -27,7 +27,7 @@ export default async function NotificationsPage() {
   const inbox = await buildNotificationService().inbox(context, 50);
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell dashboard-shell-compact notifications-compact">
       <header className="dashboard-header">
         <div>
           <span className="eyebrow">CME-06 · Central de Notificações</span>
