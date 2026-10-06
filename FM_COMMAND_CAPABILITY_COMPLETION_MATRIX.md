@@ -1,9 +1,10 @@
 # FM Command — Capability Completion Matrix
 
 Data da auditoria: 2026-10-06  
-Baseline de código: `main@9a24eca0259cd008a0f4424e3c6dde75d9d56937`  
-Branch de certificação: `audit/command-zero-orphans-20261006`  
-PR de certificação: `#59`
+Baseline de código auditado: `main@370897af04fafe6729dd3f6f22e75337e32f3014`  
+Branch original de certificação zero-órfãos: `audit/command-zero-orphans-20261006`  
+PR de certificação zero-órfãos: `#59`  
+Merge certificado: `370897af04fafe6729dd3f6f22e75337e32f3014`
 
 ## Regra de classificação
 
@@ -157,12 +158,20 @@ EXTERNAL_BLOCKED =
 
 ## Veredito deste bloco
 
-`WEB_CAPABILITY_ZERO_ORPHANS = PASS_PENDING_CI`
+`WEB_CAPABILITY_ZERO_ORPHANS = PASS`
 
-O bloco só pode ser promovido para PASS após:
+Evidência de promoção:
 
-1. teste `capability-reachability.unit.test.ts` verde;
-2. suíte integral verde;
-3. Foundation Gate e F21 Readiness verdes;
-4. merge;
-5. pós-merge exact-SHA/health/readiness.
+1. `capability-reachability.unit.test.ts`: PASS dentro da suíte integral;
+2. Foundation Gate da PR #59: SUCCESS;
+3. F21 Operational Readiness Gate da PR #59: SUCCESS;
+4. PR #59 mergeada;
+5. pós-merge Foundation: SUCCESS;
+6. pós-merge F21 Readiness: SUCCESS;
+7. pós-merge Preview Deployment Gate: SUCCESS;
+8. Render LIVE no SHA `370897af04fafe6729dd3f6f22e75337e32f3014`;
+9. `/api/version` confirmou o mesmo SHA;
+10. `/api/health = ok`, `/api/ready = ready`;
+11. `/dashboard` e `/onboarding` anônimos redirecionam para `/sign-in`.
+
+Nenhuma capability humana interna permaneceu órfã no CURRENT auditado.
