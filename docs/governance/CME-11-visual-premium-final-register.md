@@ -163,3 +163,37 @@ RENDER_EXACT_SHA = PENDING_POST_MERGE
 ```
 
 A recertificação integral foi executada em PostgreSQL novo com migrations aplicadas e runner Vitest determinístico (`fileParallelism: false`). Um único teste de rota do scheduler recebeu timeout explícito de 15s para absorver carregamento frio de módulos no Windows; nenhuma asserção foi removida ou enfraquecida, e o endpoint continuou fail-closed. A prévia local aprovada permanece separada do Render até o merge.
+
+## Reconciliação final da PR visual histórica #32 — 2026-10-06
+
+A PR #32 (`feat/command-premium-dashboard-20261001`) permanece baseada em uma arquitetura anterior e não deve ser mergeada sobre o CURRENT.
+
+Evidência do CURRENT antes desta tranche:
+
+- `main@5cf6c305491a1ba1b027f9d736e73476c83eb017`;
+- visual premium e artwork oficial já presentes no CURRENT;
+- `CommandOrbLogo` da PR #32 não existe mais no CURRENT e foi substituído pelo artwork oficial aprovado;
+- shell, Core, navegação, produto, notificações, busca, operações e demais módulos evoluíram depois da PR #32;
+- Foundation Gate, F21 Operational Readiness Gate e Preview Deployment Gate verdes no CURRENT;
+- Render LIVE no SHA exato acima;
+- `/api/health = ok` e `/api/ready = ready`;
+- proteção de `main` exige `foundation` + `readiness`, strict, sem force-push/delete.
+
+Gap de evidência encontrado durante a reconciliação:
+
+- o E2E CURRENT validava explicitamente 1366×768, 768×1024 e 390×844;
+- faltava uma validação explícita do dashboard autenticado em 1920×1080.
+
+Correção desta tranche:
+
+- adicionar E2E determinístico para dashboard autenticado em 1920×1080 e 1366×768;
+- preservar os cenários já existentes de tablet e mobile;
+- nenhuma alteração em auth, RBAC, tenancy, APIs, schema, regra de negócio ou dados.
+
+Critério de encerramento da PR #32:
+
+- novo E2E verde;
+- gates obrigatórios verdes;
+- merge da tranche de reconciliação;
+- Preview/Render no SHA exato;
+- PR #32 encerrada como `SUPERSEDED_BY_CURRENT`, sem cherry-pick ou merge de código antigo.

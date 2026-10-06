@@ -120,6 +120,31 @@ test("abertura premium do FM Command exibe o Core e permanece responsiva", async
   expect(hasCriticalHorizontalOverflow).toBe(false);
 });
 
+test("viewports desktop oficiais 1920x1080 e 1366x768 mantêm dashboard premium sem overflow horizontal", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await signUpAndCreateOrganization(page, "desktop-official");
+
+  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
+  await expect(page.getByText("FM COMMAND CORE", { exact: true })).toBeVisible();
+
+  let hasCriticalHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasCriticalHorizontalOverflow).toBe(false);
+
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.reload();
+
+  await expect(page.getByRole("heading", { name: "FM Command", exact: true })).toBeVisible();
+  await expect(page.getByText("FM COMMAND CORE", { exact: true })).toBeVisible();
+
+  hasCriticalHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasCriticalHorizontalOverflow).toBe(false);
+});
+
+
 test("autenticação, onboarding, logout/login e Kordena fail-closed", async ({ page }) => {
   const identity = await signUpAndCreateOrganization(page, "auth");
 
