@@ -197,4 +197,3 @@ Critério de encerramento da PR #32:
 - merge da tranche de reconciliação;
 - Preview/Render no SHA exato;
 - PR #32 encerrada como `SUPERSEDED_BY_CURRENT`, sem cherry-pick ou merge de código antigo.
-
