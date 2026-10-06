@@ -52,6 +52,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
       "/dashboard/products/[productId]/billing",
       "/dashboard/products/[productId]/receivables",
       "/dashboard/alerts/rules/[ruleId]",
+      "/dashboard/settings/platform-integrations",
     ]);
 
     const routes = walkPages(DASHBOARD_ROOT).map(routeFromPage).sort();
@@ -66,6 +67,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     const dashboard = source("src/app/dashboard/page.tsx");
     const product = source("src/app/dashboard/products/[productId]/page.tsx");
     const alertControl = source("src/app/dashboard/alerts/alert-control-panel.tsx");
+    const settings = source("src/app/dashboard/settings/page.tsx");
 
     expect(dashboard).toContain("/dashboard/products/${product.id}");
     expect(product).toContain("/dashboard/products/${productId}/billing");
@@ -73,6 +75,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     expect(alertControl).toContain(
       "/dashboard/alerts/rules/${encodeURIComponent(rule.id)}",
     );
+    expect(settings).toContain("/dashboard/settings/platform-integrations");
   });
 
   it("preserva autenticação/tenant no layout e RBAC server-side nas rotas sensíveis", () => {

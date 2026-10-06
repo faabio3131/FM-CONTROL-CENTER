@@ -22,6 +22,7 @@ export default async function SettingsPage() {
   }
 
   const canReadSources = roleHasPermission(context.role, "source:read");
+  const canReadIntegrations = roleHasPermission(context.role, "integration:read");
   const canManageTenant = roleHasPermission(context.role, "tenant:manage");
   const canManageMembers = roleHasPermission(context.role, "member:manage");
   const canReadCommercial = roleHasPermission(context.role, "commercial:read");
@@ -112,6 +113,12 @@ export default async function SettingsPage() {
             <Link href="/dashboard/sources">
               <strong>Fontes e integrações</strong>
               <span>Conectividade, health e sincronização</span>
+            </Link>
+          ) : null}
+          {canReadIntegrations ? (
+            <Link href="/dashboard/settings/platform-integrations">
+              <strong>Infraestrutura & APIs</strong>
+              <span>OpenAI, Gemini e Maps gerenciados pela FM</span>
             </Link>
           ) : null}
           {canReadCommercial && integrationFeatures.kordenaCommercial ? (
