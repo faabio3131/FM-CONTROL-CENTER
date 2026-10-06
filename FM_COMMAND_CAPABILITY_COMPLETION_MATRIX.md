@@ -2,7 +2,8 @@
 
 Data da auditoria: 2026-10-06  
 Baseline de código: `main@9a24eca0259cd008a0f4424e3c6dde75d9d56937`  
-Branch de certificação: `audit/command-zero-orphans-20261006`
+Branch de certificação: `audit/command-zero-orphans-20261006`  
+PR de certificação: `#59`
 
 ## Regra de classificação
 
