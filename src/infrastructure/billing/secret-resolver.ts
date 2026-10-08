@@ -13,7 +13,7 @@ const permitted = new Map<string, { provider: string; environment: GatewayEnviro
 ]);
 export function resolveGatewaySecret(input: {
   provider: string; environment: GatewayEnvironment; secretRef: string;
-}, env: NodeJS.ProcessEnv = process.env): string {
+}, env: Record<string, string | undefined> = process.env): string {
   const scope = permitted.get(input.secretRef);
   if (!scope || scope.provider !== input.provider || scope.environment !== input.environment)
     throw new GatewaySecretError("billing.secret_scope_denied");
