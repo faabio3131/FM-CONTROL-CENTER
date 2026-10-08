@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
+import { preflightProviderInvoice } from "./billing-provider-preflight.mjs";
 
 const key = process.env.FMCC_ASAAS_SANDBOX_API_KEY;
 if (!key || process.env.FMCC_ASAAS_LIVE_CONFIRM !== "CREATE_CONFIRM_SANDBOX_1990")
@@ -44,13 +45,7 @@ try {
   const gateway = await db.query("INSERT INTO fmcc_billing_gateway_account (tenant_id,provider,environment,label,secret_ref,status) VALUES ($1,'asaas','sandbox',$2,'env://FMCC_ASAAS_SANDBOX_API_KEY','enabled') RETURNING id",[tenant,"ci-"+id]);
   const sub = await db.query("INSERT INTO fmcc_billing_subscription (tenant_id,product_id,customer_id,plan_code) VALUES ($1,$2,$3,'kordena-ci-1990') RETURNING id",[tenant,product.rows[0].id,customer.rows[0].id]);
   await db.query("INSERT INTO fmcc_billing_invoice (id,tenant_id,product_id,customer_id,subscription_id,gateway_account_id,currency,amount_minor,status) VALUES ($1,$2,$3,$4,$5,$6,'BRL',1990,'pending')",[invoiceId,tenant,product.rows[0].id,customer.rows[0].id,sub.rows[0].id,gateway.rows[0].id]);
-  const previous = await request("GET", "/payments?externalReference=" + encodeURIComponent(invoiceId));
-  if (!Array.isArray(previous.data) || typeof previous.totalCount !== "number") {
-    throw new Error("billing.provider_duplicate_check_unavailable");
-  }
-  if (previous.totalCount !== 0 || previous.data.length !== 0) {
-    throw new Error("billing.provider_invoice_already_present");
-  }
+  await preflightProviderInvoice(request, invoiceId);
   const sandboxCustomer = await request("POST","/customers",{
     name:"FM Command Cliente Ficticio de Homologacao",email:"billing-test-"+id+"@example.com",
     cpfCnpj:"52998224725",externalReference:"fmcc-ci-"+id,notificationDisabled:true,
