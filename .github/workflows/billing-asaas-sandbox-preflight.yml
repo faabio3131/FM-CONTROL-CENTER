@@ -1,0 +1,57 @@
+name: Billing Asaas Sandbox Manual Preflight
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type PREFLIGHT_ONLY (no payments will be created)"
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  sandbox-preflight:
+    if: ${{ inputs.confirm == 'PREFLIGHT_ONLY' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: billing-sandbox
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: fmcc_ci
+          POSTGRES_PASSWORD: ephemeral-only
+          POSTGRES_DB: fmcc_billing_preflight
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fmcc_ci -d fmcc_billing_preflight"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://fmcc_ci:ephemeral-only@localhost:5432/fmcc_billing_preflight
+      FMCC_ASAAS_SANDBOX_API_KEY: ${{ secrets.FMCC_ASAAS_SANDBOX_API_KEY }}
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Assert sandbox key exists without printing its value
+        shell: bash
+        run: |
+          if [ -z "$FMCC_ASAAS_SANDBOX_API_KEY" ]; then
+            echo "::error::Sandbox API key not configured in billing-sandbox secrets"
+            exit 1
+          fi
+          echo "Sandbox secret configured"
+      - name: Apply migrations to ephemeral database
+        run: npm run db:migrate
+      - name: Certify PostgreSQL 18 transactions and constraints
+        run: node scripts/billing-postgres-certification.mjs
+      - name: Run Billing security tests
+        run: npx vitest run tests/billing-payment-attribution.test.ts tests/billing-secret-resolver.test.ts tests/billing-asaas-sandbox-client.test.ts tests/billing-canonical-service.test.ts tests/billing-sandbox-reconcile-route.test.ts
+      - name: Typecheck
+        run: npm run typecheck
