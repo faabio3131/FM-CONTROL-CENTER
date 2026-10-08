@@ -133,3 +133,21 @@ export const billingProviderEvents = pgTable("fmcc_billing_provider_event", {
   uniqueIndex("fmcc_billing_event_dedupe_uq").on(t.tenantId, t.gatewayAccountId, t.providerEventId),
 ]);
 
+
+/** Ciphertexts only. Encryption keys stay outside PostgreSQL and outside the repository. */
+export const billingGatewaySecrets = pgTable("fmcc_billing_gateway_secret", {
+  accountId: uuid("account_id").primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  tag: text("tag").notNull(),
+  keyVersion: text("key_version").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({
+    name: "fmcc_billing_gateway_secret_account_fk",
+    columns: [t.tenantId, t.accountId],
+    foreignColumns: [billingGatewayAccounts.tenantId, billingGatewayAccounts.id],
+  }),
+  index("fmcc_billing_gateway_secret_tenant_idx").on(t.tenantId),
+]);
