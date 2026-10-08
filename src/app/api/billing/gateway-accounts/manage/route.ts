@@ -15,17 +15,29 @@ function safeError(error: unknown) {
   return null;
 }
 function guardOrigin(h: Headers) {
-  const origin=h.get("origin");
-  const host=h.get("x-forwarded-host") ?? h.get("host");
-  if (!origin || !host) return false;
-  try {return new URL(origin).host.toLowerCase() === host.toLowerCase() && new URL(origin).protocol==="https:" || (process.env.NODE_ENV!=="production" && new URL(origin).host===host && new URL(origin).protocol==="http:");}
-  catch {return false;}
+  const origin = h.get("origin");
+  const canonical = process.env.BETTER_AUTH_URL?.trim();
+  if (!origin || !canonical) return false;
+  try {
+    const actual = new URL(origin);
+    const expected = new URL(canonical);
+    return actual.origin === expected.origin &&
+      (actual.protocol === "https:" || process.env.NODE_ENV !== "production");
+  } catch { return false; }
+}
+async function parseLimitedJson(request: Request): Promise<unknown> {
+  const length = request.headers.get("content-length");
+  if (length && (!/^[0-9]+$/.test(length) || Number(length) > 20000)) throw new GatewayInputError();
+  const raw = await request.text();
+  if (raw.length > 20000) throw new GatewayInputError();
+  try { return JSON.parse(raw) as unknown; }
+  catch { throw new GatewayInputError(); }
 }
 export async function POST(request:Request) {
   try {
     const context=await resolveTenantContext(await headers());
     if (!guardOrigin(request.headers)) return NextResponse.json({error:"billing.origin_denied"},{status:403});
-    const raw=await request.json();
+    const raw=await parseLimitedJson(request);
     return NextResponse.json(await createGatewayAccount(context,raw),{status:201});
   } catch(error) {const response=safeError(error);if(response)return response;throw error;}
 }
@@ -33,7 +45,7 @@ export async function PATCH(request:Request) {
   try {
     const context=await resolveTenantContext(await headers());
     if(!guardOrigin(request.headers))return NextResponse.json({error:"billing.origin_denied"},{status:403});
-    const raw=await request.json() as unknown;
+    const raw=await parseLimitedJson(request);
     if(!raw || typeof raw!=="object" || Array.isArray(raw)) throw new GatewayInputError();
     const body=raw as Record<string,unknown>;
     if(typeof body.id!=="string" || (body.action!=="rotate" && body.action!=="disable" && body.action!=="update"))throw new GatewayInputError();
