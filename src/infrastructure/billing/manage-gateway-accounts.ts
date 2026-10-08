@@ -91,3 +91,26 @@ export async function disableGatewayAccount(context: TenantContext,id:string) {
     return {id,status:"disabled"};
   });
 }
+
+/** Metadata changes never switch receiver or credentials and always return to disabled. */
+export async function updateGatewayAccount(context: TenantContext, id: string, raw: unknown) {
+  enabled(context);
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !raw || typeof raw !== "object" || Array.isArray(raw)) throw new GatewayInputError();
+  const body = raw as Record<string,unknown>;
+  const keys = Object.keys(body);
+  if (keys.length < 1 || keys.some((key) => !["publicLabel", "environment"].includes(key))) throw new GatewayInputError();
+  if (body.publicLabel !== undefined && (typeof body.publicLabel !== "string" || !body.publicLabel.trim() || body.publicLabel.length > 120)) throw new GatewayInputError();
+  if (body.environment !== undefined && body.environment !== "sandbox" && body.environment !== "production") throw new GatewayInputError();
+  const update: {publicLabel?:string; environment?:"sandbox"|"production"; status:"disabled"} = {status:"disabled"};
+  if (typeof body.publicLabel === "string") update.publicLabel = body.publicLabel.trim();
+  if (body.environment === "sandbox" || body.environment === "production") update.environment = body.environment;
+  return db.transaction(async(tx)=>{
+    await scope(tx,context);
+    const result=await tx.update(billingGatewayAccounts).set(update)
+      .where(and(eq(billingGatewayAccounts.id,id),eq(billingGatewayAccounts.tenantId,context.tenantId)))
+      .returning({id:billingGatewayAccounts.id,publicLabel:billingGatewayAccounts.publicLabel,environment:billingGatewayAccounts.environment});
+    if(result.length!==1) throw new GatewayNotFoundError();
+    await audit(tx,context,"billing.gateway.update",id);
+    return {...result[0], status:"disabled" as const};
+  });
+}
