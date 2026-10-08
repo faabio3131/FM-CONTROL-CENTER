@@ -2,7 +2,8 @@
  * Transport-independent gateway adapter contract. No live credentials or HTTP calls.
  * A gateway event is never proof of settlement until independently verified.
  */
-export type PaymentProvider = "cakto" | "hotmart" | "asaas" | "stripe";
+/** Provider codes are extensible; only explicitly registered/homologated adapters can run. */
+export type PaymentProvider = string;
 export type GatewayPaymentStatus = "pending" | "paid" | "failed" | "refunded" | "chargeback";
 export type VerifiedPayment = Readonly<{
   provider: PaymentProvider;
@@ -27,7 +28,7 @@ export interface PaymentGatewayAdapter {
 }
 
 export function normalizeProviderPayment(payment: VerifiedPayment): VerifiedPayment {
-  if (!payment.providerPaymentId || !payment.providerSubscriptionId || !payment.providerEventId) {
+  if (!/^[a-z][a-z0-9_-]{1,63}$/.test(payment.provider) || !payment.providerPaymentId || !payment.providerSubscriptionId || !payment.providerEventId) {
     throw new Error("gateway_missing_identifiers");
   }
   if (!/^[A-Z]{3}$/.test(payment.currency) || payment.amountMinor < 0n) {
