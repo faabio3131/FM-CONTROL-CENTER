@@ -29,6 +29,20 @@
       "when": 1790981837577,
       "tag": "0003_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791483187808,
+      "tag": "0004_billing_central_phase1",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791485220152,
+      "tag": "0005_billing_gateway_vault",
+      "breakpoints": true
     }
   ]
 }

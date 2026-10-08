@@ -1,0 +1,36 @@
+﻿name: FMCC Billing PostgreSQL Isolation Gate
+on:
+  pull_request:
+    paths:
+      - 'drizzle/**'
+      - 'src/infrastructure/db/**'
+      - 'scripts/test-billing-migration.mjs'
+      - '.github/workflows/fmcc-billing-postgres-certification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  billing-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local_test_password
+          POSTGRES_DB: fmcc_billing_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fmcc_billing_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      BILLING_TEST_DATABASE_URL: postgresql://postgres:local_test_password@127.0.0.1:5432/fmcc_billing_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify migration against disposable PostgreSQL
+        run: node scripts/test-billing-migration.mjs
