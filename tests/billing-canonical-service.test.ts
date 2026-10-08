@@ -13,6 +13,7 @@ function setup() {
   findPayment:vi.fn(async(t,g,p)=>t==="fm"&&g==="asaas-sandbox"?payments.get(p)??null:null),
   findInvoicePayment:vi.fn(async(t,id)=>[...payments.entries()].find(([,v])=>t==="fm"&&v.invoiceId===id)?.[0]?{externalPaymentId:[...payments.entries()].find(([,v])=>v.invoiceId===id)![0]}:null),
   reserveInvoiceForCharge:vi.fn(async(t,id)=>{if(t!=="fm" || reserved.has(id))return false;reserved.add(id);return true;}),
+  recoverPayment:vi.fn(async({binding,externalPaymentId,status})=>{payments.set(externalPaymentId,{invoiceId:binding.invoiceId,status});}),
   recordPayment:vi.fn(async({binding,externalPaymentId,status})=>{payments.set(externalPaymentId,{invoiceId:binding.invoiceId,status});}),
   markInvoicePaid:vi.fn(async(t,id)=>{paid.push(t+":"+id);}),
  };
@@ -44,6 +45,17 @@ describe("FM Command canonical invoice binding",()=>{
   await expect(x.service.createCharge("fm","inv-a","cus-a","2026-10-20")).rejects.toThrow("network_timeout");
   await expect(x.service.createCharge("fm","inv-a","cus-a","2026-10-20")).rejects.toThrow("billing.invoice_not_available");
   expect(x.gateway.createPixCharge).toHaveBeenCalledTimes(1);
+ });
+ it("recovers verified provider payment without reissuing a charge",async()=>{
+   const x=setup();
+   const result=await x.service.recoverUncertainCharge("fm","inv-a","pay-inv-a");
+   expect(result).toBe("recovered");
+   expect(x.gateway.createPixCharge).not.toHaveBeenCalled();
+   expect(await x.service.recoverUncertainCharge("fm","inv-a","pay-inv-a")).toBe("already_recorded");
+ });
+ it("rejects recovery across SaaS invoices",async()=>{
+   const x=setup();
+   await expect(x.service.recoverUncertainCharge("fm","inv-b","pay-inv-a")).rejects.toThrow("billing.gateway_response_mismatch");
  });
  it("rejects wrong amount from provider",async()=>{
   const x=setup();await x.service.createCharge("fm","inv-a","cus-a","2026-10-20");
