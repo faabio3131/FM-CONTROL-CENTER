@@ -8,6 +8,9 @@ on:
         type: string
 permissions:
   contents: read
+concurrency:
+  group: fmcc-asaas-sandbox-pix-1990-global
+  cancel-in-progress: false
 jobs:
   sandbox-preflight:
     if: ${{ inputs.confirm == 'PREFLIGHT_ONLY' || inputs.confirm == 'CREATE_CONFIRM_SANDBOX_1990' }}
@@ -56,6 +59,8 @@ jobs:
         run: npx vitest run tests/billing-payment-attribution.test.ts tests/billing-secret-resolver.test.ts tests/billing-asaas-sandbox-client.test.ts tests/billing-canonical-service.test.ts tests/billing-sandbox-reconcile-route.test.ts
       - name: Typecheck
         run: npm run typecheck
+      - name: Check Pix runner syntax
+        run: node --check scripts/billing-asaas-live-sandbox-1990.mjs
       - name: Explicit Asaas Sandbox Pix 19.90 and isolated reconciliation
         if: ${{ inputs.confirm == 'CREATE_CONFIRM_SANDBOX_1990' }}
         run: node scripts/billing-asaas-live-sandbox-1990.mjs
