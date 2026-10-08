@@ -56,7 +56,7 @@ jobs:
       - name: Certify PostgreSQL 18 transactions and constraints
         run: node scripts/billing-postgres-certification.mjs
       - name: Run Billing security tests
-        run: npx vitest run tests/billing-payment-attribution.test.ts tests/billing-secret-resolver.test.ts tests/billing-asaas-sandbox-client.test.ts tests/billing-canonical-service.test.ts tests/billing-sandbox-reconcile-route.test.ts
+        run: npx vitest run tests/billing-payment-attribution.test.ts tests/billing-secret-resolver.test.ts tests/billing-asaas-sandbox-client.test.ts tests/billing-canonical-service.test.ts tests/billing-sandbox-reconcile-route.test.ts tests/billing-asaas-production-readonly.test.ts
       - name: Typecheck
         run: npm run typecheck
       - name: Test cross-run provider duplicate guard
