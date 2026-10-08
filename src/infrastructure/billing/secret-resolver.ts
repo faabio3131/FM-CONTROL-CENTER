@@ -8,8 +8,10 @@ export class GatewaySecretError extends Error {
   constructor(readonly code: string) { super(code); this.name = "GatewaySecretError"; }
 }
 export const ASAAS_SANDBOX_SECRET_REF = "env://FMCC_ASAAS_SANDBOX_API_KEY";
+export const ASAAS_PRODUCTION_SECRET_REF = "env://FMCC_ASAAS_PRODUCTION_API_KEY";
 const permitted = new Map<string, { provider: string; environment: GatewayEnvironment }>([
   [ASAAS_SANDBOX_SECRET_REF, { provider: "asaas", environment: "sandbox" }],
+  [ASAAS_PRODUCTION_SECRET_REF, { provider: "asaas", environment: "production" }],
 ]);
 export function resolveGatewaySecret(input: {
   provider: string; environment: GatewayEnvironment; secretRef: string;
