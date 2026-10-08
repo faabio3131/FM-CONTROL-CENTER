@@ -7,10 +7,12 @@ function setup() {
  const invoices=new Map([["inv-a",kordena],["inv-b",iron]]);
  const payments=new Map<string,{invoiceId:string;status:string}>();
  const paid:string[]=[];
+ const reserved = new Set<string>();
  const repo: CanonicalBillingRepository={
   findInvoice:vi.fn(async(t,id)=>t==="fm"?invoices.get(id)??null:null),
   findPayment:vi.fn(async(t,g,p)=>t==="fm"&&g==="asaas-sandbox"?payments.get(p)??null:null),
   findInvoicePayment:vi.fn(async(t,id)=>[...payments.entries()].find(([,v])=>t==="fm"&&v.invoiceId===id)?.[0]?{externalPaymentId:[...payments.entries()].find(([,v])=>v.invoiceId===id)![0]}:null),
+  reserveInvoiceForCharge:vi.fn(async(t,id)=>{if(t!=="fm" || reserved.has(id))return false;reserved.add(id);return true;}),
   recordPayment:vi.fn(async({binding,externalPaymentId,status})=>{payments.set(externalPaymentId,{invoiceId:binding.invoiceId,status});}),
   markInvoicePaid:vi.fn(async(t,id)=>{paid.push(t+":"+id);}),
  };
