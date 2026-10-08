@@ -38,6 +38,13 @@ describe("FM Command canonical invoice binding",()=>{
   const x=setup();await x.service.createCharge("fm","inv-a","cus-a","2026-10-20");
   await expect(x.service.createCharge("fm","inv-a","cus-a","2026-10-20")).rejects.toThrow("billing.payment_already_registered");
  });
+ it("never retries automatically after uncertain provider timeout",async()=>{
+  const x=setup();
+  x.gateway.createPixCharge.mockRejectedValueOnce(new Error("network_timeout"));
+  await expect(x.service.createCharge("fm","inv-a","cus-a","2026-10-20")).rejects.toThrow("network_timeout");
+  await expect(x.service.createCharge("fm","inv-a","cus-a","2026-10-20")).rejects.toThrow("billing.invoice_not_available");
+  expect(x.gateway.createPixCharge).toHaveBeenCalledTimes(1);
+ });
  it("rejects wrong amount from provider",async()=>{
   const x=setup();await x.service.createCharge("fm","inv-a","cus-a","2026-10-20");
   x.gateway.getCharge.mockResolvedValueOnce({id:"pay-inv-a",status:"RECEIVED",value:20,externalReference:"inv-a"});
