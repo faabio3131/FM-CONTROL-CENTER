@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Pool } from "pg";
 
@@ -27,16 +27,21 @@ try {
  for(const statement of script.split("--> statement-breakpoint")) {
   if(statement.trim()) await client.query(statement);
  }
+ const vaultScript=readFileSync("drizzle/0005_billing_gateway_vault.sql","utf8").replace(/^\uFEFF/, "");
+ for(const statement of vaultScript.split("--> statement-breakpoint")) { if(statement.trim()) await client.query(statement); }
  await client.query("CREATE ROLE billing_app_test NOLOGIN NOSUPERUSER NOBYPASSRLS");
  await client.query("GRANT USAGE ON SCHEMA public TO billing_app_test");
- for(const table of ["customer","subscription","license","gateway_account","invoice","payment","provider_event"]) {
+ for(const table of ["customer","subscription","license","gateway_account","invoice","payment","provider_event","gateway_secret"]) {
   await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON fmcc_billing_${table} TO billing_app_test`);
  }
  await client.query("INSERT INTO fmcc_billing_customer (id,tenant_id,display_name) VALUES ($1,'fm','FM Customer'),($2,'abc','ABC Customer')",[a,b]);
  await client.query("INSERT INTO fmcc_billing_gateway_account (id,tenant_id,provider_code,environment,credential_ref,public_label) VALUES ($1,'fm','cakto','sandbox','vault://fm/account','FM Account')",[g]);
+ await client.query("INSERT INTO fmcc_billing_gateway_secret (account_id,tenant_id,ciphertext,iv,tag,key_version) VALUES ($1,'fm','cipher','nonce','tag','v1')",[g]);
  await client.query("INSERT INTO fmcc_billing_subscription (id,tenant_id,customer_id,product_code,plan_code) VALUES ($1,'fm',$2,'KORDENA','basic')",[s,a]);
  await client.query("INSERT INTO fmcc_billing_invoice (id,tenant_id,subscription_id,customer_id,product_code,gateway_account_id,period_start,period_end,amount_minor,currency) VALUES ($1,'fm',$2,$3,'KORDENA',$4,now(),now()+interval '1 month',19900,'BRL')",[inv,s,a,g]);
  await client.query("INSERT INTO fmcc_billing_payment (id,tenant_id,invoice_id,gateway_account_id,external_payment_id,currency,amount_minor) VALUES ($1,'fm',$2,$3,'pay-1','BRL',19900)",[p,inv,g]);
+ const vaultOutside=await scoped(client,"abc",async c=>(await c.query("SELECT count(*)::int AS n FROM fmcc_billing_gateway_secret")).rows[0].n);
+ assert.equal(vaultOutside,0,"Another tenant must not see encrypted credentials");
  let count=await scoped(client,"fm",async c=>(await c.query("SELECT count(*)::int AS n FROM fmcc_billing_customer")).rows[0].n);
  assert.equal(count,1,"FM tenant should see only its customer");
  count=await scoped(client,"abc",async c=>(await c.query("SELECT count(*)::int AS n FROM fmcc_billing_customer")).rows[0].n);
