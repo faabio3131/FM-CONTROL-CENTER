@@ -60,7 +60,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Test cross-run provider duplicate guard
-        run: node --test tests/billing-provider-duplicate-guard.test.mjs
+        run: node --test tests/billing-provider-duplicate-guard.test.mjs tests/billing-provider-preflight.test.mjs
       - name: Check Pix runner syntax
         run: node --check scripts/billing-asaas-live-sandbox-1990.mjs
       - name: Explicit Asaas Sandbox Pix 19.90 and isolated reconciliation
