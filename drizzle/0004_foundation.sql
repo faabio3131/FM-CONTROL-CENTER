@@ -73,13 +73,6 @@ CREATE TABLE "fmcc_billing_subscription" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "fmcc_billing_gateway_event" ADD CONSTRAINT "fmcc_billing_event_gateway_fk" FOREIGN KEY ("tenant_id","gateway_account_id") REFERENCES "public"."fmcc_billing_gateway_account"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "fmcc_billing_invoice" ADD CONSTRAINT "fmcc_billing_invoice_sub_fk" FOREIGN KEY ("tenant_id","subscription_id","product_id","customer_id") REFERENCES "public"."fmcc_billing_subscription"("tenant_id","id","product_id","customer_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "fmcc_billing_invoice" ADD CONSTRAINT "fmcc_billing_invoice_gateway_fk" FOREIGN KEY ("tenant_id","gateway_account_id") REFERENCES "public"."fmcc_billing_gateway_account"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "fmcc_billing_provider_payment" ADD CONSTRAINT "fmcc_billing_payment_invoice_fk" FOREIGN KEY ("tenant_id","invoice_id") REFERENCES "public"."fmcc_billing_invoice"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "fmcc_billing_provider_payment" ADD CONSTRAINT "fmcc_billing_payment_gateway_fk" FOREIGN KEY ("tenant_id","gateway_account_id") REFERENCES "public"."fmcc_billing_gateway_account"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "fmcc_billing_subscription" ADD CONSTRAINT "fmcc_billing_sub_product_fk" FOREIGN KEY ("tenant_id","product_id") REFERENCES "public"."fmcc_product_definition"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "fmcc_billing_subscription" ADD CONSTRAINT "fmcc_billing_sub_customer_fk" FOREIGN KEY ("tenant_id","customer_id") REFERENCES "public"."fmcc_billing_customer"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "fmcc_billing_audit_scope_idx" ON "fmcc_billing_audit_event" USING btree ("tenant_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "fmcc_billing_customer_tenant_id_uq" ON "fmcc_billing_customer" USING btree ("tenant_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "fmcc_billing_customer_external_uq" ON "fmcc_billing_customer" USING btree ("tenant_id","external_customer_id");--> statement-breakpoint
@@ -92,3 +85,11 @@ CREATE UNIQUE INDEX "fmcc_billing_provider_external_uq" ON "fmcc_billing_provide
 CREATE UNIQUE INDEX "fmcc_billing_subscription_scope_uq" ON "fmcc_billing_subscription" USING btree ("tenant_id","id","product_id","customer_id");--> statement-breakpoint
 CREATE INDEX "fmcc_billing_sub_customer_idx" ON "fmcc_billing_subscription" USING btree ("tenant_id","customer_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "fmcc_product_tenant_id_uq" ON "fmcc_product_definition" USING btree ("tenant_id","id");
+--> statement-breakpoint
+ALTER TABLE "fmcc_billing_gateway_event" ADD CONSTRAINT "fmcc_billing_event_gateway_fk" FOREIGN KEY ("tenant_id","gateway_account_id") REFERENCES "public"."fmcc_billing_gateway_account"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fmcc_billing_invoice" ADD CONSTRAINT "fmcc_billing_invoice_sub_fk" FOREIGN KEY ("tenant_id","subscription_id","product_id","customer_id") REFERENCES "public"."fmcc_billing_subscription"("tenant_id","id","product_id","customer_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fmcc_billing_invoice" ADD CONSTRAINT "fmcc_billing_invoice_gateway_fk" FOREIGN KEY ("tenant_id","gateway_account_id") REFERENCES "public"."fmcc_billing_gateway_account"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fmcc_billing_provider_payment" ADD CONSTRAINT "fmcc_billing_payment_invoice_fk" FOREIGN KEY ("tenant_id","invoice_id") REFERENCES "public"."fmcc_billing_invoice"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fmcc_billing_provider_payment" ADD CONSTRAINT "fmcc_billing_payment_gateway_fk" FOREIGN KEY ("tenant_id","gateway_account_id") REFERENCES "public"."fmcc_billing_gateway_account"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fmcc_billing_subscription" ADD CONSTRAINT "fmcc_billing_sub_product_fk" FOREIGN KEY ("tenant_id","product_id") REFERENCES "public"."fmcc_product_definition"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "fmcc_billing_subscription" ADD CONSTRAINT "fmcc_billing_sub_customer_fk" FOREIGN KEY ("tenant_id","customer_id") REFERENCES "public"."fmcc_billing_customer"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
