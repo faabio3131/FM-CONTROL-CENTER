@@ -1,5 +1,5 @@
-import {
-  foreignKey, index, integer, pgTable, text, timestamp, uniqueIndex, uuid,
+﻿import {
+  bigint, foreignKey, index, integer, pgTable, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
 
 // Schema candidates only. No DB migration, endpoint or credential activation in this PR.
@@ -77,7 +77,7 @@ export const billingInvoices = pgTable("fmcc_billing_invoice", {
   gatewayAccountId: uuid("gateway_account_id").notNull(),
   periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
   periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
-  amountMinor: integer("amount_minor").notNull(),
+  amountMinor: bigint("amount_minor", {mode:"bigint"}).notNull(),
   currency: text("currency").notNull(),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -105,7 +105,7 @@ export const billingPayments = pgTable("fmcc_billing_payment", {
   externalPaymentId: text("external_payment_id").notNull(),
   status: text("status").notNull().default("pending"),
   currency: text("currency").notNull(),
-  amountMinor: integer("amount_minor").notNull(),
+  amountMinor: bigint("amount_minor", {mode:"bigint"}).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   foreignKey({
@@ -132,3 +132,4 @@ export const billingProviderEvents = pgTable("fmcc_billing_provider_event", {
   }),
   uniqueIndex("fmcc_billing_event_dedupe_uq").on(t.tenantId, t.gatewayAccountId, t.providerEventId),
 ]);
+
