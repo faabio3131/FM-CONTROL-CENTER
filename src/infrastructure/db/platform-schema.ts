@@ -10,6 +10,7 @@ export const productDefinitions = pgTable("fmcc_product_definition", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("fmcc_product_tenant_slug_uq").on(t.tenantId, t.slug),
+  uniqueIndex("fmcc_product_tenant_id_uq").on(t.tenantId, t.id),
   index("fmcc_product_tenant_status_idx").on(t.tenantId, t.status),
 ]);
 
