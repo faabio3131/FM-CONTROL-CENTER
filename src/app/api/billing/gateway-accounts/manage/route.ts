@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { AuthenticationRequiredError, PermissionDeniedError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
-import { createGatewayAccount, rotateGatewayCredential, disableGatewayAccount, GatewayInputError, GatewayNotFoundError } from "@/infrastructure/billing/manage-gateway-accounts";
+import { createGatewayAccount, rotateGatewayCredential, disableGatewayAccount, updateGatewayAccount, GatewayInputError, GatewayNotFoundError } from "@/infrastructure/billing/manage-gateway-accounts";
 import { VaultUnavailableError } from "@/infrastructure/billing/encrypted-gateway-vault";
 
 function safeError(error: unknown) {
@@ -36,7 +36,11 @@ export async function PATCH(request:Request) {
     const raw=await request.json() as unknown;
     if(!raw || typeof raw!=="object" || Array.isArray(raw)) throw new GatewayInputError();
     const body=raw as Record<string,unknown>;
-    if(typeof body.id!=="string" || (body.action!=="rotate" && body.action!=="disable"))throw new GatewayInputError();
+    if(typeof body.id!=="string" || (body.action!=="rotate" && body.action!=="disable" && body.action!=="update"))throw new GatewayInputError();
+    if(body.action==="update") {
+      if (Object.keys(body).some((key) => !["action","id","publicLabel","environment"].includes(key))) throw new GatewayInputError();
+      return NextResponse.json(await updateGatewayAccount(context,body.id,{...(body.publicLabel!==undefined?{publicLabel:body.publicLabel}:{}),...(body.environment!==undefined?{environment:body.environment}:{})}));
+    }
     if(body.action==="disable") {
       if(Object.keys(body).sort().join(",")!=="action,id")throw new GatewayInputError();
       return NextResponse.json(await disableGatewayAccount(context,body.id));
