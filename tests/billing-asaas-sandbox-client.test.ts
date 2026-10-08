@@ -3,6 +3,7 @@ import { AsaasSandboxClient } from "../src/infrastructure/billing/asaas-sandbox-
 afterEach(() => { delete process.env.FMCC_ASAAS_SANDBOX_API_KEY; });
 describe("Asaas sandbox boundary", () => {
   it("fails closed without secret before any network access", async () => {
+    delete process.env.FMCC_ASAAS_SANDBOX_API_KEY;
     const transport = vi.fn();
     await expect(new AsaasSandboxClient(transport).getCharge("pay_123")).rejects.toThrow("billing.secret_not_configured");
     expect(transport).not.toHaveBeenCalled();
