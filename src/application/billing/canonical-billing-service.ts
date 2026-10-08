@@ -4,6 +4,7 @@ import { AsaasSandboxClient, type AsaasCharge } from "@/infrastructure/billing/a
 export interface CanonicalBillingRepository {
   findInvoice(tenantId: string, invoiceId: string): Promise<BillingAttribution | null>;
   findPayment(tenantId: string, gatewayAccountId: string, externalPaymentId: string): Promise<{ invoiceId: string; status: string } | null>;
+  findInvoicePayment(tenantId: string, invoiceId: string): Promise<{ externalPaymentId: string } | null>;
   recordPayment(input: { binding: BillingAttribution; externalPaymentId: string; status: string }): Promise<void>;
   markInvoicePaid(tenantId: string, invoiceId: string, externalPaymentId: string): Promise<void>;
 }
@@ -16,7 +17,7 @@ export class CanonicalBillingService {
     if (!binding || binding.tenantId !== tenantId || binding.invoiceId !== invoiceId) throw new Error("billing.invoice_not_found");
     validateBillingAttribution(binding);
     if (binding.environment !== "sandbox") throw new Error("billing.sandbox_only");
-    const existing = await this.repository.findPayment(tenantId, binding.gatewayAccountId, invoiceId);
+    const existing = await this.repository.findInvoicePayment(tenantId, invoiceId);
     if (existing) throw new Error("billing.payment_already_registered");
     const charge = await this.gateway.createPixCharge({
       customer: asaasCustomerId,
