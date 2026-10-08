@@ -1,4 +1,4 @@
-CREATE TABLE "fmcc_billing_customer" (
+﻿CREATE TABLE "fmcc_billing_customer" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"tenant_id" text NOT NULL,
 	"display_name" text NOT NULL,
@@ -76,11 +76,17 @@ CREATE TABLE "fmcc_billing_subscription" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_invoice" ADD CONSTRAINT "fmcc_billing_invoice_subscription_fk" FOREIGN KEY ("tenant_id","subscription_id","customer_id","product_code") REFERENCES "public"."fmcc_billing_subscription"("tenant_id","id","customer_id","product_code") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_invoice" ADD CONSTRAINT "fmcc_billing_invoice_gateway_fk" FOREIGN KEY ("tenant_id","gateway_account_id") REFERENCES "public"."fmcc_billing_gateway_account"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_license" ADD CONSTRAINT "fmcc_billing_license_subscription_fk" FOREIGN KEY ("tenant_id","subscription_id") REFERENCES "public"."fmcc_billing_subscription"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_payment" ADD CONSTRAINT "fmcc_billing_payment_invoice_receiver_fk" FOREIGN KEY ("tenant_id","invoice_id","gateway_account_id") REFERENCES "public"."fmcc_billing_invoice"("tenant_id","id","gateway_account_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_provider_event" ADD CONSTRAINT "fmcc_billing_event_gateway_fk" FOREIGN KEY ("tenant_id","gateway_account_id") REFERENCES "public"."fmcc_billing_gateway_account"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_subscription" ADD CONSTRAINT "fmcc_billing_subscription_customer_fk" FOREIGN KEY ("tenant_id","customer_id") REFERENCES "public"."fmcc_billing_customer"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "fmcc_billing_customer_tenant_id_uq" ON "fmcc_billing_customer" USING btree ("tenant_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "fmcc_billing_gateway_account_tenant_id_uq" ON "fmcc_billing_gateway_account" USING btree ("tenant_id","id");--> statement-breakpoint
@@ -98,29 +104,56 @@ CREATE UNIQUE INDEX "fmcc_billing_subscription_attribution_uq" ON "fmcc_billing_
 CREATE INDEX "fmcc_billing_subscription_tenant_customer_idx" ON "fmcc_billing_subscription" USING btree ("tenant_id","customer_id");
 -- Billing tenant isolation: RLS denies all access unless request scope is established.
 -- Runtime must set app.billing_tenant_id transaction-locally, with a non-bypass DB role.
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_customer" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_customer" FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE POLICY "fmcc_billing_customer_tenant_isolation" ON "fmcc_billing_customer" USING ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), '')) WITH CHECK ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), ''));
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_gateway_account" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_gateway_account" FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE POLICY "fmcc_billing_gateway_account_tenant_isolation" ON "fmcc_billing_gateway_account" USING ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), '')) WITH CHECK ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), ''));
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_subscription" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_subscription" FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE POLICY "fmcc_billing_subscription_tenant_isolation" ON "fmcc_billing_subscription" USING ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), '')) WITH CHECK ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), ''));
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_license" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_license" FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE POLICY "fmcc_billing_license_tenant_isolation" ON "fmcc_billing_license" USING ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), '')) WITH CHECK ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), ''));
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_invoice" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_invoice" FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE POLICY "fmcc_billing_invoice_tenant_isolation" ON "fmcc_billing_invoice" USING ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), '')) WITH CHECK ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), ''));
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_payment" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_payment" FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE POLICY "fmcc_billing_payment_tenant_isolation" ON "fmcc_billing_payment" USING ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), '')) WITH CHECK ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), ''));
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_provider_event" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_provider_event" FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE POLICY "fmcc_billing_provider_event_tenant_isolation" ON "fmcc_billing_provider_event" USING ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), '')) WITH CHECK ("tenant_id" = NULLIF(current_setting('app.billing_tenant_id', true), ''));
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_invoice" ADD CONSTRAINT "fmcc_billing_invoice_valid_period" CHECK (period_end > period_start);
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_invoice" ADD CONSTRAINT "fmcc_billing_invoice_positive_amount" CHECK (amount_minor >= 0);
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_payment" ADD CONSTRAINT "fmcc_billing_payment_positive_amount" CHECK (amount_minor >= 0);
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_license" ADD CONSTRAINT "fmcc_billing_license_positive_version" CHECK (version > 0);
+--> statement-breakpoint
 ALTER TABLE "fmcc_billing_license" ADD CONSTRAINT "fmcc_billing_license_valid_period" CHECK (valid_until > valid_from);
+
