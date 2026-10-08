@@ -49,7 +49,7 @@ export class AsaasSandboxClient {
   }
   async createPixCharge(input: SandboxChargeInput): Promise<AsaasCharge> {
     if (!input.customer || !input.externalReference || !input.description || !/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate) ||
-        !Number.isFinite(input.value) || input.value <= 0 || Math.round(input.value * 100) !== input.value * 100)
+        !Number.isFinite(input.value) || input.value <= 0 || Math.abs(Math.round(input.value * 100) - input.value * 100) > 1e-7)
       throw new AsaasSandboxError("billing.asaas_charge_invalid");
     const response = await this.request<AsaasCharge>("POST", "/payments", { ...input, billingType:"PIX" });
     if (typeof response.id !== "string" || !response.id || response.externalReference !== input.externalReference)
