@@ -6,6 +6,7 @@ export interface CanonicalBillingRepository {
   findPayment(tenantId: string, gatewayAccountId: string, externalPaymentId: string): Promise<{ invoiceId: string; status: string } | null>;
   findInvoicePayment(tenantId: string, invoiceId: string): Promise<{ externalPaymentId: string } | null>;
   reserveInvoiceForCharge(tenantId: string, invoiceId: string): Promise<boolean>;
+  recoverPayment(input: { binding: BillingAttribution; externalPaymentId: string; status: string }): Promise<void>;
   recordPayment(input: { binding: BillingAttribution; externalPaymentId: string; status: string }): Promise<void>;
   markInvoicePaid(tenantId: string, invoiceId: string, externalPaymentId: string): Promise<void>;
 }
@@ -32,6 +33,28 @@ export class CanonicalBillingService {
     });
     await this.repository.recordPayment({binding, externalPaymentId:charge.id,status:charge.status});
     return charge;
+  }
+  /** Recovery requires a provider payment ID supplied by a trusted operator, never retries POST /payments. */
+  async recoverUncertainCharge(tenantId: string, invoiceId: string, paymentId: string): Promise<"recovered" | "already_recorded"> {
+    const binding = await this.repository.findInvoice(tenantId, invoiceId);
+    if (!binding || binding.tenantId !== tenantId || binding.invoiceId !== invoiceId || binding.environment !== "sandbox")
+      throw new Error("billing.recovery_scope_denied");
+    validateBillingAttribution(binding);
+    const already = await this.repository.findInvoicePayment(tenantId, invoiceId);
+    if (already) {
+      if (already.externalPaymentId !== paymentId) throw new Error("billing.recovery_conflict");
+      return "already_recorded";
+    }
+    const charge = await this.gateway.getCharge(paymentId);
+    if (charge.id !== paymentId || charge.externalReference !== invoiceId || !Number.isFinite(charge.value))
+      throw new Error("billing.gateway_response_mismatch");
+    attributeGatewayPayment(binding, {
+      provider:"asaas", providerPaymentId:paymentId, gatewayAccountId:binding.gatewayAccountId,
+      environment:"sandbox", invoiceId, amountMinor:Math.round(charge.value * 100),
+      currency:"BRL", eventId:"recovery:"+paymentId,
+    });
+    await this.repository.recoverPayment({binding, externalPaymentId:paymentId, status:charge.status});
+    return "recovered";
   }
   async reconcile(tenantId: string, invoiceId: string, paymentId: string): Promise<"paid" | "pending"> {
     const binding = await this.repository.findInvoice(tenantId,invoiceId);
