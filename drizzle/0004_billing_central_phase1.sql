@@ -254,4 +254,3 @@ ALTER TABLE "fmcc_billing_license" ADD CONSTRAINT "fmcc_billing_license_positive
 --> statement-breakpoint
 
 ALTER TABLE "fmcc_billing_license" ADD CONSTRAINT "fmcc_billing_license_valid_period" CHECK (valid_until > valid_from);
-

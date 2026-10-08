@@ -63,4 +63,3 @@ try {
  assert.equal(duplicateDenied,true,"Duplicate external payment must be rejected");
  console.log("PASS: migration, tenant RLS, default deny, cross-tenant FKs and provider dedupe");
 } finally {client.release();await pool.end();}
-
