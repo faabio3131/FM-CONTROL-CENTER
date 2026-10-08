@@ -40,6 +40,21 @@ export class PostgresCanonicalBillingRepository implements CanonicalBillingRepos
       .where(and(eq(billingProviderPayments.tenantId,tenantId),eq(billingProviderPayments.invoiceId,invoiceId))).limit(1);
     return rows[0]??null;
   }
+  async recoverPayment(input:{binding:BillingAttribution;externalPaymentId:string;status:string}):Promise<void> {
+    const b=input.binding;
+    await db.transaction(async tx => {
+      const rows=await tx.select({id:billingInvoices.id}).from(billingInvoices)
+        .where(and(eq(billingInvoices.tenantId,b.tenantId),eq(billingInvoices.id,b.invoiceId),
+          eq(billingInvoices.productId,b.productId),eq(billingInvoices.customerId,b.customerId),
+          eq(billingInvoices.subscriptionId,b.subscriptionId),eq(billingInvoices.gatewayAccountId,b.gatewayAccountId),
+          eq(billingInvoices.status,"creating"))).for("update").limit(1);
+      if (!rows.length) throw new Error("billing.recovery_state_invalid");
+      await tx.insert(billingProviderPayments).values({
+        tenantId:b.tenantId,invoiceId:b.invoiceId,gatewayAccountId:b.gatewayAccountId,
+        externalPaymentId:input.externalPaymentId,status:input.status,
+      });
+    });
+  }
   async recordPayment(input:{binding:BillingAttribution;externalPaymentId:string;status:string}):Promise<void> {
     const b=input.binding;
     await db.transaction(async tx => {
