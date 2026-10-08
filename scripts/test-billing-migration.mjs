@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Pool } from "pg";
 
@@ -23,7 +23,7 @@ async function scoped(client, tenant, fn) {
 }
 const client=await pool.connect();
 try {
- const script=readFileSync("drizzle/0004_billing_central_phase1.sql","utf8");
+ const script=readFileSync("drizzle/0004_billing_central_phase1.sql","utf8").replace(/^\uFEFF/, "");
  for(const statement of script.split("--> statement-breakpoint")) {
   if(statement.trim()) await client.query(statement);
  }
@@ -58,3 +58,4 @@ try {
  assert.equal(duplicateDenied,true,"Duplicate external payment must be rejected");
  console.log("PASS: migration, tenant RLS, default deny, cross-tenant FKs and provider dedupe");
 } finally {client.release();await pool.end();}
+
