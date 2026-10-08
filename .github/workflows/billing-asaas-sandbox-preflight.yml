@@ -1,0 +1,21 @@
+# Registered on the default branch solely to make the manual workflow discoverable.
+# To run the full preflight, select the reviewed Billing feature branch in Run workflow.
+# This default-branch definition NEVER accesses environment secrets or creates payments.
+name: Billing Asaas Sandbox Manual Preflight
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type PREFLIGHT_ONLY (no payments)"
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  default-branch-guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Deny default-branch billing execution
+        run: |
+          echo "::error::Choose the reviewed Billing feature branch. Default branch has no access to sandbox credentials."
+          exit 1
