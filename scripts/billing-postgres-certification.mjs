@@ -30,6 +30,35 @@ try {
   }
   assert.equal(duplicateRejected, true, "Unique customer identity not enforced");
   await client.query("ROLLBACK");
+  // Real competing connections: only one may claim an invoice.
+  const product = await client.query("INSERT INTO fmcc_product_definition (tenant_id,slug,name) VALUES ('ci-tenant','ci-kordena','Kordena CI') RETURNING id");
+  const customer = await client.query("INSERT INTO fmcc_billing_customer (tenant_id,external_customer_id) VALUES ('ci-tenant','ci-customer') RETURNING id");
+  const account = await client.query("INSERT INTO fmcc_billing_gateway_account (tenant_id,provider,environment,label,secret_ref,status) VALUES ('ci-tenant','asaas','sandbox','ci','env://FMCC_ASAAS_SANDBOX_API_KEY','enabled') RETURNING id");
+  const subscription = await client.query("INSERT INTO fmcc_billing_subscription (tenant_id,product_id,customer_id,plan_code) VALUES ('ci-tenant',$1,$2,'ci-plan') RETURNING id",[product.rows[0].id,customer.rows[0].id]);
+  const invoice = await client.query("INSERT INTO fmcc_billing_invoice (tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor) VALUES ('ci-tenant',$1,$2,$3,$4,1990) RETURNING id",[product.rows[0].id,customer.rows[0].id,subscription.rows[0].id,account.rows[0].id]);
+  const competitor = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await competitor.connect();
+  try {
+    const claim = "UPDATE fmcc_billing_invoice SET status='creating' WHERE tenant_id=$1 AND id=$2 AND status='pending' RETURNING id";
+    const attempts = await Promise.all([client.query(claim,['ci-tenant',invoice.rows[0].id]),competitor.query(claim,['ci-tenant',invoice.rows[0].id])]);
+    assert.deepEqual(attempts.map(r=>r.rowCount).sort(),[0,1],"Concurrent invoice claim allowed duplicate creation");
+    const provider = await client.query("INSERT INTO fmcc_billing_provider_payment (tenant_id,invoice_id,gateway_account_id,external_payment_id) VALUES ('ci-tenant',$1,$2,'pay-ci-one') RETURNING id",[invoice.rows[0].id,account.rows[0].id]);
+    let providerDuplicate = false;
+    try {
+      await competitor.query("INSERT INTO fmcc_billing_provider_payment (tenant_id,invoice_id,gateway_account_id,external_payment_id) VALUES ('ci-tenant',$1,$2,'pay-ci-two')",[invoice.rows[0].id,account.rows[0].id]);
+    } catch (error) { providerDuplicate = error?.code === '23505'; }
+    assert.ok(provider.rows[0].id);
+    assert.equal(providerDuplicate,true,"Second provider payment for same invoice was accepted");
+    console.log("PASS PostgreSQL 18: competing invoice claims and payment uniqueness");
+  } finally {
+    await competitor.end();
+    await client.query("DELETE FROM fmcc_billing_provider_payment WHERE tenant_id='ci-tenant'");
+    await client.query("DELETE FROM fmcc_billing_invoice WHERE tenant_id='ci-tenant'");
+    await client.query("DELETE FROM fmcc_billing_subscription WHERE tenant_id='ci-tenant'");
+    await client.query("DELETE FROM fmcc_billing_gateway_account WHERE tenant_id='ci-tenant'");
+    await client.query("DELETE FROM fmcc_billing_customer WHERE tenant_id='ci-tenant'");
+    await client.query("DELETE FROM fmcc_product_definition WHERE tenant_id='ci-tenant'");
+  }
   console.log("PASS PostgreSQL 18: migrations 0000-0005, 7 billing tables, uniqueness and transactional rollback");
 } finally {
   await client.end();
