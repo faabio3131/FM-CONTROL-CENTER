@@ -5,6 +5,7 @@ export interface CanonicalBillingRepository {
   findInvoice(tenantId: string, invoiceId: string): Promise<BillingAttribution | null>;
   findPayment(tenantId: string, gatewayAccountId: string, externalPaymentId: string): Promise<{ invoiceId: string; status: string } | null>;
   findInvoicePayment(tenantId: string, invoiceId: string): Promise<{ externalPaymentId: string } | null>;
+  reserveInvoiceForCharge(tenantId: string, invoiceId: string): Promise<boolean>;
   recordPayment(input: { binding: BillingAttribution; externalPaymentId: string; status: string }): Promise<void>;
   markInvoicePaid(tenantId: string, invoiceId: string, externalPaymentId: string): Promise<void>;
 }
@@ -19,6 +20,9 @@ export class CanonicalBillingService {
     if (binding.environment !== "sandbox") throw new Error("billing.sandbox_only");
     const existing = await this.repository.findInvoicePayment(tenantId, invoiceId);
     if (existing) throw new Error("billing.payment_already_registered");
+    if (!await this.repository.reserveInvoiceForCharge(tenantId, invoiceId)) throw new Error("billing.invoice_not_available");
+    // Fail closed: if the provider times out, do not release the claim automatically.
+    // Recovery must check the provider for an existing charge before retry.
     const charge = await this.gateway.createPixCharge({
       customer: asaasCustomerId,
       value: binding.amountMinor / 100,
