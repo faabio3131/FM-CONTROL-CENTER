@@ -26,6 +26,10 @@ export class PostgresCanonicalBillingRepository implements CanonicalBillingRepos
       amountMinor:row.invoice.amountMinor,currency:row.invoice.currency as "BRL",
     };
   }
+  async reserveInvoiceForCharge(tenantId:string,invoiceId:string):Promise<boolean> {
+    const rows = await db.update(billingInvoices).set({status:"creating"}).where(and(eq(billingInvoices.tenantId,tenantId),eq(billingInvoices.id,invoiceId),eq(billingInvoices.status,"pending"))).returning({id:billingInvoices.id});
+    return rows.length === 1;
+  }
   async findPayment(tenantId:string,gatewayAccountId:string,externalPaymentId:string) {
     const rows=await db.select({invoiceId:billingProviderPayments.invoiceId,status:billingProviderPayments.status}).from(billingProviderPayments)
       .where(and(eq(billingProviderPayments.tenantId,tenantId),eq(billingProviderPayments.gatewayAccountId,gatewayAccountId),eq(billingProviderPayments.externalPaymentId,externalPaymentId))).limit(1);
