@@ -75,6 +75,7 @@ export const billingProviderPayments = pgTable("fmcc_billing_provider_payment", 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   uniqueIndex("fmcc_billing_provider_external_uq").on(t.tenantId,t.gatewayAccountId,t.externalPaymentId),
+  uniqueIndex("fmcc_billing_provider_invoice_uq").on(t.tenantId,t.invoiceId),
   foreignKey({ name: "fmcc_billing_payment_invoice_fk", columns: [t.tenantId,t.invoiceId], foreignColumns: [billingInvoices.tenantId,billingInvoices.id] }),
   foreignKey({ name: "fmcc_billing_payment_gateway_fk", columns: [t.tenantId,t.gatewayAccountId], foreignColumns: [billingGatewayAccounts.tenantId,billingGatewayAccounts.id] }),
 ]);
