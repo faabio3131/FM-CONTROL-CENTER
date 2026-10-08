@@ -24,3 +24,22 @@ banco transacional, RLS e auditoria; invoice/payment-ledger/outbox; idempotênci
 testes de concorrência, estorno e múltiplos provedores; webhooks reais sob
 política de egress/SSRF; conciliação independente; APIs autenticadas de licenças;
 certificação de sandbox e aprovação antes de qualquer virada de autoridade.
+
+
+## Etapa de configuração de gateways (08/10/2026)
+
+A fundação `gateway-configuration.ts` implementa validação de configuração por tenant,
+exigência de permissão `billing:write`, referência a segredo (não chave em claro),
+código de provedor extensível e leitura filtrada por tenant que não devolve `credentialRef`.
+A estrutura de banco proposta inclui `fmcc_billing_gateway_account` por tenant.
+
+**Não habilitar** endpoints GET/POST para cadastramento em produção enquanto faltarem:
+migração oficial com constraints e RLS, repositório transacional, autorização server-side,
+secret vault, registro de adaptadores homologados, proteção de egress, política de webhook,
+auditoria, UI administrativa, testes reais de isolamento de tenants e credenciais.
+
+A ativação exige homologação de provider individual. GET/POST arbitrários fornecidos
+por assinantes não podem virar requisições irrestritas no backend.
+
+Observação: os testes unitários e os workflows da branch validam somente os componentes
+que já estão efetivamente conectados; não provam persistência, interface ou cobranças reais.
