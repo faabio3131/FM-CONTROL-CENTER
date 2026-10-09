@@ -70,7 +70,7 @@ export async function GET() {
       paymentMethods: ["PIX"],
       existingPayment: payments.length > 0,
       gatewayReady: invoice.gatewayStatus === "enabled",
-      canCreatePayment: false,
+      canCreatePayment: process.env.FMCC_PILOT_PIX_ISSUANCE_ENABLED === "YES" && invoice.gatewayStatus === "enabled" && invoice.invoiceStatus === "pending" && payments.length === 0,
       reason: "billing.checkout_issuance_not_certified",
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
