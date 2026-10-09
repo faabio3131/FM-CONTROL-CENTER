@@ -11,9 +11,19 @@ const binding=()=>({tenantId:tenant,invoiceId,gatewayAccountId});
 describe("Production payment recovery and reconciliation on real PostgreSQL",()=>{
  beforeAll(async()=>{
   const url = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : null;
-  if (!url || !["localhost", "127.0.0.1"].includes(url.hostname) ||
-      !["5432", "55449"].includes(url.port) ||
-      url.pathname !== "/fmcc_billing_ci" || url.username !== "fmcc_restore_test")
+  const localIsolated = !!url &&
+    ["localhost", "127.0.0.1"].includes(url.hostname) &&
+    ["5432", "55449"].includes(url.port) &&
+    url.pathname === "/fmcc_billing_ci" &&
+    url.username === "fmcc_restore_test";
+  const githubIsolated = !!url &&
+    process.env.CI === "true" &&
+    process.env.NODE_ENV === "test" &&
+    ["localhost", "127.0.0.1"].includes(url.hostname) &&
+    url.port === "5432" &&
+    url.pathname === "/fmcc" &&
+    url.username === "postgres";
+  if (!localIsolated && !githubIsolated)
     throw Error("billing.test_requires_isolated_local_pg");
   const product=await pool.query("INSERT INTO fmcc_product_definition(tenant_id,slug,name) VALUES($1,$2,'Kordena') RETURNING id",[tenant,tenant]);
   const customer=await pool.query("INSERT INTO fmcc_billing_customer(tenant_id,external_customer_id) VALUES($1,'test-customer') RETURNING id",[tenant]);
