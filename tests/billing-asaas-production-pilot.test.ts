@@ -112,7 +112,7 @@ describe("Asaas real R$1 pilot - fail closed",()=>{
  it("refuses reconciliation when gateway GET fails",async()=>{
   const store=ledger();
   const transport=vi.fn().mockRejectedValue(new Error("network failure"));
-  await expect(new AsaasProductionPilot(store,transport).reconcileRealPix({...input,externalPaymentId:"pay_fixture"})).rejects.toThrow("network failure");
+  await expect(new AsaasProductionPilot(store,transport).reconcileRealPix({...input,externalPaymentId:"pay_fixture"})).rejects.toThrow("billing.production_transport_uncertain");
   expect(store.markProviderConfirmed).not.toHaveBeenCalled();
  });
 
