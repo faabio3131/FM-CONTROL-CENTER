@@ -8,7 +8,7 @@ export class AsaasProductionPilot {
  constructor(private readonly ledger: Pick<ProductionPilotLedger,"reserve"|"persistProviderPayment"|"markProviderConfirmed"|"recoverProviderPayment">, private readonly transport: typeof fetch = fetch) {}
  private async request(method: "GET" | "POST", endpoint: string, payload?: object): Promise<{
    id:string; externalReference:string; billingType:string; value:number;
-   status?:string; invoiceUrl?:string; hasMore?:boolean;
+   status:string; invoiceUrl?:string; hasMore?:boolean;
    data?:Array<{id:string;externalReference:string;billingType:string;value:number}>;
   }> {
   const key = resolveGatewaySecret({provider:"asaas",environment:"production",secretRef:ASAAS_PRODUCTION_SECRET_REF});
