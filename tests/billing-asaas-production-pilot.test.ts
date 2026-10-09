@@ -86,4 +86,18 @@ describe("Asaas real R$1 pilot - fail closed",()=>{
   expect(store.markProviderConfirmed).not.toHaveBeenCalled();
  });
 
+ it("discovers exactly one recoverable provider payment using GET only",async()=>{
+  const transport=vi.fn().mockResolvedValue({ok:true,json:async()=>({hasMore:false,data:[{id:"pay_unique",externalReference:PRODUCTION_PILOT_REFERENCE,value:1,billingType:"PIX"}]})});
+  expect(await new AsaasProductionPilot(ledger(),transport).findPilotPaymentsForRecovery()).toEqual([{id:"pay_unique"}]);
+  expect(transport).toHaveBeenCalledTimes(1);
+  expect(transport.mock.calls[0][1].method).toBe("GET");
+ });
+ it("fails closed on incomplete provider listing",async()=>{
+  const transport=vi.fn().mockResolvedValue({ok:true,json:async()=>({hasMore:true,data:[{id:"pay_a",externalReference:PRODUCTION_PILOT_REFERENCE,value:1,billingType:"PIX"}]})});
+  await expect(new AsaasProductionPilot(ledger(),transport).findPilotPaymentsForRecovery()).rejects.toThrow("incomplete_provider_listing");
+ });
+ it("rejects mismatch in recovered provider listing",async()=>{
+  const transport=vi.fn().mockResolvedValue({ok:true,json:async()=>({hasMore:false,data:[{id:"pay_a",externalReference:PRODUCTION_PILOT_REFERENCE,value:2,billingType:"PIX"}]})});
+  await expect(new AsaasProductionPilot(ledger(),transport).findPilotPaymentsForRecovery()).rejects.toThrow("provider_mismatch");
+ });
 });
