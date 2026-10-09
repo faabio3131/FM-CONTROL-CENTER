@@ -15,6 +15,27 @@ export class ProductionPilotLedger {
       RETURNING i.id`,[input.tenantId,input.invoiceId,input.gatewayAccountId]);
   return r.rowCount===1;
  }
+ async markProviderConfirmed(input:{tenantId:string;invoiceId:string;gatewayAccountId:string;externalPaymentId:string}):Promise<void>{
+  const client=await this.pool.connect();
+  try {
+   await client.query("BEGIN");
+   const match=await client.query(
+    `SELECT i.id FROM fmcc_billing_invoice i
+     JOIN fmcc_billing_gateway_account g ON g.tenant_id=i.tenant_id AND g.id=i.gateway_account_id
+     JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id AND p.invoice_id=i.id AND p.gateway_account_id=i.gateway_account_id
+     WHERE i.tenant_id=$1 AND i.id=$2 AND i.gateway_account_id=$3 AND p.external_payment_id=$4
+       AND i.amount_minor=100 AND i.currency='BRL' AND g.environment='production' AND g.provider='asaas'
+       AND i.status IN ('payment_pending','paid') FOR UPDATE OF i,p`,
+    [input.tenantId,input.invoiceId,input.gatewayAccountId,input.externalPaymentId]);
+   if(match.rowCount!==1)throw new Error("billing.production_reconciliation_scope_denied");
+   await client.query("UPDATE fmcc_billing_provider_payment SET status='received' WHERE tenant_id=$1 AND invoice_id=$2 AND gateway_account_id=$3 AND external_payment_id=$4",
+    [input.tenantId,input.invoiceId,input.gatewayAccountId,input.externalPaymentId]);
+   await client.query("UPDATE fmcc_billing_invoice SET status='paid' WHERE tenant_id=$1 AND id=$2 AND gateway_account_id=$3",
+    [input.tenantId,input.invoiceId,input.gatewayAccountId]);
+   await client.query("COMMIT");
+  }catch(e){await client.query("ROLLBACK");throw e;}
+  finally{client.release();}
+ }
  async persistProviderPayment(input:{tenantId:string;invoiceId:string;gatewayAccountId:string;externalPaymentId:string;status:string}):Promise<void>{
   const client=await this.pool.connect();
   try {
