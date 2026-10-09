@@ -71,7 +71,7 @@ describe("Asaas real R$1 pilot - fail closed",()=>{
   const transport=vi.fn().mockResolvedValue({ok:true,json:async()=>({id:"pay_fixture",externalReference:PRODUCTION_PILOT_REFERENCE,value:1,billingType:"PIX",status:"PENDING"})});
   expect(await new AsaasProductionPilot(store,transport).recoverUncertainRealPix({...input,externalPaymentId:"pay_fixture"})).toBe("recovered");
   expect(store.recoverProviderPayment).toHaveBeenCalledTimes(1);
-  expect(transport.mock.calls.map((call:any)=>call[1].method)).toEqual(["GET"]);
+  expect(transport.mock.calls.map(call=>(call[1] as RequestInit).method)).toEqual(["GET"]);
  });
  it("refuses recovery if provider payment amount is wrong",async()=>{
   const store=ledger();
