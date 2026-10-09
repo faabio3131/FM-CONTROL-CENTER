@@ -25,7 +25,7 @@ export class AsaasProductionPilot {
  async createOneRealPix(input:{customerId:string; dueDate:string; authorization:string}):Promise<{id:string;invoiceUrl?:string}>{
   if(input.authorization!=="AUTHORIZE_REAL_PIX_BRL_1_00")throw new ProductionPilotError("billing.production_authorization_missing");
   if(!/^cus_[A-Za-z0-9_-]+$/.test(input.customerId))throw new ProductionPilotError("billing.production_customer_id_invalid");
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(input.dueDate))throw new ProductionPilotError("billing.production_date_invalid");
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate))throw new ProductionPilotError("billing.production_date_invalid");
   // A failed lookup or existing charge blocks issuance. Never retry POST after a timeout.
   await this.checkReference();
   const result = await this.request("POST","/payments",{
