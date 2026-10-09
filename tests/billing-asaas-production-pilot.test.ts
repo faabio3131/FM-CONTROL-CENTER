@@ -5,7 +5,7 @@ describe("Asaas real R$1 pilot - fail closed",()=>{
  beforeEach(()=>{process.env.FMCC_ASAAS_PRODUCTION_API_KEY="test-only-key";});
  afterEach(()=>{if(original===undefined)delete process.env.FMCC_ASAAS_PRODUCTION_API_KEY;else process.env.FMCC_ASAAS_PRODUCTION_API_KEY=original;});
  const input={customerId:"cus_test123",dueDate:"2026-10-20",authorization:"AUTHORIZE_REAL_PIX_BRL_1_00",tenantId:"ci-tenant",invoiceId:"a51a5000-1990-4000-8000-000000000001",gatewayAccountId:"c51a5000-1990-4000-8000-000000000001"};
- const ledger=()=>({reserve:vi.fn().mockResolvedValue(true),persistProviderPayment:vi.fn().mockResolvedValue(undefined),markProviderConfirmed:vi.fn().mockResolvedValue(undefined)});
+ const ledger=()=>({reserve:vi.fn().mockResolvedValue(true),persistProviderPayment:vi.fn().mockResolvedValue(undefined),markProviderConfirmed:vi.fn().mockResolvedValue(undefined),recoverProviderPayment:vi.fn().mockResolvedValue("recovered")});
  it("rejects absent authorization without network",async()=>{
   const transport=vi.fn();
   await expect(new AsaasProductionPilot(ledger(),transport).createOneRealPix({...input,authorization:""})).rejects.toThrow("authorization_missing");
@@ -64,6 +64,26 @@ describe("Asaas real R$1 pilot - fail closed",()=>{
   const transport=vi.fn().mockResolvedValue({ok:true,json:async()=>({id:"pay_fixture",externalReference:PRODUCTION_PILOT_REFERENCE,value:1,billingType:"PIX",status:"RECEIVED"})});
   expect(await new AsaasProductionPilot(store,transport).reconcileRealPix({...input,externalPaymentId:"pay_fixture"})).toBe("paid");
   expect(store.markProviderConfirmed).toHaveBeenCalledTimes(1);
+ });
+
+ it("recovers an uncertain Pix by GET without another POST",async()=>{
+  const store=ledger();
+  const transport=vi.fn().mockResolvedValue({ok:true,json:async()=>({id:"pay_fixture",externalReference:PRODUCTION_PILOT_REFERENCE,value:1,billingType:"PIX",status:"PENDING"})});
+  expect(await new AsaasProductionPilot(store,transport).recoverUncertainRealPix({...input,externalPaymentId:"pay_fixture"})).toBe("recovered");
+  expect(store.recoverProviderPayment).toHaveBeenCalledTimes(1);
+  expect(transport.mock.calls.map((call:any)=>call[1].method)).toEqual(["GET"]);
+ });
+ it("refuses recovery if provider payment amount is wrong",async()=>{
+  const store=ledger();
+  const transport=vi.fn().mockResolvedValue({ok:true,json:async()=>({id:"pay_fixture",externalReference:PRODUCTION_PILOT_REFERENCE,value:1.01,billingType:"PIX",status:"RECEIVED"})});
+  await expect(new AsaasProductionPilot(store,transport).recoverUncertainRealPix({...input,externalPaymentId:"pay_fixture"})).rejects.toThrow("recovery_mismatch");
+  expect(store.recoverProviderPayment).not.toHaveBeenCalled();
+ });
+ it("refuses reconciliation when gateway GET fails",async()=>{
+  const store=ledger();
+  const transport=vi.fn().mockRejectedValue(new Error("network failure"));
+  await expect(new AsaasProductionPilot(store,transport).reconcileRealPix({...input,externalPaymentId:"pay_fixture"})).rejects.toThrow("network failure");
+  expect(store.markProviderConfirmed).not.toHaveBeenCalled();
  });
 
 });
