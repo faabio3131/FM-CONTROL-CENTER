@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-type Pilot = { product:string; value:string; invoiceStatus:string; gatewayReady:boolean; existingPayment:boolean; canCreatePayment:boolean };
+type Pilot = { product:string; value:string; invoiceStatus:string; gatewayReady:boolean; existingPayment:boolean; paymentId:string|null; paymentStatus:string|null; canCreatePayment:boolean };
 type Pix = {encodedImage:string; payload:string};
 export function PilotCheckout() {
  const [pilot,setPilot]=useState<Pilot|null>(null);
@@ -46,6 +46,8 @@ export function PilotCheckout() {
   {!pilot&&<p>Verificando fatura e permissões...</p>}
   {pilot&&<><p><strong>{pilot.product} — R$ {pilot.value.replace(".",",")}</strong></p>
    <p>Pagamento: Pix · Fatura: {pilot.invoiceStatus} · Gateway: {pilot.gatewayReady?"Ativo":"Desabilitado"}</p>
+   {pilot.paymentId&&<p>Pagamento já registrado: {pilot.paymentId} · {pilot.paymentStatus}. Uma segunda cobrança está bloqueada.</p>}
+   {pilot.invoiceStatus==="creating"&&!pilot.paymentId&&<p role="alert">Emissão anterior sem confirmação local. Não tente novamente: é necessária recuperação administrativa segura.</p>}
    <form onSubmit={e=>{e.preventDefault();void submit("issue");}}>
     <label>Nome do comprador<input value={buyer.name} onChange={e=>setBuyer(v=>({...v,name:e.target.value}))} required minLength={3} autoComplete="name"/></label>
     <label>CPF ou CNPJ<input value={buyer.cpfCnpj} onChange={e=>setBuyer(v=>({...v,cpfCnpj:e.target.value}))} required inputMode="numeric" autoComplete="off"/></label>
