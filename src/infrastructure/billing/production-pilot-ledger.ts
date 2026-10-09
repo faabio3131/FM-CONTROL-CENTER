@@ -15,6 +15,19 @@ export class ProductionPilotLedger {
       RETURNING i.id`,[input.tenantId,input.invoiceId,input.gatewayAccountId]);
   return r.rowCount===1;
  }
+ async releaseAfterProviderRejection(input:{tenantId:string;invoiceId:string;gatewayAccountId:string}):Promise<boolean>{
+  const r=await this.pool.query(
+   `UPDATE fmcc_billing_invoice i SET status='pending'
+      WHERE i.tenant_id=$1 AND i.id=$2 AND i.gateway_account_id=$3
+        AND i.status='creating' AND i.amount_minor=100 AND i.currency='BRL'
+        AND NOT EXISTS(
+          SELECT 1 FROM fmcc_billing_provider_payment p
+          WHERE p.tenant_id=i.tenant_id AND p.invoice_id=i.id
+        )
+      RETURNING i.id`,
+   [input.tenantId,input.invoiceId,input.gatewayAccountId]);
+  return r.rowCount===1;
+ }
  async recoverProviderPayment(input:{tenantId:string;invoiceId:string;gatewayAccountId:string;externalPaymentId:string;status:string}):Promise<"recovered"|"already_recorded">{
   const client=await this.pool.connect();
   try {
