@@ -9,32 +9,10 @@ on:
 permissions:
   contents: read
 jobs:
-  verify-production:
-    if: ${{ github.ref == 'refs/heads/feat/central-billing-attribution-20261008' && inputs.confirm == 'VALIDATE_PRODUCTION_READ_ONLY' }}
+  default-branch-guard:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    environment: billing-production-validation
-    env:
-      FMCC_ASAAS_PRODUCTION_API_KEY: ${{ secrets.FMCC_ASAAS_PRODUCTION_API_KEY }}
     steps:
-      - name: Verify key presence without disclosing it
-        shell: bash
+      - name: Deny production validation on default branch
         run: |
-          if [ -z "$FMCC_ASAAS_PRODUCTION_API_KEY" ]; then
-            echo "::error::Production key is not configured"
-            exit 1
-          fi
-      - name: Authenticated GET only - Asaas production
-        shell: bash
-        run: |
-          set -euo pipefail
-          result=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 15 --retry 0 \
-            --request GET \
-            --header "access_token: ${FMCC_ASAAS_PRODUCTION_API_KEY}" \
-            --header "accept: application/json" \
-            --url 'https://api.asaas.com/v3/myAccount')
-          if [ "$result" != "200" ]; then
-            echo "::error::Production read-only authentication failed (HTTP $result)"
-            exit 1
-          fi
-          echo "PASS: Asaas production authenticated GET; no charges created"
+          echo "::error::Select feat/central-billing-attribution-20261008; production validation is disabled on main."
+          exit 1
