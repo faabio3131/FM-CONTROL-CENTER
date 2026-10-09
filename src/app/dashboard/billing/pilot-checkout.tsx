@@ -14,7 +14,17 @@ export function PilotCheckout() {
   if(!response.ok)throw new Error("Fatura indisponível para a organização atual.");
   setPilot(await response.json() as Pilot);
  };
- useEffect(()=>{void refresh().catch(()=>setError("Não foi possível verificar o checkout da organização ativa."));},[]);
+ useEffect(() => {
+  let active = true;
+  fetch("/api/billing/checkout/pilot", { credentials: "same-origin", cache: "no-store" })
+   .then(async response => {
+    if (!response.ok) throw new Error("Fatura indisponível.");
+    return response.json() as Promise<Pilot>;
+   })
+   .then(data => { if (active) setPilot(data); })
+   .catch(() => { if (active) setError("Não foi possível verificar o checkout da organização ativa."); });
+  return () => { active = false; };
+ }, []);
  const submit=async(kind:"issue"|"reconcile")=>{
   setBusy(true);setError("");
   try {
