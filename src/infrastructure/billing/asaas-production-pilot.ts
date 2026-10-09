@@ -5,7 +5,7 @@ import type { ProductionPilotLedger } from "./production-pilot-ledger";
 export const PRODUCTION_PILOT_REFERENCE = "fmcc-kordena-real-pix-001-20261008";
 export class ProductionPilotError extends Error {}
 export class AsaasProductionPilot {
- constructor(private readonly ledger: Pick<ProductionPilotLedger,"reserve"|"persistProviderPayment">, private readonly transport: typeof fetch = fetch) {}
+ constructor(private readonly ledger: Pick<ProductionPilotLedger,"reserve"|"persistProviderPayment"|"markProviderConfirmed">, private readonly transport: typeof fetch = fetch) {}
  private async request(method: "GET" | "POST", endpoint: string, payload?: object): Promise<any> {
   const key = resolveGatewaySecret({provider:"asaas",environment:"production",secretRef:ASAAS_PRODUCTION_SECRET_REF});
   const controller = new AbortController();
@@ -18,6 +18,17 @@ export class AsaasProductionPilot {
    if(!response.ok)throw new ProductionPilotError("billing.production_http_"+response.status);
    return response.json();
   }finally{clearTimeout(timer);}
+ }
+ async reconcileRealPix(input:{tenantId:string;invoiceId:string;gatewayAccountId:string;externalPaymentId:string}):Promise<"paid"|"pending">{
+  if(input.invoiceId!=="a51a5000-1990-4000-8000-000000000001" || !/^[A-Za-z0-9_-]{1,128}$/.test(input.externalPaymentId))
+   throw new ProductionPilotError("billing.production_reconciliation_binding_invalid");
+  const payment=await this.request("GET","/payments/"+input.externalPaymentId);
+  if(!payment || payment.id!==input.externalPaymentId || payment.externalReference!==PRODUCTION_PILOT_REFERENCE ||
+     payment.billingType!=="PIX" || !Number.isFinite(payment.value) || Math.round(payment.value*100)!==100)
+   throw new ProductionPilotError("billing.production_reconciliation_mismatch");
+  if(!["RECEIVED","CONFIRMED"].includes(payment.status))return "pending";
+  await this.ledger.markProviderConfirmed(input);
+  return "paid";
  }
  async checkReference():Promise<void> {
   const data = await this.request("GET","/payments?externalReference="+encodeURIComponent(PRODUCTION_PILOT_REFERENCE));
