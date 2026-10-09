@@ -26,12 +26,12 @@ export class AsaasProductionPilot {
   const entries = data.data.filter((payment:unknown): payment is Record<string,unknown> =>
    !!payment && typeof payment === "object" &&
    (payment as Record<string,unknown>).externalReference === PRODUCTION_PILOT_REFERENCE);
-  if(entries.some(payment => typeof payment.id!=="string" ||
+  if(entries.some((payment:Record<string,unknown>) => typeof payment.id!=="string" ||
      !/^[A-Za-z0-9_-]{1,128}$/.test(payment.id) ||
      payment.billingType!=="PIX" ||
      typeof payment.value!=="number" || Math.round(payment.value*100)!==100))
    throw new ProductionPilotError("billing.production_recovery_provider_mismatch");
-  return entries.map(payment=>({id:payment.id as string}));
+  return entries.map((payment:Record<string,unknown>)=>({id:payment.id as string}));
  }
  async recoverUncertainRealPix(input:{tenantId:string;invoiceId:string;gatewayAccountId:string;externalPaymentId:string}):Promise<"recovered"|"already_recorded">{
   if(input.invoiceId!=="a51a5000-1990-4000-8000-000000000001" || !/^[A-Za-z0-9_-]{1,128}$/.test(input.externalPaymentId))
