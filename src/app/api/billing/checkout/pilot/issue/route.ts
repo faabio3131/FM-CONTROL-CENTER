@@ -7,7 +7,8 @@ import { requirePermission } from "@/domain/security/tenant-context";
 import { db, pool } from "@/infrastructure/db/client";
 import { billingCustomers, billingInvoices, billingGatewayAccounts, billingProviderPayments } from "@/infrastructure/db/billing-schema";
 import { AsaasCheckoutClient } from "@/infrastructure/billing/asaas-checkout-client";
-import { AsaasProductionPilot } from "@/infrastructure/billing/asaas-production-pilot";
+import { AsaasProductionPilot, ProductionPilotError } from "@/infrastructure/billing/asaas-production-pilot";
+import { logEvent } from "@/infrastructure/observability/logger";
 import { ProductionPilotLedger } from "@/infrastructure/billing/production-pilot-ledger";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
   try {
     const requestHeaders = await headers();
     const ctx = await resolveTenantContext(requestHeaders);
+    logEvent("info","billing_pilot_issue_received",{invoiceId:INVOICE,tenantId:ctx.tenantId,correlationId:ctx.correlationId});
     requirePermission(ctx, "billing:write");
     if (ctx.role !== "owner" && ctx.role !== "admin")
       return NextResponse.json({ error: "billing.admin_required" }, { status: 403 });
@@ -83,8 +85,23 @@ export async function POST(request: Request) {
     try { pix = await provider.pixCode(created.id); } catch { /* GET-only recovery via payment ID */ }
     return NextResponse.json({ invoiceId:INVOICE, paymentId:created.id, invoiceUrl:created.invoiceUrl,
       pix, status:"payment_pending" }, { headers: { "Cache-Control":"no-store" } });
-  } catch {
-    // Never reveal provider/secret details, and never retry an uncertain POST automatically.
+  } catch(error) {
+    const productionError=error instanceof ProductionPilotError?error:null;
+    logEvent("error","billing_pilot_issue_failed",{
+      invoiceId:INVOICE,
+      errorCode:error instanceof Error?error.message:"unknown",
+      outcome:productionError?.outcome??"internal",
+      httpStatus:productionError?.httpStatus??null,
+      providerCode:productionError?.providerCode??null,
+    });
+    // Never reveal secrets or provider payloads. Explicit 4xx rejection is safe to retry
+    // only after the invoice was atomically released back to pending.
+    if(productionError?.outcome==="deterministic_rejection")
+      return NextResponse.json({
+        error:"billing.provider_rejected",
+        providerStatus:productionError.httpStatus??null,
+        providerCode:productionError.providerCode??null,
+      },{status:409});
     return NextResponse.json({ error:"billing.issuance_failed_or_uncertain_reconcile_before_retry" }, {status:409});
   }
 }
