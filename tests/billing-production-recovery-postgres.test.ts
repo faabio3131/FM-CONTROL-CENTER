@@ -4,7 +4,7 @@ import {randomUUID} from "node:crypto";
 import {ProductionPilotLedger} from "../src/infrastructure/billing/production-pilot-ledger";
 
 const tenant="ci-recovery-"+randomUUID();
-const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:4});
+const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:4,idleTimeoutMillis:1000,allowExitOnIdle:true});
 const ledger=new ProductionPilotLedger(pool);
 let invoiceId:string,gatewayAccountId:string;
 const binding=()=>({tenantId:tenant,invoiceId,gatewayAccountId});
@@ -24,7 +24,8 @@ describe("Production payment recovery and reconciliation on real PostgreSQL",()=
   invoiceId=inv.rows[0].id;
  });
  afterAll(async()=>{
-  if(invoiceId){
+  try {
+   if(invoiceId){
    await pool.query("DELETE FROM fmcc_billing_provider_payment WHERE tenant_id=$1",[tenant]);
    await pool.query("DELETE FROM fmcc_billing_invoice WHERE tenant_id=$1",[tenant]);
    await pool.query("DELETE FROM fmcc_billing_subscription WHERE tenant_id=$1",[tenant]);
@@ -32,7 +33,7 @@ describe("Production payment recovery and reconciliation on real PostgreSQL",()=
    await pool.query("DELETE FROM fmcc_billing_customer WHERE tenant_id=$1",[tenant]);
    await pool.query("DELETE FROM fmcc_product_definition WHERE tenant_id=$1",[tenant]);
   }
-  await pool.end();
+  } finally { await pool.end(); }
  });
  it("reserves only once, recovers uncertain charge, and refuses conflicting payment IDs",async()=>{
   expect(await ledger.reserve(binding())).toBe(true);
