@@ -19,6 +19,20 @@ export class AsaasProductionPilot {
    return response.json();
   }finally{clearTimeout(timer);}
  }
+ async findPilotPaymentsForRecovery():Promise<Array<{id:string}>> {
+  const data = await this.request("GET","/payments?externalReference="+encodeURIComponent(PRODUCTION_PILOT_REFERENCE));
+  if (!data || !Array.isArray(data.data) || data.hasMore === true)
+   throw new ProductionPilotError("billing.production_recovery_incomplete_provider_listing");
+  const entries = data.data.filter((payment:unknown): payment is Record<string,unknown> =>
+   !!payment && typeof payment === "object" &&
+   (payment as Record<string,unknown>).externalReference === PRODUCTION_PILOT_REFERENCE);
+  if(entries.some(payment => typeof payment.id!=="string" ||
+     !/^[A-Za-z0-9_-]{1,128}$/.test(payment.id) ||
+     payment.billingType!=="PIX" ||
+     typeof payment.value!=="number" || Math.round(payment.value*100)!==100))
+   throw new ProductionPilotError("billing.production_recovery_provider_mismatch");
+  return entries.map(payment=>({id:payment.id as string}));
+ }
  async recoverUncertainRealPix(input:{tenantId:string;invoiceId:string;gatewayAccountId:string;externalPaymentId:string}):Promise<"recovered"|"already_recorded">{
   if(input.invoiceId!=="a51a5000-1990-4000-8000-000000000001" || !/^[A-Za-z0-9_-]{1,128}$/.test(input.externalPaymentId))
    throw new ProductionPilotError("billing.production_recovery_binding_invalid");
