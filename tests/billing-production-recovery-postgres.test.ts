@@ -10,7 +10,11 @@ let invoiceId:string,gatewayAccountId:string;
 const binding=()=>({tenantId:tenant,invoiceId,gatewayAccountId});
 describe("Production payment recovery and reconciliation on real PostgreSQL",()=>{
  beforeAll(async()=>{
-  if(!process.env.DATABASE_URL?.includes("localhost:5432/fmcc_billing_ci"))throw Error("billing.test_requires_ephemeral_pg");
+  const url = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : null;
+  if (!url || !["localhost", "127.0.0.1"].includes(url.hostname) ||
+      !["5432", "55449"].includes(url.port) ||
+      url.pathname !== "/fmcc_billing_ci" || url.username !== "fmcc_restore_test")
+    throw Error("billing.test_requires_isolated_local_pg");
   const product=await pool.query("INSERT INTO fmcc_product_definition(tenant_id,slug,name) VALUES($1,$2,'Kordena') RETURNING id",[tenant,tenant]);
   const customer=await pool.query("INSERT INTO fmcc_billing_customer(tenant_id,external_customer_id) VALUES($1,'test-customer') RETURNING id",[tenant]);
   const gateway=await pool.query("INSERT INTO fmcc_billing_gateway_account(tenant_id,provider,environment,label,secret_ref,status) VALUES($1,'asaas','production','ci','env://FMCC_ASAAS_PRODUCTION_API_KEY','enabled') RETURNING id",[tenant]);
