@@ -27,7 +27,7 @@ export class AsaasProductionPilot {
   if(input.authorization!=="AUTHORIZE_REAL_PIX_BRL_1_00")throw new ProductionPilotError("billing.production_authorization_missing");
   if(!/^cus_[A-Za-z0-9_-]+$/.test(input.customerId))throw new ProductionPilotError("billing.production_customer_id_invalid");
   if(!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate))throw new ProductionPilotError("billing.production_date_invalid");
-  if (!input.invoiceId || !input.tenantId || !input.gatewayAccountId) throw new ProductionPilotError("billing.production_binding_missing");
+  if (input.invoiceId!=="a51a5000-1990-4000-8000-000000000001" || !input.tenantId || !input.gatewayAccountId) throw new ProductionPilotError("billing.production_binding_missing");
   // Both provider preflight and persistent claim must succeed before a real POST.
   await this.checkReference();
   if (!await this.ledger.reserve(input)) throw new ProductionPilotError("billing.production_invoice_claim_denied");
