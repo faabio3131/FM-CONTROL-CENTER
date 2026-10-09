@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 type Pilot = { product:string; value:string; invoiceStatus:string; gatewayReady:boolean; existingPayment:boolean; paymentId:string|null; paymentStatus:string|null; canCreatePayment:boolean };
@@ -58,7 +59,7 @@ export function PilotCheckout() {
    <p>Emissão protegida: esta tela só libera o botão após autorização operacional de produção.</p>
    {payment&&<div role="status">
     <p>Pagamento: {payment.paymentId} · Situação: {payment.status}</p>
-    {payment.pix&&<><img alt="QR Code Pix do pagamento" width={240} height={240} src={"data:image/png;base64,"+payment.pix.encodedImage}/>
+    {payment.pix&&<><Image alt="QR Code Pix do pagamento" width={240} height={240} unoptimized src={"data:image/png;base64,"+payment.pix.encodedImage}/>
     <label>Pix Copia e Cola<textarea readOnly value={payment.pix.payload} rows={4}/></label></>}
    </div>}
    <button type="button" disabled={busy||!payment} onClick={()=>void submit("reconcile")}>Consultar pagamento</button>
