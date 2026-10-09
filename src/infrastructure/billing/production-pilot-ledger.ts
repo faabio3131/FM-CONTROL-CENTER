@@ -15,6 +15,36 @@ export class ProductionPilotLedger {
       RETURNING i.id`,[input.tenantId,input.invoiceId,input.gatewayAccountId]);
   return r.rowCount===1;
  }
+ async recoverProviderPayment(input:{tenantId:string;invoiceId:string;gatewayAccountId:string;externalPaymentId:string;status:string}):Promise<"recovered"|"already_recorded">{
+  const client=await this.pool.connect();
+  try {
+   await client.query("BEGIN");
+   const invoice=await client.query(
+    `SELECT i.id,i.status FROM fmcc_billing_invoice i
+     JOIN fmcc_billing_gateway_account g ON g.tenant_id=i.tenant_id AND g.id=i.gateway_account_id
+     WHERE i.tenant_id=$1 AND i.id=$2 AND i.gateway_account_id=$3 AND i.amount_minor=100
+     AND i.currency='BRL' AND g.provider='asaas' AND g.environment='production'
+     AND i.status IN ('creating','payment_pending','paid') FOR UPDATE OF i`,
+    [input.tenantId,input.invoiceId,input.gatewayAccountId]);
+   if(invoice.rowCount!==1)throw new Error("billing.production_recovery_scope_denied");
+   const existing=await client.query(
+    "SELECT external_payment_id FROM fmcc_billing_provider_payment WHERE tenant_id=$1 AND invoice_id=$2 FOR UPDATE",
+    [input.tenantId,input.invoiceId]);
+   if(existing.rowCount){
+    if(existing.rows[0].external_payment_id!==input.externalPaymentId)throw new Error("billing.production_recovery_conflict");
+    await client.query("COMMIT");
+    return "already_recorded";
+   }
+   if(invoice.rows[0].status!=="creating")throw new Error("billing.production_recovery_state_invalid");
+   await client.query("INSERT INTO fmcc_billing_provider_payment (tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES ($1,$2,$3,$4,$5)",
+    [input.tenantId,input.invoiceId,input.gatewayAccountId,input.externalPaymentId,input.status]);
+   await client.query("UPDATE fmcc_billing_invoice SET status='payment_pending' WHERE tenant_id=$1 AND id=$2",
+    [input.tenantId,input.invoiceId]);
+   await client.query("COMMIT");
+   return "recovered";
+  }catch(e){await client.query("ROLLBACK");throw e;}
+  finally{client.release();}
+ }
  async markProviderConfirmed(input:{tenantId:string;invoiceId:string;gatewayAccountId:string;externalPaymentId:string}):Promise<void>{
   const client=await this.pool.connect();
   try {
