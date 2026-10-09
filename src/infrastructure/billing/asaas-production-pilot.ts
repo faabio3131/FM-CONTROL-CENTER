@@ -7,7 +7,7 @@ export class ProductionPilotError extends Error {}
 export class AsaasProductionPilot {
  constructor(private readonly ledger: Pick<ProductionPilotLedger,"reserve"|"persistProviderPayment"|"markProviderConfirmed"|"recoverProviderPayment">, private readonly transport: typeof fetch = fetch) {}
  private async request(method: "GET" | "POST", endpoint: string, payload?: object): Promise<{
-   id?:string; externalReference?:string; billingType?:string; value?:number;
+   id:string; externalReference:string; billingType:string; value:number;
    status?:string; invoiceUrl?:string; hasMore?:boolean;
    data?:Array<{id:string;externalReference:string;billingType:string;value:number}>;
   }> {
