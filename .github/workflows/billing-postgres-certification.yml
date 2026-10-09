@@ -25,18 +25,18 @@ jobs:
       postgres:
         image: postgres:18
         env:
-          POSTGRES_USER: fmcc_ci
+          POSTGRES_USER: fmcc_restore_test
           POSTGRES_PASSWORD: only-ephemeral-ci-password
           POSTGRES_DB: fmcc_billing_ci
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U fmcc_ci -d fmcc_billing_ci"
+          --health-cmd "pg_isready -U fmcc_restore_test -d fmcc_billing_ci"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://fmcc_ci:only-ephemeral-ci-password@localhost:5432/fmcc_billing_ci
+      DATABASE_URL: postgresql://fmcc_restore_test:only-ephemeral-ci-password@localhost:5432/fmcc_billing_ci
       NODE_ENV: test
       FMCC_ASAAS_SANDBOX_API_KEY: ""
     steps:
