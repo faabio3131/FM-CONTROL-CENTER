@@ -48,7 +48,7 @@ export async function GET() {
 
     if (!rows.length) return NextResponse.json({ error: "billing.invoice_unavailable" }, { status: 404 });
     const invoice = rows[0];
-    const payments = await db.select({ id: billingProviderPayments.id })
+    const payments = await db.select({ id: billingProviderPayments.id, externalPaymentId: billingProviderPayments.externalPaymentId, paymentStatus: billingProviderPayments.status })
       .from(billingProviderPayments)
       .where(and(
         eq(billingProviderPayments.tenantId, context.tenantId),
@@ -69,6 +69,8 @@ export async function GET() {
       provider: "asaas",
       paymentMethods: ["PIX"],
       existingPayment: payments.length > 0,
+      paymentId: payments[0]?.externalPaymentId ?? null,
+      paymentStatus: payments[0]?.paymentStatus ?? null,
       gatewayReady: invoice.gatewayStatus === "enabled",
       canCreatePayment: process.env.FMCC_PILOT_PIX_ISSUANCE_ENABLED === "YES" && invoice.gatewayStatus === "enabled" && invoice.invoiceStatus === "pending" && payments.length === 0,
       reason: "billing.checkout_issuance_not_certified",
