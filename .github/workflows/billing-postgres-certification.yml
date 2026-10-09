@@ -57,5 +57,7 @@ jobs:
         run: npx vitest run tests/billing-payment-attribution.test.ts tests/billing-secret-resolver.test.ts tests/billing-asaas-sandbox-client.test.ts tests/billing-canonical-service.test.ts tests/billing-sandbox-reconcile-route.test.ts tests/billing-asaas-production-pilot.test.ts tests/billing-asaas-production-readonly.test.ts
       - name: Real PostgreSQL recovery and reconciliation certification
         run: npx vitest run tests/billing-production-recovery-postgres.test.ts
+      - name: Certify production pilot read-only readiness guards
+        run: node --test tests/billing-production-pilot-readiness.test.mjs
       - name: TypeScript
         run: npm run typecheck
