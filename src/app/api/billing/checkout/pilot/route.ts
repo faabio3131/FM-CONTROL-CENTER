@@ -72,6 +72,7 @@ export async function GET() {
       paymentId: payments[0]?.externalPaymentId ?? null,
       paymentStatus: payments[0]?.paymentStatus ?? null,
       gatewayReady: invoice.gatewayStatus === "enabled",
+      providerCredentialConfigured: Boolean(process.env.FMCC_ASAAS_PRODUCTION_API_KEY?.trim()),
       canCreatePayment: process.env.FMCC_PILOT_PIX_ISSUANCE_ENABLED === "YES" && invoice.gatewayStatus === "enabled" && invoice.invoiceStatus === "pending" && payments.length === 0,
       reason: "billing.checkout_issuance_not_certified",
     }, { headers: { "Cache-Control": "no-store" } });
