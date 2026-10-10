@@ -153,7 +153,22 @@ export function PilotCheckout() {
 
    <form onSubmit={e=>{e.preventDefault();void submit("issue");}}>
     <label>Nome do comprador<input value={buyer.name} onChange={e=>setBuyer(v=>({...v,name:e.target.value}))} required minLength={3} autoComplete="name"/></label>
-    <label>CPF ou CNPJ<input value={buyer.cpfCnpj} onChange={e=>setBuyer(v=>({...v,cpfCnpj:e.target.value}))} required inputMode="numeric" autoComplete="off"/></label>
+    <label>
+     CPF ou CNPJ
+     <input
+      value={buyer.cpfCnpj}
+      onChange={e=>setBuyer(v=>({...v,cpfCnpj:e.target.value}))}
+      required
+      inputMode="numeric"
+      autoComplete="off"
+      maxLength={18}
+      aria-describedby="billing-document-help"
+      placeholder="CPF ou CNPJ"
+     />
+    </label>
+    <small id="billing-document-help">
+     Pode digitar com ou sem pontos, traços e barra. O Command remove a pontuação antes de enviar ao Asaas. CPF deve ter 11 dígitos; CNPJ, 14.
+    </small>
     <label>E-mail<input type="email" value={buyer.email} onChange={e=>setBuyer(v=>({...v,email:e.target.value}))} autoComplete="email"/></label>
     <label>
      Senha de confirmação administrativa
