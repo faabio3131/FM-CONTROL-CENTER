@@ -148,6 +148,8 @@ export default function SignInPage() {
                     required
                     type={showPassword ? "text" : "password"}
                     minLength={8}
+                    maxLength={128}
+                    aria-describedby="command-password-help"
                     autoComplete={isSignIn ? "current-password" : "new-password"}
                     placeholder="Sua senha"
                   />
@@ -158,10 +160,29 @@ export default function SignInPage() {
                     aria-pressed={showPassword}
                     onClick={() => setShowPassword((visible) => !visible)}
                   >
-                    {showPassword ? "Ocultar" : "Mostrar"}
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      {showPassword ? (
+                        <>
+                          <path d="M3 3l18 18" />
+                          <path d="M10.6 10.6a2 2 0 002.8 2.8" />
+                          <path d="M9.9 4.2A10.7 10.7 0 0112 4c5.5 0 9 8 9 8a18 18 0 01-2.1 3.2" />
+                          <path d="M6.2 6.2C3.8 8 3 12 3 12s3.5 8 9 8a9.8 9.8 0 004.2-.9" />
+                        </>
+                      ) : (
+                        <>
+                          <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+                          <circle cx="12" cy="12" r="2.7" />
+                        </>
+                      )}
+                    </svg>
                   </button>
                 </div>
               </label>
+              <small id="command-password-help">
+                {isSignIn
+                  ? "Use a senha da sua conta."
+                  : "A senha deve ter de 8 a 128 caracteres. Maiúsculas, números e símbolos não são obrigatórios, mas recomendamos combinar esses elementos e não reutilizar senhas."}
+              </small>
 
               <button className="button primary command-auth-submit" disabled={busy} type="submit">
                 {busy ? "Processando…" : isSignIn ? "Entrar" : "Criar conta"}
