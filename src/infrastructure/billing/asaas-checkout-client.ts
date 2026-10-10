@@ -94,6 +94,24 @@ export class AsaasCheckoutClient {
     );
   }
 
+  private async createCustomer(input: {
+    reference: string;
+    name: string;
+    cpfCnpj: string;
+    email?: string;
+  }): Promise<string> {
+    const created = await this.request<AsaasCustomer>("POST", "/customers", {
+      name: input.name.trim(),
+      cpfCnpj: input.cpfCnpj,
+      ...(input.email ? { email: input.email.trim() } : {}),
+      externalReference: input.reference,
+      notificationDisabled: true,
+    });
+    if (!/^cus_[\w-]+$/.test(created.id) || created.externalReference !== input.reference)
+      throw new AsaasCheckoutTransportError("billing.customer_create_unconfirmed");
+    return created.id;
+  }
+
   async ensureCustomer(input: {
     reference: string;
     name: string;
@@ -110,16 +128,7 @@ export class AsaasCheckoutClient {
         throw new AsaasCheckoutTransportError("billing.customer_identity_mismatch");
       return existing[0].id;
     }
-    const created = await this.request<AsaasCustomer>("POST", "/customers", {
-      name: input.name.trim(),
-      cpfCnpj: input.cpfCnpj,
-      ...(input.email ? { email: input.email.trim() } : {}),
-      externalReference: input.reference,
-      notificationDisabled: true,
-    });
-    if (!/^cus_[\w-]+$/.test(created.id) || created.externalReference !== input.reference)
-      throw new AsaasCheckoutTransportError("billing.customer_create_unconfirmed");
-    return created.id;
+    return this.createCustomer(input);
   }
 
   async reconcileCustomer(input: {
@@ -149,7 +158,7 @@ export class AsaasCheckoutClient {
       return { customerId: matches[0].id, source: "reference" };
     }
 
-    const customerId = await this.ensureCustomer(input);
+    const customerId = await this.createCustomer(input);
     return { customerId, source: "created" };
   }
 
