@@ -94,6 +94,22 @@ export class AsaasCheckoutClient {
     );
   }
 
+  async findCustomersByDocument(cpfCnpj: string): Promise<AsaasCustomer[]> {
+    if (!/^\d{11}(?:\d{3})?$/.test(cpfCnpj))
+      throw new AsaasCheckoutTransportError("billing.customer_data_invalid");
+    const found = await this.request<{ data?: AsaasCustomer[] }>(
+      "GET",
+      "/customers?cpfCnpj=" + encodeURIComponent(cpfCnpj),
+    );
+    if (!Array.isArray(found.data))
+      throw new AsaasCheckoutTransportError("billing.customer_lookup_invalid");
+    return found.data.filter(customer => {
+      if (!/^cus_[\w-]+$/.test(customer.id)) return false;
+      const document = customer.cpfCnpj?.replace(/\D/g, "");
+      return !document || document === cpfCnpj;
+    });
+  }
+
   private async createCustomer(input: {
     reference: string;
     name: string;
@@ -137,15 +153,16 @@ export class AsaasCheckoutClient {
     name: string;
     cpfCnpj: string;
     email?: string;
-  }): Promise<{ customerId: string; source: "saved" | "reference" | "created" }> {
+  }): Promise<{ customerId: string; source: "saved" | "reference" | "document" | "created" }> {
     this.validateCustomerInput(input);
 
     const saved = await this.customerById(input.currentExternalId);
-    if (saved && saved.externalReference === input.reference) {
+    if (saved) {
       const savedCpfCnpj = saved.cpfCnpj?.replace(/\D/g, "");
       if (savedCpfCnpj && savedCpfCnpj !== input.cpfCnpj)
         throw new AsaasCheckoutTransportError("billing.customer_identity_mismatch");
-      return { customerId: saved.id, source: "saved" };
+      if (saved.externalReference === input.reference || savedCpfCnpj === input.cpfCnpj)
+        return { customerId: saved.id, source: "saved" };
     }
 
     const matches = await this.findCustomers(input.reference);
@@ -157,6 +174,12 @@ export class AsaasCheckoutClient {
         throw new AsaasCheckoutTransportError("billing.customer_identity_mismatch");
       return { customerId: matches[0].id, source: "reference" };
     }
+
+    const documentMatches = await this.findCustomersByDocument(input.cpfCnpj);
+    if (documentMatches.length > 1)
+      throw new AsaasCheckoutTransportError("billing.customer_duplicate_requires_review");
+    if (documentMatches.length === 1)
+      return { customerId: documentMatches[0].id, source: "document" };
 
     const customerId = await this.createCustomer(input);
     return { customerId, source: "created" };
