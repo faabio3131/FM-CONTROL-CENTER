@@ -30,6 +30,7 @@ function recoveryMessage(code:string):string {
   "billing.asaas_access_forbidden":"A chave foi reconhecida, mas o Asaas bloqueou o acesso solicitado (403).",
   "billing.asaas_connection_uncertain":"Não foi possível confirmar a comunicação com o Asaas. Nenhuma nova cobrança foi criada.",
   "billing.provider_payment_not_found_manual_review":"Nenhuma cobrança anterior com a referência deste piloto foi encontrada no Asaas.",
+  "billing.recovery_release_conflict":"O Asaas confirmou ausência de cobrança, mas o estado local mudou antes da liberação. Nenhuma nova cobrança foi criada.",
   "billing.provider_duplicates_manual_review":"Mais de uma cobrança correspondente foi encontrada no Asaas. Nova emissão permanece bloqueada.",
   "billing.recovery_disabled":"A recuperação do piloto está desabilitada no ambiente.",
   "billing.recovery_scope_invalid":"A fatura atual não está em um estado válido para recuperação.",
@@ -84,7 +85,24 @@ export function PilotCheckout() {
     return;
    }
 
-   if(!json.paymentId||!json.status) {
+   if(!json.status) {
+    const message="Resposta de pagamento incompleta.";
+    if(kind==="recover")setRecoveryFeedback({kind:"error",message});
+    else setError(message);
+    return;
+   }
+
+   if(kind==="recover"&&json.status==="released_no_provider_payment") {
+    setPayment(null);
+    setRecoveryFeedback({
+     kind:"success",
+     message:"O Asaas confirmou que não existe cobrança anterior. A fatura local foi liberada com segurança e voltou para pending.",
+    });
+    await refresh();
+    return;
+   }
+
+   if(!json.paymentId) {
     const message="Resposta de pagamento incompleta.";
     if(kind==="recover")setRecoveryFeedback({kind:"error",message});
     else setError(message);
