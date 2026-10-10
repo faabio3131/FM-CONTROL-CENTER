@@ -16,6 +16,12 @@ export class ProductionPilotLedger {
   return r.rowCount===1;
  }
  async releaseAfterProviderRejection(input:{tenantId:string;invoiceId:string;gatewayAccountId:string}):Promise<boolean>{
+  return this.releaseCreatingClaim(input);
+ }
+ async releaseAfterVerifiedProviderAbsence(input:{tenantId:string;invoiceId:string;gatewayAccountId:string}):Promise<boolean>{
+  return this.releaseCreatingClaim(input);
+ }
+ private async releaseCreatingClaim(input:{tenantId:string;invoiceId:string;gatewayAccountId:string}):Promise<boolean>{
   const r=await this.pool.query(
    `UPDATE fmcc_billing_invoice i SET status='pending'
       WHERE i.tenant_id=$1 AND i.id=$2 AND i.gateway_account_id=$3
@@ -23,6 +29,11 @@ export class ProductionPilotLedger {
         AND NOT EXISTS(
           SELECT 1 FROM fmcc_billing_provider_payment p
           WHERE p.tenant_id=i.tenant_id AND p.invoice_id=i.id
+        )
+        AND EXISTS(
+          SELECT 1 FROM fmcc_billing_gateway_account g
+          WHERE g.tenant_id=i.tenant_id AND g.id=i.gateway_account_id
+            AND g.provider='asaas' AND g.environment='production' AND g.status='enabled'
         )
       RETURNING i.id`,
    [input.tenantId,input.invoiceId,input.gatewayAccountId]);

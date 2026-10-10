@@ -75,14 +75,27 @@ export async function POST(request: Request) {
   const pilot = new AsaasProductionPilot(new ProductionPilotLedger(pool));
   const candidates = await pilot.findPilotPaymentsForRecovery();
 
-  if(candidates.length!==1) {
-   const error=candidates.length===0?
-    "billing.provider_payment_not_found_manual_review":
-    "billing.provider_duplicates_manual_review";
-   logEvent(candidates.length===0?"warn":"error","billing_pilot_recovery_candidate_count",{
-    invoiceId:INVOICE,count:candidates.length,error,
+  if(candidates.length===0) {
+   const released=await new ProductionPilotLedger(pool).releaseAfterVerifiedProviderAbsence({
+    tenantId:ctx.tenantId,invoiceId:INVOICE,gatewayAccountId:row.gatewayId,
    });
-   return NextResponse.json({error},{status:409});
+   logEvent(released?"warn":"error","billing_pilot_recovery_zero_provider_release",{
+    invoiceId:INVOICE,count:0,released,
+   });
+   if(!released)
+    return NextResponse.json({error:"billing.recovery_release_conflict"},{status:409});
+   return NextResponse.json({
+    status:"released_no_provider_payment",
+    paymentId:null,
+    reference:PRODUCTION_PILOT_REFERENCE,
+   },{headers:{"Cache-Control":"no-store"}});
+  }
+
+  if(candidates.length>1) {
+   logEvent("error","billing_pilot_recovery_candidate_count",{
+    invoiceId:INVOICE,count:candidates.length,error:"billing.provider_duplicates_manual_review",
+   });
+   return NextResponse.json({error:"billing.provider_duplicates_manual_review"},{status:409});
   }
 
   const candidate=candidates[0];

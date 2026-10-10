@@ -44,6 +44,33 @@ describe("billing recovery and password UX", () => {
     expect(ui).toContain("billing.provider_payment_not_found_manual_review");
   });
 
+  it("libera creating para pending somente após ausência verificada no provedor", () => {
+    const route = readFileSync(
+      resolve(process.cwd(), "src/app/api/billing/checkout/pilot/recover/route.ts"),
+      "utf8",
+    );
+    const ledger = readFileSync(
+      resolve(process.cwd(), "src/infrastructure/billing/production-pilot-ledger.ts"),
+      "utf8",
+    );
+    const ui = readFileSync(
+      resolve(process.cwd(), "src/app/dashboard/billing/pilot-checkout.tsx"),
+      "utf8",
+    );
+
+    expect(route).toContain("candidates.length===0");
+    expect(route).toContain("releaseAfterVerifiedProviderAbsence");
+    expect(route).toContain('status:"released_no_provider_payment"');
+    expect(route).toContain("billing_pilot_recovery_zero_provider_release");
+    expect(ledger).toContain("releaseAfterVerifiedProviderAbsence");
+    expect(ledger).toContain("i.status='creating'");
+    expect(ledger).toContain("NOT EXISTS");
+    expect(ledger).toContain("g.provider='asaas'");
+    expect(ledger).toContain("g.environment='production'");
+    expect(ui).toContain('json.status==="released_no_provider_payment"');
+    expect(ui).toContain("voltou para pending");
+  });
+
   it("mantém logs de recuperação sanitizados e sem material secreto", () => {
     const source = readFileSync(
       resolve(process.cwd(), "src/app/api/billing/checkout/pilot/recover/route.ts"),
