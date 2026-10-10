@@ -119,12 +119,51 @@ describe("Asaas checkout boundary", () => {
   expect(fetchMock.mock.calls[1][0]).toContain("externalReference=fmcc-buyer-123456");
  });
 
- it("creates a replacement customer only when saved id and reference are absent", async () => {
+ it("recovers customer by CPF/CNPJ before creating a duplicate", async () => {
   const fetchMock = vi.fn()
    .mockResolvedValueOnce({
     ok: false,
     status: 404,
     json: async () => ({ errors: [] }),
+   })
+   .mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [] }),
+   })
+   .mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => ({
+     data: [{
+      id: "cus_by_document",
+      cpfCnpj: "12345678909",
+     }],
+    }),
+   });
+  const result = await new AsaasCheckoutClient(fetchMock).reconcileCustomer({
+   currentExternalId: "cus_stale",
+   reference: "fmcc-buyer-123456",
+   name: "Cliente Teste",
+   cpfCnpj: "12345678909",
+  });
+  expect(result).toEqual({ customerId: "cus_by_document", source: "document" });
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(fetchMock.mock.calls[2][0]).toContain("cpfCnpj=12345678909");
+  expect(fetchMock.mock.calls.every(call => call[1].method === "GET")).toBe(true);
+ });
+
+ it("creates a replacement customer only when id, reference and document are absent", async () => {
+  const fetchMock = vi.fn()
+   .mockResolvedValueOnce({
+    ok: false,
+    status: 404,
+    json: async () => ({ errors: [] }),
+   })
+   .mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [] }),
    })
    .mockResolvedValueOnce({
     ok: true,
@@ -147,8 +186,8 @@ describe("Asaas checkout boundary", () => {
    cpfCnpj: "12345678909",
   });
   expect(result).toEqual({ customerId: "cus_created", source: "created" });
-  expect(fetchMock).toHaveBeenCalledTimes(3);
-  expect(fetchMock.mock.calls[2][1].method).toBe("POST");
+  expect(fetchMock).toHaveBeenCalledTimes(4);
+  expect(fetchMock.mock.calls[3][1].method).toBe("POST");
  });
 
  it("blocks saved customer identity mismatch before payment issuance", async () => {
