@@ -2,12 +2,14 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
-import { verifyPasswordStepUp } from "@/application/security/password-step-up";
+import { StepUpRequiredError, verifyPasswordStepUp } from "@/application/security/password-step-up";
 import { requirePermission } from "@/domain/security/tenant-context";
 import { db, pool } from "@/infrastructure/db/client";
 import { billingInvoices, billingGatewayAccounts, billingProviderPayments } from "@/infrastructure/db/billing-schema";
-import { AsaasProductionPilot, PRODUCTION_PILOT_REFERENCE } from "@/infrastructure/billing/asaas-production-pilot";
+import { AsaasProductionPilot, PRODUCTION_PILOT_REFERENCE, ProductionPilotError } from "@/infrastructure/billing/asaas-production-pilot";
 import { ProductionPilotLedger } from "@/infrastructure/billing/production-pilot-ledger";
+import { GatewaySecretError } from "@/infrastructure/billing/secret-resolver";
+import { logEvent } from "@/infrastructure/observability/logger";
 
 export const dynamic = "force-dynamic";
 const INVOICE = "a51a5000-1990-4000-8000-000000000001";
@@ -26,13 +28,20 @@ export async function POST(request: Request) {
   requirePermission(ctx, "billing:write");
   if (ctx.role !== "owner" && ctx.role !== "admin")
    return NextResponse.json({error:"billing.admin_required"},{status:403});
+
   const body:unknown = await request.json();
   if (!body || typeof body !== "object" || Array.isArray(body) ||
       typeof (body as {password?:unknown}).password !== "string")
    return NextResponse.json({error:"billing.invalid_request"},{status:400});
+
   const proof = await verifyPasswordStepUp(h,(body as {password:string}).password);
   if(proof.userId !== ctx.userId)
    return NextResponse.json({error:"billing.step_up_required"},{status:403});
+
+  logEvent("info","billing_pilot_recovery_started",{
+   invoiceId:INVOICE,tenantId:ctx.tenantId,correlationId:ctx.correlationId,
+  });
+
   const [row] = await db.select({
    invoiceId:billingInvoices.id, gatewayId:billingInvoices.gatewayAccountId,
    status:billingInvoices.status,amount:billingInvoices.amountMinor,
@@ -42,6 +51,7 @@ export async function POST(request: Request) {
    eq(billingGatewayAccounts.id,billingInvoices.gatewayAccountId),
    eq(billingGatewayAccounts.tenantId,billingInvoices.tenantId),
   )).where(and(eq(billingInvoices.tenantId,ctx.tenantId),eq(billingInvoices.id,INVOICE))).limit(1);
+
   if(!row||row.amount!==100||row.currency!=="BRL"||row.provider!=="asaas"||
      row.environment!=="production"||!["creating","payment_pending","paid"].includes(row.status))
    return NextResponse.json({error:"billing.recovery_scope_invalid"},{status:409});
@@ -52,28 +62,67 @@ export async function POST(request: Request) {
     eq(billingProviderPayments.invoiceId,INVOICE),
     eq(billingProviderPayments.gatewayAccountId,row.gatewayId),
    )).limit(1);
-  if(previous.length)
+
+  if(previous.length) {
+   logEvent("info","billing_pilot_recovery_already_recorded",{invoiceId:INVOICE});
    return NextResponse.json({status:"already_recorded",paymentId:previous[0].id},
     {headers:{"Cache-Control":"no-store"}});
+  }
 
-  // A missing local payment is recoverable ONLY if this invoice was claimed,
-  // AND a single provider payment matches the immutable pilot reference.
   if(row.status!=="creating")
    return NextResponse.json({error:"billing.no_pending_provider_claim"},{status:409});
 
   const pilot = new AsaasProductionPilot(new ProductionPilotLedger(pool));
   const candidates = await pilot.findPilotPaymentsForRecovery();
-  if(candidates.length!==1)
-   return NextResponse.json({error:candidates.length===0?
-    "billing.provider_payment_not_found_manual_review":"billing.provider_duplicates_manual_review"},{status:409});
+
+  if(candidates.length!==1) {
+   const error=candidates.length===0?
+    "billing.provider_payment_not_found_manual_review":
+    "billing.provider_duplicates_manual_review";
+   logEvent(candidates.length===0?"warn":"error","billing_pilot_recovery_candidate_count",{
+    invoiceId:INVOICE,count:candidates.length,error,
+   });
+   return NextResponse.json({error},{status:409});
+  }
+
   const candidate=candidates[0];
   const result=await pilot.recoverUncertainRealPix({
    tenantId:ctx.tenantId,invoiceId:INVOICE,gatewayAccountId:row.gatewayId,
    externalPaymentId:candidate.id,
   });
+  logEvent("info","billing_pilot_recovery_succeeded",{
+   invoiceId:INVOICE,status:result,paymentId:candidate.id,
+  });
   return NextResponse.json({status:result,paymentId:candidate.id,reference:PRODUCTION_PILOT_REFERENCE},
    {headers:{"Cache-Control":"no-store"}});
- } catch {
+ } catch(error) {
+  if(error instanceof StepUpRequiredError) {
+   logEvent("warn","billing_pilot_recovery_failed",{invoiceId:INVOICE,errorCode:"billing.step_up_required"});
+   return NextResponse.json({error:"billing.step_up_required"},{status:403});
+  }
+  if(error instanceof GatewaySecretError) {
+   logEvent("error","billing_pilot_recovery_failed",{invoiceId:INVOICE,errorCode:error.code});
+   return NextResponse.json({error:error.code},{status:503});
+  }
+  if(error instanceof ProductionPilotError) {
+   const publicCode =
+    error.httpStatus===401?"billing.asaas_authentication_failed":
+    error.httpStatus===403?"billing.asaas_access_forbidden":
+    error.outcome==="uncertain"?"billing.asaas_connection_uncertain":
+    "billing.recovery_provider_failed";
+   logEvent("error","billing_pilot_recovery_failed",{
+    invoiceId:INVOICE,errorCode:publicCode,httpStatus:error.httpStatus??null,
+    providerCode:error.providerCode??null,outcome:error.outcome,
+   });
+   return NextResponse.json({
+    error:publicCode,
+    providerStatus:error.httpStatus??null,
+    providerCode:error.providerCode??null,
+   },{status:error.httpStatus===401||error.httpStatus===403?502:409});
+  }
+  logEvent("error","billing_pilot_recovery_failed",{
+   invoiceId:INVOICE,errorCode:error instanceof Error?error.name:"unknown",
+  });
   return NextResponse.json({error:"billing.recovery_failed_manual_review"},{status:409});
  }
 }
