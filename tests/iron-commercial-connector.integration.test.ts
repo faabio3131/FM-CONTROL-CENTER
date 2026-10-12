@@ -64,7 +64,8 @@ describe("IRON commercial connector", () => {
         headers: expect.any(Headers),
       }),
     );
-    const headers = fetcher.mock.calls[0]?.[1]?.headers as Headers;
+    const calls = fetcher.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit | undefined]>;
+    const headers = calls[0]?.[1]?.headers as Headers;
     expect(headers.get("authorization")).toBe("Bearer " + "x".repeat(40));
     expect(headers.get("x-correlation-id")).toBe("corr-iron-1");
   });
@@ -102,7 +103,8 @@ describe("IRON commercial connector", () => {
       reason: "payment-confirmed",
     }, "invoice-1:payment-1");
 
-    const request = fetcher.mock.calls[0]?.[1];
+    const calls = fetcher.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit | undefined]>;
+    const request = calls[0]?.[1];
     const headers = request?.headers as Headers;
     expect(headers.get("idempotency-key")).toBe("invoice-1:payment-1");
     expect(String(request?.body)).not.toContain("gatewayAccountId");
