@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type {
   BillingPreparationView,
   BillingProductPlanView,
@@ -170,6 +170,16 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
     payloadHash: string;
   }): Promise<BillingPreparationView> {
     return db.transaction(async (tx) => {
+      // Different idempotency keys may target the same SaaS tenant concurrently.
+      // Serialize before checking bindings/subscriptions to prevent duplicate invoices.
+      const subscriptionLockScope = [
+        "fmcc.billing.subscription.v1",
+        input.tenantId,
+        input.productId,
+        input.externalTenantId,
+      ].join(":");
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${subscriptionLockScope}, 0))`);
+
       const [replay] = await tx.select({
         payloadHash: billingCommandRequests.payloadHash,
         productId: billingCommandRequests.productId,
