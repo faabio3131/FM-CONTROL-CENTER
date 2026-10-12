@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
 
+env:
+  DATABASE_URL: postgresql://fmcc:fmcc@127.0.0.1:5432/fmcc
+
 jobs:
   generate:
     runs-on: ubuntu-latest
