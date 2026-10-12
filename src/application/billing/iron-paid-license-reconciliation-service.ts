@@ -1,4 +1,5 @@
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
+import { resolveIronPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 import type { SourceDefinition } from "@/domain/integration/contracts";
 import {
   IRON_COMMERCIAL_SECRET_REF,
@@ -10,6 +11,7 @@ export interface VerifiedIronPayment {
   readonly tenantId: string;
   readonly productId: string;
   readonly invoiceId: string;
+  readonly invoiceCreatedAt: string;
   readonly externalTenantId: string;
   readonly planCode: string;
   readonly amountMinor: number;
@@ -30,6 +32,7 @@ type IronSubscriptionRow = {
   external_id: string;
   tenant_id: string;
   plan_code: string;
+  plan_version: number;
   status: string;
   effective_until?: string | null;
 };
@@ -38,7 +41,8 @@ function ironSubscription(value: unknown): IronSubscriptionRow | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   if (typeof row.external_id !== "string" || typeof row.tenant_id !== "string" ||
-      typeof row.plan_code !== "string" || typeof row.status !== "string") return null;
+      typeof row.plan_code !== "string" || typeof row.status !== "string" ||
+      !Number.isSafeInteger(row.plan_version) || (row.plan_version as number) < 1) return null;
   if (row.effective_until !== null && row.effective_until !== undefined &&
       typeof row.effective_until !== "string") return null;
   return row as IronSubscriptionRow;
@@ -76,6 +80,15 @@ export class IronPaidLicenseReconciliationService {
       throw new Error("billing.iron_payment_unverified");
     }
 
+    // The mapping was registered by FM billing authority and is immutable for
+    // this commercial plan code. An invoice predating the binding cannot inherit it.
+    const mapping = resolveIronPlanMapping(source.config, proof.planCode);
+    const issuedAt = new Date(proof.invoiceCreatedAt);
+    const mappedAt = new Date(mapping.effectiveFrom);
+    if (Number.isNaN(issuedAt.getTime()) || issuedAt.getTime() < mappedAt.getTime()) {
+      throw new Error("billing.iron_mapping_not_effective_for_invoice");
+    }
+
     // IRON uses UUID gym identifiers, not a free-form customer name.
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(proof.externalTenantId)) {
       throw new Error("billing.iron_tenant_binding_invalid");
@@ -103,7 +116,8 @@ export class IronPaidLicenseReconciliationService {
     const current = matching[0];
     // A purchased Command plan cannot silently unlock a different IRON plan.
     // Future commercial-to-IRON plan mappings must be explicit and versioned.
-    if (current.plan_code !== proof.planCode) {
+    if (current.plan_code !== mapping.ironPlanCode ||
+        current.plan_version !== mapping.ironPlanVersion) {
       throw new Error("billing.iron_plan_mapping_unavailable");
     }
     if (current.status !== "ACTIVE" && current.status !== "SUSPENDED") {
@@ -129,6 +143,9 @@ export class IronPaidLicenseReconciliationService {
       productId, invoiceId: proof.invoiceId,
       gymId: proof.externalTenantId,
       ironSubscriptionId: current.external_id,
+      mappingRevision: mapping.revision,
+      ironPlanCode: mapping.ironPlanCode,
+      ironPlanVersion: mapping.ironPlanVersion,
       result: response,
     };
   }
