@@ -59,7 +59,7 @@ export function readIronPlanMappings(config: Record<string, unknown>): readonly 
         !Number.isSafeInteger(ironPlanVersion) || ironPlanVersion < 1 ||
         mapping.commercialPlanCode !== commercialPlanCode ||
         mapping.ironPlanCode !== ironPlanCode ||
-        typeof effectiveFrom !== "string" || !/^\\d{4}-\\d{2}-\\d{2}T/.test(effectiveFrom) ||
+        typeof effectiveFrom !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(effectiveFrom) ||
         Number.isNaN(new Date(effectiveFrom).getTime()) ||
         seen.has(commercialPlanCode)) {
       throw new IronPlanMappingError("billing.iron_plan_mapping_invalid");
