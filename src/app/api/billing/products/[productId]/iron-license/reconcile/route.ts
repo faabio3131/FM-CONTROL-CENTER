@@ -71,6 +71,9 @@ export async function POST(
         productId,
         externalTenantId: result.gymId,
         ironSubscriptionId: result.ironSubscriptionId,
+        mappingRevision: result.mappingRevision,
+        ironPlanCode: result.ironPlanCode,
+        ironPlanVersion: result.ironPlanVersion,
       },
     });
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });

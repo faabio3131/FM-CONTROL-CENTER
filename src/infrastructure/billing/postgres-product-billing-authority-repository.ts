@@ -17,7 +17,8 @@ import {
   billingProductRoutes,
   billingSubscriptions,
 } from "@/infrastructure/db/billing-schema";
-import { productDefinitions } from "@/infrastructure/db/platform-schema";
+import { productDefinitions, sourceDefinitions } from "@/infrastructure/db/platform-schema";
+import { resolveIronPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 
 function asInterval(value: string): "monthly" | "yearly" {
   if (value === "monthly" || value === "yearly") return value;
@@ -179,6 +180,16 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         input.externalTenantId,
       ].join(":");
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${subscriptionLockScope}, 0))`);
+      // Serializes invoice issuance with immutable mapping registration.
+      // A mapping registered after invoice issuance never authorizes the older invoice.
+      const planMappingLockScope = [
+        "fmcc.billing.plan-map.v1",
+        input.tenantId,
+        input.productId,
+        input.planCode,
+      ].join(":");
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${planMappingLockScope}, 0))`);
+
 
       const [replay] = await tx.select({
         payloadHash: billingCommandRequests.payloadHash,
@@ -241,7 +252,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         };
       }
 
-      const [product] = await tx.select({ id: productDefinitions.id }).from(productDefinitions).where(and(
+      const [product] = await tx.select({ id: productDefinitions.id, slug: productDefinitions.slug }).from(productDefinitions).where(and(
         eq(productDefinitions.tenantId, input.tenantId),
         eq(productDefinitions.id, input.productId),
         eq(productDefinitions.status, "active"),
@@ -255,6 +266,27 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         eq(billingProductPlans.status, "active"),
       )).limit(1);
       if (!plan) throw new Error("billing.plan_not_found");
+
+      if (product.slug === "iron-fit-core") {
+        // Fail closed BEFORE issuing an IRON invoice if no approved immutable
+        // commercial→entitlement version mapping exists for its plan.
+        const sources = await tx.select({
+          config: sourceDefinitions.config,
+          name: sourceDefinitions.name,
+          type: sourceDefinitions.sourceType,
+          domain: sourceDefinitions.authoritativeDomain,
+        }).from(sourceDefinitions).where(and(
+          eq(sourceDefinitions.tenantId, input.tenantId),
+          eq(sourceDefinitions.productId, input.productId),
+          eq(sourceDefinitions.sourceType, "iron-commercial-v1"),
+        ));
+        if (sources.length !== 1 || sources[0].name !== "IRON FIT CORE Commercial" ||
+            sources[0].domain !== "commercial") {
+          throw new Error("billing.iron_plan_mapping_source_missing");
+        }
+        resolveIronPlanMapping(sources[0].config, plan.planCode);
+      }
+
 
       const [route] = await tx.select({
         gatewayAccountId: billingProductRoutes.gatewayAccountId,

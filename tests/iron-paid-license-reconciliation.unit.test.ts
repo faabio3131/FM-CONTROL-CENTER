@@ -27,12 +27,25 @@ const source: SourceDefinition = {
   status: "configured",
   syncMode: "pull",
   secretRef: "env:FMCC_IRON_CONTROL_PLANE_TOKEN",
-  config: { baseUrl: "https://iron.example.test" },
+  config: {
+    baseUrl: "https://iron.example.test",
+    ironCommercialPlanMappings: {
+      schemaVersion: "iron.commercial-plan-mappings.v1",
+      mappings: [{
+        revision: 1,
+        commercialPlanCode: "IRON_V1_MONTHLY",
+        ironPlanCode: "IRON_V1_MONTHLY",
+        ironPlanVersion: 1,
+        effectiveFrom: "2026-01-01T00:00:00.000Z",
+      }],
+    },
+  },
   freshnessSeconds: 300,
   mappingVersion: "iron-commercial-v1",
 };
 const payment: VerifiedIronPayment = {
   tenantId: context.tenantId, productId, invoiceId,
+  invoiceCreatedAt: "2026-10-12T12:00:00.000Z",
   externalTenantId: gymId, planCode: "IRON_V1_MONTHLY",
   amountMinor: 26900, paymentId: "pay-proven",
   invoiceStatus: "paid", paymentStatus: "received",
@@ -48,7 +61,7 @@ function setup(override: Partial<VerifiedIronPayment> = {}, rows?: unknown[]) {
       coverage: { subscription_projection: "IRON_CANONICAL" },
       subscriptions: rows ?? [{
         tenant_id: gymId, external_id: ironSubscriptionId, status: "ACTIVE",
-        plan_code: "IRON_V1_MONTHLY", effective_until: null,
+        plan_code: "IRON_V1_MONTHLY", plan_version: 1, effective_until: null,
       }],
     })),
     subscriptionCommand: vi.fn(async () => ({ idempotent: false, result: { entitlementStatus: "ACTIVE" } })),
@@ -101,20 +114,20 @@ describe("D11 IRON production payment to license gate", () => {
     expect(a.connector.subscriptionCommand).not.toHaveBeenCalled();
 
     const wrongPlan = setup({}, [{
-      tenant_id: gymId, external_id: ironSubscriptionId, status: "ACTIVE", plan_code: "OTHER",
+      tenant_id: gymId, external_id: ironSubscriptionId, status: "ACTIVE", plan_code: "OTHER", plan_version: 1,
     }]);
     await expect(wrongPlan.service.reconcile(context, source, productId, invoiceId))
       .rejects.toThrow("billing.iron_plan_mapping_unavailable");
     expect(wrongPlan.connector.subscriptionCommand).not.toHaveBeenCalled();
 
     const duplicate = setup({}, Array.from({ length: 2 }, (_, i) => ({
-      tenant_id: gymId, external_id: ironSubscriptionId + i, status: "ACTIVE", plan_code: "IRON_V1_MONTHLY",
+      tenant_id: gymId, external_id: ironSubscriptionId + i, status: "ACTIVE", plan_code: "IRON_V1_MONTHLY", plan_version: 1,
     })));
     await expect(duplicate.service.reconcile(context, source, productId, invoiceId))
       .rejects.toThrow("billing.iron_subscription_binding_ambiguous");
 
     const canceled = setup({}, [{
-      tenant_id: gymId, external_id: ironSubscriptionId, status: "CANCELED", plan_code: "IRON_V1_MONTHLY",
+      tenant_id: gymId, external_id: ironSubscriptionId, status: "CANCELED", plan_code: "IRON_V1_MONTHLY", plan_version: 1,
     }]);
     await expect(canceled.service.reconcile(context, source, productId, invoiceId)).rejects.toThrow();
   });
@@ -122,7 +135,7 @@ describe("D11 IRON production payment to license gate", () => {
   it("denies expired subscription or unauthorized Command viewer", async () => {
     const expired = setup({}, [{
       tenant_id: gymId, external_id: ironSubscriptionId, status: "ACTIVE",
-      plan_code: "IRON_V1_MONTHLY", effective_until: "2020-01-01T00:00:00.000Z",
+      plan_code: "IRON_V1_MONTHLY", plan_version: 1, effective_until: "2020-01-01T00:00:00.000Z",
     }]);
     await expect(expired.service.reconcile(context, source, productId, invoiceId))
       .rejects.toThrow("billing.iron_subscription_expired");
@@ -130,6 +143,29 @@ describe("D11 IRON production payment to license gate", () => {
     await expect(viewer.service.reconcile({ ...context, role: "viewer" }, source, productId, invoiceId))
       .rejects.toThrow("security.permission_denied:billing:write");
     expect(viewer.connector.subscriptionCommand).not.toHaveBeenCalled();
+  });
+
+  it("blocks an invoice predating its immutable plan mapping", async () => {
+    const { connector, service } = setup({ invoiceCreatedAt: "2025-01-01T00:00:00.000Z" });
+    await expect(service.reconcile(context, source, productId, invoiceId))
+      .rejects.toThrow("billing.iron_mapping_not_effective_for_invoice");
+    expect(connector.subscriptionCommand).not.toHaveBeenCalled();
+  });
+
+  it("blocks missing mapping or a mismatched canonical IRON version", async () => {
+    const noMappingSource = { ...source, config: { baseUrl: "https://iron.example.test" } };
+    const missing = setup();
+    await expect(missing.service.reconcile(context, noMappingSource, productId, invoiceId))
+      .rejects.toThrow("billing.iron_plan_mapping_unavailable");
+    expect(missing.connector.subscriptionCommand).not.toHaveBeenCalled();
+
+    const wrongVersion = setup({}, [{
+      tenant_id: gymId, external_id: ironSubscriptionId, status: "ACTIVE",
+      plan_code: "IRON_V1_MONTHLY", plan_version: 2,
+    }]);
+    await expect(wrongVersion.service.reconcile(context, source, productId, invoiceId))
+      .rejects.toThrow("billing.iron_plan_mapping_unavailable");
+    expect(wrongVersion.connector.subscriptionCommand).not.toHaveBeenCalled();
   });
 
   it("never trusts browser amount or webhook: route requires step-up and explicit disabled-by-default flag", async () => {
