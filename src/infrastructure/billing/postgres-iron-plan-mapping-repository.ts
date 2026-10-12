@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { billingProductPlans } from "@/infrastructure/db/billing-schema";
 import { productDefinitions, sourceDefinitions } from "@/infrastructure/db/platform-schema";
@@ -30,6 +30,10 @@ export class PostgresIronPlanMappingRepository {
     input: { commercialPlanCode: string; ironPlanCode: string; ironPlanVersion: number },
   ): Promise<{ mapping: IronVersionedPlanMapping; created: boolean }> {
     return db.transaction(async (tx) => {
+      // Order mapping registration against invoice preparation for the same plan.
+      const scope = ["fmcc.billing.plan-map.v1", tenantId, productId,
+        input.commercialPlanCode.trim().toUpperCase()].join(":");
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))`);
       const [source] = await tx.select({
         id: sourceDefinitions.id, config: sourceDefinitions.config,
         name: sourceDefinitions.name, sourceType: sourceDefinitions.sourceType,
