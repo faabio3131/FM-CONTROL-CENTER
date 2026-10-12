@@ -51,6 +51,25 @@ try {
   const competitor = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await competitor.connect();
   try {
+    // Verify physical multi-connection serialization for a single SaaS tenant.
+    // The repository acquires this exact transaction-scoped lock before checking
+    // its idempotency ledger and existing live subscription.
+    const lockScope = "fmcc.billing.subscription.v1:ci-tenant:" + product.rows[0].id + ":ci-gym";
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [lockScope]);
+    await competitor.query("BEGIN");
+    await competitor.query("SET LOCAL lock_timeout = '300ms'");
+    let competingPreparationBlocked = false;
+    try {
+      await competitor.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [lockScope]);
+    } catch (error) {
+      competingPreparationBlocked = error?.code === "55P03";
+    } finally {
+      await competitor.query("ROLLBACK");
+      await client.query("ROLLBACK");
+    }
+    assert.equal(competingPreparationBlocked, true, "Concurrent SaaS subscription preparation did not serialize");
+
     const claim = "UPDATE fmcc_billing_invoice SET status='creating' WHERE tenant_id=$1 AND id=$2 AND status='pending' RETURNING id";
     const attempts = await Promise.all([client.query(claim,['ci-tenant',invoice.rows[0].id]),competitor.query(claim,['ci-tenant',invoice.rows[0].id])]);
     assert.deepEqual(attempts.map(r=>r.rowCount).sort(),[0,1],"Concurrent invoice claim allowed duplicate creation");
