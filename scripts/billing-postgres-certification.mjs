@@ -6,11 +6,23 @@ try {
   const version = await client.query("SHOW server_version");
   assert.match(version.rows[0].server_version, /^18\./);
   const tables = await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fmcc_billing_%' ORDER BY tablename");
-  assert.equal(tables.rowCount, 7, "Expected all seven Billing tables");
+  assert.equal(tables.rowCount, 11, "Expected all eleven Billing tables");
   const migrations = await client.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations");
-  assert.equal(migrations.rows[0].n, 6, "Expected migrations 0000-0005");
+  assert.equal(migrations.rows[0].n, 7, "Expected migrations 0000-0006");
   const idx = await client.query("SELECT indexname FROM pg_indexes WHERE tablename='fmcc_billing_provider_payment' AND indexname='fmcc_billing_provider_invoice_uq'");
   assert.equal(idx.rowCount, 1, "Missing one-payment-per-invoice index");
+  for (const [tableName,indexName] of [
+    ["fmcc_billing_product_plan","fmcc_billing_plan_scope_code_uq"],
+    ["fmcc_billing_customer_binding","fmcc_billing_customer_binding_external_uq"],
+    ["fmcc_billing_product_route","fmcc_billing_product_route_product_uq"],
+    ["fmcc_billing_command_request","fmcc_billing_command_idempotency_uq"],
+  ]) {
+    const result = await client.query(
+      "SELECT indexname FROM pg_indexes WHERE tablename=$1 AND indexname=$2",
+      [tableName,indexName],
+    );
+    assert.equal(result.rowCount,1,"Missing central billing authority index "+indexName);
+  }
   // Verify that a real PostgreSQL transaction rolls back on failure.
   await client.query("BEGIN");
   await client.query("INSERT INTO fmcc_billing_customer (tenant_id, external_customer_id) VALUES ($1,$2)", ["homologation", "ci-rollback-probe"]);
@@ -59,7 +71,7 @@ try {
     await client.query("DELETE FROM fmcc_billing_customer WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_product_definition WHERE tenant_id='ci-tenant'");
   }
-  console.log("PASS PostgreSQL 18: migrations 0000-0005, 7 billing tables, uniqueness and transactional rollback");
+  console.log("PASS PostgreSQL 18: migrations 0000-0006, 11 billing tables, product-scoped authority, uniqueness and transactional rollback");
 } finally {
   await client.end();
 }
