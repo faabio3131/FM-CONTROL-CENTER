@@ -179,6 +179,16 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         input.externalTenantId,
       ].join(":");
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${subscriptionLockScope}, 0))`);
+      // Serializes invoice issuance with immutable mapping registration.
+      // A mapping registered after invoice issuance never authorizes the older invoice.
+      const planMappingLockScope = [
+        "fmcc.billing.plan-map.v1",
+        input.tenantId,
+        input.productId,
+        input.planCode,
+      ].join(":");
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${planMappingLockScope}, 0))`);
+
 
       const [replay] = await tx.select({
         payloadHash: billingCommandRequests.payloadHash,
