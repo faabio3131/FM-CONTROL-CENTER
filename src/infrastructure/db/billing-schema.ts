@@ -30,6 +30,56 @@ export const billingCustomers = pgTable("fmcc_billing_customer", {
   uniqueIndex("fmcc_billing_customer_external_uq").on(t.tenantId, t.externalCustomerId),
 ]);
 
+export const billingProductPlans = pgTable("fmcc_billing_product_plan", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  planCode: text("plan_code").notNull(),
+  name: text("name").notNull(),
+  interval: text("interval").notNull(),
+  amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+  currency: text("currency").notNull().default("BRL"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("fmcc_billing_plan_scope_code_uq").on(t.tenantId, t.productId, t.planCode),
+  foreignKey({ name: "fmcc_billing_plan_product_fk", columns: [t.tenantId,t.productId], foreignColumns: [productDefinitions.tenantId,productDefinitions.id] }),
+  check("fmcc_billing_plan_interval_ck", sql`${t.interval} in ('monthly','yearly')`),
+  check("fmcc_billing_plan_amount_ck", sql`${t.amountMinor} > 0`),
+  check("fmcc_billing_plan_currency_ck", sql`${t.currency} = 'BRL'`),
+  check("fmcc_billing_plan_status_ck", sql`${t.status} in ('active','inactive')`),
+]);
+
+export const billingCustomerBindings = pgTable("fmcc_billing_customer_binding", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  customerId: uuid("customer_id").notNull(),
+  externalTenantId: text("external_tenant_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("fmcc_billing_customer_binding_external_uq").on(t.tenantId,t.productId,t.externalTenantId),
+  uniqueIndex("fmcc_billing_customer_binding_customer_uq").on(t.tenantId,t.productId,t.customerId),
+  foreignKey({ name: "fmcc_billing_customer_binding_product_fk", columns: [t.tenantId,t.productId], foreignColumns: [productDefinitions.tenantId,productDefinitions.id] }),
+  foreignKey({ name: "fmcc_billing_customer_binding_customer_fk", columns: [t.tenantId,t.customerId], foreignColumns: [billingCustomers.tenantId,billingCustomers.id] }),
+]);
+
+export const billingProductRoutes = pgTable("fmcc_billing_product_route", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  gatewayAccountId: uuid("gateway_account_id").notNull(),
+  status: text("status").notNull().default("disabled"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("fmcc_billing_product_route_product_uq").on(t.tenantId,t.productId),
+  foreignKey({ name: "fmcc_billing_product_route_product_fk", columns: [t.tenantId,t.productId], foreignColumns: [productDefinitions.tenantId,productDefinitions.id] }),
+  foreignKey({ name: "fmcc_billing_product_route_gateway_fk", columns: [t.tenantId,t.gatewayAccountId], foreignColumns: [billingGatewayAccounts.tenantId,billingGatewayAccounts.id] }),
+  check("fmcc_billing_product_route_status_ck", sql`${t.status} in ('disabled','enabled')`),
+]);
+
 export const billingSubscriptions = pgTable("fmcc_billing_subscription", {
   id: uuid("id").defaultRandom().primaryKey(),
   tenantId: text("tenant_id").notNull(),
@@ -63,6 +113,22 @@ export const billingInvoices = pgTable("fmcc_billing_invoice", {
   check("fmcc_billing_invoice_amount_ck", sql`${t.amountMinor} > 0`),
   check("fmcc_billing_invoice_currency_ck", sql`${t.currency} = 'BRL'`),
   index("fmcc_billing_invoice_product_customer_idx").on(t.tenantId,t.productId,t.customerId),
+]);
+
+export const billingCommandRequests = pgTable("fmcc_billing_command_request", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  action: text("action").notNull(),
+  payloadHash: text("payload_hash").notNull(),
+  resultInvoiceId: uuid("result_invoice_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("fmcc_billing_command_idempotency_uq").on(t.tenantId,t.idempotencyKey),
+  foreignKey({ name: "fmcc_billing_command_product_fk", columns: [t.tenantId,t.productId], foreignColumns: [productDefinitions.tenantId,productDefinitions.id] }),
+  foreignKey({ name: "fmcc_billing_command_invoice_fk", columns: [t.tenantId,t.resultInvoiceId], foreignColumns: [billingInvoices.tenantId,billingInvoices.id] }),
+  check("fmcc_billing_command_action_ck", sql`${t.action} in ('prepare_subscription_invoice')`),
 ]);
 
 export const billingProviderPayments = pgTable("fmcc_billing_provider_payment", {
