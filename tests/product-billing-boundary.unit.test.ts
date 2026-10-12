@@ -34,4 +34,19 @@ describe("generic central billing product boundary", () => {
     expect(route).toContain('owner');
     expect(route).toContain('admin');
   });
+  it("serializes competing preparations for one external tenant before replay and live-subscription checks", async () => {
+    const repository = await readFile("src/infrastructure/billing/postgres-product-billing-authority-repository.ts", "utf8");
+    const preparation = repository.slice(repository.indexOf("async prepareSubscriptionInvoice("));
+    const lock = preparation.indexOf("pg_advisory_xact_lock(hashtextextended");
+    const replay = preparation.indexOf("const [replay]");
+    const live = preparation.indexOf("const [live]");
+    expect(lock).toBeGreaterThan(-1);
+    expect(lock).toBeLessThan(replay);
+    expect(replay).toBeLessThan(live);
+    expect(preparation).toContain("input.tenantId,");
+    expect(preparation).toContain("input.productId,");
+    expect(preparation).toContain("input.externalTenantId,");
+    expect(preparation).toContain("fmcc.billing.subscription.v1");
+  });
+
 });
