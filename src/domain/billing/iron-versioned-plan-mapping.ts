@@ -15,6 +15,7 @@ export interface IronVersionedPlanMapping {
   readonly commercialPlanCode: string;
   readonly ironPlanCode: string;
   readonly ironPlanVersion: number;
+  readonly effectiveFrom: string;
 }
 
 const PLAN_CODE = /^[A-Z0-9][A-Z0-9._-]{1,63}$/;
@@ -52,16 +53,19 @@ export function readIronPlanMappings(config: Record<string, unknown>): readonly 
     const ironPlanCode = canonicalCode(mapping.ironPlanCode);
     const revision = mapping.revision;
     const ironPlanVersion = mapping.ironPlanVersion;
+    const effectiveFrom = mapping.effectiveFrom;
     if (typeof revision !== "number" || !Number.isSafeInteger(revision) ||
         revision !== index + 1 || typeof ironPlanVersion !== "number" ||
         !Number.isSafeInteger(ironPlanVersion) || ironPlanVersion < 1 ||
         mapping.commercialPlanCode !== commercialPlanCode ||
         mapping.ironPlanCode !== ironPlanCode ||
+        typeof effectiveFrom !== "string" || !/^\\d{4}-\\d{2}-\\d{2}T/.test(effectiveFrom) ||
+        Number.isNaN(new Date(effectiveFrom).getTime()) ||
         seen.has(commercialPlanCode)) {
       throw new IronPlanMappingError("billing.iron_plan_mapping_invalid");
     }
     seen.add(commercialPlanCode);
-    return { revision, commercialPlanCode, ironPlanCode, ironPlanVersion };
+    return { revision, commercialPlanCode, ironPlanCode, ironPlanVersion, effectiveFrom };
   });
 }
 
@@ -97,6 +101,7 @@ export function appendIronPlanMapping(
   const mapping = {
     revision: existing.length + 1,
     commercialPlanCode, ironPlanCode, ironPlanVersion: input.ironPlanVersion,
+    effectiveFrom: new Date().toISOString(),
   };
   return {
     config: { ...config, ironCommercialPlanMappings: {
