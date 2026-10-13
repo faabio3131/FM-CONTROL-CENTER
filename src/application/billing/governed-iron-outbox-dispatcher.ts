@@ -9,7 +9,6 @@ import {
 } from "@/infrastructure/integration/iron-commercial-connector";
 import type {
   PostgresIronEntitlementOutbox,
-  IronOutboxItem,
   IronLicenseEvent,
 } from "@/infrastructure/billing/postgres-iron-entitlement-outbox";
 
