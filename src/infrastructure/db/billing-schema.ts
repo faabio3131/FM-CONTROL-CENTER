@@ -1,4 +1,4 @@
-import { bigint, check, foreignKey, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, check, foreignKey, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { productDefinitions } from "./platform-schema";
 
@@ -167,3 +167,36 @@ export const billingAuditEvents = pgTable("fmcc_billing_audit_event", {
   correlationId: text("correlation_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [index("fmcc_billing_audit_scope_idx").on(t.tenantId,t.createdAt)]);
+
+/**
+ * Transactional FM-owned delivery ledger for IRON license transitions.
+ * Only canonical payment/contract state may enqueue an event. It is not a
+ * provider webhook inbox and not the source of entitlement authority.
+ */
+export const billingIronEntitlementOutbox = pgTable("fmcc_billing_iron_entitlement_outbox", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  invoiceId: uuid("invoice_id").notNull(),
+  subscriptionId: uuid("subscription_id").notNull(),
+  eventType: text("event_type").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  claimToken: uuid("claim_token"),
+  lastErrorCode: text("last_error_code"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+}, t => [
+  uniqueIndex("fmcc_iron_outbox_dedupe_uq").on(t.tenantId, t.productId, t.idempotencyKey),
+  index("fmcc_iron_outbox_ready_idx").on(t.status, t.availableAt),
+  index("fmcc_iron_outbox_subscription_idx").on(t.tenantId, t.productId, t.subscriptionId),
+  foreignKey({ name: "fmcc_iron_outbox_invoice_fk", columns: [t.tenantId, t.invoiceId], foreignColumns: [billingInvoices.tenantId, billingInvoices.id] }),
+  foreignKey({ name: "fmcc_iron_outbox_product_fk", columns: [t.tenantId, t.productId], foreignColumns: [productDefinitions.tenantId, productDefinitions.id] }),
+  check("fmcc_iron_outbox_event_ck", sql`${t.eventType} in ('LICENSE_ACTIVATE','LICENSE_SUSPEND','LICENSE_CANCEL')`),
+  check("fmcc_iron_outbox_status_ck", sql`${t.status} in ('pending','processing','retry','delivered','blocked')`),
+  check("fmcc_iron_outbox_attempts_ck", sql`${t.attempts} >= 0 and ${t.attempts} <= 12`),
+]);
