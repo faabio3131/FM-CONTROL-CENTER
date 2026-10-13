@@ -7,7 +7,7 @@ export interface VerifiedAsaasPayment {
   readonly customer: string;
   readonly externalReference: string;
   readonly valueMinor: number;
-  readonly billingType: "PIX" | "BOLETO" | "CREDIT_CARD";
+  readonly billingType: "PIX" | "BOLETO" | "CREDIT_CARD" | "UNDEFINED";
   readonly status: VerifiedAsaasPaymentState;
 }
 
@@ -79,7 +79,7 @@ export class AsaasIronPaymentReadOnlyClient {
         p.externalReference !== reference ||
         typeof p.value !== "number" || !Number.isFinite(p.value) ||
         Math.abs(p.value * 100 - input.amountMinor) > 0.001 ||
-        !["PIX", "BOLETO", "CREDIT_CARD"].includes(String(p.billingType))) {
+        !["PIX", "BOLETO", "CREDIT_CARD", "UNDEFINED"].includes(String(p.billingType))) {
       throw new AsaasIronPaymentVerificationError("billing.iron_asaas_payment_mismatch");
     }
     // RECEIVED is available funds; CONFIRMED is deliberately not accepted.

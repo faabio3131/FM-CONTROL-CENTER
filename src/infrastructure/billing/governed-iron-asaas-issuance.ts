@@ -11,6 +11,19 @@ export class GovernedIronAsaasIssuance {
 
   private async recoverByRead(claim: IronIssueClaim) {
     if (claim.status === "issued") {
+      // Read-only refresh of the Asaas-hosted invoice link. A known issuance
+      // must never cause another provider POST even if the GET is unavailable.
+      try {
+        const payment = await this.provider.findUnique({
+          invoiceId: claim.invoiceId, customerId: claim.customerId, amountMinor: claim.amountMinor,
+        });
+        if (payment?.id === claim.paymentId) {
+          return {
+            status: "issued" as const, paymentId: payment.id, recovered: false,
+            ...(payment.invoiceUrl ? { invoiceUrl: payment.invoiceUrl } : {}),
+          };
+        }
+      } catch { /* existing persisted issuance remains authoritative */ }
       return { status: "issued" as const, paymentId: claim.paymentId, recovered: false };
     }
     // Never retry POST for a reservation, even if it was originally aborted
@@ -24,7 +37,8 @@ export class GovernedIronAsaasIssuance {
         return { status: "manual_review_required" as const };
       }
       await this.repo.persistPayment(claim,payment);
-      return { status:"issued" as const,paymentId:payment.id,recovered:true };
+      return { status:"issued" as const,paymentId:payment.id,recovered:true,
+        ...(payment.invoiceUrl ? {invoiceUrl:payment.invoiceUrl} : {}) };
     } catch {
       await this.repo.markUncertain(claim,"RECOVERY_UNVERIFIED");
       return { status: "manual_review_required" as const };
@@ -69,7 +83,8 @@ export class GovernedIronAsaasIssuance {
     if (existing) {
       try {await this.repo.persistPayment(claim,existing);}
       catch {await this.repo.markUncertain(claim,"PERSISTENCE_UNCERTAIN");return {status:"manual_review_required" as const};}
-      return {status:"issued" as const,paymentId:existing.id,recovered:true};
+      return {status:"issued" as const,paymentId:existing.id,recovered:true,
+        ...(existing.invoiceUrl ? {invoiceUrl:existing.invoiceUrl} : {})};
     }
 
     try {
@@ -78,7 +93,8 @@ export class GovernedIronAsaasIssuance {
         amountMinor:claim.amountMinor,dueDate:input.dueDate,
       });
       await this.repo.persistPayment(claim,payment);
-      return {status:"issued" as const,paymentId:payment.id,recovered:false};
+      return {status:"issued" as const,paymentId:payment.id,recovered:false,
+        ...(payment.invoiceUrl ? {invoiceUrl:payment.invoiceUrl} : {})};
     } catch {
       await this.repo.markUncertain(claim,"POST_OR_PERSISTENCE_UNCERTAIN");
       return {status:"manual_review_required" as const};

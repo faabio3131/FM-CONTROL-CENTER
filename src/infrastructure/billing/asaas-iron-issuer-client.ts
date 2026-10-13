@@ -6,7 +6,7 @@ export interface IssuedIronPayment {
   customer: string;
   externalReference: string;
   value: number;
-  billingType: "PIX";
+  billingType: "PIX" | "BOLETO" | "CREDIT_CARD" | "UNDEFINED";
   status: string;
   invoiceUrl?: string;
 }
@@ -49,6 +49,17 @@ export class AsaasIronIssuerClient {
     }
   }
 
+  /** A payment link is untrusted provider data; never reflect an arbitrary URL. */
+  private trustedHostedInvoiceUrl(input: unknown): boolean {
+    if (typeof input !== "string") return false;
+    try {
+      const u = new URL(input);
+      return u.protocol === "https:" &&
+        (u.hostname === "www.asaas.com" || u.hostname === "asaas.com") &&
+        !u.username && !u.password && !u.port;
+    } catch { return false; }
+  }
+
   validatePayment(raw: unknown, input: {
     invoiceId: string; customerId: string; amountMinor: number;
   }): IssuedIronPayment {
@@ -59,16 +70,17 @@ export class AsaasIronIssuerClient {
     const reference = ironAsaasInvoiceReference(input.invoiceId);
     if (typeof p.id !== "string" || !/^pay_[A-Za-z0-9_-]{1,128}$/.test(p.id) ||
         p.customer !== input.customerId || p.externalReference !== reference ||
-        p.billingType !== "PIX" || typeof p.value !== "number" ||
+        !["PIX", "BOLETO", "CREDIT_CARD", "UNDEFINED"].includes(String(p.billingType)) ||
+        typeof p.value !== "number" ||
         !Number.isFinite(p.value) || Math.abs(p.value * 100 - input.amountMinor) > 0.001 ||
         typeof p.status !== "string") {
       throw new AsaasIronIssueError("billing.iron_asaas_payment_binding_mismatch");
     }
     return {
       id: p.id, customer: input.customerId, externalReference: reference,
-      value: p.value, billingType: "PIX", status: p.status,
-      ...(typeof p.invoiceUrl === "string" && p.invoiceUrl.startsWith("https://") ?
-        { invoiceUrl: p.invoiceUrl } : {}),
+      value: p.value, billingType: p.billingType as IssuedIronPayment["billingType"], status: p.status,
+      ...(this.trustedHostedInvoiceUrl(p.invoiceUrl) ?
+        { invoiceUrl: p.invoiceUrl as string } : {}),
     };
   }
 
@@ -98,7 +110,9 @@ export class AsaasIronIssuerClient {
       throw new AsaasIronIssueError("billing.iron_asaas_due_date_or_amount_invalid");
     }
     const payment = await this.request("POST", "/payments", {
-      customer: input.customerId, billingType: "PIX",
+      // Hosted Asaas invoice lets the payer select PIX, CREDIT_CARD or BOLETO
+      // when enabled on the provider account. No PAN/CVV enters FM Command.
+      customer: input.customerId, billingType: "UNDEFINED",
       value: input.amountMinor / 100, dueDate: input.dueDate,
       description: "IRON FIT CORE - Licenca SaaS FM Tecnologia",
       externalReference: ironAsaasInvoiceReference(input.invoiceId),
