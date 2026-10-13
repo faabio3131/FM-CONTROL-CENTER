@@ -76,7 +76,7 @@ function setup(overrides: {
       onboarding: [], billing_transactions: [], summary: {}, facts: [],
       coverage: { subscription_projection: "IRON_CANONICAL" },
     })),
-    subscriptionCommand: vi.fn(async (_ctx, _source, command: { entitlementStatus: string }) => {
+    subscriptionCommand: vi.fn(async (_ctx: unknown, _source: unknown, command: { entitlementStatus: string }) => {
       if (overrides.providerFailure) throw new Error("network unavailable");
       return { idempotent: false, result: {
         tenantId: overrides.responseGymId ?? gymId, subscriptionId,
