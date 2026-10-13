@@ -88,7 +88,9 @@ export async function POST(
       action: "billing.iron_outbox." + action,
       resourceType: "billing_product",
       resourceId: productId,
-      result: "success",
+      result: action === "process_one" && result && typeof result === "object" &&
+        "status" in result && (result.status === "blocked" || result.status === "retry" || result.status === "lease_lost")
+        ? "failure" : "success",
       metadata: { operation: action },
     });
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
