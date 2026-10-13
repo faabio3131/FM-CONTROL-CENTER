@@ -291,7 +291,7 @@ export function PlatformIntegrationsControlPanel({
               disabled={!canWrite}
               style={{ minWidth: 44, height: 40, borderRadius: 8, border: "1px solid var(--border, #314366)", background: "transparent", color: "inherit", cursor: "pointer" }}
             >
-              {showPassword ? "Ocultar" : "Olho"}
+              <span aria-hidden="true" style={{ fontSize: 18 }}>{showPassword ? "◉" : "👁"}</span>
             </button>
           </div>
           <small style={{ display: "block", marginTop: 5 }}>
