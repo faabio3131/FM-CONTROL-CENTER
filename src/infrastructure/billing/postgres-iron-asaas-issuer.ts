@@ -15,6 +15,21 @@ export interface IronIssueClaim {
 export class PostgresIronAsaasIssuer {
   constructor(private readonly pool: Pick<Pool, "connect">) {}
 
+  async gymBinding(tenantId: string, productId: string, invoiceId: string): Promise<string | null> {
+    const client=await this.pool.connect();
+    try {
+      const result=await client.query<{external_tenant_id:string}>(`
+        SELECT b.external_tenant_id FROM fmcc_billing_invoice i
+        JOIN fmcc_billing_customer_binding b ON b.tenant_id=i.tenant_id
+          AND b.product_id=i.product_id AND b.customer_id=i.customer_id
+        JOIN fmcc_product_definition product ON product.tenant_id=i.tenant_id AND product.id=i.product_id
+        WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.id=$3
+          AND product.slug='iron-fit-core' AND product.status='active'
+      `,[tenantId,productId,invoiceId]);
+      return result.rowCount===1 ? result.rows[0].external_tenant_id : null;
+    } finally {client.release();}
+  }
+
   async reserve(input: {
     tenantId: string; productId: string; invoiceId: string; customerId: string;
   }): Promise<IronIssueClaim> {
@@ -57,7 +72,7 @@ export class PostgresIronAsaasIssuer {
           !Number.isSafeInteger(amountMinor) || amountMinor <= 0 ||
           row.provider_payment_id || !["pending","payment_pending"].includes(row.invoice_status) ||
           row.subscription_status !== "pending" ||
-          !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(row.external_tenant_id)) {
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.external_tenant_id)) {
         throw new Error("billing.iron_issuer_canonical_state_denied");
       }
       const source = await client.query<{ config: Record<string,unknown> }>(`
