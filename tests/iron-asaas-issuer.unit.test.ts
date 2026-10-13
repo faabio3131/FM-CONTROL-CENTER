@@ -67,7 +67,7 @@ describe("D11 single-shot Asaas issuance authority",()=>{
     expect(result).toEqual({status:"issued",paymentId,recovered:false});
     expect(customers.customerById).toHaveBeenCalledWith(customerId);
     expect(repo.reserve).toHaveBeenCalledWith(input);
-    expect(provider.findUnique).toHaveBeenCalledBefore(provider.createOnce);
+    expect(provider.findUnique.mock.invocationCallOrder[0]).toBeLessThan(provider.createOnce.mock.invocationCallOrder[0]);
     expect(provider.createOnce).toHaveBeenCalledTimes(1);
     expect(repo.persistPayment).toHaveBeenCalledWith(expect.objectContaining({invoiceId}),payment);
   });
