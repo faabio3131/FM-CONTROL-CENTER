@@ -3289,7 +3289,7 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": "0"
+          "default": 0
         },
         "available_at": {
           "name": "available_at",
