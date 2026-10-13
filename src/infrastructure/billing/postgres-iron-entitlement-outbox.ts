@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Pool, PoolClient } from "pg";
+import type { Pool } from "pg";
 
 export type IronLicenseEvent = "LICENSE_ACTIVATE" | "LICENSE_SUSPEND" | "LICENSE_CANCEL";
 export type IronOutboxState = "pending" | "processing" | "retry" | "delivered" | "blocked";
