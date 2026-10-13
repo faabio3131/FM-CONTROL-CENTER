@@ -37,6 +37,15 @@ export class GovernedIronAsaasIssuance {
     if (!/^cus_[A-Za-z0-9_-]{1,128}$/.test(input.customerId)) {
       throw new Error("billing.iron_issuer_customer_id_invalid");
     }
+    // Fail before reserving. A malformed date must never poison a legitimate
+    // invoice with a permanent one-shot claim.
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const max = new Date(now.getTime()+60*24*60*60*1000).toISOString().slice(0,10);
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(input.dueDate) ||
+        input.dueDate < today || input.dueDate > max) {
+      throw new Error("billing.iron_issuer_due_date_invalid");
+    }
     const gym = await this.repo.gymBinding(input.tenantId,input.productId,input.invoiceId);
     if (!gym) throw new Error("billing.iron_issuer_gym_binding_missing");
     const customer = await this.customers.customerById(input.customerId);
