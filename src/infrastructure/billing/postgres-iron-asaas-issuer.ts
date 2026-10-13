@@ -70,8 +70,6 @@ export class PostgresIronAsaasIssuer {
           row.gateway_status !== "enabled" || row.route_status !== "enabled" ||
           row.secret_ref !== ASAAS_PRODUCTION_SECRET_REF ||
           !Number.isSafeInteger(amountMinor) || amountMinor <= 0 ||
-          row.provider_payment_id || !["pending","payment_pending"].includes(row.invoice_status) ||
-          row.subscription_status !== "pending" ||
           !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.external_tenant_id)) {
         throw new Error("billing.iron_issuer_canonical_state_denied");
       }
@@ -103,6 +101,10 @@ export class PostgresIronAsaasIssuer {
           reference: ironAsaasInvoiceReference(input.invoiceId),
           created: false, status:prior.rows[0].status,paymentId:prior.rows[0].external_payment_id,
         };
+      }
+      if (row.provider_payment_id || !["pending","payment_pending"].includes(row.invoice_status) ||
+          row.subscription_status !== "pending") {
+        throw new Error("billing.iron_issuer_invoice_already_processed");
       }
       if (row.external_customer_id.startsWith("cus_") && row.external_customer_id !== input.customerId) {
         throw new Error("billing.iron_issuer_customer_binding_conflict");
