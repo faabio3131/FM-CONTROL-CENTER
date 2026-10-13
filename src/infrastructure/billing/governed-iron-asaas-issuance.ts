@@ -42,7 +42,7 @@ export class GovernedIronAsaasIssuance {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     const max = new Date(now.getTime()+60*24*60*60*1000).toISOString().slice(0,10);
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(input.dueDate) ||
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate) ||
         input.dueDate < today || input.dueDate > max) {
       throw new Error("billing.iron_issuer_due_date_invalid");
     }
