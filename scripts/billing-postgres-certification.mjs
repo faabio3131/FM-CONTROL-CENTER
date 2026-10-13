@@ -6,9 +6,9 @@ try {
   const version = await client.query("SHOW server_version");
   assert.match(version.rows[0].server_version, /^18\./);
   const tables = await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fmcc_billing_%' ORDER BY tablename");
-  assert.equal(tables.rowCount, 11, "Expected all eleven Billing tables");
+  assert.equal(tables.rowCount, 12, "Expected twelve Billing tables including IRON outbox");
   const migrations = await client.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations");
-  assert.equal(migrations.rows[0].n, 7, "Expected migrations 0000-0006");
+  assert.equal(migrations.rows[0].n, 8, "Expected migrations 0000-0007");
   const idx = await client.query("SELECT indexname FROM pg_indexes WHERE tablename='fmcc_billing_provider_payment' AND indexname='fmcc_billing_provider_invoice_uq'");
   assert.equal(idx.rowCount, 1, "Missing one-payment-per-invoice index");
   for (const [tableName,indexName] of [
@@ -16,6 +16,7 @@ try {
     ["fmcc_billing_customer_binding","fmcc_billing_customer_binding_external_uq"],
     ["fmcc_billing_product_route","fmcc_billing_product_route_product_uq"],
     ["fmcc_billing_command_request","fmcc_billing_command_idempotency_uq"],
+    ["fmcc_billing_iron_entitlement_outbox","fmcc_iron_outbox_dedupe_uq"],
   ]) {
     const result = await client.query(
       "SELECT indexname FROM pg_indexes WHERE tablename=$1 AND indexname=$2",
@@ -90,7 +91,7 @@ try {
     await client.query("DELETE FROM fmcc_billing_customer WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_product_definition WHERE tenant_id='ci-tenant'");
   }
-  console.log("PASS PostgreSQL 18: migrations 0000-0006, 11 billing tables, product-scoped authority, uniqueness and transactional rollback");
+  console.log("PASS PostgreSQL 18: migrations 0000-0007, 12 billing tables, product-scoped authority, uniqueness and transactional rollback");
 } finally {
   await client.end();
 }
