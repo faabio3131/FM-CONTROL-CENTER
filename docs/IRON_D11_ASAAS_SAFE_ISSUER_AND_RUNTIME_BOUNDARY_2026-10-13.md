@@ -4,7 +4,7 @@ Date: 2026-10-13. Current baseline Command `f865e45b9994c8a564d07b158354bbf3c2a6
 
 ## Scope
 
-Adds generic guarded **IRON** Asaas Pix charge issuance from canonical FM Command invoices, without copying invoice/subscription rules into IRON and without using the old fixed-value Kordena pilot.
+Adds generic guarded **IRON** Asaas hosted charge issuance from canonical FM Command invoices, without copying invoice/subscription rules into IRON and without using the old fixed-value Kordena pilot.
 
 - The Command authoritative plan/invoice amount, academy binding, gateway account, active product route, immutable IRON plan code/version mapping and creation date are read from its PostgreSQL.
 - The Asaas customer MUST already exist with an exact provider-side `externalReference=fmcc-iron-customer-<gymUUID>` and a verified `cus_...` ID. Do not trust a freely chosen customer ID or phone/email/CPF from the browser. Customer enrollment is a separately governed prerequisite and is not assumed complete.
@@ -28,3 +28,14 @@ Per the user-approved architecture, the API that feeds IRON's own business featu
 ## Evidence
 
 Tests and GitHub CI provide evidence only once executed. No payment has been created by this feature during this internal implementation.
+
+
+## Delta: three payment methods on one FM-to-gym invoice
+
+Asaas `POST /v3/payments` with `billingType=UNDEFINED` creates one canonical IRON charge with a hosted `invoiceUrl`, allowing the gym payer to choose **Pix, credit card or boleto**, subject to provider/account enablement. This is **not three separate charges** and does not require the FM Command or IRON backend to receive or persist PAN, CVV or raw credit-card data. A URL is passed through only for allowlisted HTTPS Asaas hosts.
+
+Provider `GET /payments/{id}` remains the payment-state authority; our verifier now explicitly recognizes `UNDEFINED` along with `PIX`, `BOLETO`, `CREDIT_CARD` but only accepts `RECEIVED` for entitlement activation, and `REFUNDED` for governed reversal. `CONFIRMED` alone is insufficient, including card/boleto events. Partial refunds, disputes and chargebacks still require separately governed policy. The previous one-shot reservation, strict invoice/tenant/customer binding, preflight GET and GET-only recovery stay unchanged.
+
+**No automatic credit-card recurring charge, installment contract, provider webhook or operational UI has been certified by this change.** Hosted multi-method selection belongs to the invoice flow; separate automatic monthly renewal and dunning must be designed against the real canonical subscription lifecycle. The production issuer remains default disabled and no provider charge was created during CI.
+
+Official Asaas API: https://docs.asaas.com/reference/criar-nova-cobranca
