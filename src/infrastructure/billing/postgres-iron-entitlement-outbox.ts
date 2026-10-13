@@ -4,6 +4,14 @@ import type { Pool } from "pg";
 export type IronLicenseEvent = "LICENSE_ACTIVATE" | "LICENSE_SUSPEND" | "LICENSE_CANCEL";
 export type IronOutboxState = "pending" | "processing" | "retry" | "delivered" | "blocked";
 
+export interface IronOutboxAuthority {
+  readonly externalTenantId: string;
+  readonly planCode: string;
+  readonly subscriptionStatus: string;
+  readonly invoiceStatus: string;
+  readonly paymentStatus: string | null;
+}
+
 export interface IronOutboxItem {
   id: string;
   tenantId: string;
@@ -65,16 +73,17 @@ export class PostgresIronEntitlementOutbox {
         JOIN fmcc_billing_subscription s ON s.tenant_id=i.tenant_id
           AND s.id=i.subscription_id AND s.product_id=i.product_id AND s.customer_id=i.customer_id
         JOIN fmcc_billing_gateway_account g ON g.tenant_id=i.tenant_id AND g.id=i.gateway_account_id
-        JOIN fmcc_billing_product_route r ON r.tenant_id=i.tenant_id AND r.product_id=i.product_id
+        LEFT JOIN fmcc_billing_product_route r ON r.tenant_id=i.tenant_id AND r.product_id=i.product_id
           AND r.gateway_account_id=g.id
         JOIN fmcc_product_definition product ON product.tenant_id=i.tenant_id AND product.id=i.product_id
         LEFT JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id
           AND p.invoice_id=i.id AND p.gateway_account_id=g.id
         WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.id=$3
           AND product.slug='iron-fit-core' AND product.status='active'
-          AND g.environment='production' AND g.status='enabled' AND r.status='enabled'
+          AND g.environment='production'
+          AND ($4 <> 'LICENSE_ACTIVATE' OR (g.status='enabled' AND r.status='enabled'))
         FOR UPDATE OF i, s
-      `, [input.tenantId, input.productId, input.invoiceId]);
+      `, [input.tenantId, input.productId, input.invoiceId, input.eventType]);
       if (state.rowCount !== 1) throw new Error("billing.iron_outbox_authority_unverified");
       const row = state.rows[0];
       if (row.subscription_status !== canonicalStateForEvent(input.eventType)) {
@@ -159,6 +168,61 @@ export class PostgresIronEntitlementOutbox {
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Revalidate the financial state *after* claiming and immediately before
+   * delivery. A revoked gateway or rerouted account must not prevent license
+   * revocation, but cannot be the basis for a new activation.
+   */
+  async authority(item: IronOutboxItem): Promise<IronOutboxAuthority | null> {
+    assertScope({ tenantId: item.tenantId, productId: item.productId, invoiceId: item.invoiceId });
+    const client = await this.pool.connect();
+    try {
+      const result = await client.query<{
+        external_tenant_id: string; plan_code: string;
+        subscription_status: string; invoice_status: string;
+        payment_status: string | null; gateway_status: string;
+        gateway_environment: string; route_status: string | null;
+      }>(`
+        SELECT b.external_tenant_id,s.plan_code,
+          s.status AS subscription_status,i.status AS invoice_status,
+          p.status AS payment_status,g.status AS gateway_status,
+          g.environment AS gateway_environment,r.status AS route_status
+        FROM fmcc_billing_iron_entitlement_outbox o
+        JOIN fmcc_billing_invoice i ON i.tenant_id=o.tenant_id AND i.id=o.invoice_id
+          AND i.product_id=o.product_id AND i.subscription_id=o.subscription_id
+        JOIN fmcc_billing_subscription s ON s.tenant_id=i.tenant_id AND s.id=i.subscription_id
+          AND s.product_id=i.product_id AND s.customer_id=i.customer_id
+        JOIN fmcc_billing_customer_binding b ON b.tenant_id=i.tenant_id
+          AND b.product_id=i.product_id AND b.customer_id=i.customer_id
+        JOIN fmcc_billing_gateway_account g ON g.tenant_id=i.tenant_id AND g.id=i.gateway_account_id
+        LEFT JOIN fmcc_billing_product_route r ON r.tenant_id=i.tenant_id
+          AND r.product_id=i.product_id AND r.gateway_account_id=g.id
+        LEFT JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id
+          AND p.invoice_id=i.id AND p.gateway_account_id=i.gateway_account_id
+        JOIN fmcc_product_definition product ON product.tenant_id=i.tenant_id
+          AND product.id=i.product_id
+        WHERE o.id=$1 AND o.tenant_id=$2 AND o.product_id=$3
+          AND o.subscription_id=$4 AND o.claim_token=$5
+          AND o.status='processing' AND o.lease_until>now()
+          AND product.slug='iron-fit-core' AND product.status='active'
+          AND g.environment='production'
+      `, [item.id, item.tenantId, item.productId, item.subscriptionId, item.claimToken]);
+      if (result.rowCount !== 1) return null;
+      const row = result.rows[0];
+      if (row.subscription_status !== canonicalStateForEvent(item.eventType)) return null;
+      if (item.eventType === "LICENSE_ACTIVATE" &&
+          (row.invoice_status !== "paid" || row.payment_status !== "received" ||
+           row.gateway_status !== "enabled" || row.route_status !== "enabled")) return null;
+      return {
+        externalTenantId: row.external_tenant_id, planCode: row.plan_code,
+        subscriptionStatus: row.subscription_status,
+        invoiceStatus: row.invoice_status, paymentStatus: row.payment_status,
+      };
     } finally {
       client.release();
     }
