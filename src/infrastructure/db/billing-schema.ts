@@ -200,3 +200,28 @@ export const billingIronEntitlementOutbox = pgTable("fmcc_billing_iron_entitleme
   check("fmcc_iron_outbox_status_ck", sql`${t.status} in ('pending','processing','retry','delivered','blocked')`),
   check("fmcc_iron_outbox_attempts_ck", sql`${t.attempts} >= 0 and ${t.attempts} <= 12`),
 ]);
+
+/**
+ * One-way single-shot issuance reservation. An ambiguous provider POST can
+ * never be retried by a second HTTP request. Recovery is GET-only.
+ */
+export const billingIronIssuanceClaims = pgTable("fmcc_billing_iron_issue_claim", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  invoiceId: uuid("invoice_id").notNull(),
+  gatewayAccountId: uuid("gateway_account_id").notNull(),
+  externalCustomerId: text("external_customer_id").notNull(),
+  externalReference: text("external_reference").notNull(),
+  status: text("status").notNull().default("reserved"),
+  externalPaymentId: text("external_payment_id"),
+  lastErrorCode: text("last_error_code"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("fmcc_iron_issue_invoice_uq").on(t.tenantId,t.invoiceId),
+  uniqueIndex("fmcc_iron_issue_reference_uq").on(t.tenantId,t.gatewayAccountId,t.externalReference),
+  foreignKey({name:"fmcc_iron_issue_invoice_fk",columns:[t.tenantId,t.invoiceId],foreignColumns:[billingInvoices.tenantId,billingInvoices.id]}),
+  foreignKey({name:"fmcc_iron_issue_gateway_fk",columns:[t.tenantId,t.gatewayAccountId],foreignColumns:[billingGatewayAccounts.tenantId,billingGatewayAccounts.id]}),
+  check("fmcc_iron_issue_status_ck", sql`${t.status} in ('reserved','uncertain','issued','blocked')`),
+]);
