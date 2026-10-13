@@ -56,8 +56,8 @@ export default async function PlatformIntegrationsPage() {
     (context.role === "owner" || context.role === "admin");
 
   return (
-    <main className="dashboard-shell dashboard-shell-compact settings-compact">
-      <header className="dashboard-header">
+    <main className="dashboard-shell dashboard-shell-compact settings-compact" style={{ paddingTop: 10 }}>
+      <header className="dashboard-header" style={{ marginBottom: 8, paddingBottom: 8 }}>
         <div>
           <span className="eyebrow">Command · Control Center</span>
           <h1>Infraestrutura & APIs</h1>
@@ -70,7 +70,7 @@ export default async function PlatformIntegrationsPage() {
         <Link href="/dashboard/settings">Voltar às configurações</Link>
       </header>
 
-      <section className="foundation-grid" aria-label="Princípios do control plane">
+      <section className="foundation-grid" aria-label="Princípios do control plane" style={{ marginBottom: 8, gap: 6 }}>
         <article>
           <strong>Autoridade FM</strong>
           <span>OpenAI, Gemini e Maps são platform-managed</span>
