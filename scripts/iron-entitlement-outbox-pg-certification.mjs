@@ -9,9 +9,6 @@ const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
 const competitor = new pg.Client({ connectionString: process.env.DATABASE_URL });
 const scope = "ci-iron-outbox-certification";
 const event = "LICENSE_ACTIVATE";
-const uuid = "e468628c-3176-4fa3-82e6-c9b9c58fb226";
-const uuid2 = "f5617c62-2f26-4e7f-9c48-7f5a2a5f9a91";
-const key = "iron:entitlement:v1:" + uuid + ":" + uuid2 + ":" + event;
 
 await client.connect();
 await competitor.connect();
