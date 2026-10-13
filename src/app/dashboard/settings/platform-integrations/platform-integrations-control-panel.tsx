@@ -258,9 +258,9 @@ export function PlatformIntegrationsControlPanel({
 
   return (
     <>
-      <section className="panel">
-        <h2>Confirmação administrativa</h2>
-        <p>
+      <section className="panel" style={{ padding: 12, marginBottom: 10 }}>
+        <h2 style={{ fontSize: 15, marginBottom: 2 }}>Confirmação administrativa</h2>
+        <p style={{ fontSize: 12, marginBottom: 5 }}>
           Configuração, teste real e homologação exigem reautenticação. A senha
           serve apenas para o step-up e não é armazenada pelo painel.
         </p>
@@ -277,8 +277,8 @@ export function PlatformIntegrationsControlPanel({
         {message ? <p role="status">{message}</p> : null}
       </section>
 
-      <section className="executive-section">
-        <div className="section-heading">
+      <section className="executive-section" style={{ paddingTop: 0, marginTop: 8 }}>
+        <div className="section-heading" style={{ marginBottom: 8 }}>
           <div>
             <span className="eyebrow">APIs compartilhadas</span>
             <h2>Serviços gerenciados pela FM</h2>
@@ -289,7 +289,7 @@ export function PlatformIntegrationsControlPanel({
           </p>
         </div>
 
-        <div className="product-grid">
+        <div className="product-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 245px), 1fr))", gap: 10, alignItems: "start" }}>
           {initialOverview.integracoes.map((integration) => {
             const config = integration.configuracao;
             const configId =
@@ -298,7 +298,7 @@ export function PlatformIntegrationsControlPanel({
             const healthEvidence = evidence[configId];
 
             return (
-              <article className="product-card" key={configId}>
+              <article className="product-card" key={configId} style={{ padding: 12, gap: 6 }}>
                 <span className="eyebrow">{integration.catalogo.provedor}</span>
                 <strong>{integration.catalogo.label}</strong>
                 <small>Gestão: FM / Command</small>
@@ -326,6 +326,7 @@ export function PlatformIntegrationsControlPanel({
                 {canWrite ? (
                   <form
                     className="product-create-form"
+                    style={{ gap: 7, marginTop: 7 }}
                     onSubmit={(event) => void configure(event, integration)}
                   >
                     {integration.catalogo.parametros_obrigatorios.map((name) => (
@@ -333,6 +334,7 @@ export function PlatformIntegrationsControlPanel({
                         {labelForField(name)}
                         <input
                           name={`param:${name}`}
+                          style={{ height: 34, padding: "6px 9px" }}
                           defaultValue={defaultParameter(integration, name)}
                           autoComplete="off"
                           required
@@ -344,6 +346,7 @@ export function PlatformIntegrationsControlPanel({
                         {labelForField(role)}
                         <input
                           name={`credential:${role}`}
+                          style={{ height: 34, padding: "6px 9px" }}
                           type="password"
                           autoComplete="new-password"
                           required={!config?.credenciais_estado[role]}
@@ -357,6 +360,7 @@ export function PlatformIntegrationsControlPanel({
                     ))}
                     <button
                       className="button"
+                      style={{ minHeight: 36, padding: "6px 10px" }}
                       type="submit"
                       disabled={busy !== null}
                     >
