@@ -86,6 +86,8 @@ export function PlatformIntegrationsControlPanel({
   const router = useRouter();
   const passwordRef = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [messageTarget, setMessageTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [evidence, setEvidence] = useState<Record<string, string>>({});
@@ -96,6 +98,7 @@ export function PlatformIntegrationsControlPanel({
     configuracao?: Record<string, unknown>;
     evidenceRef?: string;
   }): Promise<Record<string, unknown> | null> {
+    setMessageTarget(input.configId);
     if (!password.trim()) {
       setMessage("Informe sua senha de confirmação para esta operação.");
       passwordRef.current?.focus();
@@ -144,6 +147,8 @@ export function PlatformIntegrationsControlPanel({
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const config = integration.configuracao;
+    const configId = config?.configuracao_id ?? `${integration.catalogo.servico}--${integration.catalogo.provedor}`;
+    setMessageTarget(configId);
 
     const parametros = integration.catalogo.parametros_obrigatorios.map(
       (name) => ({
@@ -173,9 +178,6 @@ export function PlatformIntegrationsControlPanel({
       return;
     }
 
-    const configId =
-      config?.configuracao_id ??
-      `${integration.catalogo.servico}--${integration.catalogo.provedor}`;
     const result = await execute({
       action: "configure",
       configId,
@@ -267,18 +269,37 @@ export function PlatformIntegrationsControlPanel({
           Configuração, teste real e homologação exigem reautenticação. A senha
           serve apenas para o step-up e não é armazenada pelo painel.
         </p>
-        <label>
-          Senha do Command
-          <input
-            aria-describedby="platform-admin-confirmation-help"
-            ref={passwordRef}
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={!canWrite}
-          />
-        </label>
+        <div style={{ maxWidth: 380, width: "100%" }}>
+          <label htmlFor="command-step-up-password">Senha da sua conta FM Command</label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 5 }}>
+            <input
+              id="command-step-up-password"
+              aria-describedby="platform-admin-confirmation-help"
+              ref={passwordRef}
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              disabled={!canWrite}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((current) => !current)}
+              disabled={!canWrite}
+              style={{ minWidth: 44, height: 40, borderRadius: 8, border: "1px solid var(--border, #314366)", background: "transparent", color: "inherit", cursor: "pointer" }}
+            >
+              <span aria-hidden="true" style={{ fontSize: 18 }}>{showPassword ? "◉" : "👁"}</span>
+            </button>
+          </div>
+          <small style={{ display: "block", marginTop: 5 }}>
+            Use sua senha atual de login, não a API Key. Para criar ou redefinir a senha,
+            utilize o fluxo de cadastro ou recuperação de acesso do Command.
+            Nunca informe a senha neste chat.
+          </small>
+        </div>
         {message ? <p role="status">{message}</p> : null}
       </section>
 
@@ -363,7 +384,7 @@ export function PlatformIntegrationsControlPanel({
                         />
                       </label>
                     ))}
-                    {message ? (
+                    {message && messageTarget === configId ? (
                       <p role="alert" aria-live="assertive" style={{ fontSize: 12, margin: "3px 0", color: "var(--text-primary, inherit)" }}>
                         {message}
                       </p>
