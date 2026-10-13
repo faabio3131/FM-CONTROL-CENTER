@@ -10,6 +10,7 @@ on:
       - "tests/billing-*.test.ts"
       - "drizzle/**"
       - "scripts/billing-postgres-certification.mjs"
+      - "scripts/iron-entitlement-outbox-pg-certification.mjs"
       - "scripts/billing-production-pilot-pg-certification.mjs"
       - ".github/workflows/billing-postgres-certification.yml"
 permissions:
@@ -53,6 +54,8 @@ jobs:
         run: node scripts/billing-postgres-certification.mjs
       - name: Certify real Pix pilot persistent PostgreSQL claims
         run: node scripts/billing-production-pilot-pg-certification.mjs
+      - name: Certify IRON outbox concurrency and replay in disposable PostgreSQL
+        run: node scripts/iron-entitlement-outbox-pg-certification.mjs
       - name: Billing unit and route authorization tests
         run: npx vitest run tests/billing-payment-attribution.test.ts tests/billing-secret-resolver.test.ts tests/billing-asaas-sandbox-client.test.ts tests/billing-canonical-service.test.ts tests/billing-sandbox-reconcile-route.test.ts tests/billing-asaas-production-pilot.test.ts tests/billing-asaas-production-readonly.test.ts
       - name: Real PostgreSQL recovery and reconciliation certification
