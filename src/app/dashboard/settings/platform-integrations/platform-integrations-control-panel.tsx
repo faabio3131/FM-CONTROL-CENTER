@@ -263,13 +263,14 @@ export function PlatformIntegrationsControlPanel({
     <>
       <section className="panel" style={{ padding: 12, marginBottom: 10 }}>
         <h2 style={{ fontSize: 15, marginBottom: 2 }}>Confirmação administrativa</h2>
-        <p style={{ fontSize: 12, marginBottom: 5 }}>
+        <p id="platform-admin-confirmation-help" style={{ fontSize: 12, marginBottom: 5 }}>
           Configuração, teste real e homologação exigem reautenticação. A senha
           serve apenas para o step-up e não é armazenada pelo painel.
         </p>
         <label>
           Senha do Command
           <input
+            aria-describedby="platform-admin-confirmation-help"
             ref={passwordRef}
             type="password"
             autoComplete="current-password"
