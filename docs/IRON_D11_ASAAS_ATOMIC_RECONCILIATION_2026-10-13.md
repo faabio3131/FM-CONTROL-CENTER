@@ -1,0 +1,45 @@
+# D11 — Asaas verified read-only payment/refund → atomic IRON entitlement outbox
+
+Date: 2026-10-13. FM Command is the FM→gym billing authority; IRON remains the only owner of SaaS entitlements.
+
+## Current technical reconciliation
+
+- After #71/#72/#75/#76, FM Command owns product-specific invoices, subscription plans, provider payment ledger, versioned IRON plan mapping, durable outbox, and a **disabled-by-default** manual IRON dispatcher.
+- The existing real Asaas payment **issuance** is a special controlled low-value Kordena Pix pilot, not a generic IRON payment issuer. The generic FM Command `prepare` flow creates internal invoices and placeholder customer identities but does **not** create a corresponding Asaas payment.
+- Therefore, no production IRON invoice/payment is assumed to exist. New code cannot manufacture a provider payment or infer that a test result means production homologation.
+
+## D11 delta — verified, atomic reconciliation
+
+New read-only Asaas adapter `AsaasIronPaymentReadOnlyClient`:
+- Authenticated `GET https://api.asaas.com/v3/payments/{paymentId}` only; allowlisted production secret reference `env://FMCC_ASAAS_PRODUCTION_API_KEY`; no provider POST, no webhook-body trust.
+- Compares all fields against canonical FM Command billing evidence: `payment.id`, `payment.customer`, amount in minor BRL units, `payment.externalReference = fmcc-iron-<invoice UUID>` and supported billing type.
+- Only `RECEIVED` is eligible for paid activation; `CONFIRMED` is not accepted. Full `REFUNDED` is eligible for controlled suspension. Partial refunds, chargebacks, disputes, overdue and other states are rejected for policy review instead of inventing a lifecycle policy.
+
+`PostgresIronAsaasAtomicReconciliation`:
+- Reads a **preexisting** provider payment binding and stable customer ID from Command. Validates FM tenant, IRON product, production Asaas gateway and canonical source/versioned plan mapping. No user/webhook-selected tenant or amount.
+- Rechecks all scope fields **under invoice, payment and subscription row locks** in one PostgreSQL transaction. This prevents in-DB stale updates or cross-tenant reassignment.
+- For RECEIVED, atomically updates provider payment→`received`, invoice→`paid`, subscription→`active`, creates a deduplicated `LICENSE_ACTIVATE` outbox event and writes an FM billing audit event.
+- For REFUNDED after paid+received+active, atomically marks payment/invoice `refunded`, subscription `past_due`, creates a `LICENSE_SUSPEND` event and audits. It does **not** automatically cancel/delete the gym or change IRON entitlements. Refund duplicate is idempotent. A stale RECEIVED can never reactivate the already-refunded invoice.
+- If outbox insert or audit fails, the **whole financial state update rolls back**. No provider-initiated reversal is created by this code.
+
+**Gated endpoint:** `POST /api/billing/products/:productId/iron-license/asaas-reconcile` with `{ "password": "...", "invoiceId": "<UUID>" }`. Owner/admin with `billing:write`, current password step-up, and canonical FM control tenant only. Requires `FMCC_IRON_ASAAS_ATOMIC_RECONCILIATION_ENABLED=YES`, default OFF.
+
+## Current limits and next operational blockers
+
+- The generic IRON issuer must be built or reconciled with an existing canonical issuer; it must **persist the real `pay_...` and `cus_...` IDs** and set the new deterministic Asaas `externalReference` when issuing. Pending placeholder customer records are intentionally rejected. Without this work, this controlled route will refuse IRON invoices.
+- This delta is **operator-triggered**. A future Asaas webhook inbox must verify `asaas-access-token` with a separate webhook `authToken`, persist event IDs, and use GET to validate current payment before reconciling; webhook data alone is not payment evidence.
+- Transactional outbox delivery is a separate step and remains gated by manual+delivery+paid-reconciliation flags. No automatic event worker, payment issuance, or live license mutation is enabled.
+- Race window between a verified provider GET and a later provider reversal cannot be eliminated with a single database transaction across services; a final provider check, webhook subscription and reversal reconciliation are required before go-live.
+- Charging, applying real migrations, enabling flags, creating production webhook tokens, and certified provider-bound Command→IRON E2E require separate operational evidence and gates.
+- Macro O Visual Premium PR #22 in IRON app is not part of this merge and continues awaiting explicit visual approval.
+
+## Official Asaas documentation checked
+- https://docs.asaas.com/reference/recuperar-uma-unica-cobranca
+- https://docs.asaas.com/docs/webhook-para-cobrancas
+- https://docs.asaas.com/docs/faq-de-webhooks
+
+## Checkpoint
+- Repositories: `faabio3131/FM-CONTROL-CENTER` and read-only IRON `faabio3131/iron-fit-backend`.
+- Branch: `feat/d11-asaas-verified-atomic-iron-reconciliation`.
+- CI: Vitest unit tests, isolated PostgreSQL transaction certification, Foundation lint/typecheck/build/E2E, F21/security and Cognitive Gate to verify on the exact final SHA.
+- No automatic billing, no external payment POST, no LIVE integration claimed.
