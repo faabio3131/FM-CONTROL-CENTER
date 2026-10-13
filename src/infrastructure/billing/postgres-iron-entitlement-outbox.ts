@@ -129,6 +129,15 @@ export class PostgresIronEntitlementOutbox {
           WHERE tenant_id=$1 AND product_id=$2 AND attempts < 12
             AND ((status IN ('pending','retry') AND available_at <= now())
               OR (status='processing' AND lease_until < now()))
+            AND NOT EXISTS (
+              SELECT 1 FROM fmcc_billing_iron_entitlement_outbox older
+              WHERE older.tenant_id=fmcc_billing_iron_entitlement_outbox.tenant_id
+                AND older.product_id=fmcc_billing_iron_entitlement_outbox.product_id
+                AND older.subscription_id=fmcc_billing_iron_entitlement_outbox.subscription_id
+                AND (older.created_at,older.id) <
+                    (fmcc_billing_iron_entitlement_outbox.created_at,fmcc_billing_iron_entitlement_outbox.id)
+                AND older.status IN ('pending','retry','processing')
+            )
           ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
         )
         UPDATE fmcc_billing_iron_entitlement_outbox o SET
