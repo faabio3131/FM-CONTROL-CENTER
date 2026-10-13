@@ -1,0 +1,84 @@
+import { AsaasCheckoutClient } from "./asaas-checkout-client";
+import { AsaasIronIssuerClient } from "./asaas-iron-issuer-client";
+import { PostgresIronAsaasIssuer, type IronIssueClaim } from "./postgres-iron-asaas-issuer";
+
+export class GovernedIronAsaasIssuance {
+  constructor(
+    private readonly repo: Pick<PostgresIronAsaasIssuer, "gymBinding"|"reserve"|"claimForRecovery"|"persistPayment"|"markUncertain">,
+    private readonly provider: Pick<AsaasIronIssuerClient, "findUnique"|"createOnce">,
+    private readonly customers: Pick<AsaasCheckoutClient, "customerById">,
+  ) {}
+
+  private async recoverByRead(claim: IronIssueClaim) {
+    if (claim.status === "issued") {
+      return { status: "issued" as const, paymentId: claim.paymentId, recovered: false };
+    }
+    // Never retry POST for a reservation, even if it was originally aborted
+    // before reaching the provider. There may be an eventual-consistency lag.
+    try {
+      const payment = await this.provider.findUnique({
+        invoiceId:claim.invoiceId,customerId:claim.customerId,amountMinor:claim.amountMinor,
+      });
+      if (!payment) {
+        await this.repo.markUncertain(claim,"RECOVERY_NO_MATCH");
+        return { status: "manual_review_required" as const };
+      }
+      await this.repo.persistPayment(claim,payment);
+      return { status:"issued" as const,paymentId:payment.id,recovered:true };
+    } catch {
+      await this.repo.markUncertain(claim,"RECOVERY_UNVERIFIED");
+      return { status: "manual_review_required" as const };
+    }
+  }
+
+  async issue(input: {
+    tenantId:string;productId:string;invoiceId:string;customerId:string;dueDate:string;
+  }) {
+    if (!/^cus_[A-Za-z0-9_-]{1,128}$/.test(input.customerId)) {
+      throw new Error("billing.iron_issuer_customer_id_invalid");
+    }
+    const gym = await this.repo.gymBinding(input.tenantId,input.productId,input.invoiceId);
+    if (!gym) throw new Error("billing.iron_issuer_gym_binding_missing");
+    const customer = await this.customers.customerById(input.customerId);
+    if (!customer || customer.externalReference !== "fmcc-iron-customer-" + gym) {
+      throw new Error("billing.iron_issuer_customer_gym_mismatch");
+    }
+
+    const claim = await this.repo.reserve(input);
+    if (!claim.created) return this.recoverByRead(claim);
+
+    // The durable claim is committed BEFORE the first provider preflight/POST.
+    let existing;
+    try {
+      existing = await this.provider.findUnique({
+        invoiceId:claim.invoiceId,customerId:claim.customerId,amountMinor:claim.amountMinor,
+      });
+    } catch {
+      await this.repo.markUncertain(claim,"PRECHECK_UNCERTAIN");
+      return {status:"manual_review_required" as const};
+    }
+    if (existing) {
+      try {await this.repo.persistPayment(claim,existing);}
+      catch {await this.repo.markUncertain(claim,"PERSISTENCE_UNCERTAIN");return {status:"manual_review_required" as const};}
+      return {status:"issued" as const,paymentId:existing.id,recovered:true};
+    }
+
+    try {
+      const payment=await this.provider.createOnce({
+        invoiceId:claim.invoiceId,customerId:claim.customerId,
+        amountMinor:claim.amountMinor,dueDate:input.dueDate,
+      });
+      await this.repo.persistPayment(claim,payment);
+      return {status:"issued" as const,paymentId:payment.id,recovered:false};
+    } catch {
+      await this.repo.markUncertain(claim,"POST_OR_PERSISTENCE_UNCERTAIN");
+      return {status:"manual_review_required" as const};
+    }
+  }
+
+  async recover(input:{tenantId:string;productId:string;invoiceId:string}) {
+    const claim=await this.repo.claimForRecovery(input.tenantId,input.productId,input.invoiceId);
+    if (!claim) throw new Error("billing.iron_issuer_claim_missing");
+    return this.recoverByRead(claim);
+  }
+}
