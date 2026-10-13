@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
   KordenaPlatformIntegration,
@@ -84,6 +84,7 @@ export function PlatformIntegrationsControlPanel({
   canWrite,
 }: Props) {
   const router = useRouter();
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export function PlatformIntegrationsControlPanel({
   }): Promise<Record<string, unknown> | null> {
     if (!password.trim()) {
       setMessage("Informe sua senha de confirmação para esta operação.");
+      passwordRef.current?.focus();
       return null;
     }
     const operation = `${input.action}:${input.configId}`;
@@ -139,7 +141,8 @@ export function PlatformIntegrationsControlPanel({
     integration: KordenaPlatformIntegration,
   ) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const config = integration.configuracao;
 
     const parametros = integration.catalogo.parametros_obrigatorios.map(
@@ -195,7 +198,7 @@ export function PlatformIntegrationsControlPanel({
       delete next[configId];
       return next;
     });
-    event.currentTarget.reset();
+    formElement.reset();
     setMessage("Configuração salva no Vault canônico. Estado atualizado.");
     router.refresh();
   }
@@ -267,6 +270,7 @@ export function PlatformIntegrationsControlPanel({
         <label>
           Senha do Command
           <input
+            ref={passwordRef}
             type="password"
             autoComplete="current-password"
             value={password}
@@ -358,6 +362,11 @@ export function PlatformIntegrationsControlPanel({
                         />
                       </label>
                     ))}
+                    {message ? (
+                      <p role="alert" aria-live="assertive" style={{ fontSize: 12, margin: "3px 0", color: "var(--text-primary, inherit)" }}>
+                        {message}
+                      </p>
+                    ) : null}
                     <button
                       className="button"
                       style={{ minHeight: 36, padding: "6px 10px" }}
