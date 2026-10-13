@@ -83,9 +83,22 @@ try {
     } catch (error) { providerDuplicate = error?.code === '23505'; }
     assert.ok(provider.rows[0].id);
     assert.equal(providerDuplicate,true,"Second provider payment for same invoice was accepted");
+
+    const issuedClaim=await client.query(
+      "INSERT INTO fmcc_billing_iron_issue_claim (tenant_id,product_id,invoice_id,gateway_account_id,external_customer_id,external_reference) VALUES ('ci-tenant',$1,$2,$3,'cus_ci_issuer',$4) RETURNING id",
+      [product.rows[0].id,invoice.rows[0].id,account.rows[0].id,'fmcc-iron-'+invoice.rows[0].id]);
+    assert.equal(issuedClaim.rowCount,1,"One-shot issuance claim was not recorded");
+    let duplicateClaimDenied=false;
+    try {
+      await competitor.query(
+        "INSERT INTO fmcc_billing_iron_issue_claim (tenant_id,product_id,invoice_id,gateway_account_id,external_customer_id,external_reference) VALUES ('ci-tenant',$1,$2,$3,'cus_ci_other',$4)",
+        [product.rows[0].id,invoice.rows[0].id,account.rows[0].id,'fmcc-iron-'+invoice.rows[0].id]);
+    } catch(error) { duplicateClaimDenied=error?.code==='23505'; }
+    assert.equal(duplicateClaimDenied,true,"Duplicate Asaas issuance claim was accepted");
     console.log("PASS PostgreSQL 18: competing invoice claims and payment uniqueness");
   } finally {
     await competitor.end();
+    await client.query("DELETE FROM fmcc_billing_iron_issue_claim WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_provider_payment WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_invoice WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_subscription WHERE tenant_id='ci-tenant'");
