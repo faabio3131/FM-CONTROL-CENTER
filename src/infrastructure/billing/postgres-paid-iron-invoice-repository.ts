@@ -1,3 +1,4 @@
+import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import {
@@ -75,7 +76,7 @@ export class PostgresPaidIronInvoiceRepository implements PaidIronInvoiceReposit
         eq(billingGatewayAccounts.status, "enabled"),
         eq(billingProductRoutes.status, "enabled"),
         eq(productDefinitions.status, "active"),
-        eq(productDefinitions.slug, "iron-fit-core"),
+        eq(productDefinitions.slug, FMCC_IRON_PRODUCT_SLUG),
       )).limit(1);
     if (!row) return null;
     return {
