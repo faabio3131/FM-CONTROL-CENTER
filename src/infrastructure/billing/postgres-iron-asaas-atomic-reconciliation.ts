@@ -45,7 +45,7 @@ export class PostgresIronAsaasAtomicReconciliation {
           AND s.id=i.subscription_id AND s.product_id=i.product_id AND s.customer_id=i.customer_id
         JOIN fmcc_product_definition product ON product.tenant_id=i.tenant_id AND product.id=i.product_id
         WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.id=$3
-          AND product.slug='iron-fit-core' AND product.status='active'
+          AND product.slug='iron' AND product.status='active'
           AND g.provider='asaas' AND g.environment='production'
           AND g.secret_ref=$4
       `, [tenantId, productId, invoiceId, ASAAS_PRODUCTION_SECRET_REF]);
@@ -107,7 +107,7 @@ export class PostgresIronAsaasAtomicReconciliation {
           AND product.id=i.product_id
         WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.id=$3
           AND i.gateway_account_id=$4 AND i.subscription_id=$5
-          AND product.slug='iron-fit-core' AND product.status='active'
+          AND product.slug='iron' AND product.status='active'
           AND g.provider='asaas' AND g.environment='production'
           AND g.secret_ref=$6
         FOR UPDATE OF i,p,s
