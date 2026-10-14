@@ -104,6 +104,8 @@ describe("D11 Asaas webhook authentication and read-only inbox",()=>{
     expect(route).toContain('FMCC_IRON_ASAAS_WEBHOOK_INBOX_ENABLED !== "YES"');
     expect(route).toContain('request.headers.get("asaas-access-token")');
     expect(route).toContain("verifyIronAsaasWebhookToken");
+    expect(route).toContain('if (status === "unbound")');
+    expect(route).toContain('billing.iron_webhook_binding_not_ready');
     expect(route).not.toContain("subscription.status.sync");
     expect(route).not.toContain("commitVerified(");
     const sql=await readFile("drizzle/0009_foundation.sql","utf8");
