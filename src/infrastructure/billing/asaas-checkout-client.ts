@@ -129,6 +129,20 @@ export class AsaasCheckoutClient {
     return created.id;
   }
 
+  /**
+   * One network POST, never an automatic retry. The caller MUST persist a
+   * canonical one-shot enrollment claim before calling this method.
+   */
+  async createIronPayerOnce(input: {
+    reference: string; name: string; cpfCnpj: string; email?: string;
+  }): Promise<string> {
+    if (!/^fmcc-iron-customer-[0-9a-f-]{36}$/i.test(input.reference)) {
+      throw new AsaasCheckoutTransportError("billing.iron_payer_reference_invalid");
+    }
+    this.validateCustomerInput(input);
+    return this.createCustomer(input);
+  }
+
   async ensureCustomer(input: {
     reference: string;
     name: string;
