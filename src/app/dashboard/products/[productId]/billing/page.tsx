@@ -14,6 +14,8 @@ import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import { KordenaBillingControlService } from "@/application/integration/kordena-billing-control-service";
 import { BillingControlPanel } from "./billing-control-panel";
+import { IronPayerEnrollmentPanel } from "./iron-payer-enrollment-panel";
+import { IronCommercialConnector, IRON_COMMERCIAL_SOURCE_TYPE, IRON_COMMERCIAL_SECRET_REF, environmentIronControlTenantId } from "@/infrastructure/integration/iron-commercial-connector";
 
 export default async function ProductBillingPage({
   params,
@@ -54,6 +56,32 @@ export default async function ProductBillingPage({
       item.productId === product.id &&
       item.sourceType === KORDENA_COMMERCIAL_SOURCE_TYPE,
   );
+
+  const isIron = product.slug === "iron-fit-core";
+  const ironSources = isIron ? sources.filter(item =>
+    item.productId===product.id && item.name==="IRON FIT CORE Commercial" &&
+    item.sourceType===IRON_COMMERCIAL_SOURCE_TYPE &&
+    item.secretRef===IRON_COMMERCIAL_SECRET_REF &&
+    item.authoritativeDomain==="commercial" &&
+    context.tenantId===environmentIronControlTenantId(),
+  ) : [];
+  let ironAcademies: {id:string;name:string}[] = [];
+  let ironUnavailable = false;
+  if(isIron && ironSources.length===1){
+    try{
+      const snapshot=await new IronCommercialConnector().snapshot({
+        tenantId:context.tenantId,correlationId:context.correlationId,timeoutMs:8000,
+      },ironSources[0]);
+      const idPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      ironAcademies=snapshot.customers.filter(row=>
+        typeof row.tenant_id==="string" && idPattern.test(row.tenant_id) &&
+        typeof row.name==="string" && row.name.length>0 && row.active===true,
+      ).map(row=>({id:String(row.tenant_id),name:String(row.name)}));
+      if(new Set(ironAcademies.map(gym=>gym.id)).size!==ironAcademies.length){
+        ironUnavailable=true;ironAcademies=[];
+      }
+    }catch{ironUnavailable=true;}
+  }
 
   let overview = null;
   let upstreamError: string | null = null;
@@ -104,7 +132,22 @@ export default async function ProductBillingPage({
         </article>
       </section>
 
-      {!source ? (
+      {isIron ? (
+        ironSources.length!==1 || ironUnavailable ? (
+          <section className="panel">
+            <h2>Cadastro financeiro indisponível</h2>
+            <p>O vínculo canônico com o IRON precisa estar disponível e ser único. Nenhum pagador será cadastrado sem essa verificação.</p>
+          </section>
+        ) : (
+          <IronPayerEnrollmentPanel
+            productId={product.id}
+            academies={ironAcademies}
+            canWrite={roleHasPermission(context.role,"billing:write") &&
+              (context.role==="owner"||context.role==="admin")}
+            enabled={process.env.FMCC_IRON_ASAAS_PAYER_ENROLLMENT_ENABLED==="YES"}
+          />
+        )
+      ) : !source ? (
         <section className="panel">
           <h2>Fonte comercial não conectada</h2>
           <p>
