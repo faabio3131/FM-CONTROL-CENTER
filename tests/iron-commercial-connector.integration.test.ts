@@ -109,4 +109,27 @@ describe("IRON commercial connector", () => {
     expect(headers.get("idempotency-key")).toBe("invoice-1:payment-1");
     expect(String(request?.body)).not.toContain("gatewayAccountId");
   });
+
+  it("never forwards IRON service credentials to a Kordena or foreign-tenant source", async () => {
+    const fetcher = vi.fn(async () => new Response("{}", { status: 200 }));
+    const connector = new IronCommercialConnector(
+      () => "iron-only-secret-of-fm-technology-123456",
+      fetcher as typeof fetch,
+      () => ["https://iron.example.test"],
+      () => "fm-tenant",
+    );
+    for (const malformed of [
+      { ...source, tenantId: "another-tenant" },
+      { ...source, sourceType: "kordena-commercial-v1" },
+      { ...source, secretRef: "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN" },
+      { ...source, authoritativeDomain: "student-finance" },
+      { ...source, productId: undefined },
+    ]) {
+      await expect(connector.snapshot(context, malformed)).rejects.toThrow(
+        "integration.iron_source_scope_denied",
+      );
+    }
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
 });
