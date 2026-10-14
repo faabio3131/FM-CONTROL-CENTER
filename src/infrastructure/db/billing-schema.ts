@@ -152,6 +152,12 @@ export const billingGatewayEvents = pgTable("fmcc_billing_gateway_event", {
   gatewayAccountId: uuid("gateway_account_id").notNull(),
   externalEventId: text("external_event_id").notNull(),
   status: text("status").notNull().default("received"),
+  // Minimal immutable provider notification metadata. Never store raw payload,
+  // credentials, PII, or treat a webhook as settlement proof.
+  eventType: text("event_type"),
+  externalPaymentId: text("external_payment_id"),
+  externalReference: text("external_reference"),
+  payloadFingerprint: text("payload_fingerprint"),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   uniqueIndex("fmcc_billing_gateway_event_dedupe_uq").on(t.tenantId,t.gatewayAccountId,t.externalEventId),
