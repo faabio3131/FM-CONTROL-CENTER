@@ -85,7 +85,7 @@ export class GovernedIronPayerEnrollment {
       }
       // Never POST on a previously reserved or uncertain claim, regardless of
       // timeout history or a second operator's request.
-      if(!claim.created)return {status:"manual_review_required" as const};
+      if(!claim.created||claim.status!=="reserved")return {status:"manual_review_required" as const};
 
       const documentMatches=await this.provider.findCustomersByDocument(person.cpfCnpj);
       if(documentMatches.length!==0){
