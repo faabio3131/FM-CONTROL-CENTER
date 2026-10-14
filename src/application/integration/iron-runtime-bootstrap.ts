@@ -1,3 +1,4 @@
+import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { randomUUID } from "node:crypto";
 import { buildConnectorRuntime } from "@/application/integration/connector-composition";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
@@ -13,7 +14,7 @@ import { logEvent } from "@/infrastructure/observability/logger";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 
 const SOURCE_NAME = "IRON FIT CORE Commercial";
-const PRODUCT_SLUG = "iron-fit-core";
+const PRODUCT_SLUG = FMCC_IRON_PRODUCT_SLUG;
 const AUTHORITATIVE_DOMAIN = "commercial";
 const MAPPING_VERSION = "iron-commercial-v1";
 const FRESHNESS_SECONDS = 300;

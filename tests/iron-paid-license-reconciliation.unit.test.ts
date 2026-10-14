@@ -49,7 +49,7 @@ const payment: VerifiedIronPayment = {
   externalTenantId: gymId, planCode: "IRON_V1_MONTHLY",
   amountMinor: 26900, paymentId: "pay-proven",
   invoiceStatus: "paid", paymentStatus: "received",
-  gatewayEnvironment: "production", productSlug: "iron-fit-core",
+  gatewayEnvironment: "production", productSlug: "iron",
 };
 function setup(override: Partial<VerifiedIronPayment> = {}, rows?: unknown[]) {
   const repo: PaidIronInvoiceRepository = {
@@ -179,7 +179,7 @@ describe("D11 IRON production payment to license gate", () => {
       'eq(billingInvoices.status, "paid")',
       'eq(billingProviderPayments.status, "received")',
       'eq(billingGatewayAccounts.environment, "production")',
-      'eq(productDefinitions.slug, "iron-fit-core")',
+      "eq(productDefinitions.slug, FMCC_IRON_PRODUCT_SLUG)",
       "eq(billingCustomerBindings.customerId, billingInvoices.customerId)",
       "eq(billingProductRoutes.gatewayAccountId, billingInvoices.gatewayAccountId)",
     ]) expect(repository).toContain(invariant);

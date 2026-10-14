@@ -29,7 +29,7 @@ describe.skipIf(!enabled)("D11 real disposable PG: financial state and license e
     repository = new PostgresIronAsaasAtomicReconciliation(pool);
     const p = await pool.query<{ id: string }>(`
       INSERT INTO fmcc_product_definition (tenant_id,slug,name)
-      VALUES ($1,'iron-fit-core','IRON atomic CI') RETURNING id
+      VALUES ($1,'iron','IRON atomic CI') RETURNING id
     `, [tenantId]); productId = p.rows[0].id;
     const c = await pool.query<{ id: string }>(`
       INSERT INTO fmcc_billing_customer (tenant_id,external_customer_id)

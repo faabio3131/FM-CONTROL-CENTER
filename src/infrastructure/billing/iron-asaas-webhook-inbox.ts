@@ -61,7 +61,7 @@ export class IronAsaasWebhookInbox {
       JOIN fmcc_billing_gateway_account g ON g.tenant_id=i.tenant_id
         AND g.id=i.gateway_account_id
       WHERE i.tenant_id=$1 AND i.id=$2
-        AND product.slug='iron-fit-core' AND product.status='active'
+        AND product.slug='iron' AND product.status='active'
         AND g.provider='asaas' AND g.environment='production'
         AND g.secret_ref='env://FMCC_ASAAS_PRODUCTION_API_KEY'
     `, [controlTenantId,event.invoiceId]);

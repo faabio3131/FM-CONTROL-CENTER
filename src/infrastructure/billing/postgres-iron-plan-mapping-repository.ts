@@ -1,3 +1,4 @@
+import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { billingProductPlans } from "@/infrastructure/db/billing-schema";
@@ -20,7 +21,7 @@ export class PostgresIronPlanMappingRepository {
       eq(sourceDefinitions.id, sourceId),
     )).limit(1);
     if (!source || source.name !== "IRON FIT CORE Commercial" ||
-        source.sourceType !== "iron-commercial-v1" || source.productSlug !== "iron-fit-core")
+        source.sourceType !== "iron-commercial-v1" || source.productSlug !== FMCC_IRON_PRODUCT_SLUG)
       throw new Error("billing.iron_mapping_source_scope_denied");
     return readIronPlanMappings(source.config);
   }
@@ -52,7 +53,7 @@ export class PostgresIronPlanMappingRepository {
           source.sourceType !== "iron-commercial-v1" ||
           source.authoritativeDomain !== "commercial" ||
           source.secretRef !== "env:FMCC_IRON_CONTROL_PLANE_TOKEN" ||
-          source.productSlug !== "iron-fit-core")
+          source.productSlug !== FMCC_IRON_PRODUCT_SLUG)
         throw new Error("billing.iron_mapping_source_scope_denied");
 
       const [plan] = await tx.select({ code: billingProductPlans.planCode })

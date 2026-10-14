@@ -1,3 +1,4 @@
+import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -57,7 +58,7 @@ export default async function ProductBillingPage({
       item.sourceType === KORDENA_COMMERCIAL_SOURCE_TYPE,
   );
 
-  const isIron = product.slug === "iron-fit-core";
+  const isIron = product.slug === FMCC_IRON_PRODUCT_SLUG;
   const ironSources = isIron ? sources.filter(item =>
     item.productId===product.id && item.name==="IRON FIT CORE Commercial" &&
     item.sourceType===IRON_COMMERCIAL_SOURCE_TYPE &&

@@ -34,7 +34,7 @@ export class PostgresIronPayerEnrollment {
           AND src.source_type='iron-commercial-v1' AND src.authoritative_domain='commercial'
           AND src.secret_ref='env:FMCC_IRON_CONTROL_PLANE_TOKEN'
         WHERE b.tenant_id=$1 AND b.product_id=$2 AND b.external_tenant_id=$3
-          AND p.slug='iron-fit-core' AND p.status='active'
+          AND p.slug='iron' AND p.status='active'
           AND g.provider='asaas' AND g.environment='production'
           AND g.secret_ref=$4 AND g.status='enabled' AND r.status='enabled'
         FOR UPDATE OF c

@@ -26,7 +26,7 @@ export class PostgresIronAsaasWebhookQueue {
           AND i.gateway_account_id=e.gateway_account_id
           AND e.external_reference='fmcc-iron-' || i.id::text
         JOIN fmcc_product_definition product ON product.tenant_id=i.tenant_id AND product.id=i.product_id
-        WHERE e.tenant_id=$1 AND product.slug='iron-fit-core' AND product.status='active'
+        WHERE e.tenant_id=$1 AND product.slug='iron' AND product.status='active'
           AND g.provider='asaas' AND g.environment='production'
           AND g.secret_ref='env://FMCC_ASAAS_PRODUCTION_API_KEY'
           AND e.event_type IN ('PAYMENT_RECEIVED','PAYMENT_REFUNDED')

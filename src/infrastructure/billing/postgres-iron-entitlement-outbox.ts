@@ -79,7 +79,7 @@ export class PostgresIronEntitlementOutbox {
         LEFT JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id
           AND p.invoice_id=i.id AND p.gateway_account_id=g.id
         WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.id=$3
-          AND product.slug='iron-fit-core' AND product.status='active'
+          AND product.slug='iron' AND product.status='active'
           AND g.environment='production'
           AND ($4 <> 'LICENSE_ACTIVATE' OR (g.status='enabled' AND r.status='enabled'))
         FOR UPDATE OF i, s
@@ -209,7 +209,7 @@ export class PostgresIronEntitlementOutbox {
         WHERE o.id=$1 AND o.tenant_id=$2 AND o.product_id=$3
           AND o.subscription_id=$4 AND o.claim_token=$5
           AND o.status='processing' AND o.lease_until>now()
-          AND product.slug='iron-fit-core' AND product.status='active'
+          AND product.slug='iron' AND product.status='active'
           AND g.environment='production'
       `, [item.id, item.tenantId, item.productId, item.subscriptionId, item.claimToken]);
       if (result.rowCount !== 1) return null;
