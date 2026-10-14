@@ -55,6 +55,9 @@ describe("D11 independently gated system-to-IRON license delivery",()=>{
     expect(workflow).toContain('if: steps.gate.outputs.ready == \'true\'');
     expect(workflow).toContain('ready=false');
     expect(workflow).toContain("secrets.FMCC_IRON_OUTBOX_WORKER_SECRET");
-    expect(workflow).toContain("--output /dev/null");
+    expect(workflow).toContain('--output "$response_file"');
+    expect(workflow).toContain('retry|blocked|lease_lost');
+    expect(workflow).toContain('Governed IRON outbox: $result');
+    expect(workflow).not.toContain('cat "$response_file"');
   });
 });
