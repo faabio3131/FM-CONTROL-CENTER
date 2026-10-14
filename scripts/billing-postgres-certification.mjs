@@ -6,9 +6,9 @@ try {
   const version = await client.query("SHOW server_version");
   assert.match(version.rows[0].server_version, /^18\./);
   const tables = await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fmcc_billing_%' ORDER BY tablename");
-  assert.equal(tables.rowCount, 13, "Expected thirteen Billing tables including IRON issue claim");
+  assert.equal(tables.rowCount, 14, "Expected fourteen Billing tables including IRON payer enrollment");
   const migrations = await client.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations");
-  assert.equal(migrations.rows[0].n, 11, "Expected migrations 0000-0010");
+  assert.equal(migrations.rows[0].n, 12, "Expected migrations 0000-0011");
   const idx = await client.query("SELECT indexname FROM pg_indexes WHERE tablename='fmcc_billing_provider_payment' AND indexname='fmcc_billing_provider_invoice_uq'");
   assert.equal(idx.rowCount, 1, "Missing one-payment-per-invoice index");
   for (const [tableName,indexName] of [
@@ -19,6 +19,8 @@ try {
     ["fmcc_billing_iron_entitlement_outbox","fmcc_iron_outbox_dedupe_uq"],
     ["fmcc_billing_iron_issue_claim","fmcc_iron_issue_invoice_uq"],
     ["fmcc_billing_iron_issue_claim","fmcc_iron_issue_reference_uq"],
+    ["fmcc_billing_iron_customer_enrollment","fmcc_iron_payer_academy_uq"],
+    ["fmcc_billing_iron_customer_enrollment","fmcc_iron_payer_provider_ref_uq"],
   ]) {
     const result = await client.query(
       "SELECT indexname FROM pg_indexes WHERE tablename=$1 AND indexname=$2",
@@ -114,9 +116,21 @@ try {
         [account.rows[0].id]);
     } catch(error) { duplicateWebhookDenied=error?.code==='23505'; }
     assert.equal(duplicateWebhookDenied,true,"Webhook event ID uniqueness not enforced");
+    const academy=await client.query(
+      "INSERT INTO fmcc_billing_iron_customer_enrollment (tenant_id,product_id,customer_id,external_tenant_id,gateway_account_id,external_reference) VALUES ('ci-tenant',$1,$2,$3,$4,$5) RETURNING id",
+      [product.rows[0].id,customer.rows[0].id,'8042dfb0-80db-49de-86b1-011c27e7bb5d',account.rows[0].id,'fmcc-iron-customer-8042dfb0-80db-49de-86b1-011c27e7bb5d']);
+    assert.equal(academy.rowCount,1,"Payer enrollment not persisted");
+    let duplicatePayerDenied=false;
+    try{
+      await competitor.query(
+        "INSERT INTO fmcc_billing_iron_customer_enrollment (tenant_id,product_id,customer_id,external_tenant_id,gateway_account_id,external_reference) VALUES ('ci-tenant',$1,$2,$3,$4,$5)",
+        [product.rows[0].id,customer.rows[0].id,'8042dfb0-80db-49de-86b1-011c27e7bb5d',account.rows[0].id,'fmcc-iron-customer-8042dfb0-80db-49de-86b1-011c27e7bb5d']);
+    }catch(error){duplicatePayerDenied=error?.code==='23505';}
+    assert.equal(duplicatePayerDenied,true,"Duplicate academy payer reservation accepted");
     console.log("PASS PostgreSQL 18: competing invoice claims and payment uniqueness");
   } finally {
     await competitor.end();
+    await client.query("DELETE FROM fmcc_billing_iron_customer_enrollment WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_gateway_event WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_iron_issue_claim WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_provider_payment WHERE tenant_id='ci-tenant'");
@@ -126,7 +140,7 @@ try {
     await client.query("DELETE FROM fmcc_billing_customer WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_product_definition WHERE tenant_id='ci-tenant'");
   }
-  console.log("PASS PostgreSQL 18: migrations 0000-0010, 13 billing tables, webhook inbox and worker lease, product-scoped authority, uniqueness and transactional rollback");
+  console.log("PASS PostgreSQL 18: migrations 0000-0011, 14 billing tables, canonical payer enrollment, webhook inbox and worker lease, product-scoped authority, uniqueness and transactional rollback");
 } finally {
   await client.end();
 }
