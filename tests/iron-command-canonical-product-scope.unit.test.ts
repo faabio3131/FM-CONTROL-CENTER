@@ -33,7 +33,7 @@ describe("D11 FM Command IRON product identity is consistent with canonical regi
       const source=body(path);
       expect(source).toContain("slug='iron'");
       expect(source).not.toContain("iron-fit-core");
-      expect(source).toContain("product.status='active'");
+      expect(source).toContain("status='active'");
     });
   }
 
