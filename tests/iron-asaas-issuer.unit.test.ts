@@ -29,6 +29,7 @@ function setup(overrides:{
   failPreflight?:boolean;
   failPost?:boolean;
   customerReference?:string;
+  providerMatches?:Array<{id:string;externalReference:string}>;
 }={}) {
   const repo={
     gymBinding:vi.fn(async()=>gymId),
@@ -48,6 +49,9 @@ function setup(overrides:{
     }),
   };
   const customers={
+    findCustomers:vi.fn(async(_reference:string)=>overrides.providerMatches ?? [{
+      id:customerId,externalReference:"fmcc-iron-customer-"+gymId,
+    }]),
     customerById:vi.fn(async()=>({
       id:customerId,externalReference:overrides.customerReference??"fmcc-iron-customer-"+gymId,
     })),
@@ -55,7 +59,7 @@ function setup(overrides:{
   const service=new GovernedIronAsaasIssuance(
     repo as unknown as Pick<PostgresIronAsaasIssuer,"gymBinding"|"reserve"|"claimForRecovery"|"persistPayment"|"markUncertain">,
     provider as unknown as Pick<AsaasIronIssuerClient,"findUnique"|"createOnce">,
-    customers as unknown as Pick<AsaasCheckoutClient,"customerById">,
+    customers as unknown as Pick<AsaasCheckoutClient,"customerById"|"findCustomers">,
   );
   return {service,repo,provider,customers};
 }
@@ -107,6 +111,41 @@ describe("D11 single-shot Asaas issuance authority",()=>{
     const bad=setup();
     await expect(bad.service.issue({...input,dueDate:"1990-01-01"})).rejects.toThrow();
     expect(bad.repo.reserve).not.toHaveBeenCalled();
+  });
+
+  it("resolves a payer without user-supplied customer ID using only the canonical gym reference",async()=>{
+    const {service,repo,provider,customers}=setup();
+    const result=await service.issue({...input,customerId:undefined});
+    expect(result).toEqual({status:"issued",paymentId,recovered:false});
+    expect(customers.findCustomers).toHaveBeenCalledWith("fmcc-iron-customer-"+gymId);
+    expect(customers.customerById).toHaveBeenCalledWith(customerId);
+    expect(repo.reserve).toHaveBeenCalledWith(input);
+    expect(provider.createOnce).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed before any reservation or provider POST for missing or duplicate gym payers",async()=>{
+    const missing=setup({providerMatches:[]});
+    await expect(missing.service.issue({...input,customerId:undefined}))
+      .rejects.toThrow("billing.iron_issuer_customer_enrollment_required");
+    expect(missing.repo.reserve).not.toHaveBeenCalled();
+    expect(missing.provider.createOnce).not.toHaveBeenCalled();
+
+    const duplicates=setup({providerMatches:[
+      {id:"cus_first",externalReference:"fmcc-iron-customer-"+gymId},
+      {id:"cus_second",externalReference:"fmcc-iron-customer-"+gymId},
+    ]});
+    await expect(duplicates.service.issue({...input,customerId:undefined}))
+      .rejects.toThrow("billing.iron_issuer_customer_ambiguous");
+    expect(duplicates.repo.reserve).not.toHaveBeenCalled();
+    expect(duplicates.provider.createOnce).not.toHaveBeenCalled();
+  });
+
+  it("revalidates a discovered payer by provider ID and exact canonical reference",async()=>{
+    const bad=setup({customerReference:"fmcc-iron-customer-other-gym"});
+    await expect(bad.service.issue({...input,customerId:undefined}))
+      .rejects.toThrow("billing.iron_issuer_customer_gym_mismatch");
+    expect(bad.repo.reserve).not.toHaveBeenCalled();
+    expect(bad.provider.createOnce).not.toHaveBeenCalled();
   });
 
   it("requires explicit disabled-by-default flag and financial permission plus step-up",async()=>{
