@@ -252,6 +252,15 @@ export class IronCommercialConnector implements Connector {
     if (!allowedTenant || context.tenantId !== allowedTenant) {
       throw new IronCommercialConnectorError("integration.iron_control_tenant_denied");
     }
+    if (
+      source.tenantId !== context.tenantId ||
+      source.sourceType !== IRON_COMMERCIAL_SOURCE_TYPE ||
+      source.secretRef !== IRON_COMMERCIAL_SECRET_REF ||
+      source.authoritativeDomain !== "commercial" ||
+      source.productId === undefined
+    ) {
+      throw new IronCommercialConnectorError("integration.iron_source_scope_denied");
+    }
     if (!Number.isFinite(context.timeoutMs) || context.timeoutMs < 1 || context.timeoutMs > 120_000) {
       throw new IronCommercialConnectorError("integration.iron_timeout_invalid");
     }
@@ -261,6 +270,10 @@ export class IronCommercialConnector implements Connector {
     headers.set("x-correlation-id", context.correlationId);
 
     const controller = new AbortController();
+    const upstreamSignal = init.signal;
+    const abortFromUpstream = () => controller.abort();
+    if (upstreamSignal?.aborted) controller.abort();
+    else upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
     const timer = setTimeout(() => controller.abort(), context.timeoutMs);
     try {
       const response = await this.fetcher(baseUrl(source, this.allowedOrigins()) + path, {
@@ -279,6 +292,7 @@ export class IronCommercialConnector implements Connector {
       throw error;
     } finally {
       clearTimeout(timer);
+      upstreamSignal?.removeEventListener("abort", abortFromUpstream);
     }
   }
 }
