@@ -1,0 +1,46 @@
+name: FMCC IRON Asaas Verified Webhook Reconciliation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fmcc-iron-asaas-verified-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  one-event:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      FMCC_IRON_ASAAS_RECONCILER_BASE_URL: ${{ vars.FMCC_IRON_ASAAS_RECONCILER_BASE_URL }}
+      FMCC_IRON_ASAAS_WEBHOOK_WORKER_SECRET: ${{ secrets.FMCC_IRON_ASAAS_WEBHOOK_WORKER_SECRET }}
+    steps:
+      - name: Gate external configuration
+        id: gate
+        shell: bash
+        run: |
+          if [ -z "$FMCC_IRON_ASAAS_RECONCILER_BASE_URL" ] || [ -z "$FMCC_IRON_ASAAS_WEBHOOK_WORKER_SECRET" ]; then
+            echo "::notice::IRON D11 webhook worker not configured; no provider or production operation executed."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$FMCC_IRON_ASAAS_RECONCILER_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::Worker URL must use HTTPS"; exit 1 ;;
+          esac
+          echo "::add-mask::$FMCC_IRON_ASAAS_WEBHOOK_WORKER_SECRET"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Process one gated, provider-verified IRON event
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 30 \
+            --request POST \
+            --header "Authorization: Bearer $FMCC_IRON_ASAAS_WEBHOOK_WORKER_SECRET" \
+            --header "Cache-Control: no-store" \
+            "${FMCC_IRON_ASAAS_RECONCILER_BASE_URL%/}/api/internal/billing/iron/asaas-webhook/process-one"
