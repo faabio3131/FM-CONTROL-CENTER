@@ -1,3 +1,4 @@
+import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 import { resolveIronPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 import type { SourceDefinition } from "@/domain/integration/contracts";
@@ -73,7 +74,7 @@ export class IronPaidLicenseReconciliationService {
 
     const proof = await this.paidInvoices.findVerifiedProductionPayment(context.tenantId, productId, invoiceId);
     if (!proof || proof.tenantId !== context.tenantId || proof.productId !== productId ||
-        proof.invoiceId !== invoiceId || proof.productSlug !== "iron-fit-core" ||
+        proof.invoiceId !== invoiceId || proof.productSlug !== FMCC_IRON_PRODUCT_SLUG ||
         proof.invoiceStatus !== "paid" || proof.paymentStatus !== "received" ||
         proof.gatewayEnvironment !== "production" || !Number.isSafeInteger(proof.amountMinor) ||
         proof.amountMinor <= 0 || !proof.paymentId) {
