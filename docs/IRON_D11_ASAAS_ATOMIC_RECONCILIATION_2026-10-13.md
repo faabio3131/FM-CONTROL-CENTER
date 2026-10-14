@@ -43,3 +43,13 @@ New read-only Asaas adapter `AsaasIronPaymentReadOnlyClient`:
 - Branch: `feat/d11-asaas-verified-atomic-iron-reconciliation`.
 - CI: Vitest unit tests, isolated PostgreSQL transaction certification, Foundation lint/typecheck/build/E2E, F21/security and Cognitive Gate to verify on the exact final SHA.
 - No automatic billing, no external payment POST, no LIVE integration claimed.
+
+## D11 delta — inbox autenticado de webhook Asaas (14/10/2026)
+
+Implementação candidata adiciona `POST /api/billing/webhooks/asaas/iron`, default OFF por `FMCC_IRON_ASAAS_WEBHOOK_INBOX_ENABLED`. Exige `asaas-access-token` idêntico ao segredo dedicado `FMCC_IRON_ASAAS_WEBHOOK_AUTH_TOKEN` (32–255 caracteres; **nunca** a API key REST), valida JSON limitado a 16 KiB e permite `PAYMENT_RECEIVED` e `PAYMENT_REFUNDED`. Ignora eventos de outros produtos. Resolva o invoice/gateway/tenant **somente** pelo PostgreSQL do Command e pelo identificador de fatura, jamais aceitando tenant/gym do payload.
+
+A migration aditiva `0009_foundation` acrescenta metadados mínimos ao `fmcc_billing_gateway_event`: tipo do evento, payment ID, referência e hash sem PII. A unicidade existente protege o eventId e uma repetição semanticamente conflitante falha de modo seguro. O HTTP 200 significa unicamente *notificação recebida/deduplicada/ignorada*. **Não executa** liquidação, mutação financeira, webhook-to-license ou `subscription.status.sync`.
+
+Antes de habilitar: conferir migrations no banco específico do runtime, cadastrar o authToken separado em cofre/env, configurar o webhook na conta correta, testar duplicidade e replay no ambiente autorizado, implementar worker idempotente que usa **GET autenticado** ao Asaas e a reconciliação atômica canônica, e validar falhas/cancelamento/estorno na matriz E2E. Sem esses gates a capacidade permanece `IMPLEMENTED / EXTERNAL BLOCKER` e **não homologada**.
+
+Referências Asaas: https://docs.asaas.com/docs/sobre-os-webhooks ; https://docs.asaas.com/docs/como-implementar-idempotencia-em-webhooks .

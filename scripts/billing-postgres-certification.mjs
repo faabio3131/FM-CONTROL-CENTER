@@ -8,7 +8,7 @@ try {
   const tables = await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fmcc_billing_%' ORDER BY tablename");
   assert.equal(tables.rowCount, 13, "Expected thirteen Billing tables including IRON issue claim");
   const migrations = await client.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations");
-  assert.equal(migrations.rows[0].n, 9, "Expected migrations 0000-0008");
+  assert.equal(migrations.rows[0].n, 10, "Expected migrations 0000-0009");
   const idx = await client.query("SELECT indexname FROM pg_indexes WHERE tablename='fmcc_billing_provider_payment' AND indexname='fmcc_billing_provider_invoice_uq'");
   assert.equal(idx.rowCount, 1, "Missing one-payment-per-invoice index");
   for (const [tableName,indexName] of [
@@ -95,9 +95,25 @@ try {
         [product.rows[0].id,invoice.rows[0].id,account.rows[0].id,'fmcc-iron-'+invoice.rows[0].id]);
     } catch(error) { duplicateClaimDenied=error?.code==='23505'; }
     assert.equal(duplicateClaimDenied,true,"Duplicate Asaas issuance claim was accepted");
+    const webhook=await client.query(
+      "INSERT INTO fmcc_billing_gateway_event (tenant_id,gateway_account_id,external_event_id,event_type,external_payment_id,external_reference,payload_fingerprint) VALUES ('ci-tenant',$1,'evt_ci_webhook','PAYMENT_RECEIVED','pay_ci_one',$2,$3) RETURNING id",
+      [account.rows[0].id,'fmcc-iron-'+invoice.rows[0].id,'a'.repeat(64)]);
+    assert.equal(webhook.rowCount,1,"Webhook inbox event not persisted");
+    const webhookColumns=await client.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name='fmcc_billing_gateway_event' AND column_name=ANY($1::text[])",
+      [['event_type','external_payment_id','external_reference','payload_fingerprint']]);
+    assert.equal(webhookColumns.rowCount,4,"Webhook metadata migration missing");
+    let duplicateWebhookDenied=false;
+    try {
+      await competitor.query(
+        "INSERT INTO fmcc_billing_gateway_event (tenant_id,gateway_account_id,external_event_id) VALUES ('ci-tenant',$1,'evt_ci_webhook')",
+        [account.rows[0].id]);
+    } catch(error) { duplicateWebhookDenied=error?.code==='23505'; }
+    assert.equal(duplicateWebhookDenied,true,"Webhook event ID uniqueness not enforced");
     console.log("PASS PostgreSQL 18: competing invoice claims and payment uniqueness");
   } finally {
     await competitor.end();
+    await client.query("DELETE FROM fmcc_billing_gateway_event WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_iron_issue_claim WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_provider_payment WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_billing_invoice WHERE tenant_id='ci-tenant'");
@@ -106,7 +122,7 @@ try {
     await client.query("DELETE FROM fmcc_billing_customer WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_product_definition WHERE tenant_id='ci-tenant'");
   }
-  console.log("PASS PostgreSQL 18: migrations 0000-0008, 13 billing tables, product-scoped authority, uniqueness and transactional rollback");
+  console.log("PASS PostgreSQL 18: migrations 0000-0009, 13 billing tables, webhook inbox, product-scoped authority, uniqueness and transactional rollback");
 } finally {
   await client.end();
 }
