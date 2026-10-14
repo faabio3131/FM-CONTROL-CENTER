@@ -83,11 +83,12 @@ export class AsaasCheckoutClient {
   async findCustomers(reference: string): Promise<AsaasCustomer[]> {
     if (!/^fmcc-[a-z0-9-]{6,100}$/.test(reference))
       throw new AsaasCheckoutTransportError("billing.customer_reference_invalid");
-    const found = await this.request<{ data?: AsaasCustomer[] }>(
+    const found = await this.request<{ data?: AsaasCustomer[]; hasMore?: boolean }>(
       "GET",
       "/customers?externalReference=" + encodeURIComponent(reference),
     );
-    if (!Array.isArray(found.data))
+    // Never conclude uniqueness from a truncated provider page.
+    if (!Array.isArray(found.data) || found.hasMore === true)
       throw new AsaasCheckoutTransportError("billing.customer_lookup_invalid");
     return found.data.filter(
       c => c.externalReference === reference && /^cus_[\w-]+$/.test(c.id),
