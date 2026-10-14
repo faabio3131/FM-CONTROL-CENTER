@@ -21,6 +21,9 @@ describe("D11 independently gated system-to-IRON license delivery",()=>{
     expect(route).toContain('FMCC_IRON_OUTBOX_DELIVERY_ENABLED!=="YES"');
     expect(route).toContain('FMCC_IRON_PAID_LICENSE_RECONCILIATION_ENABLED!=="YES"');
     expect(route).toContain("FMCC_IRON_OUTBOX_WORKER_SECRET");
+    expect(route).toContain("billing.iron_outbox_worker_secret_not_segregated");
+    expect(route).toContain("FMCC_IRON_ASAAS_WEBHOOK_WORKER_SECRET");
+    expect(route).toContain("FMCC_ASAAS_PRODUCTION_API_KEY");
     expect(route).toContain("verifyScheduledWorkerBearer");
     expect(route).toContain("environmentIronControlTenantId()");
     expect(route).not.toContain("request.json()");
