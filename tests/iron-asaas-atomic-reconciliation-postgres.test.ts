@@ -5,6 +5,7 @@ import {
   PostgresIronAsaasAtomicReconciliation,
 } from "@/infrastructure/billing/postgres-iron-asaas-atomic-reconciliation";
 import { ironAsaasInvoiceReference } from "@/infrastructure/billing/asaas-iron-payment-readonly-client";
+import { PostgresIronAsaasWebhookQueue } from "@/infrastructure/billing/postgres-iron-asaas-webhook-queue";
 
 const enabled = process.env.FMCC_IRON_ASAAS_PG_TEST === "YES";
 const tenantId = "ci-iron-atomic-" + randomUUID();
@@ -80,6 +81,7 @@ describe.skipIf(!enabled)("D11 real disposable PG: financial state and license e
     if (!pool) return;
     await pool.query("DELETE FROM fmcc_billing_iron_entitlement_outbox WHERE tenant_id=$1",[tenantId]);
     await pool.query("DELETE FROM fmcc_billing_audit_event WHERE tenant_id=$1",[tenantId]);
+    await pool.query("DELETE FROM fmcc_billing_gateway_event WHERE tenant_id=$1",[tenantId]);
     await pool.query("DELETE FROM fmcc_billing_provider_payment WHERE tenant_id=$1",[tenantId]);
     await pool.query("DELETE FROM fmcc_billing_invoice WHERE tenant_id=$1",[tenantId]);
     await pool.query("DELETE FROM fmcc_billing_subscription WHERE tenant_id=$1",[tenantId]);
@@ -150,4 +152,42 @@ describe.skipIf(!enabled)("D11 real disposable PG: financial state and license e
     const later = await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",[invoiceId]);
     expect(later.rows[0].status).toBe("refunded");
   });
+
+  it("fences a real queued webhook in PostgreSQL; no cross-tenant claim, duplicate claim or stale ACK", async () => {
+    const queue=new PostgresIronAsaasWebhookQueue(pool);
+    const eventId="evt_ci_fenced_"+randomUUID().replace(/-/g,"");
+    await pool.query(`
+      INSERT INTO fmcc_billing_gateway_event
+      (tenant_id,gateway_account_id,external_event_id,status,event_type,external_payment_id,external_reference,payload_fingerprint)
+      VALUES ($1,$2,$3,'received','PAYMENT_RECEIVED',$4,$5,$6)
+    `,[tenantId,gatewayAccountId,eventId,paymentId,ironAsaasInvoiceReference(invoiceId),"b".repeat(64)]);
+    expect(await queue.claimOne(otherTenant)).toBeNull();
+    const first=await queue.claimOne(tenantId);
+    expect(first).toMatchObject({tenantId,productId,invoiceId,eventId,paymentId});
+    expect(await queue.claimOne(tenantId)).toBeNull();
+    expect(await queue.acknowledge({...first!,claimToken:randomUUID()})).toBe(false);
+    expect(await queue.acknowledge(first!)).toBe(true);
+    expect(await queue.acknowledge(first!)).toBe(false);
+    expect(await queue.claimOne(tenantId)).toBeNull();
+    const status=await pool.query("SELECT status,attempts,claim_token FROM fmcc_billing_gateway_event WHERE external_event_id=$1",[eventId]);
+    expect(status.rows[0]).toMatchObject({status:"processed",attempts:1,claim_token:null});
+  });
+
+  it("retries with delay and fences stale tokens when the worker fails", async () => {
+    const queue=new PostgresIronAsaasWebhookQueue(pool);
+    const eventId="evt_ci_retry_"+randomUUID().replace(/-/g,"");
+    await pool.query(`
+      INSERT INTO fmcc_billing_gateway_event
+      (tenant_id,gateway_account_id,external_event_id,status,event_type,external_payment_id,external_reference,payload_fingerprint)
+      VALUES ($1,$2,$3,'received','PAYMENT_REFUNDED',$4,$5,$6)
+    `,[tenantId,gatewayAccountId,eventId,paymentId,ironAsaasInvoiceReference(invoiceId),"c".repeat(64)]);
+    const item=await queue.claimOne(tenantId);
+    expect(item?.eventId).toBe(eventId);
+    expect(await queue.fail({...item!,claimToken:randomUUID()},"WEBHOOK_PROVIDER_OR_DB_RETRY",false)).toBe(false);
+    expect(await queue.fail(item!,"WEBHOOK_PROVIDER_OR_DB_RETRY",false)).toBe(true);
+    expect(await queue.claimOne(tenantId)).toBeNull();
+    const state=await pool.query("SELECT status,available_at>now() AS delayed FROM fmcc_billing_gateway_event WHERE external_event_id=$1",[eventId]);
+    expect(state.rows[0]).toMatchObject({status:"retry",delayed:true});
+  });
+
 });
