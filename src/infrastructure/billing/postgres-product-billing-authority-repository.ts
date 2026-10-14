@@ -1,3 +1,4 @@
+import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type {
@@ -267,7 +268,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       )).limit(1);
       if (!plan) throw new Error("billing.plan_not_found");
 
-      if (product.slug === "iron-fit-core") {
+      if (product.slug === FMCC_IRON_PRODUCT_SLUG) {
         // Fail closed BEFORE issuing an IRON invoice if no approved immutable
         // commercial→entitlement version mapping exists for its plan.
         const sources = await tx.select({
