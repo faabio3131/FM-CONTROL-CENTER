@@ -8,7 +8,7 @@ try {
   const tables = await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fmcc_billing_%' ORDER BY tablename");
   assert.equal(tables.rowCount, 13, "Expected thirteen Billing tables including IRON issue claim");
   const migrations = await client.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations");
-  assert.equal(migrations.rows[0].n, 10, "Expected migrations 0000-0009");
+  assert.equal(migrations.rows[0].n, 11, "Expected migrations 0000-0010");
   const idx = await client.query("SELECT indexname FROM pg_indexes WHERE tablename='fmcc_billing_provider_payment' AND indexname='fmcc_billing_provider_invoice_uq'");
   assert.equal(idx.rowCount, 1, "Missing one-payment-per-invoice index");
   for (const [tableName,indexName] of [
@@ -103,6 +103,10 @@ try {
       "SELECT column_name FROM information_schema.columns WHERE table_name='fmcc_billing_gateway_event' AND column_name=ANY($1::text[])",
       [['event_type','external_payment_id','external_reference','payload_fingerprint']]);
     assert.equal(webhookColumns.rowCount,4,"Webhook metadata migration missing");
+    const workerColumns=await client.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name='fmcc_billing_gateway_event' AND column_name=ANY($1::text[])",
+      [['attempts','available_at','lease_until','claim_token','last_error_code','processed_at','updated_at']]);
+    assert.equal(workerColumns.rowCount,7,"Worker lease/fencing migration missing");
     let duplicateWebhookDenied=false;
     try {
       await competitor.query(
@@ -122,7 +126,7 @@ try {
     await client.query("DELETE FROM fmcc_billing_customer WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_product_definition WHERE tenant_id='ci-tenant'");
   }
-  console.log("PASS PostgreSQL 18: migrations 0000-0009, 13 billing tables, webhook inbox, product-scoped authority, uniqueness and transactional rollback");
+  console.log("PASS PostgreSQL 18: migrations 0000-0010, 13 billing tables, webhook inbox and worker lease, product-scoped authority, uniqueness and transactional rollback");
 } finally {
   await client.end();
 }
