@@ -44,11 +44,13 @@ export class PostgresIronPayerEnrollment {
       const reference="fmcc-iron-customer-"+gymId.toLowerCase();
       const inserted=await client.query<{id:string}>(`
         INSERT INTO fmcc_billing_iron_customer_enrollment
-          (tenant_id,product_id,customer_id,external_tenant_id,gateway_account_id,external_reference)
-        VALUES ($1,$2,$3,$4,$5,$6)
+          (tenant_id,product_id,customer_id,external_tenant_id,gateway_account_id,external_reference,status,external_customer_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
         ON CONFLICT (tenant_id,product_id,external_tenant_id) DO NOTHING
         RETURNING id
-      `,[tenantId,productId,canonical.customer_id,gymId,canonical.gateway_account_id,reference]);
+      `,[tenantId,productId,canonical.customer_id,gymId,canonical.gateway_account_id,reference,
+        canonical.external_customer_id.startsWith("pending:")?"reserved":"uncertain",
+        canonical.external_customer_id.startsWith("pending:")?null:canonical.external_customer_id]);
       const found=await client.query<{
         customer_id:string;gateway_account_id:string;external_reference:string;
         status:string;external_customer_id:string|null;
