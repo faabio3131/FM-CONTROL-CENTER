@@ -139,7 +139,7 @@ describe("D11 IRON canonical payer enrollment",()=>{
     expect(route).toContain("verifyPasswordStepUp");
     expect(route).toContain("environmentIronControlTenantId()");
     expect(route).not.toContain("subscription.status.sync");
-    expect(page).toContain('product.slug === "iron-fit-core"');
+    expect(page).toContain('product.slug === FMCC_IRON_PRODUCT_SLUG');
     expect(page).toContain("IronCommercialConnector().snapshot");
     expect(panel).toContain("Validar e cadastrar pagador");
     expect(panel).toContain("Nenhuma cobrança");
