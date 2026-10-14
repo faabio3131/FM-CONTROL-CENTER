@@ -39,3 +39,15 @@ IRON Macro O Visual Premium PR #22 remains Draft/unmerged awaiting explicit visu
 - Branch: `feat/d11-governed-iron-outbox-dispatch`.
 - PR and CI status must be recorded after actual execution, not inferred.
 - No live flags or external service entitlement changes.
+
+## D11 delta — agendamento governado da entrega de licenças (14/10/2026)
+
+A entrega manual continua disponível somente com `FMCC_IRON_OUTBOX_MANUAL_OPERATIONS_ENABLED`, autenticação owner/admin e password step-up. Esta etapa adiciona **um executor de sistema separado** para processar um evento do ledger de licenças já reconciliado por execução. Não duplica estado nem API IRON.
+
+A rota `POST /api/internal/billing/iron/outbox/process-one` exige Bearer exclusivo `FMCC_IRON_OUTBOX_WORKER_SECRET` (32 a 255 caracteres), independente da chave REST Asaas, do authToken de webhook, do token do reconciliador financeiro e do token IRON. Bloqueia explicitamente configuração que reutilize um desses segredos. O tenant FM de controle e o único produto/source IRON são resolvidos no servidor, nunca pela requisição.
+
+A rota exige **três flags simultâneas**: `FMCC_IRON_OUTBOX_AUTOMATIC_DELIVERY_ENABLED=YES`, `FMCC_IRON_OUTBOX_DELIVERY_ENABLED=YES` e `FMCC_IRON_PAID_LICENSE_RECONCILIATION_ENABLED=YES`; todas OFF por padrão. Depois invoca `GovernedIronOutboxDispatcher.processOne` existente, que revalida billing, status e plano, lê snapshot canônico do IRON, envia `subscription.status.sync` com idempotência estável, valida resposta e reconhece pelo claimToken. O scheduler usa identidade interna restrita por token, não senha/role concedido ao assinante. O webhook do Asaas jamais libera licença diretamente.
+
+GitHub Actions `.github/workflows/fmcc-iron-outbox-delivery.yml` programa uma tentativa a cada dez minutos, mas só chama a rota se a URL HTTPS (var `FMCC_IRON_OUTBOX_WORKER_BASE_URL`) e o segredo exclusivo do workflow estiverem configurados. Se faltarem, o workflow é inerte. A resposta do endpoint não é despejada em logs.
+
+**Gates externos ainda abertos:** migrações 0009/0010 no PostgreSQL operacional, credenciais Vault/env independentes, Asaas produção homologado, plano comercial mapeado, source IRON homologada, E2E GET Asaas→reconciliação→outbox→IRON e testes negativos de atraso/replay/falhas, alarmes de `retry`/`blocked`. Mesmo CI verde não permite ativar automaticamente flags. Status `IMPLEMENTED / EXTERNAL BLOCKER` até evidência real.
