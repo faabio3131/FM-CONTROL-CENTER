@@ -21,8 +21,16 @@ export async function POST(request:Request){
      process.env.FMCC_IRON_PAID_LICENSE_RECONCILIATION_ENABLED!=="YES"){
     return NextResponse.json({error:"billing.iron_outbox_worker_disabled"},{status:503});
   }
-  if(!verifyScheduledWorkerBearer(request.headers.get("authorization"),
-      process.env.FMCC_IRON_OUTBOX_WORKER_SECRET)){
+  const workerSecret=process.env.FMCC_IRON_OUTBOX_WORKER_SECRET;
+  if(workerSecret && [
+    process.env.FMCC_IRON_ASAAS_WEBHOOK_WORKER_SECRET,
+    process.env.FMCC_IRON_ASAAS_WEBHOOK_AUTH_TOKEN,
+    process.env.FMCC_ASAAS_PRODUCTION_API_KEY,
+    process.env.FMCC_IRON_CONTROL_PLANE_TOKEN,
+  ].some(other=>Boolean(other) && other===workerSecret)){
+    return NextResponse.json({error:"billing.iron_outbox_worker_secret_not_segregated"},{status:503});
+  }
+  if(!verifyScheduledWorkerBearer(request.headers.get("authorization"),workerSecret)){
     return NextResponse.json({error:"billing.iron_outbox_worker_unauthorized"},{status:401});
   }
   const tenantId=environmentIronControlTenantId();
