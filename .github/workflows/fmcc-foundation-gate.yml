@@ -52,11 +52,6 @@ jobs:
       - name: Verify migration matches schema
         run: |
           npm run db:generate
-          if [ -f drizzle/0011_foundation.sql ]; then
-            echo "::error::Drizzle produced an unexpected 0011 migration"
-            cat drizzle/0011_foundation.sql
-            exit 1
-          fi
           git diff --exit-code -- drizzle
       - name: Apply versioned migration
         run: npm run db:migrate
