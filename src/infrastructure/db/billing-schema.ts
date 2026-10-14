@@ -239,3 +239,30 @@ export const billingIronIssuanceClaims = pgTable("fmcc_billing_iron_issue_claim"
   foreignKey({name:"fmcc_iron_issue_gateway_fk",columns:[t.tenantId,t.gatewayAccountId],foreignColumns:[billingGatewayAccounts.tenantId,billingGatewayAccounts.id]}),
   check("fmcc_iron_issue_status_ck", sql`${t.status} in ('reserved','uncertain','issued','blocked')`),
 ]);
+
+/**
+ * Canonical academy-to-Asaas payer enrollment. A reservation is persisted
+ * before the one permitted provider POST. Legal identity documents are never
+ * stored here. Recovery only performs provider GET.
+ */
+export const billingIronCustomerEnrollments = pgTable("fmcc_billing_iron_customer_enrollment", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  customerId: uuid("customer_id").notNull(),
+  externalTenantId: text("external_tenant_id").notNull(),
+  gatewayAccountId: uuid("gateway_account_id").notNull(),
+  externalReference: text("external_reference").notNull(),
+  status: text("status").notNull().default("reserved"),
+  externalCustomerId: text("external_customer_id"),
+  lastErrorCode: text("last_error_code"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("fmcc_iron_payer_academy_uq").on(t.tenantId,t.productId,t.externalTenantId),
+  uniqueIndex("fmcc_iron_payer_provider_ref_uq").on(t.tenantId,t.gatewayAccountId,t.externalReference),
+  foreignKey({name:"fmcc_iron_payer_product_fk",columns:[t.tenantId,t.productId],foreignColumns:[productDefinitions.tenantId,productDefinitions.id]}),
+  foreignKey({name:"fmcc_iron_payer_customer_fk",columns:[t.tenantId,t.customerId],foreignColumns:[billingCustomers.tenantId,billingCustomers.id]}),
+  foreignKey({name:"fmcc_iron_payer_gateway_fk",columns:[t.tenantId,t.gatewayAccountId],foreignColumns:[billingGatewayAccounts.tenantId,billingGatewayAccounts.id]}),
+  check("fmcc_iron_payer_status_ck",sql`${t.status} in ('reserved','uncertain','enrolled','blocked')`),
+]);

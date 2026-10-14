@@ -84,6 +84,20 @@ export class PostgresIronAsaasIssuer {
       if (row.created_at.getTime() < new Date(mapping.effectiveFrom).getTime()) {
         throw new Error("billing.iron_issuer_mapping_not_effective");
       }
+      // Enrollment is a separate FM-owned authority. Issuance cannot create
+      // or overwrite an unverified provider customer binding.
+      const payer = await client.query<{external_customer_id:string}>(`
+        SELECT external_customer_id
+        FROM fmcc_billing_iron_customer_enrollment
+        WHERE tenant_id=$1 AND product_id=$2 AND customer_id=$3
+          AND external_tenant_id=$4 AND gateway_account_id=$5
+          AND status='enrolled' AND external_customer_id=$6
+        FOR UPDATE
+      `,[input.tenantId,input.productId,row.customer_id,row.external_tenant_id,
+        row.gateway_account_id,input.customerId]);
+      if (payer.rowCount!==1 || row.external_customer_id!==input.customerId) {
+        throw new Error("billing.iron_issuer_payer_not_enrolled");
+      }
       const prior = await client.query<{
         external_customer_id: string; status: string; external_payment_id: string|null;
       }>(`
@@ -106,13 +120,6 @@ export class PostgresIronAsaasIssuer {
           row.subscription_status !== "pending") {
         throw new Error("billing.iron_issuer_invoice_already_processed");
       }
-      if (row.external_customer_id.startsWith("cus_") && row.external_customer_id !== input.customerId) {
-        throw new Error("billing.iron_issuer_customer_binding_conflict");
-      }
-      await client.query(`
-        UPDATE fmcc_billing_customer SET external_customer_id=$3
-        WHERE tenant_id=$1 AND id=$2
-      `,[input.tenantId,row.customer_id,input.customerId]);
       await client.query(`
         INSERT INTO fmcc_billing_iron_issue_claim
           (tenant_id,product_id,invoice_id,gateway_account_id,external_customer_id,external_reference)

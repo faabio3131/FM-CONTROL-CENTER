@@ -98,11 +98,12 @@ export class AsaasCheckoutClient {
   async findCustomersByDocument(cpfCnpj: string): Promise<AsaasCustomer[]> {
     if (!/^\d{11}(?:\d{3})?$/.test(cpfCnpj))
       throw new AsaasCheckoutTransportError("billing.customer_data_invalid");
-    const found = await this.request<{ data?: AsaasCustomer[] }>(
+    const found = await this.request<{ data?: AsaasCustomer[]; hasMore?: boolean }>(
       "GET",
       "/customers?cpfCnpj=" + encodeURIComponent(cpfCnpj),
     );
-    if (!Array.isArray(found.data))
+    // A truncated search cannot certify that the document is unused.
+    if (!Array.isArray(found.data) || found.hasMore === true)
       throw new AsaasCheckoutTransportError("billing.customer_lookup_invalid");
     return found.data.filter(customer => {
       if (!/^cus_[\w-]+$/.test(customer.id)) return false;
@@ -127,6 +128,20 @@ export class AsaasCheckoutClient {
     if (!/^cus_[\w-]+$/.test(created.id) || created.externalReference !== input.reference)
       throw new AsaasCheckoutTransportError("billing.customer_create_unconfirmed");
     return created.id;
+  }
+
+  /**
+   * One network POST, never an automatic retry. The caller MUST persist a
+   * canonical one-shot enrollment claim before calling this method.
+   */
+  async createIronPayerOnce(input: {
+    reference: string; name: string; cpfCnpj: string; email?: string;
+  }): Promise<string> {
+    if (!/^fmcc-iron-customer-[0-9a-f-]{36}$/i.test(input.reference)) {
+      throw new AsaasCheckoutTransportError("billing.iron_payer_reference_invalid");
+    }
+    this.validateCustomerInput(input);
+    return this.createCustomer(input);
   }
 
   async ensureCustomer(input: {
