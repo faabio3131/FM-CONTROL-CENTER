@@ -1,0 +1,46 @@
+name: FMCC IRON Governed Entitlement Outbox Delivery
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fmcc-iron-governed-entitlement-outbox
+  cancel-in-progress: false
+
+jobs:
+  deliver-one:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      FMCC_IRON_OUTBOX_WORKER_BASE_URL: ${{ vars.FMCC_IRON_OUTBOX_WORKER_BASE_URL }}
+      FMCC_IRON_OUTBOX_WORKER_SECRET: ${{ secrets.FMCC_IRON_OUTBOX_WORKER_SECRET }}
+    steps:
+      - name: Governed rollout gate
+        id: gate
+        shell: bash
+        run: |
+          if [ -z "$FMCC_IRON_OUTBOX_WORKER_BASE_URL" ] || [ -z "$FMCC_IRON_OUTBOX_WORKER_SECRET" ]; then
+            echo "::notice::IRON outbox delivery worker is not configured; no license operations executed."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$FMCC_IRON_OUTBOX_WORKER_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::Outbox worker base URL must use HTTPS"; exit 1 ;;
+          esac
+          echo "::add-mask::$FMCC_IRON_OUTBOX_WORKER_SECRET"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Deliver one canonically verified entitlement event
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          curl --silent --show-error --fail-with-body --max-time 30 \
+            --output /dev/null \
+            --request POST \
+            --header "Authorization: Bearer $FMCC_IRON_OUTBOX_WORKER_SECRET" \
+            "${FMCC_IRON_OUTBOX_WORKER_BASE_URL%/}/api/internal/billing/iron/outbox/process-one"
