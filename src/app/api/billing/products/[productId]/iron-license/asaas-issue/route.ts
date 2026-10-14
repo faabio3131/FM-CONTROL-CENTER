@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
 /**
  * This is the actual Asaas production POST capability, but it is
  * deliberately OFF by default. It does not trigger automated billing.
- * The admin supplies only an already-bound Asaas customer ID and due date;
+ * The admin supplies a due date; the existing Asaas payer is resolved from
+ * the canonical academy reference (an explicit ID is optional and verified);
  * product, invoice, academy, plan and amount always come from FM Command.
  */
 export async function POST(request:Request,{
@@ -53,12 +54,14 @@ export async function POST(request:Request,{
     );
     let result;
     if(input.action==="issue"){
-      if(typeof input.customerId!=="string"||typeof input.dueDate!=="string"){
+      if((input.customerId!==undefined && typeof input.customerId!=="string") ||
+         typeof input.dueDate!=="string"){
         return NextResponse.json({error:"billing.iron_issuer_invalid_request"},{status:400});
       }
       result=await issuer.issue({
         tenantId:ctx.tenantId,productId,invoiceId:input.invoiceId,
-        customerId:input.customerId,dueDate:input.dueDate,
+        ...(input.customerId!==undefined ? {customerId:input.customerId} : {}),
+        dueDate:input.dueDate,
       });
     }else{
       result=await issuer.recover({tenantId:ctx.tenantId,productId,invoiceId:input.invoiceId});

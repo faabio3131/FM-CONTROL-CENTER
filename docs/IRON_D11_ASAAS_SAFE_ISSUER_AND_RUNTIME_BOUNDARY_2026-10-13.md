@@ -39,3 +39,13 @@ Provider `GET /payments/{id}` remains the payment-state authority; our verifier 
 **No automatic credit-card recurring charge, installment contract, provider webhook or operational UI has been certified by this change.** Hosted multi-method selection belongs to the invoice flow; separate automatic monthly renewal and dunning must be designed against the real canonical subscription lifecycle. The production issuer remains default disabled and no provider charge was created during CI.
 
 Official Asaas API: https://docs.asaas.com/reference/criar-nova-cobranca
+
+## D11 delta — descoberta segura do pagador por academia (14/10/2026)
+
+O emissor aceita `customerId` opcional. Se omitido, resolve exclusivamente `fmcc-iron-customer-<gymUUID>` a partir do vínculo canônico no PostgreSQL do FM Command e consulta somente via GET `/customers?externalReference=...`. Exige **um único** pagador encontrado, rejeita páginas truncadas (`hasMore=true`), e executa GET adicional por ID para confirmar `id` e `externalReference` exatos antes de reservar a fatura e antes de qualquer POST de cobrança.
+
+- Se o pagador não existe: `billing.iron_issuer_customer_enrollment_required`. Nenhum cadastro, reserva ou cobrança é criado.
+- Duplicidade de pagadores: `billing.iron_issuer_customer_ambiguous`, bloqueio sem POST.
+- ID opcional informado: é sempre validado contra o Asaas e a academia canônica, não prevalecendo sobre o vínculo do Command.
+- A emissão permanece bloqueada por padrão via `FMCC_IRON_ASAAS_ISSUANCE_ENABLED`; não há novo flag, autorização implícita de pagamento, nem alteração da autoridade de billing.
+- Cadastro governado do pagador, webhook autenticado, worker e homologação externa seguem pendentes. Código e testes não equivalem a provedor homologado.

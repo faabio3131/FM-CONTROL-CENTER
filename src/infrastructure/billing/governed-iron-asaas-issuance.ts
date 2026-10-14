@@ -6,7 +6,7 @@ export class GovernedIronAsaasIssuance {
   constructor(
     private readonly repo: Pick<PostgresIronAsaasIssuer, "gymBinding"|"reserve"|"claimForRecovery"|"persistPayment"|"markUncertain">,
     private readonly provider: Pick<AsaasIronIssuerClient, "findUnique"|"createOnce">,
-    private readonly customers: Pick<AsaasCheckoutClient, "customerById">,
+    private readonly customers: Pick<AsaasCheckoutClient, "customerById" | "findCustomers">,
   ) {}
 
   private async recoverByRead(claim: IronIssueClaim) {
@@ -46,9 +46,10 @@ export class GovernedIronAsaasIssuance {
   }
 
   async issue(input: {
-    tenantId:string;productId:string;invoiceId:string;customerId:string;dueDate:string;
+    tenantId:string;productId:string;invoiceId:string;customerId?:string;dueDate:string;
   }) {
-    if (!/^cus_[A-Za-z0-9_-]{1,128}$/.test(input.customerId)) {
+    if (input.customerId !== undefined &&
+        !/^cus_[A-Za-z0-9_-]{1,128}$/.test(input.customerId)) {
       throw new Error("billing.iron_issuer_customer_id_invalid");
     }
     // Fail before reserving. A malformed date must never poison a legitimate
@@ -62,12 +63,29 @@ export class GovernedIronAsaasIssuance {
     }
     const gym = await this.repo.gymBinding(input.tenantId,input.productId,input.invoiceId);
     if (!gym) throw new Error("billing.iron_issuer_gym_binding_missing");
-    const customer = await this.customers.customerById(input.customerId);
-    if (!customer || customer.externalReference !== "fmcc-iron-customer-" + gym) {
+    // Resolve by the persisted gym binding, never by user-controlled document,
+    // email or tenant. The provider query is GET-only; customer creation has
+    // its own separate operational gate.
+    const reference = "fmcc-iron-customer-" + gym;
+    let customerId = input.customerId;
+    if (customerId === undefined) {
+      const matches = await this.customers.findCustomers(reference);
+      if (matches.length !== 1) {
+        throw new Error(matches.length === 0
+          ? "billing.iron_issuer_customer_enrollment_required"
+          : "billing.iron_issuer_customer_ambiguous");
+      }
+      customerId = matches[0].id;
+    }
+    if (!/^cus_[A-Za-z0-9_-]{1,128}$/.test(customerId)) {
+      throw new Error("billing.iron_issuer_customer_id_invalid");
+    }
+    const customer = await this.customers.customerById(customerId);
+    if (!customer || customer.id !== customerId || customer.externalReference !== reference) {
       throw new Error("billing.iron_issuer_customer_gym_mismatch");
     }
 
-    const claim = await this.repo.reserve(input);
+    const claim = await this.repo.reserve({ ...input, customerId });
     if (!claim.created) return this.recoverByRead(claim);
 
     // The durable claim is committed BEFORE the first provider preflight/POST.
