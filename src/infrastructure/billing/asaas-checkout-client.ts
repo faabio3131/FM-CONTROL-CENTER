@@ -98,11 +98,12 @@ export class AsaasCheckoutClient {
   async findCustomersByDocument(cpfCnpj: string): Promise<AsaasCustomer[]> {
     if (!/^\d{11}(?:\d{3})?$/.test(cpfCnpj))
       throw new AsaasCheckoutTransportError("billing.customer_data_invalid");
-    const found = await this.request<{ data?: AsaasCustomer[] }>(
+    const found = await this.request<{ data?: AsaasCustomer[]; hasMore?: boolean }>(
       "GET",
       "/customers?cpfCnpj=" + encodeURIComponent(cpfCnpj),
     );
-    if (!Array.isArray(found.data))
+    // A truncated search cannot certify that the document is unused.
+    if (!Array.isArray(found.data) || found.hasMore === true)
       throw new AsaasCheckoutTransportError("billing.customer_lookup_invalid");
     return found.data.filter(customer => {
       if (!/^cus_[\w-]+$/.test(customer.id)) return false;
