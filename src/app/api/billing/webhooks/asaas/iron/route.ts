@@ -36,6 +36,11 @@ export async function POST(request: Request) {
   if (!controlTenantId) return NextResponse.json({error:"billing.iron_webhook_unavailable"},{status:503});
   try {
     const status = await new IronAsaasWebhookInbox(pool).persist(controlTenantId,event);
+    if (status === "unbound") {
+      // Do not acknowledge a relevant IRON notification before durable
+      // canonical binding; Asaas should retry after a temporary race.
+      return NextResponse.json({error:"billing.iron_webhook_binding_not_ready"},{status:503});
+    }
     // Acknowledgement means only that the notification was stored or safely
     // ignored. A separate authenticated Asaas GET must certify financial state.
     return NextResponse.json({accepted:true,status},{headers:{"Cache-Control":"no-store"}});
