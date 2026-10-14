@@ -119,6 +119,17 @@ describe("D11 IRON canonical payer enrollment",()=>{
     expect(f.repository.markUncertain).toHaveBeenCalledOnce();
   });
 
+  it("rejects issuer bypass: charge reservation requires confirmed canonical enrollment",async()=>{
+    const issuer=await readFile("src/infrastructure/billing/postgres-iron-asaas-issuer.ts","utf8");
+    expect(issuer).toContain("fmcc_billing_iron_customer_enrollment");
+    expect(issuer).toContain("status='enrolled' AND external_customer_id=$6");
+    expect(issuer).toContain("billing.iron_issuer_payer_not_enrolled");
+    expect(issuer).not.toContain("UPDATE fmcc_billing_customer SET external_customer_id");
+    const enroll=await readFile("src/infrastructure/billing/postgres-iron-payer-enrollment.ts","utf8");
+    expect(enroll).toContain("UPDATE fmcc_billing_customer SET external_customer_id=$1");
+    expect(enroll).toContain("ON CONFLICT (tenant_id,product_id,external_tenant_id) DO NOTHING");
+  });
+
   it("ensures UI and route enforce FM admin step-up and never expose payment or student funds",async()=>{
     const route=await readFile("src/app/api/billing/products/[productId]/iron-license/asaas-payer/route.ts","utf8");
     const page=await readFile("src/app/dashboard/products/[productId]/billing/page.tsx","utf8");
