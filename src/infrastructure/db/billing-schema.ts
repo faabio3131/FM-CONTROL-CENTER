@@ -158,9 +158,17 @@ export const billingGatewayEvents = pgTable("fmcc_billing_gateway_event", {
   externalPaymentId: text("external_payment_id"),
   externalReference: text("external_reference"),
   payloadFingerprint: text("payload_fingerprint"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", {withTimezone:true}).notNull().defaultNow(),
+  leaseUntil: timestamp("lease_until", {withTimezone:true}),
+  claimToken: uuid("claim_token"),
+  lastErrorCode: text("last_error_code"),
+  processedAt: timestamp("processed_at", {withTimezone:true}),
+  updatedAt: timestamp("updated_at", {withTimezone:true}).notNull().defaultNow(),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   uniqueIndex("fmcc_billing_gateway_event_dedupe_uq").on(t.tenantId,t.gatewayAccountId,t.externalEventId),
+  index("fmcc_billing_gateway_event_queue_idx").on(t.tenantId,t.status,t.availableAt),
   foreignKey({ name: "fmcc_billing_event_gateway_fk", columns: [t.tenantId,t.gatewayAccountId], foreignColumns: [billingGatewayAccounts.tenantId,billingGatewayAccounts.id] }),
 ]);
 
