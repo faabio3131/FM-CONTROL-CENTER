@@ -24,7 +24,7 @@ export class PostgresIronAsaasIssuer {
           AND b.product_id=i.product_id AND b.customer_id=i.customer_id
         JOIN fmcc_product_definition product ON product.tenant_id=i.tenant_id AND product.id=i.product_id
         WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.id=$3
-          AND product.slug='iron-fit-core' AND product.status='active'
+          AND product.slug='iron' AND product.status='active'
       `,[tenantId,productId,invoiceId]);
       return result.rowCount===1 ? result.rows[0].external_tenant_id : null;
     } finally {client.release();}
@@ -61,7 +61,7 @@ export class PostgresIronAsaasIssuer {
         LEFT JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id
           AND p.invoice_id=i.id
         WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.id=$3
-          AND product.slug='iron-fit-core' AND product.status='active'
+          AND product.slug='iron' AND product.status='active'
         FOR UPDATE OF i,c
       `,[input.tenantId,input.productId,input.invoiceId]);
       if (query.rowCount !== 1) throw new Error("billing.iron_issuer_invoice_unavailable");
