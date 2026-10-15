@@ -271,19 +271,19 @@ test("viewport de tablet crítico mantém dashboard e alertas utilizáveis sem r
 
 test("fontes: cadastro governado do Kordena permanece fail-closed sem runtime externo", async ({ page }) => {
   await signUpAndCreateOrganization(page, "sources");
-  const productSlug = unique("kordena").toLowerCase();
+  const productSlug = "kordena";
   await createProduct(page, "Kordena", productSlug);
 
   await page.goto("/dashboard/sources");
   await expect(page.getByRole("heading", { name: "Fontes e Integrações" })).toBeVisible();
 
-  await page.getByLabel("Produto").selectOption({ index: 1 });
+  await page.locator('select[name="productId"]').selectOption({ index: 1 });
   await page.getByLabel("URL HTTPS do Kordena").fill("https://kordena.example.test");
   await page.getByLabel("Atualidade esperada (segundos)").fill("300");
   await page.getByRole("button", { name: "Cadastrar fonte" }).click();
 
-  await expect(page.getByText("Fonte Kordena cadastrada. Agora teste a conexão antes de sincronizar.")).toBeVisible();
-  const sourceCard = page.locator("article.product-card").filter({ hasText: "Kordena Comercial" });
+  await expect(page.getByText("Fonte Kordena cadastrada. Teste a conexão antes de sincronizar.")).toBeVisible();
+  const sourceCard = page.locator("article.product-card").filter({ hasText: "Kordena Commercial" });
   await expect(sourceCard).toBeVisible();
 
   await sourceCard.getByRole("button", { name: "Testar conexão" }).click();
