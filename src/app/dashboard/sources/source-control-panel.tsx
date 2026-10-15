@@ -31,6 +31,27 @@ type Props = {
   canWrite: boolean;
 };
 
+const CONFIGURED_PRODUCTS = {
+  kordena: {
+    title: "Conectar Kordena",
+    name: "Kordena Commercial",
+    sourceType: config.sourceType,
+    secretRef: config.secretRef,
+    urlLabel: "URL HTTPS do Kordena",
+    placeholder: "https://seu-kordena.exemplo.com",
+  },
+  iron: {
+    title: "Conectar IRON FIT CORE",
+    name: "IRON FIT CORE Commercial",
+    sourceType: "iron-commercial-v1",
+    secretRef: "env:FMCC_IRON_CONTROL_PLANE_TOKEN",
+    urlLabel: "URL HTTPS do backend IRON",
+    placeholder: "https://gym-saas-backend-t9ej.onrender.com",
+  },
+} as const;
+
+type SupportedProduct = keyof typeof CONFIGURED_PRODUCTS;
+
 type SourceState = {
   health?: string;
   sync?: string;
@@ -82,6 +103,14 @@ async function json(response: Response): Promise<Record<string, unknown>> {
 
 export function SourceControlPanel({ products, sources, canWrite }: Props) {
   const router = useRouter();
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const selectedProduct = products.find((product) => product.id === selectedProductId);
+  const selection = selectedProduct && selectedProduct.slug in CONFIGURED_PRODUCTS
+    ? CONFIGURED_PRODUCTS[selectedProduct.slug as SupportedProduct]
+    : null;
+  const alreadyRegistered = sources.some((source) =>
+    source.productId === selectedProductId && source.sourceType === selection?.sourceType
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [states, setStates] = useState<Record<string, SourceState>>({});
@@ -94,7 +123,16 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
     const baseUrl = String(form.get("baseUrl") ?? "").trim();
     const freshnessSeconds = Number(form.get("freshnessSeconds") ?? "300");
 
-    if (!productId || !baseUrl) return;
+    const product = products.find((item) => item.id === productId);
+    const config = product && product.slug in CONFIGURED_PRODUCTS
+      ? CONFIGURED_PRODUCTS[product.slug as SupportedProduct]
+      : null;
+    if (!config || !baseUrl || sources.some((item) =>
+      item.productId === productId && item.sourceType === config.sourceType
+    )) {
+      setMessage("Selecione uma integração suportada e ainda não cadastrada.");
+      return;
+    }
     setBusy("register");
     setMessage(null);
     try {
@@ -103,12 +141,12 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           productId,
-          name: "Kordena Comercial",
+          name: config.name,
           sourceType: "kordena-commercial-v1",
           authoritativeDomain: "commercial",
           syncMode: "pull",
           secretRef: "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN",
-          mappingVersion: "kordena-commercial-v1",
+          mappingVersion: config.sourceType,
           freshnessSeconds,
           config: { baseUrl },
         }),
@@ -119,7 +157,8 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
         return;
       }
       formElement.reset();
-      setMessage("Fonte Kordena cadastrada. Agora teste a conexão antes de sincronizar.");
+      setSelectedProductId("");
+      setMessage(`Fonte ${product?.name ?? "comercial"} cadastrada. Teste a conexão antes de sincronizar.`);
       router.refresh();
     } catch {
       setMessage("Não foi possível cadastrar a fonte.");
@@ -219,7 +258,7 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
           <div className="section-heading">
             <div>
               <span className="eyebrow">Cadastro governado</span>
-              <h2 id="source-register-title">Conectar Kordena</h2>
+              <h2 id="source-register-title">{selection?.title ?? "Conectar produto"}</h2>
             </div>
             <p>
               O navegador grava somente URL e referência do segredo. O valor real
@@ -230,15 +269,15 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
           {products.length === 0 ? (
             <div className="empty-state">
               <strong>Nenhum produto ativo disponível.</strong>
-              <p>Cadastre primeiro o produto Kordena no dashboard.</p>
+              <p>Cadastre primeiro um produto no dashboard.</p>
             </div>
           ) : (
             <form className="product-create-form" onSubmit={register}>
               <label>
                 Produto
-                <select name="productId" required defaultValue="">
+                <select name="productId" required value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)}>
                   <option value="" disabled>Selecione o produto</option>
-                  {products.map((product) => (
+                  {products.filter((product) => product.slug in CONFIGURED_PRODUCTS).map((product) => (
                     <option key={product.id} value={product.id}>
                       {product.name} ({product.slug})
                     </option>
@@ -246,14 +285,15 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
                 </select>
               </label>
               <label>
-                URL HTTPS do Kordena
+                {selection?.urlLabel ?? "URL HTTPS do produto"}
                 <input
                   name="baseUrl"
                   type="url"
                   required
                   pattern="https://.*"
-                  placeholder="https://seu-kordena.exemplo.com"
+                  placeholder={selection?.placeholder ?? "Selecione um produto suportado"}
                   autoComplete="off"
+                  disabled={!selection || alreadyRegistered}
                 />
               </label>
               <label>
@@ -267,7 +307,8 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
                   required
                 />
               </label>
-              <button className="button" type="submit" disabled={busy === "register"}>
+              {alreadyRegistered ? <p role="status">Esta fonte já está registrada. Use a seção de saúde e sincronização abaixo.</p> : null}
+              <button className="button" type="submit" disabled={busy === "register" || !selection || alreadyRegistered}>
                 {busy === "register" ? "Cadastrando…" : "Cadastrar fonte"}
               </button>
             </form>
