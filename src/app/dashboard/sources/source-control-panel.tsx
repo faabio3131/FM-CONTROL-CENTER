@@ -35,8 +35,8 @@ const CONFIGURED_PRODUCTS = {
   kordena: {
     title: "Conectar Kordena",
     name: "Kordena Commercial",
-    sourceType: config.sourceType,
-    secretRef: config.secretRef,
+    sourceType: "kordena-commercial-v1",
+    secretRef: "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN",
     urlLabel: "URL HTTPS do Kordena",
     placeholder: "https://seu-kordena.exemplo.com",
   },
@@ -142,10 +142,10 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
         body: JSON.stringify({
           productId,
           name: config.name,
-          sourceType: "kordena-commercial-v1",
+          sourceType: config.sourceType,
           authoritativeDomain: "commercial",
           syncMode: "pull",
-          secretRef: "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN",
+          secretRef: config.secretRef,
           mappingVersion: config.sourceType,
           freshnessSeconds,
           config: { baseUrl },
