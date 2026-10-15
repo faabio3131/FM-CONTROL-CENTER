@@ -4,6 +4,7 @@ import { recordAuditEvent } from "@/application/audit/record-audit-event";
 import {
   ConfigSecretForbiddenError,
   InvalidProductScopeError,
+  InvalidProductSourceBindingError,
   InvalidSecretReferenceError,
   SourceRegistryService,
 } from "@/application/integration/source-registry-service";
@@ -154,7 +155,8 @@ export async function POST(request: Request) {
     if (
       error instanceof InvalidSecretReferenceError ||
       error instanceof ConfigSecretForbiddenError ||
-      error instanceof InvalidProductScopeError
+      error instanceof InvalidProductScopeError ||
+      error instanceof InvalidProductSourceBindingError
     ) {
       return NextResponse.json(
         { error: error.message },
