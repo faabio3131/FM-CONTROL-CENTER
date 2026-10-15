@@ -44,6 +44,8 @@ describe("CME-07 header identity UI contract", () => {
     expect(css).toContain("display:inline-flex");
     expect(css).toContain(".command-user-avatar");
     expect(css).toContain("max-height:min(70vh,480px)");
+    expect(css).toContain("position:fixed;");
+    expect(css).toContain("width:min(340px,calc(100vw - 24px))");
 
     const shell = source("src/app/dashboard/command-shell.tsx");
     expect(shell).toContain("<p>Ambiente: {environmentLabel}</p>");
