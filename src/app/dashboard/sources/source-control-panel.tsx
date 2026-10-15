@@ -84,6 +84,7 @@ function mensagemErro(codigo?: string) {
   const conhecido: Record<string, string> = {
     "integration.source_definition_invalid": "A definição da fonte é inválida.",
     "integration.product_scope_invalid": "O produto selecionado não é válido ou não está ativo.",
+    "integration.product_source_binding_invalid": "A integração não corresponde ao produto ou à credencial configurada.",
     "integration.secret_reference_invalid": "A referência de segredo da fonte é inválida.",
     "integration.sync_failed": "A sincronização falhou ou a configuração externa ainda não está pronta.",
     "integration.health_failed": "Não foi possível consultar a saúde da integração.",
