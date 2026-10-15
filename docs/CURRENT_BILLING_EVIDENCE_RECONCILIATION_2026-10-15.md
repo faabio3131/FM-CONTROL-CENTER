@@ -31,3 +31,13 @@ Antes de considerar pagamento live homologado: inspecionar comprovante/ID financ
 
 ## Observação de governança
 Atualizar este checkpoint **em cada WP e após cada prova posterior**, com commit/PR/CI/ambiente/dados não sensíveis; não deixar documentos antigos como única fonte de CURRENT. O presente documento não altera configuração financeira, dados, credenciais nem migrações.
+
+
+## Decisão operacional do proprietário — 15/10/2026
+**GATE HUMANO EXPLÍCITO: ADIAR HOMOLOGAÇÃO FINANCEIRA REAL PARA A FASE FINAL DE TESTES INTERNOS.**
+
+O proprietário determinou que a configuração/vinculação financeira externa ainda ausente no ambiente — (1) rota do IRON para conta Asaas FM, (2) plano comercial precificado, (3) vínculo de academias pagadoras — e a homologação com contas conectadas/Pix real ocorrerão **somente depois** de o produto estar internamente 100% implementado e com Visual Premium concluído e aprovado. Não interpretar esse adiamento como defeito bloqueante para trabalhos internos de código, QA e UI; manter os gates financeiros de GO-LIVE.
+
+Até essa etapa, **não** criar nem habilitar rotas externas de produção, emitir Pix real, cadastrar cliente real no Asaas, ativar webhooks/workers financeiros ou conceder licença por pagamento não homologado. É permitido implementar/corrigir os fluxos internos existentes, testes automatizados seguros, validações, auditoria, segurança, simulações em ambiente isolado e acabamento do produto real. Preservar a conta Asaas da FM e o billing atual do Kordena sem alterações.
+
+Para a Macro O, manter a exigência independente de avaliação visual e aprovação explícita antes do merge final; depois continuar Macros P→Q→R→S→T conforme os gates. Um teste de fonte/snapshot saudável **não** equivale ao GO financeiro. Atualizar checkpoints ao concluir cada WP com SHA, PR, CI, testes e pendências reais.
