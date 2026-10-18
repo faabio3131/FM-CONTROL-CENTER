@@ -81,6 +81,14 @@ describe("Command corporate bridge administration authorization", () => {
     expect(response.status).toBe(403);
     expect(mocks.stepUp).not.toHaveBeenCalled();
     expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: "client-tenant" }),
+      expect.objectContaining({
+        action: "fm_core.bridge.denied",
+        result: "denied",
+        metadata: { reason: "platform_admin_required" },
+      }),
+    );
   });
 
   it("denies analyst and member roles in the FM corporate tenant", async () => {
@@ -139,6 +147,33 @@ describe("Command corporate bridge administration authorization", () => {
       expect((await POST(request(input))).status).toBe(400);
     }
     expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.audit).toHaveBeenCalledTimes(3);
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "fm_core.bridge.denied",
+        result: "denied",
+        metadata: { reason: "input_invalid" },
+      }),
+    );
+  });
+
+  it("still denies access if writing the denial audit fails", async () => {
+    mocks.audit.mockRejectedValue(new Error("test-audit-database-unavailable"));
+    mocks.context.mockResolvedValue({
+      tenantId: "another-org",
+      userId: "owner-1",
+      role: "owner",
+      correlationId: "test-correlation",
+    });
+    const response = await POST(request(payload));
+    expect(response.status).toBe(403);
+    expect(mocks.audit).toHaveBeenCalledOnce();
+    expect(mocks.stepUp).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(JSON.stringify(await response.json())).not.toContain(
+      "test-audit-database-unavailable",
+    );
   });
 
   it("returns a sanitized error when downstream rejects or times out", async () => {
