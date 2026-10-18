@@ -36,7 +36,7 @@ export function AssistantPlanEditor({productId}:{productId:string}) {
     const data=(await response.json()) as {plans:PlanRow[]};
     setPlans(data.plans);
   },[productId]);
-  useEffect(()=>{void refresh().catch(()=>setStatus("Catálogo indisponível."));},[refresh]);
+  useEffect(()=>{void refresh().catch(()=>{});},[refresh]);
 
   function setAllowance(index:number, patch:Partial<PlanAllowance>) {
     setAllowances(current=>current.map((item,i)=>i===index?{...item,...patch}:item));
