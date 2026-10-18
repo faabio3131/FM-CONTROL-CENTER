@@ -76,7 +76,7 @@ export function parseConsumptionPlanDraft(value: unknown): ConsumptionPlanDraft 
     if (typeof item.windowSeconds !== "number" || !Number.isSafeInteger(item.windowSeconds) ||
         item.windowSeconds < 60 || item.windowSeconds > 366 * 86400)
       throw new ConsumptionPlanInvalid("window_invalid");
-    const key = `${item.resource}:${item.scope}`;
+    const key = item.resource; // one quota scope per resource in Assistant license v1
     if (seen.has(key)) throw new ConsumptionPlanInvalid("duplicate_allowance");
     seen.add(key);
     return {
