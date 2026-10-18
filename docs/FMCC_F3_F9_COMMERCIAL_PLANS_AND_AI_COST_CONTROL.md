@@ -31,10 +31,13 @@ de renovação e tetos por recurso, com versionamento/auditoria. A
 tabela de preços do fornecedor de IA é separada da tabela de preços
 comerciais e não pode ser confundida com o valor da assinatura.
 
-A referência seletiva é o **FinOps do Kordena**, cujo read-model agrega
-uso, custo e fallback, mas não impõe um limite antes da execução.
-Reaproveitar conceitos de medição/projeção; a autoridade de franquias
-fica no Assistant e a fiscalização transacional no Core.
+A referência seletiva é o **FinOps do Kordena**: a `main` tem
+read-model de uso/custo/fallback; a **PR #230 Draft** já possui um
+`AIFranchiseBudgetGuard` transacional pré-provider, provisionamento
+por assinatura, tratamento de timeout e visão de franquia do cliente.
+Aproveitar os padrões, **não pressupor homologação** nem replicar outro
+ledger concorrente no novo SaaS. A FM/Command governa franquias e
+preços; Assistant mantém a licença e Core aplica limites.
 
 ## Regras de billing e FinOps
 
