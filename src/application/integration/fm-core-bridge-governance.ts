@@ -160,7 +160,7 @@ export async function sendGovernedCommandBridgeAction(
           "X-FM-Command-Nonce": nonce,
           "X-FM-Command-Signature": signature,
         },
-        body,
+        body: raw,
         redirect: "manual",
         cache: "no-store",
         signal: AbortSignal.timeout(5000),
