@@ -19,6 +19,8 @@ from fm_assistant.core_bridge_models import CoreBridgeGrantORM, CoreBridgeIdenti
 ROOT = Path(__file__).resolve().parents[1]
 ASSISTANT_TEST = ROOT / "assistant-source/tests/saas/test_core_bridge_service.py"
 NODE_RUNNER = ROOT / "tests/f3-command-assistant-node-envelope.mts"
+STATUS_NODE_RUNNER = ROOT / "tests/f3-command-assistant-node-status-envelope.mts"
+STATUS_ENDPOINT = "/internal/v1/command/core-bridge/status"
 ENDPOINT = "/internal/v1/command/core-bridge/manage"
 
 
@@ -59,6 +61,27 @@ def signed_node_request(action: str, organization: str = "fm-company-organizatio
     assert "synthetic-command-control-signing-key" not in envelope["body"]
     assert "password" not in envelope["body"]
     return envelope
+
+
+def signed_status_request(action: str, request_id: str):
+    proc = subprocess.run(
+        [
+            "node", "--experimental-strip-types", str(STATUS_NODE_RUNNER),
+            action, request_id,
+        ],
+        check=True, capture_output=True, text=True, cwd=ROOT, timeout=20,
+    )
+    envelope = json.loads(proc.stdout)
+    assert envelope["url"] == "https://assistant.example" + STATUS_ENDPOINT
+    assert "password" not in envelope["body"]
+    return envelope
+
+
+def invoke_status(client, envelope):
+    return client.post(
+        STATUS_ENDPOINT, content=envelope["body"].encode("utf-8"),
+        headers=envelope["headers"],
+    )
 
 
 def invoke(client, envelope):
@@ -107,9 +130,18 @@ def test_real_node_command_contract_and_python_asgi_revocation(assistant_fixture
     core_body, core_headers = reference.signed_request()
     assert client.post(reference.PATH, content=core_body, headers=core_headers).status_code == 200
 
-    response = invoke(client, signed_node_request("revoke_grant"))
+    revoke = signed_node_request("revoke_grant")
+    request_id = json.loads(revoke["body"])["command_request_id"]
+    prior = invoke_status(client, signed_status_request("revoke_grant", request_id))
+    assert prior.status_code == 200
+    assert prior.json() == {"status": "unknown", "outcome": None}
+    response = invoke(client, revoke)
     assert response.status_code == 200, response.text
     assert response.json() == {"status": "revoked"}
+    reconciled = invoke_status(client, signed_status_request("revoke_grant", request_id))
+    assert reconciled.status_code == 200, reconciled.text
+    assert reconciled.json() == {"status": "applied", "outcome": "revoked"}
+    assert invoke_status(client, revoke).status_code == 401  # wrong signed path
     core_body, core_headers = reference.signed_request()
     assert client.post(reference.PATH, content=core_body, headers=core_headers).status_code == 401
 
