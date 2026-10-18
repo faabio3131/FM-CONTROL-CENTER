@@ -150,7 +150,7 @@ export function KordenaCommercialAdminForm(props: {
     let nextConfig = existingConfig;
     if (isAiBudget) {
       const cap = aiMaxCostPerRequest.trim().replace(",", ".");
-      if (unit !== "USD" || !/^\\d+(?:\\.\\d+)?$/.test(cap) ||
+      if (unit !== "USD" || !/^\d+(?:\.\d+)?$/.test(cap) ||
           Number(cap) <= 0 || Number(cap) > Number(quantidade)) {
         setStatus(
           "Orçamento interno de IA exige unidade USD e teto por tentativa " +
