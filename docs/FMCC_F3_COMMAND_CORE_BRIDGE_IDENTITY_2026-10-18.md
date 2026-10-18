@@ -1,6 +1,6 @@
 # F3 — FM Command corporativo: gestão governada de identidades Core
 
-**Data:** 2026-10-18  
+**Data:** 2026-10-18
 **Entrega:** PR #90 Draft, sem merge/deploy.
 **Origem da demanda:** F3.7.3 do SaaS Atendente + Vendedor IA.
 
