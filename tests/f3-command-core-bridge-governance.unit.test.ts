@@ -98,6 +98,38 @@ describe("Command → Assistant service identity governance contract", () => {
     expect(spy).toHaveBeenCalledOnce();
   });
 
+  it("binds the durable preaudit request ID to the signed envelope", async () => {
+    const requestId = "a1b2c3d4-1234-4abc-8def-123456789012";
+    const spy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      expect(payload.command_request_id).toBe(requestId);
+      const headers = new Headers(init?.headers);
+      expect(headers.get("X-FM-Command-Signature")).toBe(signCommandBridgeRequest(
+        SIGNING_KEY, "command-key-1",
+        headers.get("X-FM-Command-Timestamp") ?? "",
+        headers.get("X-FM-Command-Nonce") ?? "",
+        Buffer.from(String(init?.body)),
+      ));
+      return new Response(JSON.stringify({ status: "revoked" }), { status: 200 });
+    });
+    expect(await sendGovernedCommandBridgeAction(
+      target, authority, config, {
+        now: NOW, http: spy as typeof fetch, commandRequestId: requestId,
+      },
+    )).toBe("revoked");
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it("refuses an invalid reconciliation ID without contacting Assistant", async () => {
+    const spy = vi.fn();
+    await expect(sendGovernedCommandBridgeAction(
+      target, authority, config, {
+        now: NOW, http: spy as typeof fetch, commandRequestId: "../spoof",
+      },
+    )).rejects.toBeInstanceOf(CoreBridgeGovernanceError);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it("never retries or trusts redirects and errors containing secrets", async () => {
     const spy = vi.fn(async () => new Response(
       JSON.stringify({ secret: "never-disclose-this" }), { status: 503 },
