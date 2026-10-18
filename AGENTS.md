@@ -48,3 +48,10 @@ Parar promoção, preservar evidência e corrigir: bypass de autenticação/step
 ## Ferramentas
 
 Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto somente se indispensável**, para preservar os créditos do usuário. Nunca alegar teste executado se ele não executou.
+
+
+## F3.7.4 — Gate PostgreSQL no Assistant (2026-10-18)
+
+- Assistant `6dd2d9f7ebf84fa140ae7380f6f0386387500ca9` passou PostgreSQL 16 de replay simultâneo, revogação de grant/identidade e auditoria em **duas execuções CI** (`39139495756`, `39139500097`).
+- Este verde é apenas do Assistant. **A PR #90 Command permanece bloqueada** porque os workflows terminam sem executar etapas; não tratar como CI aprovado. Investigar infra/Billing e executar lint, typecheck, tests, build, review de segurança e contrato E2E Command→Assistant.
+- Manter F3 IN_PROGRESS e F4 NOT_STARTED. Não aplicar credenciais reais, migrations produtivas, deploy ou merge antes de 100% dos gates obrigatórios.
