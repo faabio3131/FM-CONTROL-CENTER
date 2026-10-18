@@ -94,3 +94,17 @@ sem deploy, migration real ou segredo de produção; PR Draft.
 **CI:** no HEAD `045168112162902111972c7bda819e436a5e7e69`, Foundation `39141682746`, F21 `39141682831` e Cognitive `39141682750` encerraram FAILURE antes de executar testes; conferir steps a cada nova tentativa. Resultado do novo teste cruzado: **NOT_TESTED / BLOCKED_EXTERNAL**, jamais GREEN.
 
 **Próxima sequência permitida:** recuperar runner/Actions, executar lint/typecheck/unit/build + teste Node/Python, corrigir qualquer RED, obter segunda revisão, completar controles Vault/rede/reconciliação e gate F3. Nenhum merge/deploy/credencial real foi autorizado por este checkpoint.
+
+
+## F3.7.6 — Audit-intent obrigatório antes do envio (18/10/2026)
+
+**Problema identificado:** a mutação no Assistant pode ter sido confirmada enquanto o registro final no Command falha; o `command_request_id` anteriormente nascia apenas dentro do cliente HTTP e não tinha evidência local prévia.
+
+**Hardening implementado, ainda não certificado por CI Command:**
+- A rota só transmite a mutação depois de **persistir uma tentativa autorizada** (`result=allowed`, `action=...requested`) no ledger de auditoria corporativo, com UUID gerado exclusivamente server-side, actor e escopo.
+- O **mesmo UUID** segue no corpo HMAC até o Assistant como `command_request_id`, e aparece na auditoria de confirmação/falha do Command. Sem auditoria prévia, sem envio.
+- O cliente Node valida o UUID/identificador e não admite substituição por payload HTTP público.
+- Testes: sem envio quando audit-intent falha; mesmo ID no envio e registros; falha de auditoria posterior fica rastreável pelo intent; não vaza detalhes sensíveis nem faz retry cego.
+- Esta estratégia é um **pré-registro verificável**, não uma transação distribuída nem reconciliação já implementada. Falta mecanismo de consulta/reconciliação somente leitura e prova de outcomes entre Command e Assistant, além de política de retenção, alerta e revisão independente.
+
+**GATE:** novo código e testes versionados; Command GitHub Actions segue `NOT_TESTED / BLOCKED_EXTERNAL`, sem promoção para merge, deploy, segredo real ou homologação.
