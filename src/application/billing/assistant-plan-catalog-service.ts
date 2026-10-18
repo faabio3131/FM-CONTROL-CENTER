@@ -41,7 +41,14 @@ export class AssistantPlanCatalogService {
       eq(assistantPlanRevisions.tenantId, context.tenantId),
       eq(assistantPlanRevisions.productId, productId),
     )).orderBy(desc(assistantPlanRevisions.createdAt));
-    return rows.map(row=>({...row,currency:"BRL" as const}));
+    return rows.map(row=>({
+      ...row,
+      currency:"BRL" as const,
+      allowances:parseConsumptionPlanDraft({
+        planCode:row.planCode,label:row.label,billingInterval:row.billingInterval,
+        amountMinor:row.amountMinor,allowances:row.allowances,
+      }).allowances,
+    }));
   }
 
   async createDraft(context: TenantContext, productId: string, raw: unknown) {
