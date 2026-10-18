@@ -87,7 +87,7 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - Testes reais com proprietário somente após CI/segurança: PostgreSQL staging, HTTPS/Vault, segredos segregados e aprovação humana para credenciais/deploy/migration não descartável.
 - Nunca desativar gate por custo ou converter `BLOCKED_EXTERNAL` em `GREEN`; reexecutar, investigar e corrigir. Nenhum merge autorizado sem todos os critérios exigidos.
 
- 
+
 ## F3.7.8 — Certificação CI real do Command após desbloqueio (2026-10-18)
 
 - GitHub Actions no repositório corporativo foi desbloqueado após sua mudança de private para public. A anotação histórica confirmada era de pagamentos/limite de gastos; os jobs passaram a executar steps reais, sem alterar controles de segurança.
