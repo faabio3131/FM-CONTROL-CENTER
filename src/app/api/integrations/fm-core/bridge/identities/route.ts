@@ -19,6 +19,23 @@ import {
   type TenantContext,
 } from "@/domain/security/tenant-context";
 
+// Authorization denials are security events even when no downstream mutation occurs.
+async function auditBridgeDenial(
+  context: TenantContext,
+  reason: "platform_admin_required" | "input_invalid",
+): Promise<void> {
+  try {
+    await recordAuditEvent(context, {
+      action: "fm_core.bridge.denied",
+      resourceType: "fm_core_service_identity",
+      result: "denied",
+      metadata: { reason },
+    });
+  } catch {
+    // Audit infrastructure failure must never grant access or reveal internals.
+  }
+}
+
 export async function POST(request: Request) {
   let context: TenantContext | undefined;
   let action = "unknown";
@@ -32,6 +49,7 @@ export async function POST(request: Request) {
       trustedOrganization !== context.tenantId ||
       (context.role !== "owner" && context.role !== "admin")
     ) {
+      await auditBridgeDenial(context, "platform_admin_required");
       return NextResponse.json(
         { error: "fm_core.bridge_platform_admin_required" },
         { status: 403 },
@@ -44,6 +62,7 @@ export async function POST(request: Request) {
     const password = input?.password;
     if (!target || typeof password !== "string" ||
         !password || password.length > 128) {
+      await auditBridgeDenial(context, "input_invalid");
       return NextResponse.json(
         { error: "fm_core.bridge_input_invalid" }, { status: 400 },
       );
