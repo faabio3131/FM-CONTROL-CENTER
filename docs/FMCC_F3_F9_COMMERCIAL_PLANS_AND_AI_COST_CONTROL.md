@@ -1,6 +1,6 @@
 # FM Command — Planos comerciais, limites e custo de IA por produto
 
-**Data:** 2026-10-18  
+**Data:** 2026-10-18
 **Status:** contrato de arquitetura para construção interna, não configuração externa/homologação.
 
 ## Responsabilidades canônicas
