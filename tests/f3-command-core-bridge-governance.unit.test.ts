@@ -156,6 +156,7 @@ describe("Command → Assistant service identity governance contract", () => {
       "https://assistant.example/admin", "https://assistant.example/?apiKey=1",
     ]) {
       expect(() => commandBridgeConfigFromEnvironment({
+        NODE_ENV: "test",
         FM_COMMAND_CORE_BRIDGE_ASSISTANT_URL: url,
         FM_COMMAND_CORE_BRIDGE_CONTROL_KEY_ID: "command-key-1",
         FM_COMMAND_CORE_BRIDGE_CONTROL_SIGNING_KEY: SIGNING_KEY,
@@ -163,6 +164,7 @@ describe("Command → Assistant service identity governance contract", () => {
       } as NodeJS.ProcessEnv)).toThrow(CoreBridgeGovernanceError);
     }
     expect(commandBridgeConfigFromEnvironment({
+        NODE_ENV: "test",
       FM_COMMAND_CORE_BRIDGE_ASSISTANT_URL: "https://assistant.example",
       FM_COMMAND_CORE_BRIDGE_CONTROL_KEY_ID: "command-key-1",
       FM_COMMAND_CORE_BRIDGE_CONTROL_SIGNING_KEY: SIGNING_KEY,
