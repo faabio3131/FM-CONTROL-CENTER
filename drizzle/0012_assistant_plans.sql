@@ -25,3 +25,23 @@ ALTER TABLE "fmcc_assistant_plan_revision" ADD CONSTRAINT "fmcc_assistant_plan_p
 CREATE UNIQUE INDEX "fmcc_assistant_plan_rev_scope_uq" ON "fmcc_assistant_plan_revision" USING btree ("tenant_id","product_id","plan_code","revision");
 --> statement-breakpoint
 CREATE INDEX "fmcc_assistant_plan_product_idx" ON "fmcc_assistant_plan_revision" USING btree ("tenant_id","product_id","status");
+
+--> statement-breakpoint
+CREATE TABLE "fmcc_assistant_plan_outbox" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "tenant_id" text NOT NULL,
+  "product_id" uuid NOT NULL,
+  "revision_id" uuid NOT NULL,
+  "state" text DEFAULT 'pending' NOT NULL,
+  "attempts" integer DEFAULT 0 NOT NULL,
+  "delivered_at" timestamp with time zone,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  CONSTRAINT "fmcc_assistant_plan_outbox_state_ck" CHECK ("state" IN ('pending','delivered')),
+  CONSTRAINT "fmcc_assistant_plan_outbox_attempts_ck" CHECK ("attempts" >= 0)
+);
+--> statement-breakpoint
+ALTER TABLE "fmcc_assistant_plan_outbox" ADD CONSTRAINT "fmcc_assistant_plan_outbox_rev_fk" FOREIGN KEY ("revision_id") REFERENCES "public"."fmcc_assistant_plan_revision"("id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+CREATE UNIQUE INDEX "fmcc_assistant_plan_outbox_revision_uq" ON "fmcc_assistant_plan_outbox" USING btree ("revision_id");
+--> statement-breakpoint
+CREATE INDEX "fmcc_assistant_plan_outbox_pending_idx" ON "fmcc_assistant_plan_outbox" USING btree ("tenant_id","state");
