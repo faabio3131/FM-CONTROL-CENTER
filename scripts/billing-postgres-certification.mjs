@@ -8,7 +8,7 @@ try {
   const tables = await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fmcc_billing_%' ORDER BY tablename");
   assert.equal(tables.rowCount, 14, "Expected fourteen Billing tables including IRON payer enrollment");
   const migrations = await client.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations");
-  assert.equal(migrations.rows[0].n, 12, "Expected migrations 0000-0011");
+  assert.equal(migrations.rows[0].n, 13, "Expected migrations 0000-0012");
   const idx = await client.query("SELECT indexname FROM pg_indexes WHERE tablename='fmcc_billing_provider_payment' AND indexname='fmcc_billing_provider_invoice_uq'");
   assert.equal(idx.rowCount, 1, "Missing one-payment-per-invoice index");
   for (const [tableName,indexName] of [
@@ -140,7 +140,7 @@ try {
     await client.query("DELETE FROM fmcc_billing_customer WHERE tenant_id='ci-tenant'");
     await client.query("DELETE FROM fmcc_product_definition WHERE tenant_id='ci-tenant'");
   }
-  console.log("PASS PostgreSQL 18: migrations 0000-0011, 14 billing tables, canonical payer enrollment, webhook inbox and worker lease, product-scoped authority, uniqueness and transactional rollback");
+  console.log("PASS PostgreSQL 18: migrations 0000-0012, 14 billing tables, canonical payer enrollment, webhook inbox and worker lease, product-scoped authority, uniqueness and transactional rollback");
 } finally {
   await client.end();
 }
