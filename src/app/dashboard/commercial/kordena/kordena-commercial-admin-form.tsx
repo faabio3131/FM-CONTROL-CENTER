@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { prepareKordenaPriceDraft } from "@/domain/billing/kordena-plan-pricing";
 
 const ACTIONS = [
   "plan_version.create",
@@ -170,35 +171,25 @@ export function KordenaCommercialAdminForm(props: {
 
   /** Prepara o rascunho no fluxo canônico; não envia, publica nem cobra. */
   function prepararPreco() {
-    const valor = priceAmount.trim().replace(",", ".");
-    if (!/^\\d+(?:\\.\\d{1,2})?$/.test(valor) || Number(valor) <= 0) {
-      setStatus("Informe um preço positivo com até duas casas decimais.");
-      return;
+    try {
+      const prepared = prepareKordenaPriceDraft({
+        planVersionId,
+        amount: priceAmount,
+        interval: billingPeriod,
+        changePolicy: priceChangePolicy,
+        reason: priceReason,
+      });
+      setAction("price.create");
+      setResourceId(prepared.resourceId);
+      setPayload(JSON.stringify(prepared.payload, null, 2));
+      invalidatePreview();
+      setStatus(
+        "Rascunho preparado. Nenhum valor foi gravado ou publicado. " +
+        "Confira os campos e utilize a confirmação governada abaixo.",
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Preço inválido.");
     }
-    if (!planVersionId.trim()) {
-      setStatus("Selecione ou informe uma versão de plano válida.");
-      return;
-    }
-    if (!priceReason.trim()) {
-      setStatus("Informe a justificativa de criação do preço.");
-      return;
-    }
-    const partes = valor.split(".");
-    const normalizado = `${partes[0]}.${(partes[1] ?? "").padEnd(2, "0")}`;
-    setAction("price.create");
-    setResourceId(planVersionId.trim());
-    setPayload(JSON.stringify({
-      currency: "BRL",
-      billing_period: billingPeriod,
-      amount: normalizado,
-      change_policy: priceChangePolicy,
-      change_reason: priceReason.trim(),
-    }, null, 2));
-    invalidatePreview();
-    setStatus(
-      "Rascunho preparado. Nenhum valor foi gravado ou publicado. " +
-      "Confira os campos e utilize a confirmação governada abaixo.",
-    );
   }
 
   function invalidatePreview() {
