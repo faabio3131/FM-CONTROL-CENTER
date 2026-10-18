@@ -25,7 +25,7 @@ const ALLOWED_POLICIES: ReadonlySet<string> = new Set([
 /** Decimal em centavos sem arredondamento de float ou preço predefinido. */
 export function canonicalAmountBRL(value: string): string {
   const normalized = value.trim().replace(",", ".");
-  if (!/^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,2})?$/.test(normalized)) {
+  if (!/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(normalized)) {
     throw new Error("pricing.valor_invalido");
   }
   const [whole, fraction = ""] = normalized.split(".");
