@@ -36,7 +36,17 @@ export function AssistantPlanEditor({productId}:{productId:string}) {
     const data=(await response.json()) as {plans:PlanRow[]};
     setPlans(data.plans);
   },[productId]);
-  useEffect(()=>{void refresh().catch(()=>{});},[refresh]);
+  useEffect(()=>{
+    let cancelled=false;
+    void fetch(`/api/billing/products/${productId}/assistant-plans`, {cache:"no-store"})
+      .then(async response => {
+        if (!response.ok) throw new Error("Catálogo indisponível.");
+        return response.json() as Promise<{plans:PlanRow[]}>;
+      })
+      .then(data => {if (!cancelled) setPlans(data.plans);})
+      .catch(()=>{});
+    return ()=>{cancelled=true;};
+  },[productId]);
 
   function setAllowance(index:number, patch:Partial<PlanAllowance>) {
     setAllowances(current=>current.map((item,i)=>i===index?{...item,...patch}:item));
