@@ -100,3 +100,11 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - A prova E2E é de runtimes verdadeiros com HTTP interceptado por fixture/TestClient e credenciais sintéticas. **Não equivale** a tráfego HTTPS/ACL, Vault externo, credenciais de serviço reais, ambiente de staging ou homologação de provider.
 - F3 GLOBAL permanece `IN_PROGRESS`; F4 `NOT_STARTED`. PR Command #90 continua Draft: revisão independente de segurança, Vault, rede, quotas/circuit/FinOps, providers e homologação real ainda pendentes.
 - A autorização prévia de merge só se aplica a PRs com todos os gates **da entrega** aprovados, não a um gate parcial. Nenhum merge, deploy, migration produtiva ou credencial real é permitido com pendências acima. Kordena continua read-only.
+
+## F3.7.9 — Nonce de consulta status e homologação controlada (2026-10-18)
+
+- Assistant implementou e testou nonce durável de consultas status HMAC, com Alembic `20261018_0008` e rejeição de replay/concorrência em PostgreSQL 16; gate Assistant funcional `303747d8efe33536af796d75c698bf01864409a5`, 6/6 SUCCESS.
+- A leitura `/internal/v1/command/core-bridge/status` usa status nonce separado de mutações; nonce usado é rejeitado mesmo que o resultado anterior tenha sido `unknown`; status não altera grants.
+- O Command continua assinando cada lookup com nonce aleatório e HMAC de path distinto; contrato de mutação e governança FM não mudam.
+- Runbook `docs/FMCC_F3_CONTROLLED_STAGING_VALIDATION_RUNBOOK.md` define pré-condições e critérios de GO/NO-GO para testes com recursos reais. **Não autoriza deploy/credenciais/migrations reais** e não substitui revisão independente.
+- Obrigatório definir antes de produção política de retenção e rate limits para ledger de nonce, Vault/ACL/TLS e custos/quotas; manter PR #90 Draft, F3 IN_PROGRESS, sem merge até gates globais.
