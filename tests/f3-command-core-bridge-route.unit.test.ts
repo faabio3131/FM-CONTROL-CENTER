@@ -121,7 +121,7 @@ describe("Command corporate bridge administration authorization", () => {
     }));
     expect(response.status).toBe(200);
     expect(mocks.send).toHaveBeenCalledOnce();
-    const [target, authority, config] = mocks.send.mock.calls[0];
+    const [target, authority, config, options] = mocks.send.mock.calls[0];
     expect(target).toEqual({
       action: "grant", tenantId: "tenant-a",
       unitId: "unit-a", capability: "ai.text",
@@ -129,7 +129,18 @@ describe("Command corporate bridge administration authorization", () => {
     expect(authority.actorUserId).toBe("owner-1");
     expect(authority.organizationId).toBe("fm-company");
     expect(config.targetCoreKeyId).toBe("core-key-1");
-    expect(mocks.audit).toHaveBeenCalledOnce();
+    expect(options.commandRequestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    expect(mocks.audit).toHaveBeenCalledTimes(2);
+    const requested = mocks.audit.mock.calls[0][1];
+    const confirmed = mocks.audit.mock.calls[1][1];
+    expect(requested.action).toBe("fm_core.bridge.grant.requested");
+    expect(requested.result).toBe("allowed");
+    expect(requested.metadata.commandRequestId).toBe(options.commandRequestId);
+    expect(confirmed.action).toBe("fm_core.bridge.grant");
+    expect(confirmed.result).toBe("success");
+    expect(confirmed.metadata.commandRequestId).toBe(options.commandRequestId);
   });
 
   it("fails closed if the corporate tenant is not configured", async () => {
@@ -181,6 +192,41 @@ describe("Command corporate bridge administration authorization", () => {
     const response = await POST(request(payload));
     expect(response.status).toBe(503);
     expect(JSON.stringify(await response.json())).not.toContain("sensitive-platform-hmac");
-    expect(mocks.audit).toHaveBeenCalledOnce();
+    expect(mocks.audit).toHaveBeenCalledTimes(2);
+    expect(mocks.audit.mock.calls[0][1].action).toBe(
+      "fm_core.bridge.grant.requested",
+    );
+    expect(mocks.audit.mock.calls[1][1].result).toBe("failure");
+  });
+
+  it("does not send anything when the required preflight audit fails", async () => {
+    mocks.audit.mockRejectedValueOnce(new Error("test-preflight-db-down"));
+    const response = await POST(request(payload));
+    expect(response.status).toBe(503);
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.audit.mock.calls[0][1].action).toBe(
+      "fm_core.bridge.grant.requested",
+    );
+    expect(JSON.stringify(await response.json())).not.toContain(
+      "test-preflight-db-down",
+    );
+  });
+
+  it("keeps the preflight request ID if completion audit fails", async () => {
+    mocks.audit.mockResolvedValueOnce(undefined);
+    mocks.audit.mockRejectedValueOnce(new Error("test-completion-db-down"));
+    const response = await POST(request(payload));
+    expect(response.status).toBe(503);
+    expect(mocks.send).toHaveBeenCalledOnce();
+    const requestId = mocks.send.mock.calls[0][3].commandRequestId;
+    expect(mocks.audit.mock.calls[0][1].metadata.commandRequestId).toBe(
+      requestId,
+    );
+    expect(mocks.audit.mock.calls[1][1].metadata.commandRequestId).toBe(
+      requestId,
+    );
+    expect(JSON.stringify(await response.json())).not.toContain(
+      "test-completion-db-down",
+    );
   });
 });
