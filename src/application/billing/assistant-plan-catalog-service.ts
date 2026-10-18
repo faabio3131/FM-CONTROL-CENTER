@@ -6,7 +6,7 @@ import {
   type ConsumptionPlanDraft,
 } from "@/domain/billing/assistant-consumption-plan";
 import { db } from "@/infrastructure/db/client";
-import { assistantPlanRevisions } from "@/infrastructure/db/assistant-plan-schema";
+import { assistantPlanOutbox, assistantPlanRevisions } from "@/infrastructure/db/assistant-plan-schema";
 import { productDefinitions } from "@/infrastructure/db/platform-schema";
 
 export class AssistantPlanAuthorityDenied extends Error {
@@ -104,6 +104,12 @@ export class AssistantPlanCatalogService {
       const [published]=await tx.update(assistantPlanRevisions).set({
         status:"published",publishedAt:new Date(),
       }).where(eq(assistantPlanRevisions.id,revisionId)).returning();
+      // Publication and delivery intent commit atomically. No network call
+      // or external credential is required to complete internal construction.
+      await tx.insert(assistantPlanOutbox).values({
+        tenantId:context.tenantId,productId,revisionId,
+        state:"pending",
+      });
       return {...published,currency:"BRL" as const};
     });
   }
