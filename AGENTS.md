@@ -117,3 +117,11 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - Uma fase pode ser `BUILD_COMPLETE_INTERNAL_GREEN` e sua sucessora iniciada sem `REAL_HOMOLOGATION_APPROVED`. O status real continua pendente; não anunciar operação de produção.
 - Deploy, segredos reais, migrations não descartáveis, gastos ou mudanças irreversíveis continuam proibidos sem aprovação específica. Merge somente após gates internos completos e prova de ausência de efeitos automáticos de deploy.
 - Fonte canônica: `faabio3131/-FM-Assistant-Base/docs/governance/F3_BUILD_FIRST_EXTERNAL_HOMOLOGATION_LAST_2026-10-18.md`. As regras antigas que bloqueavam **a construção** por integração real são superadas por esta ordem; segurança e governança permanecem intactas.
+
+## F3/F9 — GOVERNANÇA DOS PLANOS/IA POR PRODUTO (2026-10-18)
+
+- O Command corporativo governa catálogo e preço comercial por `product_id + plan_code + plan_revision`, sem misturar pagamentos nem assinaturas de produtos distintos. O SaaS mantém estado canônico de licença por `tenant_id`; Core só aplica cota técnica e controla gasto de IA.
+- Custos de modelos de IA/FM-managed são responsabilidade da FM Tecnologia, reconciliados em FinOps separado de invoice/MRR do assinante. O cliente recebe limites de consumo configuráveis por plano; não fornece a chave de IA nem paga diretamente ao provedor em modo FM-managed.
+- Limites: tokens input/output/cached/total, requests, áudios, mensagens, assentos, unidades, storage, CRM e automações; projeto por tenant/unidade, hard-stop sem overage aprovado, revisões pinadas por licença e expiração/revogação propagadas.
+- Criar interfaces, sincronização autenticada Command→Assistant→Core, alertas, painéis e provas sintéticas internamente, sem parar desenvolvimento por homologação externa.
+- Fonte: `docs/FMCC_F3_F9_COMMERCIAL_PLANS_AND_AI_COST_CONTROL.md`. Estado atual é arquitetura/infra parcial, não fluxo comercial completo. Não publicar preços/limites definitivos sem política comercial.
