@@ -17,6 +17,25 @@
   latência, custo interno e quotas por tenant/unidade. Core não define
   plano, cobrança, contrato do cliente ou entitlement comercial.
 
+## Decisão comercial 18/10/2026 — Nenhum feature gating por tier
+
+TODOS os planos do VendeAtendeIA incluem TODAS as funcionalidades. O
+que diferencia uma assinatura é o preço e a franquia quantitativa de
+consumo. Não permitir que uma publicação de plano no Command crie
+permissões diferentes por função, desabilite menus ou crie módulos
+exclusivos. Requisitos de segurança, RBAC e licença válida permanecem
+idênticos entre tiers.
+
+Apenas operadores corporativos FM podem configurar os preços, períodos
+de renovação e tetos por recurso, com versionamento/auditoria. A
+tabela de preços do fornecedor de IA é separada da tabela de preços
+comerciais e não pode ser confundida com o valor da assinatura.
+
+A referência seletiva é o **FinOps do Kordena**, cujo read-model agrega
+uso, custo e fallback, mas não impõe um limite antes da execução.
+Reaproveitar conceitos de medição/projeção; a autoridade de franquias
+fica no Assistant e a fiscalização transacional no Core.
+
 ## Regras de billing e FinOps
 
 - Todo lançamento comercial deve vincular `product_id`, `tenant_id`,
