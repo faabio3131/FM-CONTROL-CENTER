@@ -138,9 +138,15 @@ def test_real_node_command_contract_and_python_asgi_revocation(assistant_fixture
     response = invoke(client, revoke)
     assert response.status_code == 200, response.text
     assert response.json() == {"status": "revoked"}
-    reconciled = invoke_status(client, signed_status_request("revoke_grant", request_id))
+    status_envelope = signed_status_request("revoke_grant", request_id)
+    reconciled = invoke_status(client, status_envelope)
     assert reconciled.status_code == 200, reconciled.text
     assert reconciled.json() == {"status": "applied", "outcome": "revoked"}
+    # A signed read is one-use: replay of the exact Node envelope is rejected.
+    assert invoke_status(client, status_envelope).status_code == 401
+    fresh_status = invoke_status(client, signed_status_request("revoke_grant", request_id))
+    assert fresh_status.status_code == 200
+    assert fresh_status.json()["status"] == "applied"
     assert invoke_status(client, revoke).status_code == 401  # wrong signed path
     core_body, core_headers = reference.signed_request()
     assert client.post(reference.PATH, content=core_body, headers=core_headers).status_code == 401
