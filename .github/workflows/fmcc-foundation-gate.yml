@@ -61,7 +61,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/-FM-Assistant-Base
-          ref: c65f05f73546380f1641611d96d6a3bd74c3a0b3
+          ref: a929ff93205530282cf1a4669cdd7c1f01809ae2
           path: assistant-source
           persist-credentials: false
       - name: Set up Python for Command to Assistant contract
