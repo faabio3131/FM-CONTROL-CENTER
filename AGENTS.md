@@ -108,3 +108,12 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - O Command continua assinando cada lookup com nonce aleatório e HMAC de path distinto; contrato de mutação e governança FM não mudam.
 - Runbook `docs/FMCC_F3_CONTROLLED_STAGING_VALIDATION_RUNBOOK.md` define pré-condições e critérios de GO/NO-GO para testes com recursos reais. **Não autoriza deploy/credenciais/migrations reais** e não substitui revisão independente.
 - Obrigatório definir antes de produção política de retenção e rate limits para ledger de nonce, Vault/ACL/TLS e custos/quotas; manter PR #90 Draft, F3 IN_PROGRESS, sem merge até gates globais.
+
+## DIRETRIZ 2026-10-18 — BUILD COMPLETE FIRST / EXTERNAL HOMOLOGATION LAST
+
+- Decisão expressa do proprietário: implementar integralmente todas as funcionalidades internas de F3 e das fases seguintes antes de solicitar provas reais de Command/Vault/identidades/ambientes externos.
+- Credenciais reais, redes TLS/ACL, provedores terceiros, DNS, publicações e homologação externa são `EXTERNAL_HOMOLOGATION_DEFERRED`. Registrar adapters, contratos, testes sintéticos e cenários E2E internamente e continuar autonomamente sem bloquear programação.
+- Os gates internos, incluindo RBAC/step-up, HMAC/replay, isolamento tenant, auditoria, PostgreSQL efêmero, unit/E2E/lint/build/CI e revisões técnicas possíveis, continuam obrigatórios e não podem ser ignorados.
+- Uma fase pode ser `BUILD_COMPLETE_INTERNAL_GREEN` e sua sucessora iniciada sem `REAL_HOMOLOGATION_APPROVED`. O status real continua pendente; não anunciar operação de produção.
+- Deploy, segredos reais, migrations não descartáveis, gastos ou mudanças irreversíveis continuam proibidos sem aprovação específica. Merge somente após gates internos completos e prova de ausência de efeitos automáticos de deploy.
+- Fonte canônica: `faabio3131/-FM-Assistant-Base/docs/governance/F3_BUILD_FIRST_EXTERNAL_HOMOLOGATION_LAST_2026-10-18.md`. As regras antigas que bloqueavam **a construção** por integração real são superadas por esta ordem; segurança e governança permanecem intactas.
