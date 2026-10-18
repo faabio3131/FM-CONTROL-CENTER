@@ -85,6 +85,12 @@ def test_real_node_command_contract_and_python_asgi_revocation(assistant_fixture
 
     # A correctly signed request from an untrusted organization must fail.
     assert invoke(client, signed_node_request("provision", "other-company")).status_code == 401
+    # Even one byte of post-signing scope tampering must invalidate the MAC.
+    forged = signed_node_request("provision")
+    forged_payload = json.loads(forged["body"])
+    forged_payload["target_key_id"] = "attacker-core"
+    forged["body"] = json.dumps(forged_payload, separators=(",", ":"))
+    assert invoke(client, forged).status_code == 401
 
     provision = signed_node_request("provision")
     response = invoke(client, provision)
