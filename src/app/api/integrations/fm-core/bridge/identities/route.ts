@@ -41,14 +41,15 @@ export async function POST(request: Request) {
     const raw: unknown = await request.json().catch(() => null);
     const target = parseCommandBridgeTarget(raw);
     const input = raw as Record<string, unknown> | null;
-    if (!target || typeof input?.password !== "string" ||
-        !input.password || input.password.length > 128) {
+    const password = input?.password;
+    if (!target || typeof password !== "string" ||
+        !password || password.length > 128) {
       return NextResponse.json(
         { error: "fm_core.bridge_input_invalid" }, { status: 400 },
       );
     }
     action = target.action;
-    const proof = await verifyPasswordStepUp(requestHeaders, input.password);
+    const proof = await verifyPasswordStepUp(requestHeaders, password);
     if (proof.userId !== context.userId) throw new StepUpRequiredError();
 
     const config = commandBridgeConfigFromEnvironment();
