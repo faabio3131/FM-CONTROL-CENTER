@@ -86,3 +86,17 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - Código e testes Command de status + E2E sintético Node/Python estão **implementados mas NOT_TESTED**: Actions privados encerram com `steps=0`. Não presumir verde; F3 continua IN_PROGRESS, F4 NOT_STARTED.
 - Testes reais com proprietário somente após CI/segurança: PostgreSQL staging, HTTPS/Vault, segredos segregados e aprovação humana para credenciais/deploy/migration não descartável.
 - Nunca desativar gate por custo ou converter `BLOCKED_EXTERNAL` em `GREEN`; reexecutar, investigar e corrigir. Nenhum merge autorizado sem todos os critérios exigidos.
+
+ 
+## F3.7.8 — Certificação CI real do Command após desbloqueio (2026-10-18)
+
+- GitHub Actions no repositório corporativo foi desbloqueado após sua mudança de private para public. A anotação histórica confirmada era de pagamentos/limite de gastos; os jobs passaram a executar steps reais, sem alterar controles de segurança.
+- **HEAD funcional certificado:** `efd7a89e15a7e02ded3e21e962bce8e5279b00ee`. Gates obrigatórios Command:
+  - FMCC Foundation Gate `39145954696`: **SUCCESS**; lint, typecheck, migrations, Vitest, teste E2E sintético Node assinador real ↔ FastAPI ASGI real, varredura de segredos, build Next.js, Playwright, smoke runtime, Docker e audit de dependências.
+  - FMCC F21 Operational Readiness Gate `39145954712`: **SUCCESS**; testes adversariais de segurança/tenant, backup+restore PostgreSQL e auditoria.
+  - FMCC Cognitive Governed Intelligence Gate `39145954655`: **SUCCESS**; testes cognitivos, regressão integral, build e diff whitespace.
+- Falhas intermediárias preservadas: tests env NODE_ENV ausente, whitespace no documento F3 e checkout Assistant dentro da pasta do Next.js; corrigidas com commits `b964dbcf`, `ac870b30` e `efd7a89e`, sem suprimir checks.
+- **GREEN certificado é do código no HEAD funcional acima.** Esta atualização documental cria novo HEAD; executar novamente os três workflows até SUCCESS para preservar a regra de CI no HEAD.
+- A prova E2E é de runtimes verdadeiros com HTTP interceptado por fixture/TestClient e credenciais sintéticas. **Não equivale** a tráfego HTTPS/ACL, Vault externo, credenciais de serviço reais, ambiente de staging ou homologação de provider.
+- F3 GLOBAL permanece `IN_PROGRESS`; F4 `NOT_STARTED`. PR Command #90 continua Draft: revisão independente de segurança, Vault, rede, quotas/circuit/FinOps, providers e homologação real ainda pendentes.
+- A autorização prévia de merge só se aplica a PRs com todos os gates **da entrega** aprovados, não a um gate parcial. Nenhum merge, deploy, migration produtiva ou credencial real é permitido com pendências acima. Kordena continua read-only.
