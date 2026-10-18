@@ -85,6 +85,7 @@ export function KordenaCommercialAdminForm(props: {
   const [entitlementKey, setEntitlementKey] = useState("");
   const [entitlementLimit, setEntitlementLimit] = useState("");
   const [entitlementUnit, setEntitlementUnit] = useState("credits");
+  const [aiMaxCostPerRequest, setAiMaxCostPerRequest] = useState("");
   const [priceAmount, setPriceAmount] = useState("");
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
   const [priceChangePolicy, setPriceChangePolicy] = useState(
@@ -126,7 +127,7 @@ export function KordenaCommercialAdminForm(props: {
       return;
     }
     if (!/^[a-z0-9_.-]+$/.test(key) || key.length > 128 ||
-        !/^\\d+(?:\\.\\d+)?$/.test(quantidade) || Number(quantidade) <= 0 ||
+        !/^\d+(?:\.\d+)?$/.test(quantidade) || Number(quantidade) <= 0 ||
         !/^[a-zA-Z0-9_.-]+$/.test(unit) || unit.length > 32) {
       setStatus("Informe a capacidade, limite positivo e unidade do limite.");
       return;
@@ -145,6 +146,24 @@ export function KordenaCommercialAdminForm(props: {
     const existing = previous.find((item) => item.capability_key === key);
     const existingConfig = existing?.config && typeof existing.config === "object" &&
       !Array.isArray(existing.config) ? existing.config : {};
+    const isAiBudget = key.startsWith("ai.budget.");
+    let nextConfig = existingConfig;
+    if (isAiBudget) {
+      const cap = aiMaxCostPerRequest.trim().replace(",", ".");
+      if (unit !== "USD" || !/^\\d+(?:\\.\\d+)?$/.test(cap) ||
+          Number(cap) <= 0 || Number(cap) > Number(quantidade)) {
+        setStatus(
+          "Orçamento interno de IA exige unidade USD e teto por tentativa " +
+          "positivo, sem exceder a franquia do ciclo.",
+        );
+        return;
+      }
+      nextConfig = {
+        ...existingConfig,
+        scope: "unit",
+        maximo_por_tentativa: cap,
+      };
+    }
     setAction("plan_version.create");
     setResourceId(code);
     setPayload(JSON.stringify({
@@ -158,7 +177,7 @@ export function KordenaCommercialAdminForm(props: {
         enabled: true,
         limit_value: quantidade,
         limit_unit: unit,
-        config: existingConfig,
+        config: nextConfig,
       }],
       change_reason: "Atualizar franquias do plano com preservação das capacidades anteriores",
     }, null, 2));
@@ -355,6 +374,14 @@ export function KordenaCommercialAdminForm(props: {
             onChange={(event) => setEntitlementLimit(event.target.value)}
             placeholder="A definir" />
         </label>
+        {entitlementKey.trim().toLowerCase().startsWith("ai.budget.") ? (
+          <label>
+            Limite máximo de custo por tentativa de IA (USD, valor interno)
+            <input value={aiMaxCostPerRequest} inputMode="decimal"
+              onChange={(event) => setAiMaxCostPerRequest(event.target.value)}
+              placeholder="A definir" />
+          </label>
+        ) : null}
         <label>
           Unidade da franquia
           <input value={entitlementUnit} onChange={(event) => setEntitlementUnit(event.target.value)}
