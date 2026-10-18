@@ -112,7 +112,7 @@ export async function sendGovernedCommandBridgeAction(
   target: CommandBridgeTarget,
   authority: CommandBridgeAuthority,
   config: CommandBridgeConfig,
-  options: { http?: typeof fetch; now?: Date } = {},
+  options: { http?: typeof fetch; now?: Date; commandRequestId?: string } = {},
 ): Promise<"provisioned" | "granted" | "revoked"> {
   const now = options.now ?? new Date();
   const stepUpAt = Math.floor(authority.stepUpAt.getTime() / 1000);
@@ -126,6 +126,8 @@ export async function sendGovernedCommandBridgeAction(
   ) {
     throw new CoreBridgeGovernanceError();
   }
+  const commandRequestId = options.commandRequestId ?? randomUUID();
+  if (!identifier.test(commandRequestId)) throw new CoreBridgeGovernanceError();
   const raw = JSON.stringify({
     action: target.action,
     tenant_id: target.tenantId,
@@ -135,7 +137,7 @@ export async function sendGovernedCommandBridgeAction(
     actor_user_id: authority.actorUserId,
     organization_id: authority.organizationId,
     step_up_at: stepUpAt,
-    command_request_id: randomUUID(),
+    command_request_id: commandRequestId,
   });
   const body = Buffer.from(raw, "utf8");
   const timestamp = String(current);
