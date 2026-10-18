@@ -66,3 +66,12 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - **STOP de confiabilidade:** reconciliação por command_request_id entre mutação já confirmada no Assistant e eventual falha de auditoria/retorno no Command permanece a projetar/testar. Sem retries cegos.
 - **CI Command no HEAD `045168112162902111972c7bda819e436a5e7e69`:** workflows Foundation `39141682746`, F21 `39141682831`, Cognitive `39141682750` finalizaram sem executar os steps. O novo E2E é `NOT_TESTED / BLOCKED_EXTERNAL`; não promover fase nem mergear. Obter revisão independente real.
 - Não alterar as proibições de deploy, secret real, migration produtiva ou Kordena read-only.
+
+
+## F3.7.6 — Durable audit intent (2026-10-18)
+
+- Antes de transmitir qualquer mutação Command→Assistant, persistir `fm_core.bridge.<action>.requested` com `commandRequestId` UUID server-side, ator, identidade e escopo, em `fmcc_audit_event`.
+- A **mesma** referência deve ser assinada no corpo HMAC como `command_request_id`, depois usada nas auditorias de conclusão e falha. Não enviar se a gravação inicial falhar.
+- Respostas de timeout/503 **não provam** que o Assistant não executou; nunca repetir automaticamente. Usar a referência persistida para futura reconciliação somente leitura e auditoria canônica do Assistant.
+- Preauditoria NÃO substitui reconciliação real, garantia de entrega, consistência distribuída, testes CI ou revisão independente.
+- Código/testes Command adicionados; CI do repositório segue encerrando sem steps. F3 IN_PROGRESS, Command NOT_TESTED/BLOCKED_EXTERNAL; merge/deploy proibidos enquanto gates faltarem.
