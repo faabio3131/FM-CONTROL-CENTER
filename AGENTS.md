@@ -75,3 +75,14 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - Respostas de timeout/503 **não provam** que o Assistant não executou; nunca repetir automaticamente. Usar a referência persistida para futura reconciliação somente leitura e auditoria canônica do Assistant.
 - Preauditoria NÃO substitui reconciliação real, garantia de entrega, consistência distribuída, testes CI ou revisão independente.
 - Código/testes Command adicionados; CI do repositório segue encerrando sem steps. F3 IN_PROGRESS, Command NOT_TESTED/BLOCKED_EXTERNAL; merge/deploy proibidos enquanto gates faltarem.
+
+
+## F3.7.7 — Reconciliação read-only com prova transacional (2026-10-18)
+
+- Única origem autorizada de lookup é um intent corporativo previamente gravado, para o mesmo ator/organização autenticados. Nenhum tenant pode escolher identity/grant alvo, ator, scope ou tenant a consultar.
+- `POST /api/integrations/fm-core/bridge/identities/status` exige Better Auth, role corporativa e step-up por senha da mesma conta, e **não executa mutação**; deriva todos os campos sensíveis de `fmcc_audit_event`.
+- Chamada HMAC read-only `/internal/v1/command/core-bridge/status` usa canonical path distinto do manage; verifica response exata e nunca autoriza retry quando `unknown` ou timeout.
+- Assistant migration aditiva `20261018_0007` garante unicidade por `command_request_id`; seu gate SaaS/PG/bridge aprovado em `c65f05f73546380f1641611d96d6a3bd74c3a0b3`.
+- Código e testes Command de status + E2E sintético Node/Python estão **implementados mas NOT_TESTED**: Actions privados encerram com `steps=0`. Não presumir verde; F3 continua IN_PROGRESS, F4 NOT_STARTED.
+- Testes reais com proprietário somente após CI/segurança: PostgreSQL staging, HTTPS/Vault, segredos segregados e aprovação humana para credenciais/deploy/migration não descartável.
+- Nunca desativar gate por custo ou converter `BLOCKED_EXTERNAL` em `GREEN`; reexecutar, investigar e corrigir. Nenhum merge autorizado sem todos os critérios exigidos.
