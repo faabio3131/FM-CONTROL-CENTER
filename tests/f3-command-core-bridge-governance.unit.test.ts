@@ -52,6 +52,19 @@ describe("Command → Assistant service identity governance contract", () => {
     )).toBe(expected);
   });
 
+  it("matches the independent Python HMAC reference vector byte for byte", () => {
+    const signature = signCommandBridgeRequest(
+      "synthetic-command-control-signing-key-000002",
+      "command-platform-key-v1",
+      "1792335600",
+      "nonce-123456789012345678901234",
+      Buffer.from('{"action":"revoke_grant","tenant_id":"tenant-a"}'),
+    );
+    expect(signature).toBe(
+      "954f3ac7be0e0f854ac5c96e8097f69be2cd347ef72d1ce545bc7ec833abd78b",
+    );
+  });
+
   it("sends only signed scope + human identity, never password or signing key", async () => {
     const spy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe(
