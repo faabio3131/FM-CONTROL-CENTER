@@ -108,3 +108,40 @@ sem deploy, migration real ou segredo de produção; PR Draft.
 - Esta estratégia é um **pré-registro verificável**, não uma transação distribuída nem reconciliação já implementada. Falta mecanismo de consulta/reconciliação somente leitura e prova de outcomes entre Command e Assistant, além de política de retenção, alerta e revisão independente.
 
 **GATE:** novo código e testes versionados; Command GitHub Actions segue `NOT_TESTED / BLOCKED_EXTERNAL`, sem promoção para merge, deploy, segredo real ou homologação.
+
+
+## F3.7.7 — Reconciliação consultiva por request ID (18/10/2026)
+
+**Objetivo:** identificar a situação de uma mutation cujo resultado HTTP pode ter sido perdido, sem automaticamente repetir provisionamento/grant/revoke.
+
+### Fluxo implementado, ainda dependente do CI do Command
+
+1. O Command persiste o intent `fm_core.bridge.<action>.requested` com UUID, actor, organização e escopo *antes* da mutation.
+2. A execução envia o mesmo `command_request_id` em payload HMAC ao Assistant. O Assistant registra o outcome transacional em `assistant_command_bridge_control_events`; migration aditiva `20261018_0007` impõe unicidade por request ID, impedindo duas mutations com o mesmo identificador.
+3. Reconsulta corporativa: `POST /api/integrations/fm-core/bridge/identities/status`. Exige sessão Better Auth da organização corporativa, role owner/admin e senha recente do mesmo usuário. Entrada aceita somente `commandRequestId` e `password`; dados de tenant/unidade/capability/ator são derivados do intent persistido, sem confiar no body cliente.
+4. O cliente envia envelope distinto com HMAC da rota `POST /internal/v1/command/core-bridge/status` (não reutiliza assinatura da rota manage). O Assistant confere organização corporativa, identity target, ator, tenant/unidade/capability, frescor do step-up e UUID antes da consulta no ledger.
+5. Resultado sem segredos e `Cache-Control: no-store`:
+   - `applied` + outcome exato: há registro transacional de execução da operação.
+   - `denied`: há registro transacional de negativa.
+   - `unknown`: não há prova de commit no ledger ou a consulta não conseguiu vincular o escopo; **não autoriza retry automático**.
+6. O Command registra `fm_core.bridge.status_checked` no ledger corporativo. O lookup não modifica identidades, grants ou credenciais.
+
+### Evidências e limites
+
+- Assistant: migrations/ORM/testes de path-HMAC, tamper, scope mismatch, unknown, duplicate request ID e rollback protegidos; workflow próprio SaaS/PG/bridge em **6/6 SUCCESS** no SHA `c65f05f73546380f1641611d96d6a3bd74c3a0b3`.
+- Command: `fm-core-bridge-reconciliation.ts`, rota de status e testes Vitest; teste cruzado Node→FastAPI foi estendido com lookup signed e endpoint real em TestClient, com checkout pinado do Assistant verde.
+- **Command ainda NOT_TESTED/BLOCKED_EXTERNAL:** seus workflows falham sem executar passos. O código acima não pode ser declarado integralmente certificado/homologado.
+- Consulta é somente leitura no domínio de identities/grants, mas sua invocação é registrada na auditoria corporativa.
+- A consulta com assinatura HMAC de 60 segundos usa nonce, mas não impõe ledger único de nonce para leituras; repetição temporária de consulta é possível dentro da janela e precisa de rate limiting/monitoramento no hardening de rede.
+- Um resultado `unknown`, timeout ou 503 é inconclusivo, inclusive na eventualidade de falha em auditoria/banco. Somente a evidência transacional `applied` resolve um commit; operação não deve ser reexecutada por uma interface sem revisão governada.
+- Não comprova TLS/mTLS/ACL privado, Vault/rotação real, quotas/circuit breaker, homologação de provider e rede, nem autoriza migration em produção.
+- Antes de merge: GitHub Actions do Command executar lint/typecheck/Vitest/build/E2E; revisão independente e risco de race/revogação avaliados; decisão explícita para ativação de credenciais e deploy produtivo.
+
+### Teste real conjunto com o proprietário (ainda não realizado)
+
+1. Recuperar funcionamento do GitHub Actions no repositório privado, verificar Settings → Billing & licensing → Payment information / Budgets & alerts e o erro visível na página da execução. **Não informar cartão nem credenciais no chat.**
+2. Rerodar Foundation/F21/Cognitive e confirmar que os jobs realmente possuem steps e logs. Falhas de código devem ser corrigidas, não ignoradas.
+3. Somente após 100% dos testes isolados verdes, planejar ambiente de homologação com **PostgreSQL de staging isolado**, HTTPS válido, Vault/secret manager e credenciais próprias de serviço segregadas. Solicitar autorização específica antes de provisionar credenciais reais ou fazer deploy/migration não descartável.
+4. Executar cenário real de provision → grant → Core resolve → revoke_grant → Core nega → revoke_identity → Core nega, incluindo forja, nonce/replay, resposta ambígua e reconciliação read-only, preservando trilha auditada sem divulgar segredos.
+
+**CURRENT:** F3 IN_PROGRESS, F4 NOT_STARTED. PRs abertas em Draft; sem merge/deploy/credenciais reais.
