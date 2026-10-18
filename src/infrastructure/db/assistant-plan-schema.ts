@@ -27,3 +27,21 @@ export const assistantPlanRevisions = pgTable("fmcc_assistant_plan_revision", {
   check("fmcc_assistant_plan_currency_ck",sql`${t.currency} = 'BRL'`),
   check("fmcc_assistant_plan_interval_ck",sql`${t.billingInterval} in ('monthly','yearly')`),
 ]);
+
+
+export const assistantPlanOutbox = pgTable("fmcc_assistant_plan_outbox", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  revisionId: uuid("revision_id").notNull(),
+  state: text("state").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  deliveredAt: timestamp("delivered_at",{withTimezone:true}),
+  createdAt: timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("fmcc_assistant_plan_outbox_revision_uq").on(t.revisionId),
+  index("fmcc_assistant_plan_outbox_pending_idx").on(t.tenantId,t.state),
+  foreignKey({name:"fmcc_assistant_plan_outbox_rev_fk",columns:[t.revisionId],foreignColumns:[assistantPlanRevisions.id]}),
+  check("fmcc_assistant_plan_outbox_state_ck",sql`${t.state} in ('pending','delivered')`),
+  check("fmcc_assistant_plan_outbox_attempts_ck",sql`${t.attempts} >= 0`),
+]);
