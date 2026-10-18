@@ -55,3 +55,14 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - Assistant `6dd2d9f7ebf84fa140ae7380f6f0386387500ca9` passou PostgreSQL 16 de replay simultâneo, revogação de grant/identidade e auditoria em **duas execuções CI** (`39139495756`, `39139500097`).
 - Este verde é apenas do Assistant. **A PR #90 Command permanece bloqueada** porque os workflows terminam sem executar etapas; não tratar como CI aprovado. Investigar infra/Billing e executar lint, typecheck, tests, build, review de segurança e contrato E2E Command→Assistant.
 - Manter F3 IN_PROGRESS e F4 NOT_STARTED. Não aplicar credenciais reais, migrations produtivas, deploy ou merge antes de 100% dos gates obrigatórios.
+
+
+## F3.7.5 — Segurança e contrato Node/Python (2026-10-18)
+
+- A implementação passou a auditar negativas de autorização corporativa e payload inválido; indisponibilidade da auditoria jamais deve permitir mutação.
+- Testes de regressão em `tests/f3-command-core-bridge-route.unit.test.ts`; cross-runtime real Node signer → FastAPI ASGI em `tests/f3_command_assistant_cross_runtime.py` e runner `.mts`, via Foundation Gate.
+- O Assistant é checkout **público, pinado** em SHA funcional, sem token de produção. Credenciais e usuários de teste são exclusivamente sintéticos.
+- O transporte é capturado antes da rede e entregue ao TestClient ASGI; não declarar HTTPS/TLS produtivo ou Vault homologado com base nesse teste.
+- **STOP de confiabilidade:** reconciliação por command_request_id entre mutação já confirmada no Assistant e eventual falha de auditoria/retorno no Command permanece a projetar/testar. Sem retries cegos.
+- **CI Command no HEAD `045168112162902111972c7bda819e436a5e7e69`:** workflows Foundation `39141682746`, F21 `39141682831`, Cognitive `39141682750` finalizaram sem executar os steps. O novo E2E é `NOT_TESTED / BLOCKED_EXTERNAL`; não promover fase nem mergear. Obter revisão independente real.
+- Não alterar as proibições de deploy, secret real, migration produtiva ou Kordena read-only.
