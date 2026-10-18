@@ -125,3 +125,10 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - Limites: tokens input/output/cached/total, requests, áudios, mensagens, assentos, unidades, storage, CRM e automações; projeto por tenant/unidade, hard-stop sem overage aprovado, revisões pinadas por licença e expiração/revogação propagadas.
 - Criar interfaces, sincronização autenticada Command→Assistant→Core, alertas, painéis e provas sintéticas internamente, sem parar desenvolvimento por homologação externa.
 - Fonte: `docs/FMCC_F3_F9_COMMERCIAL_PLANS_AND_AI_COST_CONTROL.md`. Estado atual é arquitetura/infra parcial, não fluxo comercial completo. Não publicar preços/limites definitivos sem política comercial.
+
+## ADR-009 — FM ADMINISTRA 100% PREÇOS E FRANQUIAS; SEM FEATURE GATING (18/10/2026)
+
+- Decisão do proprietário: VendeAtendeIA terá **todas as funcionalidades em todos os planos**. A diferenciação é exclusivamente preço comercial e franquia quantitativa de consumo; não criar feature flags por plan_code, tiers com menu bloqueado nem upsell necessário para abrir um módulo.
+- Apenas operadores autorizados da FM no Command poderão editar preço, moeda, periodicidade e limites por `product_id + plan_code + revision`. Exigir RBAC corporativo/step-up, trilha de auditoria e publicação versionada; nunca delegar a cliente a capacidade de elevar quota.
+- Kordena FinOps é referência para metering, projeção em lotes, relatórios eficientes e separação de custo desconhecido; não é engine transacional de limites. Já existem custo e pricing idênticos no Core.
+- A arquitetura canônica está em `faabio3131/-FM-Assistant-Base/docs/governance/ADR-009-ALL-FEATURES-PLAN-CONSUMPTION-AND-KORDENA-FINOPS.md`. Implementar administração comercial e propagação governada sem depender de homologação externa, sem afetar produção.
