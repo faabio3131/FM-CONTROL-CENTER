@@ -76,3 +76,21 @@ genérico; não há retry cego.
 
 **GATE ATUAL:** F3 IN_PROGRESS; Command CI BLOCKED_EXTERNAL;
 sem deploy, migration real ou segredo de produção; PR Draft.
+
+
+## F3.7.5 — Auditoria de negativas e gate cruzado Node/Python (18/10/2026)
+
+**CURRENT:** implementado na PR #90, ainda **NÃO CERTIFICADO** no Command por GitHub Actions com jobs concluídos sem steps.
+
+- `route.ts` passou a registrar `fm_core.bridge.denied` para tentativas de organização/role não corporativos e payloads inválidos; falha dessa escrita é fail-closed para autorização e não expõe detalhes do banco.
+- Testes unitários adicionados para auditoria de 403/400, cross-org e indisponibilidade do audit writer.
+- `tests/f3-command-assistant-node-envelope.mts` importa a implementação real `sendGovernedCommandBridgeAction` e captura o corpo/headers HMAC produzidos pelo runtime Node, sem substituir o assinador.
+- `tests/f3_command_assistant_cross_runtime.py` envia o envelope bruto ao **FastAPI/ASGI real** do Assistant de checkout público **pinado** em `45b35a6900c59825a987d9db47e98ad18073dec2`, com fixture sintético e SQLAlchemy. Cenários: organização forjada negada, provision, nonce replay, grant, Core autorizado, revogação de grant, Core negado, revogação irreversível da identidade e auditoria.
+- O Foundation Gate faz checkout do Assistant **público**, configura Python 3.12, instala somente dependências de teste e executa o cross-runtime suite após Vitest, antes do secret scan.
+- Esta é **prova de envelope e processamento ASGI entre runtimes reais**, mas usa interceptação do transporte Node na fixture e TestClient no destino. Não demonstra TLS de rede, DNS, ACL, latência/timeout reais, Vault externo nem deploy.
+- A revisão de código identificou risco de observabilidade: uma alteração confirmada no Assistant pode preceder a escrita de auditoria no Command; se esta falhar, a resposta Command fica ambígua. O Assistant já possui auditoria transacional canônica. Uma rotina de reconciliação por `command_request_id`, sem repetir comandos, deve ser definida e testada antes da homologação. **Não classificar como resolvido.**
+- A revisão técnica deste checkpoint não substitui a revisão **independente** exigida pelo AGENTS.
+
+**CI:** no HEAD `045168112162902111972c7bda819e436a5e7e69`, Foundation `39141682746`, F21 `39141682831` e Cognitive `39141682750` encerraram FAILURE antes de executar testes; conferir steps a cada nova tentativa. Resultado do novo teste cruzado: **NOT_TESTED / BLOCKED_EXTERNAL**, jamais GREEN.
+
+**Próxima sequência permitida:** recuperar runner/Actions, executar lint/typecheck/unit/build + teste Node/Python, corrigir qualquer RED, obter segunda revisão, completar controles Vault/rede/reconciliação e gate F3. Nenhum merge/deploy/credencial real foi autorizado por este checkpoint.
