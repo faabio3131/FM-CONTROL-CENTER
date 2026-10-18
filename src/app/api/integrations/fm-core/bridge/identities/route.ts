@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -39,6 +41,7 @@ async function auditBridgeDenial(
 export async function POST(request: Request) {
   let context: TenantContext | undefined;
   let action = "unknown";
+  let commandRequestId: string | undefined;
   try {
     const requestHeaders = await headers();
     context = await resolveTenantContext(requestHeaders);
@@ -72,6 +75,22 @@ export async function POST(request: Request) {
     if (proof.userId !== context.userId) throw new StepUpRequiredError();
 
     const config = commandBridgeConfigFromEnvironment();
+    commandRequestId = randomUUID();
+    // Persist an intent BEFORE external mutation. If the remote result or the
+    // completion audit is ambiguous, this ID can be reconciled against the
+    // Assistant's canonical transactional event without blindly retrying.
+    await recordAuditEvent(context, {
+      action: `fm_core.bridge.${action}.requested`,
+      resourceType: "fm_core_service_identity",
+      resourceId: config.targetCoreKeyId,
+      result: "allowed",
+      metadata: {
+        commandRequestId,
+        tenantId: target.tenantId,
+        unitId: target.unitId,
+        capability: target.capability,
+      },
+    });
     const result = await sendGovernedCommandBridgeAction(
       target,
       {
@@ -80,6 +99,7 @@ export async function POST(request: Request) {
         stepUpAt: proof.verifiedAt,
       },
       config,
+      { commandRequestId },
     );
     await recordAuditEvent(context, {
       action: `fm_core.bridge.${action}`,
@@ -91,6 +111,7 @@ export async function POST(request: Request) {
         unitId: target.unitId,
         capability: target.capability,
         outcome: result,
+        commandRequestId,
       },
     });
     return NextResponse.json({ status: result }, {
@@ -107,7 +128,10 @@ export async function POST(request: Request) {
           action: `fm_core.bridge.${action}`,
           resourceType: "fm_core_service_identity",
           result: "failure",
-          metadata: { reason: "bridge_governance_unavailable" },
+          metadata: {
+            reason: "bridge_governance_unavailable",
+            commandRequestId,
+          },
         });
       } catch {
         // Do not reveal operational audit/database details to HTTP clients.
