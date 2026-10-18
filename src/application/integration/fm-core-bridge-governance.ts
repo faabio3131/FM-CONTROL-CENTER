@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 
 export const COMMAND_BRIDGE_PATH = "/internal/v1/command/core-bridge/manage";
+export const COMMAND_BRIDGE_STATUS_PATH = "/internal/v1/command/core-bridge/status";
 
 export type CommandBridgeAction =
   | "provision"
@@ -95,11 +96,12 @@ export function signCommandBridgeRequest(
   timestamp: string,
   nonce: string,
   body: Uint8Array,
+  path: string = COMMAND_BRIDGE_PATH,
 ): string {
   const digest = createHash("sha256").update(body).digest("hex");
   const canonical = [
     "POST",
-    COMMAND_BRIDGE_PATH,
+    path,
     keyId,
     timestamp,
     nonce,
