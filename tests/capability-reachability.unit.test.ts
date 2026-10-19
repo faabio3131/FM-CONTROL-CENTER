@@ -50,6 +50,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     const reachableChildRoutes = new Set([
       "/dashboard/products/[productId]",
       "/dashboard/products/[productId]/billing",
+      "/dashboard/products/[productId]/assistant-plans",
       "/dashboard/products/[productId]/receivables",
       "/dashboard/alerts/rules/[ruleId]",
       "/dashboard/settings/platform-integrations",
@@ -71,6 +72,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
 
     expect(dashboard).toContain("/dashboard/products/${product.id}");
     expect(product).toContain("/dashboard/products/${productId}/billing");
+    expect(product).toContain("/dashboard/products/${productId}/assistant-plans");
     expect(product).toContain("/dashboard/products/${productId}/receivables");
     expect(alertControl).toContain(
       "/dashboard/alerts/rules/${encodeURIComponent(rule.id)}",
