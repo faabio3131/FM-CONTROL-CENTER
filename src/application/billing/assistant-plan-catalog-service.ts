@@ -9,6 +9,8 @@ import { db } from "@/infrastructure/db/client";
 import { assistantPlanOutbox, assistantPlanRevisions } from "@/infrastructure/db/assistant-plan-schema";
 import { productDefinitions } from "@/infrastructure/db/platform-schema";
 
+export const VENDEATENDEIA_PRODUCT_SLUG = "vendeatendeia";
+
 export class AssistantPlanAuthorityDenied extends Error {
   constructor(message = "plans.fm_authority_required") { super(message); }
 }
@@ -37,6 +39,12 @@ export class AssistantPlanCatalogService {
   async list(context: TenantContext, productId: string): Promise<AssistantPlanCatalogView[]> {
     requireFMPlanAuthority(context, false);
     checkProductId(productId);
+    const [product] = await db.select({slug:productDefinitions.slug}).from(productDefinitions).where(and(
+      eq(productDefinitions.tenantId,context.tenantId),
+      eq(productDefinitions.id,productId),
+    )).limit(1);
+    if (product?.slug !== VENDEATENDEIA_PRODUCT_SLUG)
+      throw new AssistantPlanAuthorityDenied("plans.product_unavailable");
     const rows = await db.select().from(assistantPlanRevisions).where(and(
       eq(assistantPlanRevisions.tenantId, context.tenantId),
       eq(assistantPlanRevisions.productId, productId),
@@ -59,13 +67,14 @@ export class AssistantPlanCatalogService {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${[
         "fmcc.assistant.plans.v1",context.tenantId,productId,input.planCode,
       ].join(":")}, 0))`);
-      const [product] = await tx.select({id:productDefinitions.id})
+      const [product] = await tx.select({id:productDefinitions.id,slug:productDefinitions.slug})
         .from(productDefinitions).where(and(
           eq(productDefinitions.tenantId,context.tenantId),
           eq(productDefinitions.id,productId),
           eq(productDefinitions.status,"active"),
         )).limit(1);
-      if (!product) throw new AssistantPlanAuthorityDenied("plans.product_unavailable");
+      if (!product || product.slug!==VENDEATENDEIA_PRODUCT_SLUG)
+        throw new AssistantPlanAuthorityDenied("plans.product_unavailable");
       const [last] = await tx.select({revision:assistantPlanRevisions.revision})
         .from(assistantPlanRevisions).where(and(
           eq(assistantPlanRevisions.tenantId,context.tenantId),
@@ -88,6 +97,13 @@ export class AssistantPlanCatalogService {
     checkProductId(productId);
     if (!UUID.test(revisionId)) throw new ConsumptionPlanInvalid("revision_invalid");
     return db.transaction(async tx=>{
+      const [product]=await tx.select({slug:productDefinitions.slug}).from(productDefinitions).where(and(
+        eq(productDefinitions.tenantId,context.tenantId),
+        eq(productDefinitions.id,productId),
+        eq(productDefinitions.status,"active"),
+      )).limit(1);
+      if (product?.slug!==VENDEATENDEIA_PRODUCT_SLUG)
+        throw new AssistantPlanAuthorityDenied("plans.product_unavailable");
       const [row]=await tx.select().from(assistantPlanRevisions).where(and(
         eq(assistantPlanRevisions.id,revisionId),
         eq(assistantPlanRevisions.productId,productId),
