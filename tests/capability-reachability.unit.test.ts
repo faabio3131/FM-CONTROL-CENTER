@@ -51,6 +51,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
       "/dashboard/products/[productId]",
       "/dashboard/products/[productId]/billing",
       "/dashboard/products/[productId]/receivables",
+      "/dashboard/products/[productId]/usage",
       "/dashboard/alerts/rules/[ruleId]",
       "/dashboard/settings/platform-integrations",
     ]);
@@ -72,6 +73,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     expect(dashboard).toContain("/dashboard/products/${product.id}");
     expect(product).toContain("/dashboard/products/${productId}/billing");
     expect(product).toContain("/dashboard/products/${productId}/receivables");
+    expect(product).toContain("/dashboard/products/${productId}/usage");
     expect(alertControl).toContain(
       "/dashboard/alerts/rules/${encodeURIComponent(rule.id)}",
     );
@@ -82,6 +84,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     const layout = source("src/app/dashboard/layout.tsx");
     const billing = source("src/app/dashboard/products/[productId]/billing/page.tsx");
     const receivables = source("src/app/dashboard/products/[productId]/receivables/page.tsx");
+    const ironUsage = source("src/app/dashboard/products/[productId]/usage/page.tsx");
     const sources = source("src/app/dashboard/sources/page.tsx");
     const search = source("src/app/dashboard/search/page.tsx");
     const notifications = source("src/app/dashboard/notifications/page.tsx");
@@ -90,6 +93,8 @@ describe("FM Command capability reachability — zero órfãos", () => {
     expect(layout).toContain("resolveTenantContext(await headers())");
     expect(billing).toContain('roleHasPermission(context.role, "billing:read")');
     expect(receivables).toContain('roleHasPermission(context.role, "receivable:read")');
+    expect(ironUsage).toContain('roleHasPermission(context.role, "billing:read")');
+    expect(ironUsage).toContain("product.slug !== FMCC_IRON_PRODUCT_SLUG");
     expect(sources).toContain('roleHasPermission(context.role, "source:read")');
     expect(search).toContain('roleHasPermission(context.role, "search:use")');
     expect(notifications).toContain('roleHasPermission(context.role, "notification:use")');
