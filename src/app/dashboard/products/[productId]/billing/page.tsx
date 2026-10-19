@@ -16,6 +16,11 @@ import { PostgresProductRepository } from "@/infrastructure/products/postgres-pr
 import { KordenaBillingControlService } from "@/application/integration/kordena-billing-control-service";
 import { BillingControlPanel } from "./billing-control-panel";
 import { IronPayerEnrollmentPanel } from "./iron-payer-enrollment-panel";
+import { IronCommercialPlansPanel } from "./iron-commercial-plans-panel";
+import { ProductBillingAuthorityService, type BillingProductPlanView } from "@/application/billing/product-billing-authority-service";
+import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
+import { PostgresIronPlanMappingRepository } from "@/infrastructure/billing/postgres-iron-plan-mapping-repository";
+import type { IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 import { IronCommercialConnector, IRON_COMMERCIAL_SOURCE_TYPE, IRON_COMMERCIAL_SECRET_REF, environmentIronControlTenantId } from "@/infrastructure/integration/iron-commercial-connector";
 
 export default async function ProductBillingPage({
@@ -84,6 +89,31 @@ export default async function ProductBillingPage({
     }catch{ironUnavailable=true;}
   }
 
+  let ironPlans: readonly BillingProductPlanView[] = [];
+  let ironPlansAvailable = false;
+  let ironMappings: readonly IronVersionedPlanMapping[] = [];
+  let ironMappingsAvailable = false;
+  if (isIron) {
+    try {
+      ironPlans = await new ProductBillingAuthorityService(
+        new PostgresProductBillingAuthorityRepository(),
+      ).listPlans(context, product.id);
+      ironPlansAvailable = true;
+    } catch {
+      // Read-only panel must never present an unknown plan catalog as empty.
+    }
+    if (ironSources.length === 1) {
+      try {
+        ironMappings = await new PostgresIronPlanMappingRepository().list(
+          context.tenantId, product.id, ironSources[0].id,
+        );
+        ironMappingsAvailable = true;
+      } catch {
+        // Keep the source failure explicit; no mapping is inferred.
+      }
+    }
+  }
+
   let overview = null;
   let upstreamError: string | null = null;
   if (source) {
@@ -132,6 +162,20 @@ export default async function ProductBillingPage({
           <span>Ativação somente após teste de conexão válido</span>
         </article>
       </section>
+
+      {isIron ? (
+        ironPlansAvailable ? (
+          <IronCommercialPlansPanel
+            plans={ironPlans}
+            mappings={ironMappings}
+            mappingAvailable={ironMappingsAvailable}
+          />
+        ) : (
+          <section className="panel"><h2>Planos indisponíveis</h2>
+            <p>Não foi possível consultar o cadastro canônico de planos do Command.</p>
+          </section>
+        )
+      ) : null}
 
       {isIron ? (
         ironSources.length!==1 || ironUnavailable ? (
