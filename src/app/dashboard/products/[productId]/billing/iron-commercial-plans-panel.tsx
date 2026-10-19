@@ -2,8 +2,11 @@
 
 import type { BillingProductPlanView } from "@/application/billing/product-billing-authority-service";
 import type { IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
+import { IronCommercialPlanCreateForm } from "./iron-commercial-plan-create-form";
 
-export function IronCommercialPlansPanel({ plans, mappings, mappingAvailable }: {
+export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAvailable, canWrite }: {
+  productId: string;
+  canWrite: boolean;
   plans: readonly BillingProductPlanView[];
   mappings: readonly IronVersionedPlanMapping[];
   mappingAvailable: boolean;
@@ -33,6 +36,11 @@ export function IronCommercialPlansPanel({ plans, mappings, mappingAvailable }: 
             <span>Revisão {mapping.revision} · vínculo imutável</span>
           </article>)}</div>}
       <p>Os direitos e limites do IRON continuam sob sua autoridade canônica. Esta tela não concede licença ou altera quota.</p>
+    </div>
+    <div className="panel">
+      <h3>Novo plano comercial</h3>
+      <p>Crie novos preços com códigos exclusivos. O registro começa inativo até completar os vínculos e aprovações.</p>
+      <IronCommercialPlanCreateForm productId={productId} existingCodes={plans.map(plan => plan.planCode)} canWrite={canWrite}/>
     </div>
   </section>;
 }
