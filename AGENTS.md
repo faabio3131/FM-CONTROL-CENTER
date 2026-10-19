@@ -132,3 +132,10 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - Apenas operadores autorizados da FM no Command poderão editar preço, moeda, periodicidade e limites por `product_id + plan_code + revision`. Exigir RBAC corporativo/step-up, trilha de auditoria e publicação versionada; nunca delegar a cliente a capacidade de elevar quota.
 - Kordena `main` é referência de metering/projeção, mas **PR #230 Draft** implementa também budget transacional monetário, guard pré-provider e customer view. Reaproveitar padrões, com gate interno e sem assumir prontidão/merge do Kordena. Command continua autoridade única de preços comerciais e limites da FM, sem feature gating por tier; Core é fonte de aplicação transacional e FinOps.
 - A arquitetura canônica está em `faabio3131/-FM-Assistant-Base/docs/governance/ADR-009-ALL-FEATURES-PLAN-CONSUMPTION-AND-KORDENA-FINOPS.md`. Implementar administração comercial e propagação governada sem depender de homologação externa, sem afetar produção.
+
+## F3/F9 — ENVELOPE CRIPTOGRÁFICO DE VÍNCULO DA LICENÇA (2026-10-18)
+
+- `signAssistantPlanLicenseBind` cria envelope Command→Assistant, com HMAC e path `/internal/v1/command/assistant-plans/bind`, distinto de publicação de planos. Inclui produto fixo VENDEATENDEIA, corporate organization, aprovação/ator, tenant e revisão específica; nunca status pago, duração de trial ou valor de fatura.
+- O Assistant só aceita vinculação inicial de licença válida e revisão FM publicada, registra auditoria e recusa replay/alteração silenciosa. Não introduzir endpoint tenant de elevação, upgrade não auditado ou cobrança fictícia.
+- Ainda falta integrar concessão canônica de assinatura F9 ao despacho deste envelope com outbox seguro e aprovação de fluxo; signer puro não é despacho de grants. Não afirmar que assinatura está sincronizada automaticamente.
+- Editor corporativo FM continua somente para limites quantitativos; todas as funcionalidades são iguais em todos os tiers e custos dos modelos são despesa FM. Sem deploy, credenciais reais ou integração externa antes de BUILD_COMPLETE.
