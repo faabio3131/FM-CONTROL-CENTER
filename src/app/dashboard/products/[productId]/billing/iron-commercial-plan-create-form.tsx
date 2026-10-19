@@ -2,14 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-
-export function parsePlanAmount(raw: string): number | null {
-  const value = raw.trim().replace(",", ".");
-  if (!/^[0-9]{1,9}(?:\.[0-9]{1,2})?$/.test(value)) return null;
-  const [whole, cents = ""] = value.split(".");
-  const amount = Number(whole) * 100 + Number(cents.padEnd(2, "0"));
-  return Number.isSafeInteger(amount) && amount > 0 ? amount : null;
-}
+import { parseIronCommercialAmount } from "@/domain/billing/iron-commercial-price-input";
 
 export function IronCommercialPlanCreateForm({ productId, existingCodes, canWrite }: {
   productId: string;
@@ -28,7 +21,7 @@ export function IronCommercialPlanCreateForm({ productId, existingCodes, canWrit
     const planCode = String(values.get("planCode") ?? "").trim().toUpperCase();
     const name = String(values.get("name") ?? "").trim();
     const interval = String(values.get("interval") ?? "");
-    const amountMinor = parsePlanAmount(String(values.get("amount") ?? ""));
+    const amountMinor = parseIronCommercialAmount(String(values.get("amount") ?? ""));
     if (!/^[A-Z0-9][A-Z0-9._-]{1,63}$/.test(planCode) ||
         name.length < 2 || name.length > 120 ||
         (interval !== "monthly" && interval !== "yearly") || amountMinor === null) {
