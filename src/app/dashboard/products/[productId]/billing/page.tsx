@@ -166,9 +166,12 @@ export default async function ProductBillingPage({
       {isIron ? (
         ironPlansAvailable ? (
           <IronCommercialPlansPanel
+            productId={product.id}
             plans={ironPlans}
             mappings={ironMappings}
             mappingAvailable={ironMappingsAvailable}
+            canWrite={roleHasPermission(context.role,"billing:write") &&
+              (context.role==="owner"||context.role==="admin")}
           />
         ) : (
           <section className="panel"><h2>Planos indisponíveis</h2>
