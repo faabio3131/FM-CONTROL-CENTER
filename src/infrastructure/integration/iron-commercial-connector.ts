@@ -34,6 +34,24 @@ export interface IronCommercialSnapshot {
   readonly coverage: Readonly<Record<string, string>>;
 }
 
+export interface IronAiUsageReport {
+  readonly schema_version: "iron.fmcc.ai-usage.v1";
+  readonly product_code: "IRON_FIT_CORE";
+  readonly metric: "ai_execution_trace_count";
+  readonly as_of: string;
+  readonly window_start: string;
+  readonly window_days: number;
+  readonly usage: readonly {
+    readonly tenant_id: string;
+    readonly capability: string;
+    readonly provider_code: string;
+    readonly model_code: string;
+    readonly status: string;
+    readonly execution_count: number;
+  }[];
+  readonly unavailable_metrics: readonly string[];
+}
+
 export interface IronSubscriptionCommand {
   readonly action: "subscription.status.sync" | "subscription.plan.transition";
   readonly gymId: string;
@@ -212,6 +230,43 @@ export class IronCommercialConnector implements Connector {
       throw new IronCommercialConnectorError("integration.iron_snapshot_contract_invalid");
     }
     return body as IronCommercialSnapshot;
+  }
+
+  async aiUsage(
+    context: ConnectorContext,
+    source: SourceDefinition,
+  ): Promise<IronAiUsageReport> {
+    const response = await this.request(context, source, "/api/v1/control-plane/fmcc/usage/ai?days=30");
+    if (!response.ok) throw new IronCommercialConnectorError("integration.iron_ai_usage_unavailable");
+    const body: unknown = await response.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new IronCommercialConnectorError("integration.iron_ai_usage_contract_invalid");
+    }
+    const report = body as Partial<IronAiUsageReport>;
+    if (
+      report.schema_version !== "iron.fmcc.ai-usage.v1" ||
+      report.product_code !== "IRON_FIT_CORE" ||
+      report.metric !== "ai_execution_trace_count" ||
+      typeof report.as_of !== "string" ||
+      Number.isNaN(new Date(report.as_of).getTime()) ||
+      typeof report.window_start !== "string" ||
+      Number.isNaN(new Date(report.window_start).getTime()) ||
+      report.window_days !== 30 ||
+      !Array.isArray(report.unavailable_metrics) ||
+      !["input_tokens", "output_tokens", "provider_cost_minor"].every(
+        metric => report.unavailable_metrics?.includes(metric),
+      ) ||
+      !Array.isArray(report.usage) ||
+      !report.usage.every(item =>
+        item && typeof item.tenant_id === "string" && item.tenant_id.length > 0 &&
+        typeof item.capability === "string" && typeof item.provider_code === "string" &&
+        typeof item.model_code === "string" && typeof item.status === "string" &&
+        Number.isSafeInteger(item.execution_count) && item.execution_count >= 0
+      )
+    ) {
+      throw new IronCommercialConnectorError("integration.iron_ai_usage_contract_invalid");
+    }
+    return report as IronAiUsageReport;
   }
 
   async subscriptionCommand(
