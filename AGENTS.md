@@ -139,3 +139,9 @@ Preferir GitHub e ambiente de execução próprio. **MCP Commander remoto soment
 - O Assistant só aceita vinculação inicial de licença válida e revisão FM publicada, registra auditoria e recusa replay/alteração silenciosa. Não introduzir endpoint tenant de elevação, upgrade não auditado ou cobrança fictícia.
 - Ainda falta integrar concessão canônica de assinatura F9 ao despacho deste envelope com outbox seguro e aprovação de fluxo; signer puro não é despacho de grants. Não afirmar que assinatura está sincronizada automaticamente.
 - Editor corporativo FM continua somente para limites quantitativos; todas as funcionalidades são iguais em todos os tiers e custos dos modelos são despesa FM. Sem deploy, credenciais reais ou integração externa antes de BUILD_COMPLETE.
+
+
+## FM Corporate WhatsApp QR Display Policy (2026-10-19)
+- Approved corporate default: **45 seconds**. The FM Command owns display cap setting for VendeAtendeIA, not tenants/customers. The provider's actual QR validity is independent; effective cap can never exceed remaining provider validity.
+- Command implementation: dedicated schema and additive Drizzle migration `0013_whatsapp_qr_policy`, `WhatsAppQRPolicyService`, `/api/billing/products/[productId]/whatsapp-qr-policy`, product settings editor. FM corporate organization owner/admin, commercial RBAC, password reauthentication, optimistic revision and append-only audit required. Range 15-120 seconds; default 45 if unset. No deploy, production migration or merge.
+- Note: Command→Assistant signed policy projection is a **remaining integration gate**. Until implemented and tested, the Assistant enforces its own approved 45s default but does NOT dynamically consume Command edits. Never claim configuration propagation is complete.
