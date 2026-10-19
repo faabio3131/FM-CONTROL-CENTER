@@ -61,14 +61,14 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
     amountMinor: number;
     status: "active" | "inactive";
   }): Promise<BillingProductPlanView> {
-    const [product] = await db.select({ id: productDefinitions.id }).from(productDefinitions).where(and(
+    const [product] = await db.select({ id: productDefinitions.id, slug: productDefinitions.slug }).from(productDefinitions).where(and(
       eq(productDefinitions.tenantId, tenantId),
       eq(productDefinitions.id, productId),
       eq(productDefinitions.status, "active"),
     )).limit(1);
     if (!product) throw new Error("billing.product_not_found");
 
-    const [row] = await db.insert(billingProductPlans).values({
+    const insertPlan = db.insert(billingProductPlans).values({
       tenantId,
       productId,
       planCode: input.planCode,
@@ -78,16 +78,25 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       currency: "BRL",
       status: input.status,
       updatedAt: new Date(),
-    }).onConflictDoUpdate({
-      target: [billingProductPlans.tenantId, billingProductPlans.productId, billingProductPlans.planCode],
-      set: {
-        name: input.name,
-        interval: input.interval,
-        amountMinor: input.amountMinor,
-        status: input.status,
-        updatedAt: new Date(),
-      },
-    }).returning();
+    });
+    // IRON invoices and immutable version bindings must never be repriced by an
+    // upsert of the same commercial code. New terms require a NEW plan code.
+    // Conflict is rejected atomically by PostgreSQL rather than a racy pre-read.
+    const [row] = product.slug === FMCC_IRON_PRODUCT_SLUG
+      ? await insertPlan.onConflictDoNothing({
+          target: [billingProductPlans.tenantId, billingProductPlans.productId, billingProductPlans.planCode],
+        }).returning()
+      : await insertPlan.onConflictDoUpdate({
+          target: [billingProductPlans.tenantId, billingProductPlans.productId, billingProductPlans.planCode],
+          set: {
+            name: input.name,
+            interval: input.interval,
+            amountMinor: input.amountMinor,
+            status: input.status,
+            updatedAt: new Date(),
+          },
+        }).returning();
+    if (!row) throw new Error("billing.iron_plan_code_immutable");
     return {
       id: row.id,
       productId: row.productId,
