@@ -99,3 +99,10 @@ export function parseConsumptionPlanDraft(value: unknown): ConsumptionPlanDraft 
     allowances: Object.freeze(allowances),
   });
 }
+
+/** Cross-product isolation: VendeAtendeIA plan authority must never
+ * accidentally import quotas belonging to Kordena or another FM SaaS.
+ */
+export function isVendeAtendeProductSlug(value: string): boolean {
+  return value === "vendeatendeia" || value === "atendevendeia";
+}
