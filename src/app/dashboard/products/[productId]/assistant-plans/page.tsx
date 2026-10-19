@@ -6,6 +6,7 @@ import { ProductRegistryService, ProductNotFoundError } from "@/application/prod
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { AssistantPlanEditor } from "./assistant-plan-editor";
+import { WhatsAppQRPolicyEditor } from "./whatsapp-qr-policy-editor";
 
 export default async function AssistantPlansPage({params}:{params:Promise<{productId:string}>}) {
   let context;
@@ -31,5 +32,6 @@ export default async function AssistantPlansPage({params}:{params:Promise<{produ
       <Link className="button" href={`/dashboard/products/${productId}`}>Voltar ao produto</Link>
     </header>
     <AssistantPlanEditor productId={productId}/>
+    <WhatsAppQRPolicyEditor productId={productId}/>
   </main>;
 }
