@@ -64,6 +64,7 @@ jobs:
         run: npx vitest run tests/subscription-lifecycle-intent-postgres.test.ts
         env:
           FMCC_LIFECYCLE_INTENT_PG_TEST: "YES"
+          BETTER_AUTH_SECRET: "ci-only-lifecycle-isolated-secret-000000000000000000000000"
       - name: D11 IRON atomic provider reconciliation in disposable PostgreSQL
         run: npx vitest run tests/iron-asaas-atomic-reconciliation-postgres.test.ts
         env:
