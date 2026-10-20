@@ -52,7 +52,7 @@ export function signCoreAIRecoveryAuthorization(
     actor.organizationId !== config.corporateOrganizationId ||
     !validId.test(config.issuer) || !validId.test(config.audience) ||
     !validId.test(tokenId) || tokenId.length < 16 ||
-    !config.privateKeyPem.startsWith("-----BEGIN PRIVATE KEY-----")
+    !config.privateKeyPem
   ) {
     throw new CoreAIRecoveryAuthorityDenied();
   }
