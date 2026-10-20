@@ -117,3 +117,11 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - O histórico de faturas é limitado; casos truncados bloqueiam a intenção. Estorno registrado bloqueia candidaturas pertinentes. Revalidação ocorre no momento de registrar intenção; qualquer futuro executor deve revalidar ainda sob lock e verificar autoridade financeira original.
 - Pendência C06: definir/aprovar políticas de vigência, prorrata, tolerância e estorno; criar ledger/eventos de transição, executor transacional próprio, outbox/ack e confirmação de estado antes de alterar dinheiro/licenças. Esta PR não executa tais mutações.
 - Gates no SHA final pendentes. Render PostgreSQL permanece intocado, sem deploy nem homologação externa.
+
+## C06 — Fila administrativa de revisão, PR #103, 20/10/2026
+- Preflight: main d9bcc38e; #102 HEAD 7cc11683 (2/2 CI GREEN) base desta branch, sem merge. Work Packages C02/C03/C06 continuam em construção, #98–#102 empilhadas.
+- Já existe o registro imutável \`billing.lifecycle.intent_recorded\` na tabela \`fmcc_audit_event\`; a nova fila usa essa autoridade sem criar tabela, ledger financeiro ou serviço paralelo.
+- GET /api/billing/lifecycle-reviews lista até 50 (+1 para truncamento), restrita a owner/admin com billing:write e tenant da sessão. Estados são derivados da auditoria, não representam autorização.
+- POST /api/billing/lifecycle-reviews/[intentId]/reject exige step-up e confirmação; insere decisão imutável com motivo codificado, idempotência e locks serializados por tenant. Sem mutação de assinatura, receita, gateway, outbox ou direitos.
+- Limites: não existe aprovação/executor de cancelamento/renovação sem política aprovada de vigência, tolerância, prorrata e estorno. STOP na operação afetada; não impedir código interno independente. Nenhum deploy, banco Render ou migration real.
+- Validar CI no SHA definitivo, testes PostgreSQL de concorrência/cross-tenant/replay e revisão aplicável. Status da candidata: não integrada/não homologada.

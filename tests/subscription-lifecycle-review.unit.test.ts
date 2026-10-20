@@ -64,7 +64,7 @@ describe("FMCC C06 lifecycle review queue and denial", () => {
     const ui = source("src/app/dashboard/billing/lifecycle-reviews/page.tsx");
     expect(pg).toContain("pg_advisory_xact_lock");
     expect(pg).toContain("WHERE tenant_id=$1 AND actor_id=$2");
-    expect(pg).toContain("AND decisions.tenant_id=requests.tenant_id");
+    expect(pg).toContain("WHERE decisions.tenant_id=requests.tenant_id");
     expect(pg).toContain("billing.lifecycle.intent_review_rejected");
     expect(pg).not.toContain("UPDATE fmcc_billing_subscription");
     expect(pg).not.toContain("fmcc_billing_iron_entitlement_outbox");
