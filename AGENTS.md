@@ -32,3 +32,18 @@ Cross-tenant, bypass de auth, segredo exposto, fraude, autoridade financeira inc
 
 ## Política de avanço
 Construção interna completa e verde é distinta de homologação externa. Não bloquear desenvolvimento independente por ausência de gateway/WhatsApp/KYC reais, mas não declarar estes homologados nem habilitar fluxos reais. Não criar cronogramas paralelos; associar WPs comerciais às fases F00–F22 e seus gates. Nenhuma porcentagem planejada comprova avanço real.
+
+## Integração reconciliada PR #90 — F3 Command / Assistant / Core (2026-10-20)
+
+**Escopo e precedência:** o protocolo geral comercial C00–C09 deste AGENTS.md permanece canônico; as decisões e checkpoints específicos de F3 da PR #90 permanecem disponíveis em `docs/governance/FMCC_PR90_AGENT_EXECUTION_HISTORY_2026-10-20.md`, sem substituição das normas globais nem do cronograma F00–F22.
+
+**Base histórica verificada:** PRs IRON #69, #75–#88 (incluindo GET financeiro read-only, inbox Asaas, outbox durável, entrega governada e isolamento de fontes/credenciais) **já integradas antes** do ponto de ramificação de F3 (`18f1d1b2c928`). Preservar a API read-only de verificação e as rotas de mutação autorizadas como contratos distintos. Não criar segunda autoridade de billing/licenças ou reemitir uma licença IRON.
+
+**Novas integrações main preservadas:** PR #91 — editor de preços e limites Kordena com catálogo autoritativo; PR #93 — cronograma dos sete fluxos e contrato padrão Command↔SaaS em estágio candidato. Nenhuma PR F3 pode transformar o contrato de identidade Core↔Assistant em API universal de preços nem sobrepor Kordena/IRON.
+
+**F3 permanece BUILD_IN_PROGRESS:** PR #90 em Draft; promover a merge apenas se não houver conflitos e lint, typecheck, build, regressão, banco PostgreSQL, integrações entre repositórios e revisão de segurança estiverem todos verdes no HEAD EXATO. Falha ou ausência de GitHub Actions não é aprovação; credenciais reais, migração de produção e homologação externa continuam separados da construção interna.
+
+
+## F3 / C04 — Worker de licenças governado (2026-10-20)
+
+O scheduler VendeAtendeIA é preparado **OFF por padrão** e nunca pode ser ativado por configuração do cliente. A variável FM_COMMAND_VENDE_LICENSE_WORKER_ENABLED somente pode ser habilitada pela FM após gate operacional aprovado. POST /api/internal/workers/vende-license-outbox exige token dedicado (não chave HMAC Assistant) e corpo vazio. Todo lote é limitado, pré-auditado, scoped ao tenant corporativo, com CAS PostgreSQL por licença, quarentena de claims antigas e ausência de retry cego. Operação manual exige sessão FM owner/admin, reautenticação do mesmo usuário, pré-auditoria e lote 1–20. A supervisão deriva contagens de todas as linhas canônicas e exibe alertas por bloqueios, jobs antigos e atraso de fila. Prova remota positiva ainda exige reconciliação exata e revalidação transacional de fatura, pagamento e plano. Nunca declarar entregas em estado unknown como concluídas, nem ativar cron externo, segredos, deploy ou migrations reais nesta fase. Contrato, limites, runbook, alertas e rollback: `docs/FMCC_F3_VENDE_LICENSE_WORKER_OPERATIONS.md`. Revisão independente e gates HEAD exato continuam obrigatórios.
