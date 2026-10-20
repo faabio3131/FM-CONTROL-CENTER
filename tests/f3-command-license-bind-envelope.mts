@@ -1,6 +1,6 @@
 /** Command production license envelope used against Assistant real DB fixture. */
 import { signAssistantPlanLicenseBind } from
-  "../src/application/billing/assistant-plan-outbox-dispatcher.ts";
+  "../src/application/billing/assistant-plan-license-signer.ts";
 
 const grant = signAssistantPlanLicenseBind({
   assistantOrigin: "https://assistant.example.test",
