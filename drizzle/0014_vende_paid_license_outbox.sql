@@ -8,6 +8,7 @@ CREATE TABLE "fmcc_billing_vende_license_outbox" (
   "plan_code" text NOT NULL,
   "plan_revision" integer NOT NULL,
   "actor_id" text NOT NULL,
+  "approved_at" timestamp with time zone NOT NULL,
   "state" text DEFAULT 'pending' NOT NULL,
   "attempts" integer DEFAULT 0 NOT NULL,
   "claimed_at" timestamp with time zone,
