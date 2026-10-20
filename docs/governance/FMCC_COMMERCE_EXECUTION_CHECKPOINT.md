@@ -90,3 +90,9 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - Branch candidata combina os HEADs preservados: #94 + #95 via PR #97 (e92c60f4, Cognitive Gate SUCCESS) e #96 (dd208341, 4/4 workflows SUCCESS).
 - Todas as alterações de implementação são aditivas ou independentes exceto checkpoint documental, reconciliado sem descarte. Um único merge futuro reduz risco de sobreposição de três PRs.
 - Status atual: build-candidate, NÃO homologado, NÃO publicado; validar todos os gates no commit combinado e revisar segurança e contratos antes de merge. A publicação depende do PostgreSQL Render restaurado pelo proprietário e do preflight de backups/migrations.
+
+## C02 — Rastro financeiro de assinatura, 20/10/2026
+- Construído em PR empilhada sobre a candidata #98: leitura específica de assinatura interna, faturas e último estado local de pagamento pelo billing FMCC existente.
+- Contrato GET /api/billing/subscriptions/[subscriptionId]/trace e tela /dashboard/subscriptions/[subscriptionId] acessível pela lista: tenant somente da identidade autenticada, billing:read, IDs UUID validados, tenant em todas as junções, fatura vinculada a subscription+product+customer, sem SQL dinâmico nem dados financeiros de outro tenant.
+- Limitado a 50 faturas recentes (+1 marcador truncado), sem inventar histórico completo, dinheiro recebido, lucro ou autorização de licença. Ausência de pagamento registrado NÃO comprova ausência de cobrança no provedor.
+- Não cria tables, migrations, job financeiro ou novas transitions; preserva idempotência e conciliação canônicas. Implementação e teste interno exigem gates no SHA final. Banco Render segue suspenso até recuperação humana.

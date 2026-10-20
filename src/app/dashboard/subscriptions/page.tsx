@@ -239,7 +239,7 @@ export default async function SubscriptionsPage({
                   <tbody>
                     {subscriptionRegister.items.map(record => (
                       <tr key={record.subscriptionId}>
-                        <td style={{ padding: "0.75rem" }}><code>{record.subscriptionId}</code></td>
+                        <td style={{ padding: "0.75rem" }}><Link href={`/dashboard/subscriptions/${record.subscriptionId}`}><code>{record.subscriptionId}</code></Link></td>
                         <td style={{ padding: "0.75rem" }}>
                           {products.find(product => product.id === record.productId)?.name ?? record.productId}
                         </td>
