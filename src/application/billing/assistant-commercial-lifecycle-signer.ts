@@ -90,3 +90,36 @@ export function signAssistantCommercialTransition(
       createHmac("sha256",config.signingKey).update(canonical,"ascii").digest("hex"),
   }};
 }
+
+
+export const ASSISTANT_COMMERCIAL_STATUS_PATH =
+  "/internal/v1/command/assistant-plans/commercial-status";
+
+/** Read only, signed fresh nonce. Must never re-issue the mutation itself. */
+export function signAssistantCommercialStatus(
+  config:PlanProjectionConfig,
+  request:{tenantId:string;operationId:string},
+  now:Date=new Date(),
+){
+  const timestamp=time(now);
+  if(![request.tenantId,request.operationId,config.organizationId]
+    .every(x=>ID.test(x)) || !KEY.test(config.keyId) ||
+    config.signingKey.length<32)
+    throw new CommercialTransitionSigningDenied();
+  const body=JSON.stringify({
+    product_code:"VENDEATENDEIA",organization_id:config.organizationId,
+    tenant_id:request.tenantId,command_request_id:request.operationId,
+  });
+  const nonce=randomBytes(24).toString("base64url");
+  const digest=createHash("sha256").update(body).digest("hex");
+  const canonical=["POST",ASSISTANT_COMMERCIAL_STATUS_PATH,
+    config.keyId,String(timestamp),nonce,digest].join("\n");
+  return {body,headers:{
+    "Content-Type":"application/json",
+    "X-FM-Command-Key-ID":config.keyId,
+    "X-FM-Command-Timestamp":String(timestamp),
+    "X-FM-Command-Nonce":nonce,
+    "X-FM-Command-Signature":
+      createHmac("sha256",config.signingKey).update(canonical,"ascii").digest("hex"),
+  }};
+}
