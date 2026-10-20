@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, date, foreignKey, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { billingSubscriptions } from "./billing-schema";
+import { billingInvoices, billingSubscriptions } from "./billing-schema";
 import { productDefinitions } from "./platform-schema";
 
 /** Vende-specific *current* approved contractual dates, NEVER inferred from invoice.created_at.
@@ -72,6 +72,27 @@ export const vendeBusinessCalendars = pgTable("fmcc_vende_business_calendar",{
     foreignColumns:[productDefinitions.tenantId,productDefinitions.id]}),
   check("fmcc_vende_calendar_revision_ck",sql`${t.revision} > 0`),
   check("fmcc_vende_calendar_validity_ck",sql`${t.validThrough} >= ${t.validFrom}`),
+]);
+
+/** Only the trusted gateway reconciler may write these observations.
+ * No public route and no synthetic 'unpaid' derived from a webhook.
+ */
+export const vendePaymentAttestations = pgTable("fmcc_vende_payment_attestation",{
+  id:uuid("id").defaultRandom().primaryKey(),
+  tenantId:text("tenant_id").notNull(),
+  invoiceId:uuid("invoice_id").notNull(),
+  externalPaymentRef:text("external_payment_ref").notNull(),
+  outcome:text("outcome").notNull(),
+  verifiedAt:timestamp("verified_at",{withTimezone:true}).notNull(),
+  sourceRef:text("source_ref").notNull(),
+  createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[
+  uniqueIndex("fmcc_vende_payment_attestation_ref_uq").on(t.tenantId,t.invoiceId,t.externalPaymentRef),
+  foreignKey({name:"fmcc_vende_attestation_invoice_fk",
+    columns:[t.tenantId,t.invoiceId],
+    foreignColumns:[billingInvoices.tenantId,billingInvoices.id]}),
+  check("fmcc_vende_attestation_outcome_ck",sql`${t.outcome} in ('unpaid_verified','settled_verified','reversed_verified')`),
+  index("fmcc_vende_attestation_fresh_idx").on(t.tenantId,t.invoiceId,t.verifiedAt),
 ]);
 
 /** Immutable intent and delivery fence. Never treat 'queued' as a SaaS ACK.
