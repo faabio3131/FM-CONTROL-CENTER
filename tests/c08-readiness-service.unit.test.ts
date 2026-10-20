@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { C08ReadinessService } from "@/application/integration/c08-readiness-service";
+import { readC08OperationalStates } from "@/application/integration/c08-operational-snapshot";
 import type { SourceRepository, SyncOperationalReader, SourceDefinition } from "@/domain/integration/contracts";
 import type { ProductRepository, ProductDefinition } from "@/domain/products/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
@@ -63,6 +64,53 @@ describe("C08 integration readiness API service security", () => {
     const {service,sources}=fakes();
     vi.mocked(sources.list).mockResolvedValue(Array(257).fill(source));
     await expect(service.snapshot(context,now)).rejects.toThrow("integration.c08_snapshot_capacity_unverified");
+  });
+  it("bounds sync read concurrency to eight and retains all rows", async () => {
+    let active = 0;
+    let peak = 0;
+    const sources = Array.from({ length: 21 }, (_, index) => ({
+      ...source, id: `source-${index}`,
+    }));
+    const sync: SyncOperationalReader = {
+      async operationalState(tenantId, sourceId) {
+        expect(tenantId).toBe("fm");
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise(resolve => setTimeout(resolve, 1));
+        active -= 1;
+        return { lastAttemptStatus: "completed" };
+      },
+    };
+    const values = await readC08OperationalStates("fm", sources, sync);
+    expect(values.size).toBe(21);
+    expect(peak).toBe(8);
+    expect(active).toBe(0);
+  });
+  it("rejects duplicate source IDs before any sync read (ambiguous attribution)", async () => {
+    const sync: SyncOperationalReader = { operationalState: vi.fn(async () => ({})) };
+    await expect(readC08OperationalStates("fm", [source, {...source}], sync))
+      .rejects.toThrow("integration.c08_source_identity_ambiguous");
+    expect(sync.operationalState).not.toHaveBeenCalled();
+  });
+  it("filters foreign sources before calls and does not return partial data on failures", async () => {
+    const sync: SyncOperationalReader = {
+      operationalState: vi.fn(async (_tenant, id) => {
+        if (id === "broken") throw new Error("sync.unavailable");
+        return {};
+      }),
+    };
+    const foreign = {...source, id: "foreign", tenantId: "other"};
+    await expect(readC08OperationalStates("fm", [foreign, source, {...source, id:"broken"}], sync))
+      .rejects.toThrow("sync.unavailable");
+    expect(sync.operationalState).toHaveBeenCalledTimes(2);
+    expect(sync.operationalState).not.toHaveBeenCalledWith("fm", "foreign");
+  });
+  it("uses the same bounded tenant-scoped reader on the operator page", () => {
+    const page = readFileSync(resolve("src/app/dashboard/sources/page.tsx"), "utf8");
+    expect(page).toContain("assertC08SnapshotCapacity(productRecords, sourceRecords)");
+    expect(page).toContain("readC08OperationalStates(");
+    expect(page).toContain("sourceRecords.filter(source => source.tenantId === context.tenantId)");
+    expect(page).not.toContain("sources.map(async (source)");
   });
   it("uses session-only identity, no-store and fail-unavailable HTTP semantics",()=>{
     const route=readFileSync(resolve("src/app/api/integrations/readiness/route.ts"),"utf8");

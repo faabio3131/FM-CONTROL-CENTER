@@ -179,3 +179,11 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - PR #90 coberta pela ancestralidade da #111, sem reaplicar branch antiga. Workers/credenciais reais, migrations operacionais, produção e homologação externa continuam pendentes, não ativados pelo merge.
 - PR #73 de UI encerrada por subsunção comprovada na main, que já contém todos os estilos compactos com evolução posterior. PR #62 permanece em Draft/STOP de integração por divergência arquitetural de billing e `cognitive-governed FAILURE` no SHA original, sem forçar merge.
 - PR #89 guarda evidência financeira datada de 15/10: integrar como documento histórico e nunca como CURRENT da data atual. C06 continua aguardando políticas comerciais aprovadas.
+
+
+## C08 — Resiliência do read-model de sincronização (incremento 2026-10-20)
+- **Base factual:** main `6c00453e0c7b28250b2d8132589f1d3b22e0a54a`, pós-merge #112. Foundation e F21 pós-merge SUCCESS; o Preview Deployment Gate seguia em execução na consulta inicial, não equiparado a publicação.
+- **Problema:** API `/api/integrations/readiness` e página `/dashboard/sources` usavam `Promise.all` sem limitação para até 256 consultas de sync; página não limitava a quantidade de registros nem revalidava tenant antes de formar os controles.
+- **Mudança candidata:** helper compartilhado, no máximo 8 leituras simultâneas por lote; limite 256 sem truncamento, rejeição de IDs duplicados, exclusão defensiva de fontes cross-tenant, falha fechada quando há erro de sincronização. Mesma proteção na API e na UI existente. Sem alterar contrato externo ou transformar health em certificação.
+- **Aceite:** testes unitários de concorrência, duplicata, fonte estrangeira, falha, snapshot e UI; lint, typecheck, build, regressão, segurança e demais gates da PR no SHA exato. Estado deste registro: construção candidata; registrar merge e pós-merge somente após CI/revisão.
+- **Impacto:** não adiciona tabelas, migrations, conectores, credenciais, gateway, workers ou operações financeiras. Rollback de código pelo histórico Git, preservando dados. C08/E2E externo e política C06 seguem pendentes.
