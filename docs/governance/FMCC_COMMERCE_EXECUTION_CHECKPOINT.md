@@ -159,3 +159,8 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - A UI em português indica próxima verificação por SaaS, distingue saúde configurada/degradada mesmo quando houve sync e explicita que os contadores não são conexões E2E certificadas.
 - Testes unitários acrescentados para falha/running/atualidade/saúde, segredo ausente da resposta, cross-tenant e RBAC preexistentes preservados. Sem novas tabelas, migrations, conectores, secrets, cobranças ou deploy.
 - Estado: candidata de CONSTRUÇÃO; validações no novo SHA, auditoria independente e integração real entre versões publicadas dos SaaS pendentes. C08 não encerrada nem homologada.
+
+### Encaminhamento de CI e revisão — PR #110
+- PR #110 (`feat/fmcc-c08-operator-next-actions-20261020`) tem base `main` para certificar o conjunto acumulado e o incremento, preservando a PR #109 como checkpoint. Não aplicar dois merges do mesmo código.
+- Cabeçalho do incremento anterior `b7038a77a29bef570aa6dbd42f588563f2655e87`. A verificação de CI deve ser refeita no HEAD resultante desta atualização documental. Resultado dos gates não deve ser antecipado.
+- Certificação de comunicação E2E real entre FMCC, IRON, Kordena, Assistant/VendeAtendeIA e as decisões comerciais C06 continuam pendentes e segregadas das validações internas.
