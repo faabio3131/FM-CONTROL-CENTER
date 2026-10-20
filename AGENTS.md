@@ -60,3 +60,7 @@ O catálogo único de perfis de adaptadores fica em `src/application/integration
 
 ## Manifesto offline C08
 `inspectSaasCapabilityManifest` é parser de dados NÃO CONFIÁVEIS e somente valida compatibilidade técnica com o `Connector` real. Ele não autentica serviços, não escolhe HMAC/mTLS, não governa permissão, não executa comandos nem confirma E2E. Para integrá-lo à rede é obrigatório transporte autenticado e validação determinística de tenant/identidade nas duas pontas, além de testes de replay e recuperação.
+
+
+## F3 — Assinatura de security hold (20/10/2026)
+Existe um componente PURO `assistant-license-security-hold-signer.ts` que produz o contrato HMAC FM Command→Assistant para suspensão operacional, com ator humano, step-up recente (300s), planCode/revision, `expected_valid_until` obtido de fonte autorizada, nonce novo e command_request_id único. **Não há sender público nem ativação automática**: construir o fluxo administrativo exigirá prova independente do estado corrente da licença, RBAC FM, reautenticação, auditoria pré-envio, política de recuperação de resultado incerto e flag OFF por padrão. Não confundir suspensão de segurança com cancelamento financeiro, devolução, prorrata ou upgrade. O consumidor Assistant mantém trilha imutável e bloqueia acesso a quotas ao suspender. PR e CI trans-repo devem ser GREEN no SHA exato; sem review independente, não mergear.
