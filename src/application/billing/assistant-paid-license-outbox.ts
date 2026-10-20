@@ -4,7 +4,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { signAssistantPlanBindingStatus } from "./assistant-plan-license-signer";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import {
   billingCustomerBindings, billingGatewayAccounts, billingInvoices,
@@ -302,4 +302,34 @@ export async function reconcileBlockedVendePaidLicense(
   )).returning({ id: billingVendeLicenseOutbox.id });
   if (!done) throw new AssistantPlanDeliveryUnavailable();
   return "delivered";
+}
+
+
+/** Crash recovery for in-flight jobs: quarantine, NEVER implicitly resend.
+ *
+ * A worker can die between the claim CAS and recording HTTP result.
+ * After bounded in-flight lifetime, the operator may use the signed
+ * read-only binding-status proof to reconcile the attempt.
+ */
+export async function quarantineStaleVendeLicenseClaims(
+  corporateTenantId: string,
+  now: Date = new Date(),
+  staleAfterMs = 120_000,
+): Promise<number> {
+  if (
+    corporateTenantId !== process.env.FM_COMMAND_PLATFORM_ORGANIZATION_ID ||
+    !Number.isFinite(now.getTime()) ||
+    !Number.isSafeInteger(staleAfterMs) ||
+    staleAfterMs < 60_000 || staleAfterMs > 3_600_000
+  ) throw new AssistantPlanDeliveryUnavailable();
+  const cutoff = new Date(now.getTime() - staleAfterMs);
+  const stale = await db.update(billingVendeLicenseOutbox).set({
+    state: "blocked",
+  }).where(and(
+    eq(billingVendeLicenseOutbox.tenantId, corporateTenantId),
+    eq(billingVendeLicenseOutbox.state, "processing"),
+    eq(billingVendeLicenseOutbox.attempts, 1),
+    lt(billingVendeLicenseOutbox.claimedAt, cutoff),
+  )).returning({ id: billingVendeLicenseOutbox.id });
+  return stale.length;
 }
