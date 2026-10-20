@@ -79,11 +79,14 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
   it("refuses unpaid invoice and only enqueues once after canonical settlement", async () => {
     await expect(service.enqueueVerifiedVendePaidLicense(tenant, invoiceId))
       .rejects.toThrow("vende.license_payment_proof_denied");
-    await pool.query(
-      "UPDATE fmcc_billing_invoice SET status='paid' WHERE tenant_id=$1 AND id=$2",
-      [tenant, invoiceId],
+    const { PostgresCanonicalBillingRepository } = await import(
+      "../src/infrastructure/billing/postgres-canonical-billing-repository"
     );
-    expect(await service.enqueueVerifiedVendePaidLicense(tenant, invoiceId)).toBe("queued");
+    await new PostgresCanonicalBillingRepository().markInvoicePaid(
+      tenant, invoiceId, "asaas-ci-payment",
+    );
+    // Canonical billing settlement atomically enqueued it in the same TX.
+    expect(await service.enqueueVerifiedVendePaidLicense(tenant, invoiceId)).toBe("already_queued");
     expect(await service.enqueueVerifiedVendePaidLicense(tenant, invoiceId)).toBe("already_queued");
     await expect(service.enqueueVerifiedVendePaidLicense("foreign-tenant", invoiceId))
       .rejects.toThrow();
