@@ -44,6 +44,10 @@ describe("C08 integration readiness API service security", () => {
     expect(result.rows[0].authenticatedSaasE2eCertified).toBe(false);
     expect(result.rows[0].nextAction).toBe("verify_source_health");
     expect(result.localSummary.sourcesWithRecentLocalSync).toBe(1);
+    expect(result.supportedAdapters.map(adapter => adapter.sourceType))
+      .toEqual(["kordena-commercial-v1", "iron-commercial-v1"]);
+    expect(JSON.stringify(result.supportedAdapters)).not.toContain("secretRef");
+    expect(JSON.stringify(result.supportedAdapters)).not.toContain("private.example.test");
     expect(JSON.stringify(result)).not.toContain("SECRET_REAL_NEVER_SENT");
     expect(JSON.stringify(result)).not.toContain("private.example.test");
   });
