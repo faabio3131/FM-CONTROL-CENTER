@@ -6,3 +6,4 @@ export * from "./billing-schema";
 export * from "./assistant-plan-schema";
 
 export * from "./whatsapp-qr-policy-schema";
+export * from "./vende-commercial-schema";
