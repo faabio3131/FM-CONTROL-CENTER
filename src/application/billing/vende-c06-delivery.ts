@@ -4,7 +4,7 @@
  * read-only reconciliation. Never call this from an unauthenticated customer
  * route. No worker is enabled by default.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { billingInvoices } from "@/infrastructure/db/billing-schema";
 import {
@@ -211,4 +211,38 @@ export async function reconcileUnknownVendeDelinquency(
     return transitionState(commandId,"unknown",applied?"delivered":"unknown",
       new Date(),applied);
   }catch{return "unknown";}
+}
+
+
+/** Reclaim abandoned IN-FLIGHT ownership without any network replay.
+ * Process crash or grace-timeout becomes UNKNOWN for read-only reconciliation.
+ * Never called automatically without an authenticated FM scheduler identity.
+ */
+export async function quarantineAbandonedVendeClaims(
+  config:PlanProjectionConfig,
+  now:Date=new Date(),limit=25,
+):Promise<number>{
+  enabled(config);
+  if(!Number.isInteger(limit)||limit<1||limit>100)throw new VendeCommercialDeliveryDenied();
+  const expired=new Date(now.getTime()-15*60*1000);
+  if(!Number.isFinite(expired.getTime()))throw new VendeCommercialDeliveryDenied();
+  return db.transaction(async tx=>{
+    const abandoned=await tx.select({id:vendeLifecycleCommands.id})
+      .from(vendeLifecycleCommands).where(and(
+        eq(vendeLifecycleCommands.tenantId,config.organizationId),
+        eq(vendeLifecycleCommands.action,"SUSPEND_DELINQUENCY"),
+        eq(vendeLifecycleCommands.state,"processing"),
+        lt(vendeLifecycleCommands.claimedAt,expired),
+      )).orderBy(vendeLifecycleCommands.claimedAt).limit(limit)
+      .for("update",{skipLocked:true});
+    let quarantined=0;
+    for(const row of abandoned){
+      const changed=await tx.update(vendeLifecycleCommands).set({state:"unknown"})
+        .where(and(eq(vendeLifecycleCommands.id,row.id),
+          eq(vendeLifecycleCommands.state,"processing"),
+        )).returning({id:vendeLifecycleCommands.id});
+      if(changed.length)quarantined++;
+    }
+    return quarantined;
+  });
 }
