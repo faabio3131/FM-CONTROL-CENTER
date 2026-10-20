@@ -85,7 +85,8 @@ jobs:
         run: >-
           python -m pytest tests/f3_command_assistant_cross_runtime.py
           tests/f3_command_assistant_core_usage_recovery.py
-          tests/f3_three_process_network.py -q -rs
+          tests/f3_three_process_network.py
+          tests/f3_command_license_quota_journey.py -q -rs
       - name: Isolate tested Assistant checkout outside Next.js workspace
         run: |
           mkdir -p "$RUNNER_TEMP/f3-cross-runtime"
