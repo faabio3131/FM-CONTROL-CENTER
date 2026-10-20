@@ -145,3 +145,9 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - **Segurança:** página existente `/dashboard/sources` aplica identidade + `source:read`, obtém produtos/fontes/sync por tenant, mostra apenas metadados sem `secretRef`, credenciais ou tokens; ignora registros cross-tenant e fontes desvinculadas. Testes negativos de tenant, produto, freshness e timestamps futuros incluídos.
 - **Aceite C08 ainda PENDENTE:** matriz real de versões e E2E dos SaaS Kordena/IRON/Assistant/VendeAtendeIA, contratos de entrega/ack/quotas em ambientes isolados, recuperação do PostgreSQL Render e homologação externa posterior. A matriz não prova conexão real.
 - **Governança:** CI no SHA desta branch e revisão ainda a executar; sem merge, deploy, migration operacional ou mudança financeira.
+
+### Complemento C08 — contrato de consulta governado para Command/Core
+- GET `/api/integrations/readiness` chama os repositórios tipados de produtos/fontes e histórico local por tenant de sessão assinada, com `source:read` + `product:read` verificados no servidor.
+- `Cache-Control: no-store`, 401/403/503 sem expor detalhes; falha de banco ou mais de 256 registros sem paginação é indisponível, nunca lista completa fictícia.
+- Resposta não inclui source secretRef, baseUrl ou payload privado; itens com tenant cruzado são ignorados. O contrato fornece leitura operacional, não autorização para Core executar ações.
+- Testes negativos de RBAC, cross-tenant, limite, ausência de segredo e assinatura da API estão no candidato. Revisão/CI no SHA definitivo pendentes.
