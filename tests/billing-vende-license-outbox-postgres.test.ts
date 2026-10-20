@@ -235,15 +235,34 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
   });
 
   it("quarantines stale processing crash without creating an automatic replay", async () => {
+    // Independent fixture: no reliance on states left by preceding tests.
+    const created = await pool.query(
+      "INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,currency) VALUES($1,$2,$3,$4,$5,900,'BRL') RETURNING id",
+      [tenant, productId, customerId, subId, gatewayId],
+    );
+    const crashInvoiceId = created.rows[0].id as string;
+    const externalPaymentId = "asaas-ci-worker-crash-" + randomUUID();
+    await pool.query(
+      "INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES($1,$2,$3,$4,'received')",
+      [tenant, crashInvoiceId, gatewayId, externalPaymentId],
+    );
+    const { PostgresCanonicalBillingRepository } = await import(
+      "../src/infrastructure/billing/postgres-canonical-billing-repository"
+    );
+    await new PostgresCanonicalBillingRepository().markInvoicePaid(
+      tenant, crashInvoiceId, externalPaymentId,
+    );
     const row = await pool.query(
-      "SELECT id FROM fmcc_billing_vende_license_outbox WHERE tenant_id=$1 AND state='blocked' LIMIT 1",
-      [tenant],
+      "SELECT id,state FROM fmcc_billing_vende_license_outbox WHERE tenant_id=$1 AND invoice_id=$2",
+      [tenant, crashInvoiceId],
     );
     expect(row.rows).toHaveLength(1);
+    expect(row.rows[0].state).toBe("pending");
     const id = row.rows[0].id as string;
+    // Simulate a worker that persisted its claim then died before HTTP ACK.
     await pool.query(
-      "UPDATE fmcc_billing_vende_license_outbox SET state='processing', claimed_at=now()-interval '5 minutes' WHERE id=$1",
-      [id],
+      "UPDATE fmcc_billing_vende_license_outbox SET state='processing', attempts=1, claim_token=$2, claimed_at=now()-interval '5 minutes' WHERE id=$1",
+      [id, randomUUID()],
     );
     expect(await service.quarantineStaleVendeLicenseClaims(tenant)).toBe(1);
     expect(await service.quarantineStaleVendeLicenseClaims(tenant)).toBe(0);
