@@ -349,4 +349,58 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
     });
   });
 
+  it("serializes two simultaneous workers so one license is never sent twice", async () => {
+    const newInvoice = await pool.query(
+      "INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,currency) VALUES($1,$2,$3,$4,$5,900,'BRL') RETURNING id",
+      [tenant, productId, customerId, subId, gatewayId],
+    );
+    const invoice = newInvoice.rows[0].id as string;
+    const payment = "asaas-ci-concurrency-" + randomUUID();
+    await pool.query(
+      "INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES($1,$2,$3,$4,'received')",
+      [tenant, invoice, gatewayId, payment],
+    );
+    const { PostgresCanonicalBillingRepository } = await import(
+      "../src/infrastructure/billing/postgres-canonical-billing-repository"
+    );
+    await new PostgresCanonicalBillingRepository().markInvoicePaid(tenant, invoice, payment);
+    const pending = await pool.query(
+      "SELECT id FROM fmcc_billing_vende_license_outbox WHERE tenant_id=$1 AND invoice_id=$2",
+      [tenant, invoice],
+    );
+    const id = pending.rows[0].id as string;
+    const config = {
+      assistantOrigin:"https://assistant.example.test",keyId:"ci-worker",
+      signingKey:"a-synthetic-test-only-secret-that-is-over-32-characters",
+      organizationId:tenant,
+    };
+    let outbound = 0;
+    const send = (async () => {
+      outbound++;
+      await new Promise(resolve => setTimeout(resolve,20));
+      return new Response(JSON.stringify({status:"bound"}),{status:200});
+    }) as typeof fetch;
+    const results = await Promise.allSettled([
+      service.dispatchVerifiedVendePaidLicense(id,config,send),
+      service.dispatchVerifiedVendePaidLicense(id,config,send),
+    ]);
+    expect(results.filter(value=>value.status==="fulfilled")).toHaveLength(1);
+    expect(results.filter(value=>value.status==="rejected")).toHaveLength(1);
+    expect(outbound).toBe(1);
+    const stored = await pool.query(
+      "SELECT state,attempts FROM fmcc_billing_vende_license_outbox WHERE id=$1",[id],
+    );
+    expect(stored.rows[0]).toMatchObject({state:"delivered",attempts:1});
+  });
+
+  it("reports the canonical queue state from all PostgreSQL records",async()=>{
+    const {readVendeQueueHealth}=await import("../src/application/billing/vende-license-worker");
+    const health=await readVendeQueueHealth(tenant);
+    expect(health.delivered).toBeGreaterThanOrEqual(1);
+    expect(health.blocked).toBeGreaterThanOrEqual(1);
+    expect(health.processing).toBeGreaterThanOrEqual(0);
+    expect(health.pending).toBeGreaterThanOrEqual(0);
+    await expect(readVendeQueueHealth("foreign")).rejects.toThrow();
+  });
+
 });
