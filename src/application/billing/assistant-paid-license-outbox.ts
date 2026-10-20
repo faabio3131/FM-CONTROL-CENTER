@@ -193,3 +193,39 @@ export async function dispatchVerifiedVendePaidLicense(
   if (!done) throw new AssistantPlanDeliveryUnavailable();
   return "delivered";
 }
+
+
+/** Bounded single-shot worker entrypoint. Scheduler ownership remains FM Command.
+ * Each row is independently claimed before HTTP; competing workers safely
+ * lose the CAS. Ambiguous outcomes are left blocked for governed inquiry,
+ * never replayed merely because a worker or request times out.
+ */
+export async function drainVerifiedVendePaidLicenses(
+  config:PlanProjectionConfig,
+  limit=20,
+  http:typeof fetch=fetch,
+):Promise<{delivered:number;blocked:number}> {
+  if (!Number.isSafeInteger(limit) || limit<1 || limit>50 ||
+      config.organizationId!==process.env.FM_COMMAND_PLATFORM_ORGANIZATION_ID) {
+    throw new AssistantPlanDeliveryUnavailable();
+  }
+  const rows=await db.select({id:billingVendeLicenseOutbox.id})
+    .from(billingVendeLicenseOutbox)
+    .where(and(
+      eq(billingVendeLicenseOutbox.tenantId,config.organizationId),
+      eq(billingVendeLicenseOutbox.state,"pending"),
+      eq(billingVendeLicenseOutbox.attempts,0),
+    )).orderBy(billingVendeLicenseOutbox.createdAt).limit(limit);
+  let delivered=0,blocked=0;
+  for (const row of rows) {
+    try {
+      await dispatchVerifiedVendePaidLicense(row.id,config,http);
+      delivered++;
+    } catch {
+      // Never turn a failed or ambiguous delivery back into an unverified
+      // automatic retry. Operator reconciliation inspects the persisted row.
+      blocked++;
+    }
+  }
+  return {delivered,blocked};
+}
