@@ -73,6 +73,19 @@ def test_command_binding_reserves_core_quota_and_revocation_fails_closed(tmp_pat
             **body,
         )
         assert response == "bound"
+        signed_status = signed["status"]
+        status_payload = json.loads(signed_status["body"])
+        status_headers = signed_status["headers"]
+        assert assistant.binding_status(
+            headers={
+                "key_id": status_headers["X-FM-Command-Key-ID"],
+                "timestamp": status_headers["X-FM-Command-Timestamp"],
+                "nonce": status_headers["X-FM-Command-Nonce"],
+                "signature": status_headers["X-FM-Command-Signature"],
+            },
+            raw_body=signed_status["body"].encode("utf-8"),
+            **status_payload,
+        ) == "bound_confirmed"
         with assistant_sessions() as db:
             active = db.get(TenantLicenseORM, "tenant-a")
             assert active.plan_revision == 1 and active.status == "trial"
