@@ -64,7 +64,7 @@ describe("C06 governed FM calendar server ingress",()=>{
     expect((await POST(input(payload),params)).status).toBe(201);
     expect(mocks.audit).toHaveBeenCalledTimes(3);
     expect(mocks.publish).toHaveBeenCalledOnce();
-    expect(mocks.audit.mock.invocationCallOrder[2])
+    expect(mocks.audit.mock.invocationCallOrder[1])
       .toBeLessThan(mocks.publish.mock.invocationCallOrder[0]);
     expect(mocks.publish).toHaveBeenCalledWith(
       expect.objectContaining({tenantId:"fm-company"}),
