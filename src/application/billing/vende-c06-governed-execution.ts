@@ -335,6 +335,7 @@ export class GovernedVendeC06Service {
         tenantId:context.tenantId,productId:term.productId,
         subscriptionId:term.subscriptionId,customerId:term.customerId,
         operationId:input.operationId,expectedRevision:term.revision,
+        sourceInvoiceId:input.paidInvoiceId,
         revision:nextRevision,action:"REACTIVATE_VERIFIED",state:"pending",
         externalTenantId:binding.externalTenantId,
         effectiveDate:today,sourceRef:input.sourceRef,actorId:context.userId,
@@ -439,7 +440,7 @@ export class GovernedVendeC06Service {
       const [command]=await tx.insert(vendeLifecycleCommands).values({
         tenantId:context.tenantId,productId:input.productId,
         subscriptionId:term.subscriptionId,customerId:term.customerId,
-        operationId:input.operationId,
+        operationId:input.operationId,sourceInvoiceId:input.invoiceId,
         expectedRevision:term.revision,revision:newRevision,
         action:"SUSPEND_DELINQUENCY",state:"pending",
         externalTenantId:binding.externalTenantId,effectiveDate:today,
