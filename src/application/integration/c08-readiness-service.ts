@@ -2,6 +2,7 @@ import type { SourceRepository, SyncOperationalReader } from "@/domain/integrati
 import type { ProductRepository } from "@/domain/products/contracts";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 import { buildC08IntegrationReadiness } from "@/application/integration/c08-product-readiness";
+import { publicAdapterCatalog } from "@/application/integration/saas-adapter-profiles";
 import { assertC08SnapshotCapacity, readC08OperationalStates } from "@/application/integration/c08-operational-snapshot";
 
 /**
@@ -27,6 +28,9 @@ export class C08ReadinessService {
     ]);
     assertC08SnapshotCapacity(products, sources);
     const operational = await readC08OperationalStates(context.tenantId, sources, this.sync);
-    return buildC08IntegrationReadiness(context.tenantId, products, sources, operational, now);
+    return {
+      ...buildC08IntegrationReadiness(context.tenantId, products, sources, operational, now),
+      supportedAdapters: publicAdapterCatalog(),
+    };
   }
 }

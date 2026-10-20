@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { SaasAdapterProfile } from "@/application/integration/saas-adapter-profiles";
 
 type ProductOption = {
   id: string;
@@ -29,28 +30,8 @@ type Props = {
   products: ProductOption[];
   sources: SourceView[];
   canWrite: boolean;
+  supportedAdapters: readonly SaasAdapterProfile[];
 };
-
-const CONFIGURED_PRODUCTS = {
-  kordena: {
-    title: "Conectar Kordena",
-    name: "Kordena Commercial",
-    sourceType: "kordena-commercial-v1",
-    secretRef: "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN",
-    urlLabel: "URL HTTPS do Kordena",
-    placeholder: "https://seu-kordena.exemplo.com",
-  },
-  iron: {
-    title: "Conectar IRON FIT CORE",
-    name: "IRON FIT CORE Commercial",
-    sourceType: "iron-commercial-v1",
-    secretRef: "env:FMCC_IRON_CONTROL_PLANE_TOKEN",
-    urlLabel: "URL HTTPS do backend IRON",
-    placeholder: "https://gym-saas-backend-t9ej.onrender.com",
-  },
-} as const;
-
-type SupportedProduct = keyof typeof CONFIGURED_PRODUCTS;
 
 type SourceState = {
   health?: string;
@@ -102,13 +83,11 @@ async function json(response: Response): Promise<Record<string, unknown>> {
   }
 }
 
-export function SourceControlPanel({ products, sources, canWrite }: Props) {
+export function SourceControlPanel({ products, sources, canWrite, supportedAdapters }: Props) {
   const router = useRouter();
   const [selectedProductId, setSelectedProductId] = useState("");
   const selectedProduct = products.find((product) => product.id === selectedProductId);
-  const selection = selectedProduct && selectedProduct.slug in CONFIGURED_PRODUCTS
-    ? CONFIGURED_PRODUCTS[selectedProduct.slug as SupportedProduct]
-    : null;
+  const selection = supportedAdapters.find(profile => profile.productSlug === selectedProduct?.slug);
   const alreadyRegistered = sources.some((source) =>
     source.productId === selectedProductId && source.sourceType === selection?.sourceType
   );
@@ -125,9 +104,7 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
     const freshnessSeconds = Number(form.get("freshnessSeconds") ?? "300");
 
     const product = products.find((item) => item.id === productId);
-    const config = product && product.slug in CONFIGURED_PRODUCTS
-      ? CONFIGURED_PRODUCTS[product.slug as SupportedProduct]
-      : null;
+    const config = supportedAdapters.find(profile => profile.productSlug === product?.slug);
     if (!config || !baseUrl || sources.some((item) =>
       item.productId === productId && item.sourceType === config.sourceType
     )) {
@@ -144,10 +121,10 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
           productId,
           name: config.name,
           sourceType: config.sourceType,
-          authoritativeDomain: "commercial",
-          syncMode: "pull",
+          authoritativeDomain: config.authoritativeDomain,
+          syncMode: config.syncMode,
           secretRef: config.secretRef,
-          mappingVersion: config.sourceType,
+          mappingVersion: config.mappingVersion,
           freshnessSeconds,
           config: { baseUrl },
         }),
@@ -278,7 +255,7 @@ export function SourceControlPanel({ products, sources, canWrite }: Props) {
                 Produto
                 <select name="productId" required value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)}>
                   <option value="" disabled>Selecione o produto</option>
-                  {products.filter((product) => product.slug in CONFIGURED_PRODUCTS).map((product) => (
+                  {products.filter((product) => supportedAdapters.some(profile => profile.productSlug === product.slug)).map((product) => (
                     <option key={product.id} value={product.id}>
                       {product.name} ({product.slug})
                     </option>

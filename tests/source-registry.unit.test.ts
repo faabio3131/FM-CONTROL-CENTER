@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
+import {
+  SAAS_ADAPTER_PROFILES, profileForProductSlug, profileForSourceType,
+  publicAdapterCatalog, sourceMatchesAdapter,
+} from "@/application/integration/saas-adapter-profiles";
+import { KordenaCommercialConnector } from "@/infrastructure/integration/kordena-commercial-connector";
+import { IronCommercialConnector } from "@/infrastructure/integration/iron-commercial-connector";
 import type { SourceRepository } from "@/domain/integration/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
@@ -15,6 +21,43 @@ function repo(): SourceRepository {
 const owner: TenantContext = { tenantId: "t1", userId: "u1", role: "owner", correlationId: "c1" };
 
 describe("F07 Source Registry", () => {
+  it("mantém um catálogo único e consistente com os adaptadores implementados", () => {
+    const implementations = [new KordenaCommercialConnector(), new IronCommercialConnector()];
+    expect(SAAS_ADAPTER_PROFILES.map(p => p.sourceType).sort())
+      .toEqual(implementations.map(c => c.sourceType).sort());
+    expect(new Set(SAAS_ADAPTER_PROFILES.map(p => p.productSlug)).size).toBe(SAAS_ADAPTER_PROFILES.length);
+    expect(new Set(SAAS_ADAPTER_PROFILES.map(p => p.sourceType)).size).toBe(SAAS_ADAPTER_PROFILES.length);
+    for (const profile of SAAS_ADAPTER_PROFILES) {
+      expect(profileForProductSlug(profile.productSlug)).toBe(profile);
+      expect(profileForSourceType(profile.sourceType)).toBe(profile);
+      expect(profile.mappingVersion).toBe(profile.sourceType);
+      expect(profile.secretRef).toMatch(/^env:[A-Z0-9_]+$/);
+      expect(profile.authoritativeDomain).toBe("commercial");
+    }
+    expect(profileForProductSlug("saas-futuro")).toBeUndefined();
+    expect(publicAdapterCatalog().every(item => item.integrationState === "adapter_implemented_not_connected")).toBe(true);
+    expect(JSON.stringify(publicAdapterCatalog())).not.toContain("secretRef");
+    expect(JSON.stringify(publicAdapterCatalog())).not.toContain("TOKEN");
+  });
+
+  it("aceita esquema de perfil futuro sem registrar um SaaS inexistente", () => {
+    const example = {
+      ...SAAS_ADAPTER_PROFILES[0], productSlug: "saas-futuro",
+      sourceType: "futuro-commercial-v1", mappingVersion: "futuro-commercial-v1",
+      secretRef: "env:FMCC_FUTURO_CONTROL_TOKEN",
+    };
+    expect(profileForProductSlug("saas-futuro", [example])).toEqual(example);
+    expect(sourceMatchesAdapter({
+      id: "s1", tenantId: "t1", productId: "futuro", name: "Futuro",
+      sourceType: example.sourceType, mappingVersion: example.mappingVersion,
+      authoritativeDomain: "commercial", syncMode: "pull",
+      secretRef: example.secretRef, status: "configured", config: {},
+    }, example)).toBe(true);
+    // É apenas um fixture: não comprova adapter real ou conexão.
+    expect(profileForProductSlug("saas-futuro")).toBeUndefined();
+  });
+
+
   it("aceita secret reference e nunca exige secret bruto", async () => {
     const source = await new SourceRegistryService(repo()).register(owner, {
       name: "Billing", sourceType: "billing-fixture", authoritativeDomain: "billing", syncMode: "pull", secretRef: "render:billing-api",
