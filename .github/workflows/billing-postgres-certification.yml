@@ -60,6 +60,10 @@ jobs:
         run: node scripts/iron-entitlement-outbox-pg-certification.mjs
       - name: Billing unit and route authorization tests
         run: npx vitest run tests/billing-payment-attribution.test.ts tests/billing-secret-resolver.test.ts tests/billing-asaas-sandbox-client.test.ts tests/billing-canonical-service.test.ts tests/billing-sandbox-reconcile-route.test.ts tests/billing-asaas-production-pilot.test.ts tests/billing-asaas-production-readonly.test.ts
+      - name: C06 lifecycle intent single-use and idempotency in disposable PostgreSQL
+        run: npx vitest run tests/subscription-lifecycle-intent-postgres.test.ts
+        env:
+          FMCC_LIFECYCLE_INTENT_PG_TEST: "YES"
       - name: D11 IRON atomic provider reconciliation in disposable PostgreSQL
         run: npx vitest run tests/iron-asaas-atomic-reconciliation-postgres.test.ts
         env:
