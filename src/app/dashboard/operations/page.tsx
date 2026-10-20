@@ -55,6 +55,10 @@ export default async function OperationsPage() {
         </div>
         {roleHasPermission(context.role, "billing:read") ? (
           <Link href="/dashboard/billing/operations">Filas financeiras</Link>
+        {roleHasPermission(context.role, "billing:write") &&
+          (context.role === "owner" || context.role === "admin") ? (
+          <Link href="/dashboard/billing/lifecycle-reviews">Revisão de assinaturas</Link>
+        ) : null}
         ) : null}
         <Link href="/dashboard">Voltar</Link>
       </header>
