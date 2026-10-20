@@ -184,5 +184,10 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
       row.rows[0].id, config, send as typeof fetch,
     )).rejects.toThrow();
     expect(calls).toBe(1);
+    expect(await service.drainVerifiedVendePaidLicenses(config, 10, send as typeof fetch))
+      .toEqual({ delivered: 0, blocked: 0 });
+    expect(calls).toBe(1);
+    await expect(service.drainVerifiedVendePaidLicenses(config, 0, send as typeof fetch))
+      .rejects.toThrow();
   });
 });
