@@ -4522,6 +4522,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
         "state": {
           "name": "state",
           "type": "text",
