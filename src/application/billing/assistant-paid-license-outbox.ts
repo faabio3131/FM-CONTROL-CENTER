@@ -90,7 +90,7 @@ export async function enqueueVerifiedVendePaidLicense(
       invoiceId:invoice.id,subscriptionId:invoice.subscriptionId,
       externalTenantId:proof.externalTenantId,
       planCode:plan.planCode,planRevision:plan.revision,
-      actorId:plan.actorId,state:"pending",
+      actorId:plan.actorId,approvedAt:plan.publishedAt,state:"pending",
     }).onConflictDoNothing().returning({id:billingVendeLicenseOutbox.id});
     if (inserted) return "queued";
     const [existing] = await tx.select().from(billingVendeLicenseOutbox).where(and(
@@ -132,7 +132,7 @@ export async function dispatchVerifiedVendePaidLicense(
   const signed=signAssistantPlanLicenseBind(config,{
     tenantId:claimed.externalTenantId,
     planCode:claimed.planCode,planRevision:claimed.planRevision,
-    actorUserId:claimed.actorId,approvedAt:claimed.createdAt,
+    actorUserId:claimed.actorId,approvedAt:claimed.approvedAt,
   });
   try {
     const reply=await http(config.assistantOrigin+
