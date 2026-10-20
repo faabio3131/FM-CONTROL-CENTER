@@ -79,7 +79,7 @@ export function buildC08IntegrationReadiness(
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const knownProductIds = new Set(active.map(p => p.id));
   const scoped = sources.filter(s => s.tenantId === tenantId);
-  const rows = active.flatMap(product => {
+  const rows = active.flatMap<C08IntegrationEvidence>(product => {
     const matches = scoped
       .filter(s => s.productId === product.id)
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id));
