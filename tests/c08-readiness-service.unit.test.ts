@@ -41,6 +41,8 @@ describe("C08 integration readiness API service security", () => {
     expect(sync.operationalState).toHaveBeenCalledWith("fm","source");
     expect(result.rows[0].state).toBe("sync_recent");
     expect(result.rows[0].authenticatedSaasE2eCertified).toBe(false);
+    expect(result.rows[0].nextAction).toBe("verify_source_health");
+    expect(result.localSummary.sourcesWithRecentLocalSync).toBe(1);
     expect(JSON.stringify(result)).not.toContain("SECRET_REAL_NEVER_SENT");
     expect(JSON.stringify(result)).not.toContain("private.example.test");
   });

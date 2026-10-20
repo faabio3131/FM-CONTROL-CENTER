@@ -151,3 +151,11 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - `Cache-Control: no-store`, 401/403/503 sem expor detalhes; falha de banco ou mais de 256 registros sem paginação é indisponível, nunca lista completa fictícia.
 - Resposta não inclui source secretRef, baseUrl ou payload privado; itens com tenant cruzado são ignorados. O contrato fornece leitura operacional, não autorização para Core executar ações.
 - Testes negativos de RBAC, cross-tenant, limite, ausência de segredo e assinatura da API estão no candidato. Revisão/CI no SHA definitivo pendentes.
+
+
+## C08 — Diagnóstico operacional orientado por evidências (20/10/2026, candidata incremental)
+- Base: PR #109 HEAD `0280b8f134beb1bec5df70379e06a39d4511c822` (4/4 GitHub check-runs SUCCESS no SHA). Main `d9bcc38ef40188998bf78d165d688417addd4f9b`. Nova branch incremental preserva integralmente a candidata anterior.
+- Contrato `fmcc.c08.integration-readiness.v1` ampliado apenas de forma aditiva: `nextAction` baseado em estado persistido e `localSummary` com contadores de fontes/sync **locais**. Recomendações são texto para operador, nunca comando ou permissão.
+- A UI em português indica próxima verificação por SaaS, distingue saúde configurada/degradada mesmo quando houve sync e explicita que os contadores não são conexões E2E certificadas.
+- Testes unitários acrescentados para falha/running/atualidade/saúde, segredo ausente da resposta, cross-tenant e RBAC preexistentes preservados. Sem novas tabelas, migrations, conectores, secrets, cobranças ou deploy.
+- Estado: candidata de CONSTRUÇÃO; validações no novo SHA, auditoria independente e integração real entre versões publicadas dos SaaS pendentes. C08 não encerrada nem homologada.

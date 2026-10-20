@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { buildC08IntegrationReadiness, type C08EvidenceState } from "@/application/integration/c08-product-readiness";
+import { buildC08IntegrationReadiness, type C08EvidenceState, type C08NextAction } from "@/application/integration/c08-product-readiness";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -143,6 +143,13 @@ export default async function SourcesPage() {
           <p>Fonte registrada não equivale a integração homologada. Sincronização local
             recente não substitui autenticação entre serviços nem prova de entrega.</p>
         </div>
+        <p role="status">
+          {readiness.localSummary.activeProducts} produto(s) ativo(s) ·
+          {" "}{readiness.localSummary.boundSources} fonte(s) vinculada(s) ·
+          {" "}{readiness.localSummary.sourcesWithRecentLocalSync} sincronização(ões) local(is) recente(s) ·
+          {" "}{readiness.localSummary.rowsWithoutRecentLocalSync} linha(s) sem sincronização local recente.
+          Estes números não representam integrações certificadas.
+        </p>
         {readiness.rows.length === 0 ? (
           <div className="empty-state"><strong>Nenhum produto ativo.</strong>
             <p>Cadastre o produto e sua fonte governada antes da certificação.</p>
@@ -160,11 +167,24 @@ export default async function SourcesPage() {
                 sync_stale: "Sincronização desatualizada",
                 sync_recent: "Sincronização local recente",
               };
+              const nextActions: Record<C08NextAction, string> = {
+                register_source: "Cadastrar fonte governada deste produto",
+                investigate_unavailable_source: "Investigar indisponibilidade persistida",
+                investigate_failed_sync: "Investigar a última falha de sincronização",
+                observe_running_sync: "Acompanhar a sincronização em andamento",
+                perform_first_sync: "Verificar conexão e executar a primeira sincronização",
+                define_freshness: "Definir atualidade esperada e revisar o contrato da fonte",
+                refresh_stale_sync: "Investigar atraso e renovar a sincronização",
+                verify_source_health: "Verificar a saúde autenticada da fonte",
+                investigate_degraded_health: "Investigar a saúde degradada da fonte",
+                certify_authenticated_saas_e2e: "Certificar contrato e E2E autenticado do SaaS em ambiente isolado",
+              };
               return <article className="product-card" key={item.sourceId ?? item.productId}>
                 <strong>{item.productName}</strong>
                 <span>{labels[item.state]}</span>
                 <small>{item.sourceType ?? "Sem contrato de conector registrado"}</small>
                 <small>Versão: {item.mappingVersion ?? "Indisponível"}</small>
+                <small>Próxima verificação: {nextActions[item.nextAction]}</small>
                 <small>Último sucesso local: {item.lastSuccessfulAt ??
                   "Sem evidência registrada"}</small>
                 <small>Integração S2S E2E: não certificada por esta matriz</small>

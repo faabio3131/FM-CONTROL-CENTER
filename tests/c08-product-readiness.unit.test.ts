@@ -35,6 +35,10 @@ describe("C08 product integration readiness - evidence is not homologation", () 
     expect(report.rows).toHaveLength(3);
     expect(report.rows.every(item => item.state === "not_configured")).toBe(true);
     expect(report.certifiedIntegrations).toBeNull();
+    expect(report.localSummary).toEqual({
+      activeProducts: 3, boundSources: 0, sourcesWithRecentLocalSync: 0, rowsWithoutRecentLocalSync: 3,
+    });
+    expect(report.rows.every(row => row.nextAction === "register_source")).toBe(true);
     expect(report.rows.every(item => !item.authenticatedSaasE2eCertified && !item.externallyHomologated)).toBe(true);
     expect(JSON.stringify(report)).not.toContain("Segredo");
   });
@@ -46,6 +50,7 @@ describe("C08 product integration readiness - evidence is not homologation", () 
     expect(iron.sourceStatus).toBe("healthy");
     expect(iron.authenticatedSaasE2eCertified).toBe(false);
     expect(iron.externallyHomologated).toBe(false);
+    expect(iron.nextAction).toBe("perform_first_sync");
   });
 
   it("distinguishes recent/stale/unknown freshness and failed/running sync attempts", () => {
@@ -73,7 +78,30 @@ describe("C08 product integration readiness - evidence is not homologation", () 
     expect(status("failed")).toBe("sync_failed");
     expect(status("running")).toBe("sync_running");
     expect(status("unavailable")).toBe("persisted_unavailable");
+    const action = (id: string) => rows.find(row => row.sourceId === id)?.nextAction;
+    expect(action("recent")).toBe("certify_authenticated_saas_e2e");
+    expect(action("stale")).toBe("refresh_stale_sync");
+    expect(action("undefined")).toBe("define_freshness");
+    expect(action("failed")).toBe("investigate_failed_sync");
+    expect(action("running")).toBe("observe_running_sync");
+    expect(action("unavailable")).toBe("investigate_unavailable_source");
     expect(rows.every(row => row.authenticatedSaasE2eCertified === false)).toBe(true);
+  });
+
+  it("distinguishes local successful sync from source health evidence", () => {
+    const configured = s("configured", "p-i", "configured", 300);
+    const degraded = s("degraded", "p-i", "degraded", 300);
+    const states = new Map<string, SyncOperationalState>([
+      ["configured", op("2026-10-20T11:59:59Z")],
+      ["degraded", op("2026-10-20T11:59:59Z")],
+    ]);
+    const report = buildC08IntegrationReadiness("fm", products, [configured, degraded], states, now);
+    expect(report.rows.find(row => row.sourceId === "configured")?.nextAction).toBe("verify_source_health");
+    expect(report.rows.find(row => row.sourceId === "degraded")?.nextAction).toBe("investigate_degraded_health");
+    expect(report.localSummary).toEqual({
+      activeProducts: 3, boundSources: 2, sourcesWithRecentLocalSync: 2, rowsWithoutRecentLocalSync: 2,
+    });
+    expect(report.certifiedIntegrations).toBeNull();
   });
 
   it("isolates sources and prevents an unbound/wrong-product source from implying a working SaaS", () => {
@@ -100,6 +128,8 @@ describe("C08 product integration readiness - evidence is not homologation", () 
     const page = readFileSync(resolve("src/app/dashboard/sources/page.tsx"), "utf8");
     expect(page).toContain("buildC08IntegrationReadiness(");
     expect(page).toContain("<SourceControlPanel");
+    expect(page).toContain("Próxima verificação: {nextActions[item.nextAction]}");
+    expect(page).toContain("Estes números não representam integrações certificadas.");
     expect(page).toContain("Fonte registrada não equivale a integração homologada");
     expect(page).not.toContain("authenticatedSaasE2eCertified ? \"Sim\"");
   });

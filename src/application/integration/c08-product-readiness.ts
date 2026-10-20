@@ -15,6 +15,13 @@ export type C08EvidenceState =
   | "sync_stale"
   | "sync_recent";
 
+/** An operator cue inferred only from local source/sync records, never authority. */
+export type C08NextAction =
+  | "register_source" | "investigate_unavailable_source" | "investigate_failed_sync"
+  | "observe_running_sync" | "perform_first_sync" | "define_freshness"
+  | "refresh_stale_sync" | "verify_source_health"
+  | "investigate_degraded_health" | "certify_authenticated_saas_e2e";
+
 export interface C08IntegrationEvidence {
   readonly productId: string;
   readonly productName: string;
@@ -26,6 +33,7 @@ export interface C08IntegrationEvidence {
   readonly lastAttemptStatus: SyncOperationalState["lastAttemptStatus"] | null;
   readonly lastSuccessfulAt: string | null;
   readonly state: C08EvidenceState;
+  readonly nextAction: C08NextAction;
   readonly authenticatedSaasE2eCertified: false;
   readonly externallyHomologated: false;
 }
@@ -36,6 +44,13 @@ export interface C08ReadinessMatrix {
   readonly tenantId: string;
   readonly rows: readonly C08IntegrationEvidence[];
   readonly unboundSourceCount: number;
+  /** Counts local observations, not integrations certified between services. */
+  readonly localSummary: {
+    readonly activeProducts: number;
+    readonly boundSources: number;
+    readonly sourcesWithRecentLocalSync: number;
+    readonly rowsWithoutRecentLocalSync: number;
+  };
   readonly certifiedIntegrations: null;
 }
 
@@ -57,6 +72,23 @@ function classify(source: SourceDefinition, operational: SyncOperationalState | 
       !Number.isFinite(source.freshnessSeconds) ||
       source.freshnessSeconds < 1) return "freshness_undefined";
   return age <= source.freshnessSeconds * 1000 ? "sync_recent" : "sync_stale";
+}
+
+function nextAction(state: C08EvidenceState, sourceStatus?: SourceDefinition["status"]): C08NextAction {
+  switch (state) {
+    case "not_configured": return "register_source";
+    case "persisted_unavailable": return "investigate_unavailable_source";
+    case "sync_failed": return "investigate_failed_sync";
+    case "sync_running": return "observe_running_sync";
+    case "unverified": return "perform_first_sync";
+    case "freshness_undefined": return "define_freshness";
+    case "sync_stale": return "refresh_stale_sync";
+    case "sync_recent":
+      // A successful local pull does not establish health or authenticated SaaS E2E.
+      if (sourceStatus === "configured") return "verify_source_health";
+      if (sourceStatus === "degraded") return "investigate_degraded_health";
+      return "certify_authenticated_saas_e2e";
+  }
 }
 
 /**
@@ -88,12 +120,14 @@ export function buildC08IntegrationReadiness(
       sourceId: null, sourceType: null, mappingVersion: null,
       sourceStatus: null, lastAttemptStatus: null, lastSuccessfulAt: null,
       state: "not_configured" as const,
+      nextAction: "register_source" as const,
       authenticatedSaasE2eCertified: false as const,
       externallyHomologated: false as const,
     }];
     return matches.map(source => {
       const operational = operationalStates.get(source.id);
       const success = dateOrNull(operational?.lastSuccessfulAt);
+      const state = classify(source, operational, now);
       return {
         productId: product.id, productName: product.name, productSlug: product.slug,
         sourceId: source.id, sourceType: source.sourceType,
@@ -101,7 +135,8 @@ export function buildC08IntegrationReadiness(
         sourceStatus: source.status,
         lastAttemptStatus: operational?.lastAttemptStatus ?? null,
         lastSuccessfulAt: success?.toISOString() ?? null,
-        state: classify(source, operational, now),
+        state,
+        nextAction: nextAction(state, source.status),
         authenticatedSaasE2eCertified: false as const,
         externallyHomologated: false as const,
       };
@@ -115,6 +150,12 @@ export function buildC08IntegrationReadiness(
     rows,
     unboundSourceCount: scoped.filter(source =>
       !source.productId || !knownProductIds.has(source.productId)).length,
+    localSummary: {
+      activeProducts: active.length,
+      boundSources: rows.filter(row => row.sourceId !== null).length,
+      sourcesWithRecentLocalSync: rows.filter(row => row.state === "sync_recent").length,
+      rowsWithoutRecentLocalSync: rows.filter(row => row.state !== "sync_recent").length,
+    },
     certifiedIntegrations: null,
   };
 }
