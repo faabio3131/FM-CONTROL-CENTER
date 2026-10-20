@@ -176,9 +176,8 @@ export async function dispatchVerifiedVendePaidLicense(
     if (reply.status!==200) throw new Error("not-confirmed");
     const response:unknown=await reply.json();
     if (!response || typeof response!=="object" || Array.isArray(response) ||
-        !["bound","already_bound"].includes(
-          (response as Record<string,unknown>).status as string,
-        )) throw new Error("not-confirmed");
+        (response as Record<string,unknown>).status !== "bound"
+        ) throw new Error("not-confirmed");
   } catch {
     await db.update(billingVendeLicenseOutbox).set({
       state:"blocked",
