@@ -54,3 +54,6 @@ Não criar nova cadeia de PRs empilhadas para a construção regular. Partir da 
 
 ## C08 — Cadastro padronizado de SaaS (20/10/2026)
 O catálogo único de perfis de adaptadores fica em `src/application/integration/saas-adapter-profiles.ts`. Interface e Source Registry devem usar esse contrato; não recriar mapas por produto em componentes. Um novo SaaS requer Connector REAL registrado em `connector-composition.ts`, contrato versionado, teste de paridade, autorizadores por tenant/produto e secrets por referência. Perfil presente, source cadastrada e health local não demonstram conexão S2S E2E, pagamentos ou homologação. Seguir a regra vigente: uma PR regular por etapa, gates e revisão no HEAD exato, merge elegível antes da etapa seguinte, sem operações externas por autorização implícita.
+
+## Gate C08 de pré-admissão de SaaS
+`src/application/integration/saas-adapter-preflight.ts` é somente diagnóstico local do Source Registry e Adapter Profile. A API C08 expõe `adapterPreflight` sanitizado sem criar autorização, conexão E2E, credencial, consumo, entitlement ou billing. Diferencie `local_contract_ready` de `externallyHomologated`; não pule revisão do handshake S2S nem invente live. Corrija bloqueios antes de merge; mantenha uma PR regular por vez.

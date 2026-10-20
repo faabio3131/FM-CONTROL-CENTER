@@ -3,6 +3,7 @@ import type { ProductRepository } from "@/domain/products/contracts";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 import { buildC08IntegrationReadiness } from "@/application/integration/c08-product-readiness";
 import { publicAdapterCatalog } from "@/application/integration/saas-adapter-profiles";
+import { buildSaasAdapterPreflight } from "@/application/integration/saas-adapter-preflight";
 import { assertC08SnapshotCapacity, readC08OperationalStates } from "@/application/integration/c08-operational-snapshot";
 
 /**
@@ -31,6 +32,7 @@ export class C08ReadinessService {
     return {
       ...buildC08IntegrationReadiness(context.tenantId, products, sources, operational, now),
       supportedAdapters: publicAdapterCatalog(),
+      adapterPreflight: buildSaasAdapterPreflight(context.tenantId, products, sources),
     };
   }
 }
