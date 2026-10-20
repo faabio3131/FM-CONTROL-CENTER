@@ -54,6 +54,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
       "/dashboard/products/[productId]/usage",
       "/dashboard/subscriptions/[subscriptionId]",
       "/dashboard/billing/operations",
+      "/dashboard/billing/lifecycle-reviews",
       "/dashboard/alerts/rules/[ruleId]",
       "/dashboard/settings/platform-integrations",
     ]);
@@ -80,6 +81,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     expect(product).toContain("/dashboard/products/${productId}/usage");
     expect(subscriptions).toContain("/dashboard/subscriptions/${record.subscriptionId}");
     expect(operations).toContain("/dashboard/billing/operations");
+    expect(operations).toContain("/dashboard/billing/lifecycle-reviews");
     expect(alertControl).toContain(
       "/dashboard/alerts/rules/${encodeURIComponent(rule.id)}",
     );

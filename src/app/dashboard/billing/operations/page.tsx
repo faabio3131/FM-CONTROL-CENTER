@@ -51,6 +51,10 @@ export default async function BillingOperationsPage() {
         <h1>Filas financeiras e operacionais</h1>
         <p>Visualização limitada das filas canônicas, sem executar cobranças, reprocessamentos ou alterações de licença.</p>
       </div>
+      {roleHasPermission(context.role, "billing:write") &&
+        (context.role === "owner" || context.role === "admin") ? (
+        <Link href="/dashboard/billing/lifecycle-reviews">Revisão de assinaturas</Link>
+      ) : null}
       <Link href="/dashboard/operations">Voltar às operações</Link>
     </header>
     {overview === null ? (

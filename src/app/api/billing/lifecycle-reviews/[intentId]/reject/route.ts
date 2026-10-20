@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { SubscriptionLifecycleReviewService, LifecycleReviewDeniedError, LifecycleReviewNotFoundError } from "@/application/billing/subscription-lifecycle-review-service";
+import { SubscriptionLifecycleReviewService, requireLifecycleReviewer, LifecycleReviewDeniedError, LifecycleReviewNotFoundError } from "@/application/billing/subscription-lifecycle-review-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { verifyPasswordStepUp, StepUpRequiredError } from "@/application/security/password-step-up";
 import { AuthenticationRequiredError, PermissionDeniedError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
@@ -14,6 +14,7 @@ export async function POST(request: Request, {
   try {
     const requestHeaders = await headers();
     const context = await resolveTenantContext(requestHeaders);
+    requireLifecycleReviewer(context);
     const body: unknown = await request.json();
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "billing.lifecycle_review_input_invalid" }, { status: 400 });

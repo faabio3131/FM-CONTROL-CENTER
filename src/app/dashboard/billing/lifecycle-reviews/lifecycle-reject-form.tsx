@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LIFECYCLE_REJECTION_REASONS, type LifecycleRejectionReason } from "@/application/billing/subscription-lifecycle-review-service";
+const LIFECYCLE_REJECTION_REASONS = ["insufficient_evidence", "policy_unavailable", "duplicate_request", "operator_declined"] as const;
+type LifecycleRejectionReason = typeof LIFECYCLE_REJECTION_REASONS[number];
 
 const reasons: Record<LifecycleRejectionReason, string> = {
   insufficient_evidence: "Documentação ou comprovação insuficiente",
