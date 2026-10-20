@@ -22,6 +22,16 @@ const SUBSCRIPTION_METRICS = new Set([
   "receivable.delinquent_amount",
 ]);
 
+const STATUS_ASSINATURA: Readonly<Record<string, string>> = {
+  pending: "Pendente", active: "Ativa", past_due: "Em atraso",
+  suspended: "Suspensa", canceled: "Cancelada", cancelled: "Cancelada",
+  trial: "Teste gratuito", expired: "Expirada",
+};
+
+function rotuloSituacaoAssinatura(value: string): string {
+  return STATUS_ASSINATURA[value.toLowerCase()] ?? "Situação não classificada";
+}
+
 function temporalLabel(value?: MetricView | null): string {
   if (!value) return "Período indisponível";
   if (value.asOf) return `As of: ${value.asOf.toISOString()}`;
@@ -238,7 +248,7 @@ export default async function SubscriptionsPage({
                           {record.externalTenantId ?? "Vínculo indisponível"}
                         </td>
                         <td style={{ padding: "0.75rem" }}>{record.planCode}</td>
-                        <td style={{ padding: "0.75rem" }}>{record.status}</td>
+                        <td style={{ padding: "0.75rem" }}>{rotuloSituacaoAssinatura(record.status)}</td>
                         <td style={{ padding: "0.75rem" }}>
                           {new Intl.DateTimeFormat("pt-BR", {
                             dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
