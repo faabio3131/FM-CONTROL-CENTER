@@ -40,18 +40,31 @@ export async function POST(request:Request){
       return respond({error:"vende.c06_payload_invalid"},400);
     const body=raw as Record<string,unknown>;
     const requested=body.action;
-    if(requested!=="enroll_paid_term"&&requested!=="request_delinquency_suspension")
+    if(!["enroll_paid_term","request_delinquency_suspension",
+          "schedule_cancellation","request_regularization"].includes(String(requested)))
       return respond({error:"vende.c06_payload_invalid"},400);
     const allowed=requested==="enroll_paid_term"
       ?["action","password","productId","subscriptionId","invoiceId","effectiveFrom",
         "paidThrough","dueDate","calendarRegion","sourceRef","operationId","autoRenew"]
+      :requested==="schedule_cancellation"
+      ?["action","password","productId","subscriptionId","expectedRevision",
+        "customerConsentRef","operationId"]
+      :requested==="request_regularization"
+      ?["action","password","productId","subscriptionId","paidInvoiceId",
+        "expectedRevision","sourceRef","operationId"]
       :["action","password","productId","subscriptionId","invoiceId",
         "expectedRevision","sourceRef","operationId"];
     if(Object.keys(body).sort().join(",")!==allowed.sort().join(",") ||
        typeof body.password!=="string"||body.password.length>128||
        typeof body.productId!=="string"||typeof body.subscriptionId!=="string"||
-       typeof body.invoiceId!=="string"||typeof body.sourceRef!=="string"||
-       typeof body.operationId!=="string")
+       typeof body.operationId!=="string"||
+       (requested==="schedule_cancellation"
+         ? typeof body.customerConsentRef!=="string"
+         : typeof body.sourceRef!=="string") ||
+       (requested==="enroll_paid_term"||requested==="request_delinquency_suspension"
+         ? typeof body.invoiceId!=="string"
+         : requested==="request_regularization"
+         ? typeof body.paidInvoiceId!=="string" : false))
       return respond({error:"vende.c06_payload_invalid"},400);
     if(requested==="enroll_paid_term" && (
       typeof body.effectiveFrom!=="string"||typeof body.paidThrough!=="string"||
@@ -77,10 +90,23 @@ export async function POST(request:Request){
         calendarRegion:body.calendarRegion as string,sourceRef:body.sourceRef,
         operationId:body.operationId,autoRenew:body.autoRenew as boolean,
       })
+      :requested==="schedule_cancellation"
+      ?await service.scheduleCancellation(context,proof,{
+        productId:body.productId,subscriptionId:body.subscriptionId,
+        expectedRevision:body.expectedRevision as number,
+        operationId:body.operationId,customerConsentRef:body.customerConsentRef as string,
+      })
+      :requested==="request_regularization"
+      ?await service.requestRegularization(context,proof,{
+        productId:body.productId,subscriptionId:body.subscriptionId,
+        paidInvoiceId:body.paidInvoiceId as string,
+        expectedRevision:body.expectedRevision as number,
+        operationId:body.operationId,sourceRef:body.sourceRef as string,
+      })
       :await service.requestSuspension(context,proof,{
         productId:body.productId,subscriptionId:body.subscriptionId,
-        invoiceId:body.invoiceId,expectedRevision:body.expectedRevision as number,
-        operationId:body.operationId,sourceRef:body.sourceRef,
+        invoiceId:body.invoiceId as string,expectedRevision:body.expectedRevision as number,
+        operationId:body.operationId,sourceRef:body.sourceRef as string,
       });
     await recordAuditEvent(context,{
       action:"vende.c06.execution_recorded",resourceType:"subscription",
