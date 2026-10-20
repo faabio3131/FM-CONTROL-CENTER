@@ -71,6 +71,7 @@ CREATE TABLE "fmcc_vende_lifecycle_command" (
  "product_id" uuid NOT NULL,
  "subscription_id" uuid NOT NULL,
  "customer_id" uuid NOT NULL,
+ "source_invoice_id" uuid,
  "operation_id" text NOT NULL,
  "expected_revision" integer NOT NULL,
  "revision" integer NOT NULL,
@@ -87,6 +88,8 @@ CREATE TABLE "fmcc_vende_lifecycle_command" (
  CONSTRAINT "fmcc_vende_lifecycle_action_ck" CHECK ("action" in ('SUSPEND_DELINQUENCY','SCHEDULE_CANCEL','REACTIVATE_VERIFIED','APPLY_DOWNGRADE','APPLY_UPGRADE','RENEW_VERIFIED')),
  CONSTRAINT "fmcc_vende_lifecycle_state_ck" CHECK ("state" in ('pending','processing','delivered','blocked','unknown'))
 );
+--> statement-breakpoint
+ALTER TABLE "fmcc_vende_lifecycle_command" ADD CONSTRAINT "fmcc_vende_lifecycle_source_invoice_fk" FOREIGN KEY ("tenant_id","source_invoice_id") REFERENCES "public"."fmcc_billing_invoice"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "fmcc_vende_lifecycle_command" ADD CONSTRAINT "fmcc_vende_lifecycle_subscription_fk" FOREIGN KEY ("tenant_id","subscription_id","product_id","customer_id") REFERENCES "public"."fmcc_billing_subscription"("tenant_id","id","product_id","customer_id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
