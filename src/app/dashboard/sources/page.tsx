@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { buildC08IntegrationReadiness, type C08EvidenceState } from "@/application/integration/c08-product-readiness";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -84,6 +85,8 @@ export default async function SourcesPage() {
     };
   });
 
+  const readiness = buildC08IntegrationReadiness(context.tenantId, products, sources, operationalStates);
+
   const activeProducts = products
     .filter((product) => product.status === "active")
     .map(({ id, name, slug }) => ({
@@ -129,6 +132,54 @@ export default async function SourcesPage() {
           <strong>Ausência</strong>
           <span>Nunca convertida em zero</span>
         </article>
+      </section>
+
+      <section className="executive-section" aria-labelledby="c08-readiness-title">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">C08 · Integrações por produto</span>
+            <h2 id="c08-readiness-title">Matriz de prontidão das fontes</h2>
+          </div>
+          <p>Fonte registrada não equivale a integração homologada. Sincronização local
+            recente não substitui autenticação entre serviços nem prova de entrega.</p>
+        </div>
+        {readiness.rows.length === 0 ? (
+          <div className="empty-state"><strong>Nenhum produto ativo.</strong>
+            <p>Cadastre o produto e sua fonte governada antes da certificação.</p>
+          </div>
+        ) : (
+          <div className="product-grid">
+            {readiness.rows.map((item) => {
+              const labels: Record<C08EvidenceState, string> = {
+                not_configured: "Fonte não cadastrada",
+                unverified: "Sem sincronização comprovada",
+                persisted_unavailable: "Fonte marcada indisponível",
+                sync_running: "Sincronização em andamento",
+                sync_failed: "Última sincronização falhou",
+                freshness_undefined: "Atualidade sem prazo definido",
+                sync_stale: "Sincronização desatualizada",
+                sync_recent: "Sincronização local recente",
+              };
+              return <article className="product-card" key={item.sourceId ?? item.productId}>
+                <strong>{item.productName}</strong>
+                <span>{labels[item.state]}</span>
+                <small>{item.sourceType ?? "Sem contrato de conector registrado"}</small>
+                <small>Versão: {item.mappingVersion ?? "Indisponível"}</small>
+                <small>Último sucesso local: {item.lastSuccessfulAt ??
+                  "Sem evidência registrada"}</small>
+                <small>Integração S2S E2E: não certificada por esta matriz</small>
+                <small>Homologação externa: não comprovada por esta matriz</small>
+              </article>;
+            })}
+          </div>
+        )}
+        {readiness.unboundSourceCount > 0 ? (
+          <p role="status">Há {readiness.unboundSourceCount} fonte(s) sem vínculo com produto
+            ativo deste tenant; nenhuma foi contabilizada como integração de produto.</p>
+        ) : null}
+        <p className="metric-provenance">Autoridade: {readiness.authority}.
+          Avaliação em {readiness.asOf}. A certificação real exige gate separado
+          de contrato, autenticação, versão publicada, dados e recuperação.</p>
       </section>
 
       <SourceControlPanel
