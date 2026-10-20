@@ -96,7 +96,7 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - Contrato GET /api/billing/subscriptions/[subscriptionId]/trace e tela /dashboard/subscriptions/[subscriptionId] acessível pela lista: tenant somente da identidade autenticada, billing:read, IDs UUID validados, tenant em todas as junções, fatura vinculada a subscription+product+customer, sem SQL dinâmico nem dados financeiros de outro tenant.
 - Limitado a 50 faturas recentes (+1 marcador truncado), sem inventar histórico completo, dinheiro recebido, lucro ou autorização de licença. Ausência de pagamento registrado NÃO comprova ausência de cobrança no provedor.
 - Não cria tables, migrations, job financeiro ou novas transitions; preserva idempotência e conciliação canônicas. Implementação e teste interno exigem gates no SHA final. Banco Render segue suspenso até recuperação humana.
-    
+
 ## C03/C04 — Monitoramento somente leitura das filas financeiras (20/10/2026)
 - Inventário confirmou tabelas existentes fmcc_billing_gateway_event e fmcc_billing_iron_entitlement_outbox, processadores, outbox, reconciliação e rotas protegidas. Nenhuma dessas estruturas foi reconstruída.
 - Novo read-model operacional limitado a 40 eventos + 40 entregas (41 para sinalizar truncamento); evita contagens globais falsas e não apresenta evento de webhook como confirmação financeira.
