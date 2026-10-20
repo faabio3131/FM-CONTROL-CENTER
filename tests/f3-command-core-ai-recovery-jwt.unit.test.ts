@@ -5,6 +5,7 @@ import {
   CoreAIRecoveryAuthorityDenied,
   CORE_AI_RECOVERY_PATH,
   signCoreAIRecoveryAuthorization,
+  sendGovernedCoreAIRecovery,
 } from "@/application/integration/fm-core-ai-recovery-jwt";
 
 const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -52,5 +53,56 @@ describe("Command → Core governed usage authority", () => {
         changed as typeof actor, cfg, { now, tokenId: fixedJti },
       )).toThrow(CoreAIRecoveryAuthorityDenied);
     }
+  });
+
+  it("dispatches one signed opaque recovery to exact HTTPS Core endpoint", async () => {
+    let observed = 0;
+    await sendGovernedCoreAIRecovery(
+      {
+        requestId: "request-1", tenantId: "tenant-1", unitId: "unit-1",
+        evidenceId: "evidence-1", requestsRevision: 3, tokensRevision: 3,
+      }, actor, { ...cfg, coreOrigin: "https://core.example.test" },
+      {
+        now,
+        http: (async (url, init) => {
+          observed++;
+          expect(String(url)).toBe(
+            "https://core.example.test/internal/v1/command/ai/usage/reconcile",
+          );
+          expect(init?.method).toBe("POST");
+          expect(init?.redirect).toBe("manual");
+          const headers = new Headers(init?.headers);
+          expect(headers.get("Authorization")?.startsWith("Bearer ")).toBe(true);
+          expect(JSON.parse(String(init?.body))).toEqual({
+            request_id: "request-1", tenant_id: "tenant-1",
+            unit_id: "unit-1", evidence_id: "evidence-1",
+            requests_revision: 3, tokens_revision: 3,
+          });
+          return new Response(null, { status: 204 });
+        }) as typeof fetch,
+      },
+    );
+    expect(observed).toBe(1);
+  });
+
+  it("never retries after unknown Core status or trusts an insecure endpoint", async () => {
+    let attempts = 0;
+    const intent = {
+      requestId: "request-2", tenantId: "tenant-1", unitId: "unit-1",
+      evidenceId: "evidence-2", requestsRevision: 2, tokensRevision: 2,
+    };
+    await expect(sendGovernedCoreAIRecovery(
+      intent, actor, { ...cfg, coreOrigin: "https://core.example.test" },
+      { now, http: (async () => {
+        attempts++;
+        return new Response("unavailable", { status: 503 });
+      }) as typeof fetch },
+    )).rejects.toThrow(CoreAIRecoveryAuthorityDenied);
+    expect(attempts).toBe(1);
+    await expect(sendGovernedCoreAIRecovery(
+      intent, actor, { ...cfg, coreOrigin: "http://insecure.example.test" },
+      { now, http: (async () => { attempts++; return new Response(); }) as typeof fetch },
+    )).rejects.toThrow(CoreAIRecoveryAuthorityDenied);
+    expect(attempts).toBe(1);
   });
 });
