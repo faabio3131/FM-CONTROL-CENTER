@@ -125,3 +125,9 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - POST /api/billing/lifecycle-reviews/[intentId]/reject exige step-up e confirmação; insere decisão imutável com motivo codificado, idempotência e locks serializados por tenant. Sem mutação de assinatura, receita, gateway, outbox ou direitos.
 - Limites: não existe aprovação/executor de cancelamento/renovação sem política aprovada de vigência, tolerância, prorrata e estorno. STOP na operação afetada; não impedir código interno independente. Nenhum deploy, banco Render ou migration real.
 - Validar CI no SHA definitivo, testes PostgreSQL de concorrência/cross-tenant/replay e revisão aplicável. Status da candidata: não integrada/não homologada.
+
+## C06/C08 — Prerequisitos de executor e contrato IRON em 20/10/2026
+- Base #104 em 8da1b2da, 6/6 workflows verdes no SHA, não mergeada. main d9bcc38e.
+- IRON #142 responde catálogo PUBLISHED, mas podia produzir published_at:null; parser FMCC exige ISO e falha fechado. IRON #143 em Draft corrige origem, gate e integração ainda pendentes.
+- Novo contrato fmcc.c06.execution-prerequisites.v1 valida autoridade por ação, tenant, produto, assinatura, data, revisão e origem. Endpoint GET e UI de pendências usam dados server-side, nunca confiam em flags de aprovação do cliente.
+- PENDÊNCIA humana: vigência, política de cancelamento, renovação, prorrata, tolerância, trial e refund. Nenhum executor financeiro ativado. Nenhuma migration, deploy ou banco real alterado.

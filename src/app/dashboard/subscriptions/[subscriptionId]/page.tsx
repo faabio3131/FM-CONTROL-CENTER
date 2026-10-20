@@ -6,6 +6,7 @@ import {
   SubscriptionTraceInputError,
 } from "@/application/billing/billing-subscription-trace-service";
 import { previewSubscriptionLifecycle } from "@/domain/billing/subscription-lifecycle-policy";
+import { assessLifecycleExecutionPrerequisites } from "@/domain/billing/subscription-execution-prerequisites";
 import { LifecycleIntentRequestForm } from "./lifecycle-intent-request-form";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { roleHasPermission } from "@/domain/security/permissions";
@@ -111,6 +112,24 @@ export default async function SubscriptionTracePage({
             options={previewSubscriptionLifecycle(trace).options}/>
         </section>
       ) : null}
+
+      <section className="panel" aria-labelledby="contract-prerequisites">
+        <h2 id="contract-prerequisites">Autoridades pendentes para execução contratual</h2>
+        <p>Prévia de regras e fontes. Nenhuma aprovação, cobrança ou licença é executada nesta consulta.</p>
+        {previewSubscriptionLifecycle(trace).options
+          .filter(option => option.status === "candidate_for_review")
+          .map(option => {
+            const result = assessLifecycleExecutionPrerequisites(trace, option.action, context.tenantId);
+            return <details key={option.action}>
+              <summary>{option.title} — {result.blockReasons.length} verificações pendentes</summary>
+              <ul>{result.gates.map(gate => (
+                <li key={gate.kind}>{gate.label}: {gate.status === "verified_by_authority"
+                  ? "Comprovado pela autoridade" : "Aguardando fonte autoritativa"}</li>
+              ))}</ul>
+              <p>Execução indisponível até política aprovada e executor governado.</p>
+            </details>;
+          })}
+      </section>
 
       <section className="panel" aria-labelledby="invoice-trace">
         <h2 id="invoice-trace">Faturas e pagamentos registrados</h2>
