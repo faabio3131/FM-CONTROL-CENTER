@@ -273,4 +273,80 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
     await expect(service.quarantineStaleVendeLicenseClaims("foreign")).rejects.toThrow();
   });
 
+  it("does not certify a stale positive status after reversal, policy change or nonce replacement", async () => {
+    const created = await pool.query(
+      "INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,currency) VALUES($1,$2,$3,$4,$5,900,'BRL') RETURNING id",
+      [tenant, productId, customerId, subId, gatewayId],
+    );
+    const invoice = created.rows[0].id as string;
+    const paymentId = "asaas-ci-stale-status-" + randomUUID();
+    await pool.query(
+      "INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES($1,$2,$3,$4,'received')",
+      [tenant, invoice, gatewayId, paymentId],
+    );
+    const { PostgresCanonicalBillingRepository } = await import(
+      "../src/infrastructure/billing/postgres-canonical-billing-repository"
+    );
+    await new PostgresCanonicalBillingRepository().markInvoicePaid(tenant, invoice, paymentId);
+    const nonce = randomUUID();
+    const claimed = await pool.query(
+      "UPDATE fmcc_billing_vende_license_outbox SET state='blocked',attempts=1,claim_token=$2 WHERE tenant_id=$1 AND invoice_id=$3 RETURNING id",
+      [tenant, nonce, invoice],
+    );
+    expect(claimed.rows).toHaveLength(1);
+    const id = claimed.rows[0].id as string;
+    const config = {
+      assistantOrigin: "https://assistant.example.test", keyId: "ci-key",
+      signingKey: "a-synthetic-test-only-secret-that-is-over-32-characters",
+      organizationId: tenant,
+    };
+    // Simulates the gateway reversal reaching canonical billing while the
+    // remote status request is in flight, BEFORE the positive response.
+    const reversed = (async () => {
+      await pool.query(
+        "UPDATE fmcc_billing_invoice SET status='reversed' WHERE tenant_id=$1 AND id=$2",
+        [tenant, invoice],
+      );
+      return new Response(JSON.stringify({status:"bound_confirmed"}), {status:200});
+    }) as typeof fetch;
+    expect(await service.reconcileBlockedVendePaidLicense(id, config, reversed))
+      .toBe("still_blocked");
+
+    await pool.query(
+      "UPDATE fmcc_billing_invoice SET status='paid' WHERE tenant_id=$1 AND id=$2",
+      [tenant, invoice],
+    );
+    const paymentReversed = (async () => {
+      await pool.query(
+        "UPDATE fmcc_billing_provider_payment SET status='failed' WHERE tenant_id=$1 AND invoice_id=$2",
+        [tenant, invoice],
+      );
+      return new Response(JSON.stringify({status:"bound_confirmed"}), {status:200});
+    }) as typeof fetch;
+    expect(await service.reconcileBlockedVendePaidLicense(id, config, paymentReversed))
+      .toBe("still_blocked");
+
+    await pool.query(
+      "UPDATE fmcc_billing_provider_payment SET status='received' WHERE tenant_id=$1 AND invoice_id=$2",
+      [tenant, invoice],
+    );
+    const superseded = (async () => {
+      await pool.query(
+        "UPDATE fmcc_billing_vende_license_outbox SET claim_token=$2 WHERE id=$1",
+        [id, randomUUID()],
+      );
+      return new Response(JSON.stringify({status:"bound_confirmed"}), {status:200});
+    }) as typeof fetch;
+    expect(await service.reconcileBlockedVendePaidLicense(id, config, superseded))
+      .toBe("still_blocked");
+
+    const final = await pool.query(
+      "SELECT state,attempts,delivered_at FROM fmcc_billing_vende_license_outbox WHERE id=$1",
+      [id],
+    );
+    expect(final.rows[0]).toMatchObject({
+      state:"blocked", attempts:1, delivered_at:null,
+    });
+  });
+
 });
