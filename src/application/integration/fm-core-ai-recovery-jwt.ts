@@ -4,7 +4,7 @@
  * Command human session, corporate membership, RBAC and fresh reauthentication
  * before constructing the actor. No public route is enabled here.
  */
-import { createPrivateKey, randomUUID, sign } from "node:crypto";
+import { constants, createPrivateKey, randomUUID, sign } from "node:crypto";
 
 export const CORE_AI_RECOVERY_PATH = "/internal/v1/command/ai/usage/reconcile";
 
@@ -76,7 +76,7 @@ export function signCoreAIRecoveryAuthorization(
       + "." + b64(JSON.stringify(claims));
     const signature = sign("RSA-SHA256", Buffer.from(input, "ascii"), {
       key: createPrivateKey(config.privateKeyPem),
-      padding: 6, // RSA_PKCS1_PADDING — JWT RS256
+      padding: constants.RSA_PKCS1_PADDING,
     }).toString("base64url");
     return input + "." + signature;
   } catch {
