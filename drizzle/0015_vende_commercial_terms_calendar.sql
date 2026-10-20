@@ -17,7 +17,7 @@ CREATE TABLE "fmcc_vende_contract_terms" (
  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
  CONSTRAINT "fmcc_vende_terms_dates_ck" CHECK ("paid_through" >= "effective_from"),
  CONSTRAINT "fmcc_vende_terms_revision_ck" CHECK ("revision" > 0),
- CONSTRAINT "fmcc_vende_terms_state_ck" CHECK ("lifecycle_state" in ('active','past_due','suspended','cancel_at_period_end','cancelled'))
+ CONSTRAINT "fmcc_vende_terms_state_ck" CHECK ("lifecycle_state" in ('active','past_due','suspended','suspension_pending','cancel_at_period_end','cancelled'))
 );
 --> statement-breakpoint
 ALTER TABLE "fmcc_vende_contract_terms" ADD CONSTRAINT "fmcc_vende_terms_subscription_fk" FOREIGN KEY ("tenant_id","subscription_id","product_id","customer_id") REFERENCES "public"."fmcc_billing_subscription"("tenant_id","id","product_id","customer_id") ON DELETE no action ON UPDATE no action;
