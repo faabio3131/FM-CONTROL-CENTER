@@ -65,7 +65,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/-FM-Assistant-Base
-          ref: 8c4a8192d31c679447099d25e1847ca8c8fa8d0b
+          ref: 3bc00e5ade0b5d926894a9ce4d3eece78eda3ca9
           path: assistant-source
           persist-credentials: false
       - name: Checkout pinned public Core (internal quota and recovery)
