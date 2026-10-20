@@ -4841,7 +4841,7 @@
         },
         "fmcc_vende_terms_state_ck": {
           "name": "fmcc_vende_terms_state_ck",
-          "value": "\"fmcc_vende_contract_terms\".\"lifecycle_state\" in ('active','past_due','suspended','suspension_pending','cancel_at_period_end','cancelled')"
+          "value": "\"fmcc_vende_contract_terms\".\"lifecycle_state\" in ('active','past_due','suspended','suspension_pending','reactivation_pending','cancel_at_period_end','cancelled')"
         }
       },
       "isRLSEnabled": false
