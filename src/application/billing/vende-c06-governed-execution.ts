@@ -170,6 +170,83 @@ export class GovernedVendeC06Service {
       return term;
     });
   }
+  /** FM-authorized non-renewal scheduling. This changes the Command's
+   * auto-renew flag now while preserving paid entitlement until its period end.
+   * Never sends an immediate suspend/cancel instruction to the Assistant.
+   * The sourceRef must identify a verified customer consent record reviewed
+   * by FM; real consent verification remains a separate admission dependency.
+   */
+  async scheduleCancellation(context:TenantContext,proof:StepUpProof,input:{
+    productId:string;subscriptionId:string;expectedRevision:number;
+    operationId:string;customerConsentRef:string;
+  },now:Date=new Date()) {
+    verifiedActor(context,proof,now);
+    uuid(input.productId);uuid(input.subscriptionId);
+    evidence(input.operationId);evidence(input.customerConsentRef);
+    if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1)
+      throw new VendeC06Denied("vende.c06_revision_invalid");
+    const today=fmLocalCivilDate(now);
+    return db.transaction(async tx=>{
+      await lock(tx,`c06.term:${context.tenantId}:${input.subscriptionId}`);
+      await requireVende(tx,context.tenantId,input.productId);
+      const [term]=await tx.select().from(vendeContractTerms).where(and(
+        eq(vendeContractTerms.tenantId,context.tenantId),
+        eq(vendeContractTerms.subscriptionId,input.subscriptionId),
+        eq(vendeContractTerms.productId,input.productId),
+      )).for("update").limit(1);
+      if(!term || term.revision!==input.expectedRevision ||
+          !["active","past_due","suspended"].includes(term.lifecycleState) ||
+          term.paidThrough<today || !term.autoRenew)
+        throw new VendeC06Denied("vende.c06_cancel_contract_unavailable");
+      const [subscription]=await tx.select().from(billingSubscriptions).where(and(
+        eq(billingSubscriptions.tenantId,context.tenantId),
+        eq(billingSubscriptions.id,term.subscriptionId),
+        eq(billingSubscriptions.productId,term.productId),
+        eq(billingSubscriptions.customerId,term.customerId),
+      )).for("update").limit(1);
+      if(!subscription || subscription.status==="cancelled")
+        throw new VendeC06Denied("vende.c06_subscription_unavailable");
+      const [binding]=await tx.select({
+        externalTenantId:billingCustomerBindings.externalTenantId,
+      }).from(billingCustomerBindings).where(and(
+        eq(billingCustomerBindings.tenantId,context.tenantId),
+        eq(billingCustomerBindings.customerId,term.customerId),
+        eq(billingCustomerBindings.productId,term.productId),
+      )).limit(1);
+      if(!binding?.externalTenantId)
+        throw new VendeC06Denied("vende.c06_vertical_binding_missing");
+      const nextRevision=term.revision+1;
+      const [updated]=await tx.update(vendeContractTerms).set({
+        revision:nextRevision,lifecycleState:"cancel_at_period_end",
+        autoRenew:false,actorId:context.userId,updatedAt:now,
+      }).where(and(eq(vendeContractTerms.id,term.id),
+        eq(vendeContractTerms.revision,term.revision),
+        eq(vendeContractTerms.tenantId,context.tenantId),
+      )).returning({revision:vendeContractTerms.revision});
+      if(!updated)throw new VendeC06Denied("vende.c06_revision_conflict");
+      await tx.insert(vendeContractTermAudit).values({
+        tenantId:context.tenantId,subscriptionId:term.subscriptionId,
+        revision:nextRevision,operationId:input.operationId,
+        action:"SCHEDULE_CANCEL",actorId:context.userId,
+        previousState:term.lifecycleState,newState:"cancel_at_period_end",
+        effectiveDate:term.paidThrough,sourceRef:input.customerConsentRef,
+      });
+      await tx.insert(vendeLifecycleCommands).values({
+        tenantId:context.tenantId,productId:term.productId,
+        subscriptionId:term.subscriptionId,customerId:term.customerId,
+        operationId:input.operationId,
+        expectedRevision:term.revision,revision:nextRevision,
+        action:"SCHEDULE_CANCEL",state:"pending",
+        externalTenantId:binding.externalTenantId,
+        effectiveDate:term.paidThrough,sourceRef:input.customerConsentRef,
+        actorId:context.userId,
+      });
+      return {operationId:input.operationId,revision:nextRevision,
+        state:"cancel_at_period_end" as const,paidAccessUntil:term.paidThrough,
+        autoRenew:false,remoteEntitlementConfirmed:false};
+    });
+  }
+
   /** Transactional admission for overdue suspension: NEVER a gateway request
    * or a delivered license. Fresh 'unpaid' proof must come from trusted
    * provider reconciliation ledger. All changes rollback atomically.
