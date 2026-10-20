@@ -64,3 +64,29 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - Integração incremental: merge com ambos os ancestrais (#94 + #95) com publishedPlanVersions() e aiUsage() preservados no mesmo IronCommercialConnector, UI do produto + subpágina IA; mantém testes originais e inclui regressão simultânea dos contratos. Não inventar tokens ou custos.
 - Runtime separado: banco de preview Render fmcc-preview-postgres expirado/suspenso. Usuário prevê restaurar e fazer deploy amanhã. Proibido migrar/trocar banco/configurar credenciais ou publicar neste WP.
 - Pendências: gates no SHA final, revisão e merge governado, integração segura da IRON PR #142 e da FMCC PR #94 antes de promover C07. PR #96 C02 tem 4/4 workflows no SHA anterior, mas C02 lifecycle completo não está certificado.
+
+## Continuidade de construção — 20/10/2026, C02 (PR #96)
+**DECISÃO humana posterior:** priorizar conclusão da CONSTRUÇÃO e integração interna dos blocos do Command antes da campanha final de TESTES / CERTIFICAÇÃO / HOMOLOGAÇÃO. Isso não autoriza produção, migrações reais, cobrança, acesso cross-tenant ou a alegação de que trabalho não testado passou. Verificações automatizadas acionadas pelo GitHub seguem registradas como evidência parcial, não homologação final.
+
+**FATO / CURRENT:**
+- Baseline da main na entrada: d9bcc38ef40188998bf78d165d688417addd4f9b, com PR #91 (editor Kordena) e PR #93 (cronograma e governança) já incorporadas.
+- PR #94 (C01 planos/preços IRON), PR #95 (C07 leitura IA IRON) e PR #90 (identidades Command/Core/Assistant) permanecem separadas, não integradas. Evitar duplicar suas implementações.
+- PR #96: nova capacidade C02 de consulta somente leitura, sem mutation, migrations, deploy ou gateway. Utiliza fmcc_billing_subscription e fmcc_billing_customer_binding existentes para exibir assinaturas internas no Command.
+- API GET /api/billing/subscriptions: autenticação server-side, RBAC billing:read, produto autorizado validado no servidor, filtro tenant derivado da identidade, listagem limitada a 100 (+1 para detectar truncamento), resposta no-store e estado indisponível em erros.
+- UI /dashboard/subscriptions: tabela PT-BR com assinatura, produto, cliente FMCC, externalTenantId, plano, status e data; explicitamente distinta das métricas externas MRR/ARR. Banco indisponível != lista vazia; página parcial != base completa.
+- Unit tests do serviço e dos escopos foram adicionados ao código, mas gates completos e homologação seguem como evidência a verificar no SHA definitivo.
+
+**PENDENTE:** C02 ainda não oferece cadastro/transição de assinatura, estados/reconciliação, histórico completo ou vínculo externo autenticado; essas entregas continuam planejadas e não podem ser marcadas 100%. C01 tem escopo IRON adicional em PR #94, C07 em PR #95 e ponte de identidades em PR #90. Validar CI/build/tests internos pertinentes antes de qualquer integração do branch; campanha de certificação final e homologação externa após construção integral.
+
+**Próxima construção:** conferir a autoridade canônica do vínculo cliente→produto→plano e completar o domínio e as APIs governadas de lifecycle sem misturar contratos FMCC com cobranças internas dos SaaS.
+
+## C02 — construção incremental dos vínculos de clientes (20/10/2026)
+- Inspeção de main e PR #96 confirmou tabelas billingCustomers e billingCustomerBindings, com chaves únicas tenant+customer, tenant+product+externalTenant; NÃO criar cadastro duplicado.
+- Incremento C02 nesta PR: leitura somente de vínculos cliente→SaaS por tenant da identidade assinada; join composto com tenant em ambos os lados, filtro de produto autorizado, limite 100 e truncamento; API no-store e UI PT-BR integrada à página Clientes existente.
+- Sem mutações, cobranças, novos dados ou migration. Ausência de banco mostra indisponível, não zero; tenant externo é identificador, não autoridade para consultas cross-tenant.
+- Pendência C02: transições do ciclo de assinatura, histórico e confirmação comercial ainda dependem de invariantes/estado existentes; não declarar C02 concluído só por duas telas de leitura. Testes internos no SHA final a conferir.
+
+## C01/C02/C07 — candidato de integração de construção (20/10/2026)
+- Branch candidata combina os HEADs preservados: #94 + #95 via PR #97 (e92c60f4, Cognitive Gate SUCCESS) e #96 (dd208341, 4/4 workflows SUCCESS).
+- Todas as alterações de implementação são aditivas ou independentes exceto checkpoint documental, reconciliado sem descarte. Um único merge futuro reduz risco de sobreposição de três PRs.
+- Status atual: build-candidate, NÃO homologado, NÃO publicado; validar todos os gates no commit combinado e revisar segurança e contratos antes de merge. A publicação depende do PostgreSQL Render restaurado pelo proprietário e do preflight de backups/migrations.

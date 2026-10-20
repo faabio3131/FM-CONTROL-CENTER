@@ -1,3 +1,6 @@
+import { BillingSubscriptionRegisterService, type BillingSubscriptionRegister } from "@/application/billing/billing-subscription-register-service";
+import { PostgresBillingSubscriptionRegisterRepository } from "@/infrastructure/billing/postgres-billing-subscription-register-repository";
+import { roleHasPermission } from "@/domain/security/permissions";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -18,6 +21,16 @@ const SUBSCRIPTION_METRICS = new Set([
   "revenue.arr",
   "receivable.delinquent_amount",
 ]);
+
+const STATUS_ASSINATURA: Readonly<Record<string, string>> = {
+  pending: "Pendente", active: "Ativa", past_due: "Em atraso",
+  suspended: "Suspensa", canceled: "Cancelada", cancelled: "Cancelada",
+  trial: "Teste gratuito", expired: "Expirada",
+};
+
+function rotuloSituacaoAssinatura(value: string): string {
+  return STATUS_ASSINATURA[value.toLowerCase()] ?? "Situação não classificada";
+}
 
 function temporalLabel(value?: MetricView | null): string {
   if (!value) return "Período indisponível";
@@ -65,6 +78,20 @@ export default async function SubscriptionsPage({
   );
   const representativeValue = metrics.find(({ value }) => value)?.value;
   const authority = representativeValue?.sourceAuthority;
+
+  // Local billing register is distinct from externally sourced SaaS metrics.
+  // An unavailable DB is never shown as an empty list or a KPI zero.
+  const registerAuthorized = roleHasPermission(context.role, "billing:read");
+  let subscriptionRegister: BillingSubscriptionRegister | null = null;
+  if (registerAuthorized) {
+    try {
+      subscriptionRegister = await new BillingSubscriptionRegisterService(
+        new PostgresBillingSubscriptionRegisterRepository(),
+      ).list(context, selectedProduct?.id);
+    } catch {
+      subscriptionRegister = null;
+    }
+  }
 
   return (
     <main className="dashboard-shell dashboard-shell-compact">
@@ -174,6 +201,67 @@ export default async function SubscriptionsPage({
           MRR e ARR só serão exibidos após contrato semântico aprovado;
           faturamento emitido e caixa recebido permanecem métricas distintas.
         </p>
+      </section>
+
+
+      <section className="panel" aria-labelledby="fmcc-subscription-register">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">C02 · Registros canônicos FMCC</span>
+            <h2 id="fmcc-subscription-register">Assinaturas cadastradas no Command</h2>
+          </div>
+          <p>Consulta somente leitura e limitada a 100 registros recentes por tenant e produto autorizado.</p>
+        </div>
+        {!registerAuthorized ? (
+          <p role="status">Sua função não possui permissão de leitura financeira.</p>
+        ) : !subscriptionRegister ? (
+          <p role="alert">Cadastro local temporariamente indisponível. Isso não significa zero assinaturas.</p>
+        ) : (
+          <>
+            {subscriptionRegister.truncated ? (
+              <p role="status">Exibindo apenas os 100 registros mais recentes. A relação não representa a base completa.</p>
+            ) : null}
+            {subscriptionRegister.items.length === 0 ? (
+              <p>Nenhuma assinatura registrada no billing interno neste escopo. Assinaturas existentes nos SaaS externos não são presumidas.</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <caption className="metric-provenance" style={{ textAlign: "left" }}>
+                    Fonte: fmcc_billing_subscription · sem cálculo de MRR, ARR ou recebimento.
+                  </caption>
+                  <thead>
+                    <tr>
+                      {["Assinatura", "Produto", "Cliente FMCC", "Tenant no SaaS", "Plano", "Situação registrada", "Criada em (Brasília)"].map(label => (
+                        <th key={label} scope="col" style={{ padding: "0.75rem", textAlign: "left" }}>{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subscriptionRegister.items.map(record => (
+                      <tr key={record.subscriptionId}>
+                        <td style={{ padding: "0.75rem" }}><code>{record.subscriptionId}</code></td>
+                        <td style={{ padding: "0.75rem" }}>
+                          {products.find(product => product.id === record.productId)?.name ?? record.productId}
+                        </td>
+                        <td style={{ padding: "0.75rem" }}><code>{record.customerId}</code></td>
+                        <td style={{ padding: "0.75rem" }}>
+                          {record.externalTenantId ?? "Vínculo indisponível"}
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>{record.planCode}</td>
+                        <td style={{ padding: "0.75rem" }}>{rotuloSituacaoAssinatura(record.status)}</td>
+                        <td style={{ padding: "0.75rem" }}>
+                          {new Intl.DateTimeFormat("pt-BR", {
+                            dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
+                          }).format(record.createdAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       <CoreQueryForm
