@@ -5,6 +5,8 @@ import {
   buildC08IntegrationReadiness,
 } from "@/application/integration/c08-product-readiness";
 import type { SourceDefinition, SyncOperationalState } from "@/domain/integration/contracts";
+import { buildSaasAdapterPreflight } from "@/application/integration/saas-adapter-preflight";
+import { SAAS_ADAPTER_PROFILES } from "@/application/integration/saas-adapter-profiles";
 import type { ProductDefinition } from "@/domain/products/contracts";
 
 const now = new Date("2026-10-20T12:00:00Z");
@@ -29,6 +31,63 @@ const op = (successfulAt?: string, lastAttemptStatus?: SyncOperationalState["las
 });
 
 describe("C08 product integration readiness - evidence is not homologation", () => {
+  it("identifica produto novo sem adaptador, fonte ausente e contrato compatível", () => {
+    const validIron: SourceDefinition = {
+      ...s("source-valid", "p-i"), secretRef: "env:FMCC_IRON_CONTROL_PLANE_TOKEN",
+    };
+    const report = buildSaasAdapterPreflight("fm", products, [validIron]);
+    expect(report.contractVersion).toBe("fmcc.c08.adapter-preflight.v1");
+    expect(report.rows).toEqual([
+      { productId:"p-a", productSlug:"assistant", sourceId:null, status:"adapter_missing", authenticatedSaasE2eCertified:false },
+      { productId:"p-i", productSlug:"iron", sourceId:"source-valid", status:"local_contract_ready", authenticatedSaasE2eCertified:false },
+      { productId:"p-k", productSlug:"kordena", sourceId:null, status:"source_missing", authenticatedSaasE2eCertified:false },
+    ]);
+    expect(report.verifiedExternalConnections).toBeNull();
+    expect(JSON.stringify(report)).not.toContain("Segredo");
+  });
+
+  it("nega vinculação de fonte com versão, origem ou credencial divergente", () => {
+    const valid: SourceDefinition = {
+      ...s("source", "p-i"), secretRef: "env:FMCC_IRON_CONTROL_PLANE_TOKEN",
+    };
+    for (const broken of [
+      { ...valid, mappingVersion: "v2" },
+      { ...valid, sourceType: "kordena-commercial-v1" },
+      { ...valid, secretRef: "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN" },
+      { ...valid, authoritativeDomain: "billing" },
+      { ...valid, syncMode: "webhook" as const },
+    ]) {
+      const result = buildSaasAdapterPreflight("fm", products, [broken]);
+      expect(result.rows.find(row => row.productSlug === "iron")?.status)
+        .toBe("binding_mismatch");
+      expect(result.verifiedExternalConnections).toBeNull();
+    }
+  });
+
+  it("prova extensibilidade em fixture sem registrar integração externa", () => {
+    const profile = { ...SAAS_ADAPTER_PROFILES[0], productSlug:"future", sourceType:"future-v1",
+      mappingVersion:"future-v1", secretRef:"env:FMCC_FUTURE_TOKEN" };
+    const future = { id:"future", tenantId:"fm", slug:"future", name:"Futuro", status:"active" as const };
+    const source = { ...s("future-source", "future"), sourceType:"future-v1", mappingVersion:"future-v1",
+      secretRef:"env:FMCC_FUTURE_TOKEN" };
+    const before = buildSaasAdapterPreflight("fm", [future], [source]);
+    const after = buildSaasAdapterPreflight("fm", [future], [source], [profile]);
+    expect(before.rows[0].status).toBe("adapter_missing");
+    expect(after.rows[0].status).toBe("local_contract_ready");
+    expect(after.verifiedExternalConnections).toBeNull();
+  });
+
+  it("não expõe tenant, fonte ou produto estrangeiro e nega excesso sem truncar", () => {
+    const data = buildSaasAdapterPreflight("fm", products,
+      [{ ...s("foreign-source", "p-i"), tenantId:"other" }]);
+    expect(JSON.stringify(data)).not.toContain("foreign-source");
+    expect(JSON.stringify(data)).not.toContain("Segredo");
+    expect(() => buildSaasAdapterPreflight("fm", products,
+      Array.from({length:257}, (_,i)=>s("source-"+i,"p-i"))))
+      .toThrow("integration.c08_snapshot_capacity_unverified");
+    expect(() => buildSaasAdapterPreflight("", products, [])).toThrow("integration.c08_tenant_missing");
+  });
+
   it("lists active products and marks missing source without manufacturing health", () => {
     const report = buildC08IntegrationReadiness("fm", products, [], new Map(), now);
     expect(report.contractVersion).toBe("fmcc.c08.integration-readiness.v1");
@@ -128,7 +187,11 @@ describe("C08 product integration readiness - evidence is not homologation", () 
     const page = readFileSync(resolve("src/app/dashboard/sources/page.tsx"), "utf8");
     expect(page).toContain("buildC08IntegrationReadiness(");
     expect(page).toContain("<SourceControlPanel");
-    expect(page).toContain("Próxima verificação: {nextActions[item.nextAction]}");
+    expect(page).toContain("Próxima verificação: {preflight &&");
+    expect(page).toContain('preflight.status !== "local_contract_ready"');
+    expect(page).toContain("preflightLabels[preflight.status]");
+    expect(page).toContain("nextActions[item.nextAction]");
+    expect(page).toContain("Compatibilidade local:");
     expect(page).toContain("Estes números não representam integrações certificadas.");
     expect(page).toContain("Fonte registrada não equivale a integração homologada");
     expect(page).not.toContain("authenticatedSaasE2eCertified ? \"Sim\"");

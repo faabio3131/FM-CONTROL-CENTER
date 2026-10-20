@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { buildC08IntegrationReadiness, type C08EvidenceState, type C08NextAction } from "@/application/integration/c08-product-readiness";
 import { assertC08SnapshotCapacity, readC08OperationalStates } from "@/application/integration/c08-operational-snapshot";
 import { SAAS_ADAPTER_PROFILES, profileForProductSlug } from "@/application/integration/saas-adapter-profiles";
+import { buildSaasAdapterPreflight, type SaasAdapterPreflightStatus } from "@/application/integration/saas-adapter-preflight";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -84,6 +85,7 @@ export default async function SourcesPage() {
   });
 
   const readiness = buildC08IntegrationReadiness(context.tenantId, products, sources, operationalStates);
+  const admission = buildSaasAdapterPreflight(context.tenantId, products, sources);
 
   const activeProducts = products
     .filter((product) => product.status === "active")
@@ -177,12 +179,26 @@ export default async function SourcesPage() {
                 investigate_degraded_health: "Investigar a saúde degradada da fonte",
                 certify_authenticated_saas_e2e: "Certificar contrato e E2E autenticado do SaaS em ambiente isolado",
               };
+              const preflight = admission.rows.find(row =>
+                row.productId === item.productId && row.sourceId === item.sourceId
+              );
+              const preflightLabels: Record<SaasAdapterPreflightStatus, string> = {
+                adapter_missing: "Adaptador ainda não implementado",
+                source_missing: "Fonte governada ainda não cadastrada",
+                binding_mismatch: "Contrato local incompatível: verificar versão, produto, modo e referência de credencial",
+                local_contract_ready: "Contrato local compatível; autenticação entre serviços ainda pendente",
+              };
               return <article className="product-card" key={item.sourceId ?? item.productId}>
                 <strong>{item.productName}</strong>
                 <span>{labels[item.state]}</span>
                 <small>{item.sourceType ?? "Sem contrato de conector registrado"}</small>
                 <small>Versão: {item.mappingVersion ?? "Indisponível"}</small>
-                <small>Próxima verificação: {nextActions[item.nextAction]}</small>
+                <small>Compatibilidade local: {preflight
+                  ? preflightLabels[preflight.status] : "Sem evidência suficiente"}</small>
+                <small>Próxima verificação: {preflight &&
+                  preflight.status !== "local_contract_ready"
+                  ? preflightLabels[preflight.status]
+                  : nextActions[item.nextAction]}</small>
                 <small>Último sucesso local: {item.lastSuccessfulAt ??
                   "Sem evidência registrada"}</small>
                 <small>Integração S2S E2E: não certificada por esta matriz</small>
