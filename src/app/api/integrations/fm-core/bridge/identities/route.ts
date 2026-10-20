@@ -1,0 +1,146 @@
+import { randomUUID } from "node:crypto";
+
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+
+import { recordAuditEvent } from "@/application/audit/record-audit-event";
+import {
+  commandBridgeConfigFromEnvironment,
+  CoreBridgeGovernanceError,
+  parseCommandBridgeTarget,
+  sendGovernedCommandBridgeAction,
+} from "@/application/integration/fm-core-bridge-governance";
+import {
+  StepUpRequiredError,
+  verifyPasswordStepUp,
+} from "@/application/security/password-step-up";
+import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
+import {
+  AuthenticationRequiredError,
+  TenantScopeRequiredError,
+  type TenantContext,
+} from "@/domain/security/tenant-context";
+
+// Authorization denials are security events even when no downstream mutation occurs.
+async function auditBridgeDenial(
+  context: TenantContext,
+  reason: "platform_admin_required" | "input_invalid",
+): Promise<void> {
+  try {
+    await recordAuditEvent(context, {
+      action: "fm_core.bridge.denied",
+      resourceType: "fm_core_service_identity",
+      result: "denied",
+      metadata: { reason },
+    });
+  } catch {
+    // Audit infrastructure failure must never grant access or reveal internals.
+  }
+}
+
+export async function POST(request: Request) {
+  let context: TenantContext | undefined;
+  let action = "unknown";
+  let commandRequestId: string | undefined;
+  try {
+    const requestHeaders = await headers();
+    context = await resolveTenantContext(requestHeaders);
+    const trustedOrganization = process.env.FM_COMMAND_PLATFORM_ORGANIZATION_ID;
+    // Tenant owner/admin is NOT automatically a platform administrator.
+    if (
+      !trustedOrganization ||
+      trustedOrganization !== context.tenantId ||
+      (context.role !== "owner" && context.role !== "admin")
+    ) {
+      await auditBridgeDenial(context, "platform_admin_required");
+      return NextResponse.json(
+        { error: "fm_core.bridge_platform_admin_required" },
+        { status: 403 },
+      );
+    }
+
+    const raw: unknown = await request.json().catch(() => null);
+    const target = parseCommandBridgeTarget(raw);
+    const input = raw as Record<string, unknown> | null;
+    const password = input?.password;
+    if (!target || typeof password !== "string" ||
+        !password || password.length > 128) {
+      await auditBridgeDenial(context, "input_invalid");
+      return NextResponse.json(
+        { error: "fm_core.bridge_input_invalid" }, { status: 400 },
+      );
+    }
+    action = target.action;
+    const proof = await verifyPasswordStepUp(requestHeaders, password);
+    if (proof.userId !== context.userId) throw new StepUpRequiredError();
+
+    const config = commandBridgeConfigFromEnvironment();
+    commandRequestId = randomUUID();
+    // Persist an intent BEFORE external mutation. If the remote result or the
+    // completion audit is ambiguous, this ID can be reconciled against the
+    // Assistant's canonical transactional event without blindly retrying.
+    await recordAuditEvent(context, {
+      action: `fm_core.bridge.${action}.requested`,
+      resourceType: "fm_core_service_identity",
+      resourceId: config.targetCoreKeyId,
+      result: "allowed",
+      metadata: {
+        commandRequestId,
+        tenantId: target.tenantId,
+        unitId: target.unitId,
+        capability: target.capability,
+      },
+    });
+    const result = await sendGovernedCommandBridgeAction(
+      target,
+      {
+        actorUserId: context.userId,
+        organizationId: context.tenantId,
+        stepUpAt: proof.verifiedAt,
+      },
+      config,
+      { commandRequestId },
+    );
+    await recordAuditEvent(context, {
+      action: `fm_core.bridge.${action}`,
+      resourceType: "fm_core_service_identity",
+      resourceId: config.targetCoreKeyId,
+      result: "success",
+      metadata: {
+        tenantId: target.tenantId,
+        unitId: target.unitId,
+        capability: target.capability,
+        outcome: result,
+        commandRequestId,
+      },
+    });
+    return NextResponse.json({ status: result }, {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (error) {
+    if (error instanceof AuthenticationRequiredError)
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    if (error instanceof TenantScopeRequiredError || error instanceof StepUpRequiredError)
+      return NextResponse.json({ error: "fm_core.bridge_authority_denied" }, { status: 403 });
+    if (context) {
+      try {
+        await recordAuditEvent(context, {
+          action: `fm_core.bridge.${action}`,
+          resourceType: "fm_core_service_identity",
+          result: "failure",
+          metadata: {
+            reason: "bridge_governance_unavailable",
+            commandRequestId,
+          },
+        });
+      } catch {
+        // Do not reveal operational audit/database details to HTTP clients.
+      }
+    }
+    return NextResponse.json(
+      { error: error instanceof CoreBridgeGovernanceError
+        ? error.message : "fm_core.bridge_governance_unavailable" },
+      { status: 503 },
+    );
+  }
+}
