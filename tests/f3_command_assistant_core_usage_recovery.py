@@ -23,6 +23,10 @@ from core.ai_admin_audit import CommandAdminAuditRecord
 from core.ai_command_authority import CommandTrustPolicy
 from core.ai_control_plane import ControlPlaneBase
 from core.ai_governed_recovery_api import governed_recovery_router
+from core.ai_provider_evidence_store import (
+    TrustedProviderEvidenceStore,
+    sign_verified_gateway_attestation,
+)
 from core.ai_quota_store import QuotaRequirement, QuotaReservations
 from core.ai_verified_usage_receipt import VerifiedProviderUsageReceipt
 
@@ -87,9 +91,29 @@ def test_command_assistant_core_revocation_quota_and_recovery(
             issuer="fm-command-synthetic", audience="fm-core-ai-recovery",
             public_key_pem=signed["public_key_pem"],
         )
+        # A separately authenticated FM provider gateway stores the exact
+        # scoped evidence once. The Core recovery route reads this record,
+        # never raw/unverified JSON supplied by the Command request.
+        proof = SyntheticVerifiedProvider().verify(
+            evidence_id="provider-proof-1", request_id="usage-1",
+            tenant_id="tenant-a", unit_id="unit-a",
+        )
+        gateway_key = b"synthetic-evidence-gateway-isolated-key-123456789"
+        evidence = TrustedProviderEvidenceStore(
+            sessions, source_id="fm-gateway-synthetic",
+            gateway_secret=gateway_key,
+        )
+        evidence.record_attested(
+            evidence_id="provider-proof-1", receipt=proof,
+            gateway_signature=sign_verified_gateway_attestation(
+                evidence_id="provider-proof-1",
+                source_id="fm-gateway-synthetic",
+                receipt=proof, secret=gateway_key,
+            ),
+        )
         core = FastAPI()
         core.include_router(governed_recovery_router(
-            trust=policy, evidence=SyntheticVerifiedProvider(), ledger=quota,
+            trust=policy, evidence=evidence, ledger=quota,
         ))
         http = TestClient(core)
         endpoint = "/internal/v1/command/ai/usage/reconcile"
