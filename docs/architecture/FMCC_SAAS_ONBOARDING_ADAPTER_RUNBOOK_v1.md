@@ -1,5 +1,5 @@
 # FMCC / Command — Preparação de novos SaaS (C08)
-**Data:** 20/10/2026  
+**Data:** 20/10/2026
 **Status:** padrão interno de construção; NÃO é homologação S2S nem autorização de release.
 
 ## Autoridade
