@@ -19,16 +19,19 @@ export class LicenseBindingSigningDenied extends Error {
 export function signAssistantPlanLicenseBind(
   config: PlanProjectionConfig, grant: GovernedLicenseBind,
   now: Date = new Date(),
+  operationNonce?: string,
 ) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(grant.tenantId) ||
       !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/.test(grant.planCode) ||
       !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(grant.actorUserId) ||
       !Number.isSafeInteger(grant.planRevision) || grant.planRevision < 1 ||
+    !/^[A-Za-z0-9_-]{22,96}$/.test(grant.operationNonce) ||
       Number.isNaN(grant.approvedAt.getTime()) ||
       !Number.isFinite(now.getTime()) ||
       grant.approvedAt.getTime() > now.getTime() + 15000 ||
       now.getTime() - grant.approvedAt.getTime() > 366 * 86400 * 1000 ||
       config.signingKey.length < 32 ||
+      (operationNonce !== undefined && !/^[A-Za-z0-9_-]{22,96}$/.test(operationNonce)) ||
       !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(config.keyId)
   ) throw new LicenseBindingSigningDenied();
   const body=JSON.stringify({
@@ -41,7 +44,7 @@ export function signAssistantPlanLicenseBind(
     plan_revision:grant.planRevision,
   });
   const timestamp=String(Math.floor(now.getTime()/1000));
-  const nonce=randomBytes(24).toString("base64url");
+  const nonce=operationNonce ?? randomBytes(24).toString("base64url");
   const digest=createHash("sha256").update(Buffer.from(body,"utf8")).digest("hex");
   const canonical=["POST",ASSISTANT_PLAN_LICENSE_BIND_PATH,
     config.keyId,timestamp,nonce,digest].join("\n");
@@ -63,7 +66,7 @@ export const ASSISTANT_PLAN_BINDING_STATUS_PATH =
 /** Cryptographically authenticated read-only proof, never a resend. */
 export function signAssistantPlanBindingStatus(
   config: PlanProjectionConfig,
-  grant: Pick<GovernedLicenseBind, "tenantId"|"planCode"|"planRevision">,
+  grant: Pick<GovernedLicenseBind, "tenantId"|"planCode"|"planRevision"> & {operationNonce: string},
   now: Date = new Date(),
 ) {
   if (
@@ -78,7 +81,7 @@ export function signAssistantPlanBindingStatus(
     product_code: "VENDEATENDEIA",
     organization_id: config.organizationId,
     tenant_id: grant.tenantId, plan_code: grant.planCode,
-    plan_revision: grant.planRevision,
+    plan_revision: grant.planRevision, operation_nonce: grant.operationNonce,
   });
   const timestamp = String(Math.floor(now.getTime() / 1000));
   const nonce = randomBytes(24).toString("base64url");
