@@ -5369,6 +5369,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "source_invoice_id": {
+          "name": "source_invoice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -5458,6 +5464,21 @@
             "id",
             "product_id",
             "customer_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fmcc_vende_lifecycle_source_invoice_fk": {
+          "name": "fmcc_vende_lifecycle_source_invoice_fk",
+          "tableFrom": "fmcc_vende_lifecycle_command",
+          "tableTo": "fmcc_billing_invoice",
+          "columnsFrom": [
+            "tenant_id",
+            "source_invoice_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
