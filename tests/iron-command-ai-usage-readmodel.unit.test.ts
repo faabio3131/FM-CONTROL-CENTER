@@ -63,4 +63,49 @@ describe("Command C07 — canonical IRON AI usage read model", () => {
     expect(page).toContain("Indisponível");
     expect(page).not.toContain("provider_cost_minor /");
   });
+
+  it("reuses the exact same tenant-fenced S2S connector for published plans and AI usage", async () => {
+    const published = {
+      schema_version: "iron.fmcc.plan-versions.v1",
+      product_code: "IRON_FIT_CORE",
+      source_authority: "IRON_PRODUCT_PLAN_VERSION",
+      as_of: "2026-10-19T17:00:00Z",
+      truncated: false,
+      plans: [{
+        plan_code: "IRON_BASIC",
+        display_name: "Plano Básico",
+        version: 1,
+        published_at: "2026-10-18T17:00:00Z",
+      }],
+    };
+    const fetcher = vi.fn(async (url: string, init: RequestInit) => {
+      const body = url.endsWith("/plan-versions") ? published : valid;
+      expect(init.method ?? "GET").toBe("GET");
+      expect((init.headers as Headers).get("authorization")).toBe("Bearer " + "s".repeat(40));
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    const client = connector(fetcher as typeof fetch);
+    const [plans, usage] = await Promise.all([
+      client.publishedPlanVersions(context, source),
+      client.aiUsage(context, source),
+    ]);
+    expect(plans.plans).toEqual([{
+      planCode: "IRON_BASIC", displayName: "Plano Básico",
+      version: 1, publishedAt: "2026-10-18T17:00:00Z",
+    }]);
+    expect(usage.usage[0].execution_count).toBe(2);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls.map(call => call[0])).toEqual(
+      expect.arrayContaining([
+        "https://iron.example.test/api/v1/control-plane/fmcc/plan-versions",
+        "https://iron.example.test/api/v1/control-plane/fmcc/usage/ai?days=30",
+      ]),
+    );
+    const bad = vi.fn(async () => new Response(JSON.stringify({
+      ...published,
+      source_authority: "CLIENT",
+    }), { status: 200 }));
+    await expect(connector(bad as typeof fetch).publishedPlanVersions(context, source))
+      .rejects.toThrow("integration.iron_plan_catalog_invalid");
+  });
 });

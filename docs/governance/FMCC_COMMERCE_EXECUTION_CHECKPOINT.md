@@ -57,3 +57,10 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - PR #95 modifica iron-commercial-connector.ts e precisa ser reconciliada com #94 antes de merge; preservar ambas as capacidades (plans + AI usage).
 - C02 ainda precisa lifecycle e histórico completo; C03–C09 dependem de gates de construção e contratos, não reiniciar estruturas já construídas.
 - O Render preview não pôde ser confirmado neste checkout; deploy/versionamento permanece não verificado. Não declarar publicado por commit no GitHub.
+
+## Integração incremental C01 + C07 (sem retrabalho), 20/10/2026
+- Preflight: FMCC main d9bcc38e; PR #94 f1a77945 (4/4 workflows SUCCESS), PR #95 447eb52a (2/2 SUCCESS), ambas Draft e não integradas. IRON #142 S0 aprovado, ainda Draft.
+- Trabalho existente: control plane S2S autenticado IRON/Command; fonte tipada, tenant isolation, step-up comercial, catálogo de planos versionados, read-model de execuções IA por academia/capability. Nada disso foi reconstruído.
+- Integração incremental: merge com ambos os ancestrais (#94 + #95) com publishedPlanVersions() e aiUsage() preservados no mesmo IronCommercialConnector, UI do produto + subpágina IA; mantém testes originais e inclui regressão simultânea dos contratos. Não inventar tokens ou custos.
+- Runtime separado: banco de preview Render fmcc-preview-postgres expirado/suspenso. Usuário prevê restaurar e fazer deploy amanhã. Proibido migrar/trocar banco/configurar credenciais ou publicar neste WP.
+- Pendências: gates no SHA final, revisão e merge governado, integração segura da IRON PR #142 e da FMCC PR #94 antes de promover C07. PR #96 C02 tem 4/4 workflows no SHA anterior, mas C02 lifecycle completo não está certificado.
