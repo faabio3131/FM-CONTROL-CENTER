@@ -120,7 +120,7 @@ def test_command_assistant_core_separate_processes_postgres_recovery(tmp_path):
         evidence_id="provider-proof-network-1",
         provider_payload=signed_payload,
         provider_signature=signing_key.sign(
-            b"FM_PROVIDER_USAGE_SOURCE_V1\\n" + signed_payload,
+            b"FM_PROVIDER_USAGE_SOURCE_V1\n" + signed_payload,
         ),
         source_policy=source_policy, expected_request_id="usage-network-1",
         expected_tenant_id="tenant-a", expected_unit_id="unit-a", at=now,
