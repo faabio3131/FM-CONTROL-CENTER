@@ -32,3 +32,19 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - C02–C09: não declarar concluídas sem respectivos gates e evidências. Recuperar progresso existente antes de implementar.
 - Sem produção deliberada nesta unidade, migração de banco real, configuração de preço ou credenciais reais pelo executor.
 - Próximo passo: comprovar no ambiente de prévia FMCC qual commit é servido, testar jornada de configuração Command → plataforma comercial Kordena em ambiente controlado e continuar cronograma C02 sem confundir homologação externa com construção.
+
+
+## Continuidade de construção — 20/10/2026, C02 (PR #96)
+**DECISÃO humana posterior:** priorizar conclusão da CONSTRUÇÃO e integração interna dos blocos do Command antes da campanha final de TESTES / CERTIFICAÇÃO / HOMOLOGAÇÃO. Isso não autoriza produção, migrações reais, cobrança, acesso cross-tenant ou a alegação de que trabalho não testado passou. Verificações automatizadas acionadas pelo GitHub seguem registradas como evidência parcial, não homologação final.
+
+**FATO / CURRENT:**
+- Baseline da main na entrada: d9bcc38ef40188998bf78d165d688417addd4f9b, com PR #91 (editor Kordena) e PR #93 (cronograma e governança) já incorporadas.
+- PR #94 (C01 planos/preços IRON), PR #95 (C07 leitura IA IRON) e PR #90 (identidades Command/Core/Assistant) permanecem separadas, não integradas. Evitar duplicar suas implementações.
+- PR #96: nova capacidade C02 de consulta somente leitura, sem mutation, migrations, deploy ou gateway. Utiliza fmcc_billing_subscription e fmcc_billing_customer_binding existentes para exibir assinaturas internas no Command.
+- API GET /api/billing/subscriptions: autenticação server-side, RBAC billing:read, produto autorizado validado no servidor, filtro tenant derivado da identidade, listagem limitada a 100 (+1 para detectar truncamento), resposta no-store e estado indisponível em erros.
+- UI /dashboard/subscriptions: tabela PT-BR com assinatura, produto, cliente FMCC, externalTenantId, plano, status e data; explicitamente distinta das métricas externas MRR/ARR. Banco indisponível != lista vazia; página parcial != base completa.
+- Unit tests do serviço e dos escopos foram adicionados ao código, mas gates completos e homologação seguem como evidência a verificar no SHA definitivo.
+
+**PENDENTE:** C02 ainda não oferece cadastro/transição de assinatura, estados/reconciliação, histórico completo ou vínculo externo autenticado; essas entregas continuam planejadas e não podem ser marcadas 100%. C01 tem escopo IRON adicional em PR #94, C07 em PR #95 e ponte de identidades em PR #90. Validar CI/build/tests internos pertinentes antes de qualquer integração do branch; campanha de certificação final e homologação externa após construção integral.
+
+**Próxima construção:** conferir a autoridade canônica do vínculo cliente→produto→plano e completar o domínio e as APIs governadas de lifecycle sem misturar contratos FMCC com cobranças internas dos SaaS.
