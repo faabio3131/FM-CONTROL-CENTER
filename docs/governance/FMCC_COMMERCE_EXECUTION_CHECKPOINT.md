@@ -102,3 +102,10 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - Novo read-model operacional limitado a 40 eventos + 40 entregas (41 para sinalizar truncamento); evita contagens globais falsas e não apresenta evento de webhook como confirmação financeira.
 - API GET /api/billing/operations, UI /dashboard/billing/operations em português com link da área Operações, RBAC billing:read, escopo tenant da identidade, cache no-store, sinalização de banco indisponível, nenhuma mutação.
 - PENDÊNCIA: prova de reconciliação com provider externo, workers ativos e homologação de runtime continuam separados do código; não habilitar cobranças/licenças nem forçar jobs. CI do SHA candidato pendente de execução.
+## C06 — Prévia determinística do ciclo contratual (20/10/2026)
+- BASE: PR #100 f702561b371f09719822563e2510e475472425d2; C02 #98/#99 e C03 #100 existentes em branches, nao em main.
+- Autoridades: assinatura FMCC local e comprovacao financeira somente por reconciliacao de gateway; estado local nao constitui pagamento ou entitlement.
+- Entrega: domain policy versionada fmcc.c06.lifecycle-preview.v1 e API GET read-only usando a mesma leitura C02, com RBAC, tenant da sessao e tratamento de dados incompletos/estorno.
+- Estados candidate_for_review nao autorizam execucao (executionAuthorized=false): cancelamento, inadimplencia, reativacao, renovacao, migracao e conversao de trial. Policy nao infere trial, data de vigencia ou prorata.
+- Alternativa rejeitada: mutacao direta de assinatura sem politica comercial aprovada, historico transacional, periodo efetivo e provas de provider/ack. Contratos e executor futuro exigem step-up, fingerprint, idempotencia, auditoria, outbox, versionamento e recuperacao.
+- C06 AINDA PENDENTE: executor transacional governado, eficacia das mudancas e testes posteriores. Nenhuma migration real, cobranca, deploy ou ativacao.

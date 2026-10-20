@@ -5,6 +5,7 @@ import {
   BillingSubscriptionTraceService, SubscriptionTraceNotFoundError,
   SubscriptionTraceInputError,
 } from "@/application/billing/billing-subscription-trace-service";
+import { previewSubscriptionLifecycle } from "@/domain/billing/subscription-lifecycle-policy";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { roleHasPermission } from "@/domain/security/permissions";
 import {
@@ -80,6 +81,23 @@ export default async function SubscriptionTracePage({
           <article><strong>Plano</strong><span>{trace.subscription.planCode}</span></article>
           <article><strong>Estado</strong><span>{statusText(trace.subscription.status)}</span></article>
           <article><strong>Cadastro</strong><span>{when(trace.subscription.createdAt)}</span></article>
+        </div>
+      </section>
+
+      <section className="panel" aria-labelledby="lifecycle-advisory">
+        <h2 id="lifecycle-advisory">Análise contratual — sem execução</h2>
+        <p>Esta prévia não autoriza cobrança, cancelamento ou concessão de licença. Cada operação exige verificações financeiras, autorização e confirmação próprias.</p>
+        {trace.truncated ? <p role="status">Histórico financeiro incompleto: análise limitada aos registros disponíveis.</p> : null}
+        <div className="foundation-grid">
+          {previewSubscriptionLifecycle(trace).options.map(option => (
+            <article key={option.action}>
+              <strong>{option.title}</strong>
+              <span>{option.status === "candidate_for_review" ? "Candidata para revisão" : "Não aplicável"}</span>
+              <small>{option.reason}</small>
+              <p>Exigências antes de executar:</p>
+              <ul>{option.prerequisites.map(item => <li key={item}>{item}</li>)}</ul>
+            </article>
+          ))}
         </div>
       </section>
 
