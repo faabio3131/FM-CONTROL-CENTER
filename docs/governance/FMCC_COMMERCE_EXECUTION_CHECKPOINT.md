@@ -131,3 +131,9 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - IRON #142 responde catálogo PUBLISHED, mas podia produzir published_at:null; parser FMCC exige ISO e falha fechado. IRON #143 em Draft corrige origem, gate e integração ainda pendentes.
 - Novo contrato fmcc.c06.execution-prerequisites.v1 valida autoridade por ação, tenant, produto, assinatura, data, revisão e origem. Endpoint GET e UI de pendências usam dados server-side, nunca confiam em flags de aprovação do cliente.
 - PENDÊNCIA humana: vigência, política de cancelamento, renovação, prorrata, tolerância, trial e refund. Nenhum executor financeiro ativado. Nenhuma migration, deploy ou banco real alterado.
+
+## C01/C08 — Teste isolado do limite S2S FMCC ⇄ IRON, 20/10/2026
+- Preflight: FMCC PR #106 HEAD c36f5827f1b91c1bb5187676f8a0fe5bcdb2739d 6/6 CI SUCCESS, ainda sem merge. IRON #144 HEAD 97ac245f7795d585693badb1149468aae513aebd S0 SUCCESS, ainda sem merge.
+- Novo teste FMCC executa IronCommercialConnector real com fetch/provider guard sintético e resposta contratual IRON, verifica Bearer server-side, correlação, escopo tenant, source e HTTPS allowlist, 401, 503, metadados inválidos e status indisponível nunca convertido em catálogo vazio.
+- Novo teste IRON (PR #145 / candidata #146) executa classe compilada FmCommandControlPlaneService e FmCommandControlPlaneGuard com Prisma fictício e token descartável. Testes independentes verificam os dois lados, mas **não são E2E entre serviços vivos**. Não declarar certificado cross-repo real antes de executar ambos em rede isolada e validar versões exatas.
+- Dados de teste são sintéticos; sem credenciais reais, gateway, cobrança, migrations operacionais, deploy ou alteração do banco Render. Verificar CI dos novos commits e revisão aplicável antes de integração.
