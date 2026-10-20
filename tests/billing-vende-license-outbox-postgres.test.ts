@@ -175,6 +175,11 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
       expect(String(url).endsWith("/binding-status")).toBe(true);
       expect(new Headers(init?.headers).get("X-FM-Command-Signature"))
         .toMatch(/^[0-9a-f]{64}$/);
+      const proof = JSON.parse(String(init?.body));
+      const outbox = await pool.query(
+        "SELECT claim_token FROM fmcc_billing_vende_license_outbox WHERE id=$1", [id],
+      );
+      expect(proof.operation_nonce).toBe(outbox.rows[0].claim_token);
       return new Response(JSON.stringify({ status: "not_confirmed" }), {status: 200});
     }) as typeof fetch;
     expect(await service.reconcileBlockedVendePaidLicense(id, config, unknown))
