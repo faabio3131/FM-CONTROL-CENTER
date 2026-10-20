@@ -247,6 +247,106 @@ export class GovernedVendeC06Service {
     });
   }
 
+  /** Reactivation for the SAME customer/tenant/subscription after a new
+   * verified payment. A remote Assistant ACK is still required: the term
+   * becomes reactivation_pending and NOT active after this transaction.
+   */
+  async requestRegularization(context:TenantContext,proof:StepUpProof,input:{
+    productId:string;subscriptionId:string;paidInvoiceId:string;
+    expectedRevision:number;operationId:string;sourceRef:string;
+  },now:Date=new Date()) {
+    verifiedActor(context,proof,now);
+    uuid(input.productId);uuid(input.subscriptionId);uuid(input.paidInvoiceId);
+    evidence(input.operationId);evidence(input.sourceRef);
+    if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1)
+      throw new VendeC06Denied("vende.c06_revision_invalid");
+    const today=fmLocalCivilDate(now);
+    return db.transaction(async tx=>{
+      await lock(tx,`c06.term:${context.tenantId}:${input.subscriptionId}`);
+      await requireVende(tx,context.tenantId,input.productId);
+      const [term]=await tx.select().from(vendeContractTerms).where(and(
+        eq(vendeContractTerms.tenantId,context.tenantId),
+        eq(vendeContractTerms.subscriptionId,input.subscriptionId),
+        eq(vendeContractTerms.productId,input.productId),
+      )).for("update").limit(1);
+      if(!term || term.revision!==input.expectedRevision ||
+         term.lifecycleState!=="suspended" ||
+         term.paidThrough<today)
+        throw new VendeC06Denied("vende.c06_regularization_not_eligible");
+      const [invoice]=await tx.select().from(billingInvoices).where(and(
+        eq(billingInvoices.tenantId,context.tenantId),
+        eq(billingInvoices.id,input.paidInvoiceId),
+        eq(billingInvoices.subscriptionId,term.subscriptionId),
+        eq(billingInvoices.productId,term.productId),
+        eq(billingInvoices.customerId,term.customerId),
+      )).for("update").limit(1);
+      if(!invoice || invoice.status!=="paid" || invoice.currency!=="BRL")
+        throw new VendeC06Denied("vende.c06_regularization_payment_invalid");
+      const [payment]=await tx.select().from(billingProviderPayments).where(and(
+        eq(billingProviderPayments.tenantId,context.tenantId),
+        eq(billingProviderPayments.invoiceId,invoice.id),
+        eq(billingProviderPayments.gatewayAccountId,invoice.gatewayAccountId),
+        eq(billingProviderPayments.status,"received"),
+      )).limit(1);
+      if(!payment)throw new VendeC06Denied("vende.c06_regularization_payment_invalid");
+      const [attestation]=await tx.select().from(vendePaymentAttestations).where(and(
+        eq(vendePaymentAttestations.tenantId,context.tenantId),
+        eq(vendePaymentAttestations.invoiceId,invoice.id),
+      )).orderBy(desc(vendePaymentAttestations.verifiedAt),
+        desc(vendePaymentAttestations.createdAt)).limit(1);
+      if(!attestation || attestation.outcome!=="settled_verified" ||
+         attestation.verifiedAt.getTime()>now.getTime()+15_000 ||
+         now.getTime()-attestation.verifiedAt.getTime()>15*60_000)
+        throw new VendeC06Denied("vende.c06_settlement_attestation_stale");
+      const [subscription]=await tx.select().from(billingSubscriptions).where(and(
+        eq(billingSubscriptions.tenantId,context.tenantId),
+        eq(billingSubscriptions.id,term.subscriptionId),
+        eq(billingSubscriptions.customerId,term.customerId),
+        eq(billingSubscriptions.productId,term.productId),
+      )).for("update").limit(1);
+      if(!subscription || subscription.status==="cancelled")
+        throw new VendeC06Denied("vende.c06_cancelled_must_recontract");
+      const [binding]=await tx.select({
+        externalTenantId:billingCustomerBindings.externalTenantId,
+      }).from(billingCustomerBindings).where(and(
+        eq(billingCustomerBindings.tenantId,context.tenantId),
+        eq(billingCustomerBindings.customerId,term.customerId),
+        eq(billingCustomerBindings.productId,term.productId),
+      )).limit(1);
+      if(!binding?.externalTenantId)
+        throw new VendeC06Denied("vende.c06_vertical_binding_missing");
+      const nextRevision=term.revision+1;
+      const [updated]=await tx.update(vendeContractTerms).set({
+        revision:nextRevision,lifecycleState:"reactivation_pending",
+        updatedAt:now,actorId:context.userId,
+      }).where(and(eq(vendeContractTerms.id,term.id),
+        eq(vendeContractTerms.tenantId,context.tenantId),
+        eq(vendeContractTerms.revision,term.revision),
+      )).returning({revision:vendeContractTerms.revision});
+      if(!updated)throw new VendeC06Denied("vende.c06_revision_conflict");
+      await tx.insert(vendeContractTermAudit).values({
+        tenantId:context.tenantId,subscriptionId:term.subscriptionId,
+        revision:nextRevision,operationId:input.operationId,
+        action:"REACTIVATE_VERIFIED",actorId:context.userId,
+        previousState:term.lifecycleState,newState:"reactivation_pending",
+        effectiveDate:today,sourceRef:input.sourceRef,
+      });
+      await tx.insert(vendeLifecycleCommands).values({
+        tenantId:context.tenantId,productId:term.productId,
+        subscriptionId:term.subscriptionId,customerId:term.customerId,
+        operationId:input.operationId,expectedRevision:term.revision,
+        revision:nextRevision,action:"REACTIVATE_VERIFIED",state:"pending",
+        externalTenantId:binding.externalTenantId,
+        effectiveDate:today,sourceRef:input.sourceRef,actorId:context.userId,
+      });
+      return {state:"reactivation_pending" as const,
+        revision:nextRevision,operationId:input.operationId,
+        preservedIds:{customerId:term.customerId,subscriptionId:term.subscriptionId,
+          externalTenantId:binding.externalTenantId},
+        remoteEntitlementConfirmed:false};
+    });
+  }
+
   /** Transactional admission for overdue suspension: NEVER a gateway request
    * or a delivered license. Fresh 'unpaid' proof must come from trusted
    * provider reconciliation ledger. All changes rollback atomically.
