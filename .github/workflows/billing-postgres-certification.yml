@@ -65,7 +65,7 @@ jobs:
         env:
           FMCC_IRON_ASAAS_PG_TEST: "YES"
       - name: Real PostgreSQL recovery and reconciliation certification
-        run: npx vitest run tests/billing-production-recovery-postgres.test.ts
+        run: npx vitest run tests/billing-production-recovery-postgres.test.ts tests/billing-vende-license-outbox-postgres.test.ts
       - name: Certify production pilot read-only readiness guards
         run: node --test tests/billing-production-pilot-readiness.test.mjs
       - name: TypeScript
