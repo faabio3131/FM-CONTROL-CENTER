@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { prepareKordenaPriceDraft } from "@/domain/billing/kordena-plan-pricing";
 
 const ACTIONS = [
   "plan_version.create",
@@ -56,7 +57,10 @@ function mensagemFalha(codigo: string, statusHttp?: number) {
     : `${mensagem} Código técnico: ${codigo}.`;
 }
 
-export function KordenaCommercialAdminForm(props: { sourceId: string }) {
+export function KordenaCommercialAdminForm(props: {
+  sourceId: string;
+  catalog: readonly Record<string, unknown>[];
+}) {
   const [action, setAction] = useState<Action>("plan_version.create");
   const [resourceId, setResourceId] = useState("KORDENA_PLAN_A");
   const [payload, setPayload] = useState(
@@ -75,12 +79,137 @@ export function KordenaCommercialAdminForm(props: { sourceId: string }) {
     ),
   );
   const [password, setPassword] = useState("");
+  const [planVersionId, setPlanVersionId] = useState("");
+  const [planCode, setPlanCode] = useState("KORDENA_PLAN_A");
+  const [planDisplayName, setPlanDisplayName] = useState("");
+  const [entitlementKey, setEntitlementKey] = useState("");
+  const [entitlementLimit, setEntitlementLimit] = useState("");
+  const [entitlementUnit, setEntitlementUnit] = useState("credits");
+  const [aiMaxCostPerRequest, setAiMaxCostPerRequest] = useState("");
+  const [priceAmount, setPriceAmount] = useState("");
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
+  const [priceChangePolicy, setPriceChangePolicy] = useState(
+    "new_customers_only",
+  );
+  const [priceReason, setPriceReason] = useState(
+    "Novo preço de assinatura definido pela FM Tecnologia",
+  );
+  const effectivePlanVersions = useMemo(
+    () => props.catalog.flatMap((raw) => {
+      const version = raw.effective_version;
+      if (!version || typeof version !== "object" || Array.isArray(version))
+        return [];
+      const record = version as Record<string, unknown>;
+      if (typeof record.plan_version_id !== "string") return [];
+      return [{
+        id: record.plan_version_id,
+        name: String(record.display_name ?? raw.plan_code ?? "Plano"),
+        code: String(raw.plan_code ?? ""),
+      }];
+    }), [props.catalog],
+  );
   const [status, setStatus] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [approvalToken, setApprovalToken] = useState<string | null>(null);
   const [approvalExpiresAt, setApprovalExpiresAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const requiredPreview = useMemo(() => previewAction(action), [action]);
+
+  /** Preserva capacidades anteriores ao criar nova versão de plano. */
+  function prepararPlano() {
+    const code = planCode.trim();
+    const name = planDisplayName.trim();
+    const key = entitlementKey.trim().toLowerCase();
+    const quantidade = entitlementLimit.trim().replace(",", ".");
+    const unit = entitlementUnit.trim();
+    if (!/^KORDENA_PLAN_[A-D]$/.test(code) || !name || name.length > 128) {
+      setStatus("Selecione um dos quatro planos e informe um nome válido.");
+      return;
+    }
+    if (!/^[a-z0-9_.-]+$/.test(key) || key.length > 128 ||
+        !/^\d+(?:\.\d+)?$/.test(quantidade) || Number(quantidade) <= 0 ||
+        !/^[a-zA-Z0-9_.-]+$/.test(unit) || unit.length > 32) {
+      setStatus("Informe a capacidade, limite positivo e unidade do limite.");
+      return;
+    }
+    const current = props.catalog.find((row) => row.plan_code === code);
+    const effective = current?.effective_version;
+    const record = effective && typeof effective === "object" && !Array.isArray(effective)
+      ? effective as Record<string, unknown>
+      : null;
+    const previous = Array.isArray(record?.entitlements)
+      ? record.entitlements.filter(
+          (item): item is Record<string, unknown> =>
+            !!item && typeof item === "object" && !Array.isArray(item),
+        ) : [];
+    const preserved = previous.filter((item) => item.capability_key !== key);
+    const existing = previous.find((item) => item.capability_key === key);
+    const existingConfig = existing?.config && typeof existing.config === "object" &&
+      !Array.isArray(existing.config) ? existing.config : {};
+    const isAiBudget = key.startsWith("ai.budget.");
+    let nextConfig = existingConfig;
+    if (isAiBudget) {
+      const cap = aiMaxCostPerRequest.trim().replace(",", ".");
+      if (unit !== "USD" || !/^\d+(?:\.\d+)?$/.test(cap) ||
+          Number(cap) <= 0 || Number(cap) > Number(quantidade)) {
+        setStatus(
+          "Orçamento interno de IA exige unidade USD e teto por tentativa " +
+          "positivo, sem exceder a franquia do ciclo.",
+        );
+        return;
+      }
+      nextConfig = {
+        ...existingConfig,
+        scope: "unit",
+        maximo_por_tentativa: cap,
+      };
+    }
+    setAction("plan_version.create");
+    setResourceId(code);
+    setPayload(JSON.stringify({
+      display_name: name,
+      description: typeof record?.description === "string" ? record.description : null,
+      trial_eligible: typeof record?.trial_eligible === "boolean" ? record.trial_eligible : true,
+      marketing_badge: typeof record?.marketing_badge === "string" ? record.marketing_badge : null,
+      metadata: {},
+      entitlements: [...preserved, {
+        capability_key: key,
+        enabled: true,
+        limit_value: quantidade,
+        limit_unit: unit,
+        config: nextConfig,
+      }],
+      change_reason: "Atualizar franquias do plano com preservação das capacidades anteriores",
+    }, null, 2));
+    invalidatePreview();
+    setStatus(
+      "Rascunho de nova versão preparado. Revise todas as capacidades antes de gravar. " +
+      "Nada foi publicado ou aplicado aos assinantes.",
+    );
+  }
+
+  /** Prepara o rascunho no fluxo canônico; não envia, publica nem cobra. */
+  function prepararPreco() {
+    try {
+      const prepared = prepareKordenaPriceDraft({
+        planVersionId,
+        amount: priceAmount,
+        interval: billingPeriod,
+        changePolicy: priceChangePolicy,
+        reason: priceReason,
+      });
+      setAction("price.create");
+      setResourceId(prepared.resourceId);
+      setPayload(JSON.stringify(prepared.payload, null, 2));
+      invalidatePreview();
+      setStatus(
+        "Rascunho preparado. Nenhum valor foi gravado ou publicado. " +
+        "Confira os campos e utilize a confirmação governada abaixo.",
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Preço inválido.");
+    }
+  }
 
   function invalidatePreview() {
     setPreview(null);
@@ -213,6 +342,123 @@ export function KordenaCommercialAdminForm(props: { sourceId: string }) {
         Plataforma Comercial canônica. Publicações de alto risco exigem uma
         prévia aprovada pelo servidor antes da confirmação.
       </p>
+      <section aria-labelledby="kordena-plan-editor-title" className="card">
+        <span className="eyebrow">FM Command · Quatro planos versionados</span>
+        <h3 id="kordena-plan-editor-title">Configurar limites e franquias</h3>
+        <p>
+          Prepare uma nova versão de plano sem apagar as capacidades já
+          publicadas. Os valores permanecem rascunho até validação e
+          publicação separadas. Nenhum limite está pré-aprovado.
+        </p>
+        <label>
+          Plano comercial
+          <select value={planCode} onChange={(event) => setPlanCode(event.target.value)}>
+            {["KORDENA_PLAN_A", "KORDENA_PLAN_B", "KORDENA_PLAN_C", "KORDENA_PLAN_D"].map((code) => (
+              <option key={code} value={code}>{code}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Nome comercial do plano
+          <input value={planDisplayName} onChange={(event) => setPlanDisplayName(event.target.value)}
+            maxLength={128} placeholder="A definir" />
+        </label>
+        <label>
+          Capacidade ou modalidade autorizada
+          <input value={entitlementKey} onChange={(event) => setEntitlementKey(event.target.value)}
+            maxLength={128} placeholder="Ex.: ai.tool_planning" />
+        </label>
+        <label>
+          Quantidade de franquia
+          <input inputMode="decimal" value={entitlementLimit}
+            onChange={(event) => setEntitlementLimit(event.target.value)}
+            placeholder="A definir" />
+        </label>
+        {entitlementKey.trim().toLowerCase().startsWith("ai.budget.") ? (
+          <label>
+            Limite máximo de custo por tentativa de IA (USD, valor interno)
+            <input value={aiMaxCostPerRequest} inputMode="decimal"
+              onChange={(event) => setAiMaxCostPerRequest(event.target.value)}
+              placeholder="A definir" />
+          </label>
+        ) : null}
+        <label>
+          Unidade da franquia
+          <input value={entitlementUnit} onChange={(event) => setEntitlementUnit(event.target.value)}
+            maxLength={32} placeholder="credits" />
+        </label>
+        <button className="button" type="button" disabled={busy}
+          onClick={prepararPlano}>Preparar nova versão de plano</button>
+        <small>
+          A proteção financeira da IA também exige o Budget Guard interno no
+          Kordena. Alterar esta versão não constitui reserva de orçamento nem
+          ativa cobrança automaticamente.
+        </small>
+      </section>
+      <section aria-labelledby="kordena-price-editor-title" className="card">
+        <span className="eyebrow">FM Command · Valores configuráveis</span>
+        <h3 id="kordena-price-editor-title">Configurar preços do Kordena</h3>
+        <p>
+          Os preços ainda serão definidos pela FM Tecnologia. O formulário
+          apenas prepara um rascunho para a Plataforma Comercial versionada do
+          Kordena. Criar preço não ativa cobrança; validar e publicar são
+          operações independentes e governadas.
+        </p>
+        <label>
+          Versão de plano
+          <select value={planVersionId} onChange={(event) => setPlanVersionId(event.target.value)}>
+            <option value="">Selecione uma versão existente</option>
+            {effectivePlanVersions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.code} · {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Identificador de versão (para versões ainda não publicadas)
+          <input value={planVersionId} onChange={(event) => setPlanVersionId(event.target.value)}
+            placeholder="Identificador fornecido ao criar a versão de plano" />
+        </label>
+        <label>
+          Preço da assinatura em reais (R$)
+          <input inputMode="decimal" value={priceAmount}
+            onChange={(event) => setPriceAmount(event.target.value)}
+            placeholder="A definir — informe somente depois da decisão comercial" />
+        </label>
+        <label>
+          Periodicidade
+          <select value={billingPeriod}
+            onChange={(event) => setBillingPeriod(event.target.value as "monthly" | "yearly")}>
+            <option value="monthly">Mensal</option>
+            <option value="yearly">Anual</option>
+          </select>
+        </label>
+        <label>
+          Política de alteração para contratos
+          <select value={priceChangePolicy}
+            onChange={(event) => setPriceChangePolicy(event.target.value)}>
+            <option value="new_customers_only">Somente novos clientes</option>
+            <option value="at_next_renewal">Na próxima renovação</option>
+            <option value="migration_scheduled">Migração programada</option>
+            <option value="manual_migration">Migração manual governada</option>
+          </select>
+        </label>
+        <label>
+          Justificativa
+          <input value={priceReason} onChange={(event) => setPriceReason(event.target.value)}
+            maxLength={255} />
+        </label>
+        <button className="button" type="button" disabled={busy}
+          onClick={prepararPreco}>
+          Preparar preço em rascunho
+        </button>
+        <small>
+          Sem valor configurado, nenhuma mensalidade é presumida. Esta área
+          não altera os custos privados dos modelos nem disponibiliza planos
+          automaticamente a clientes.
+        </small>
+      </section>
       <label>
         Ação
         <select

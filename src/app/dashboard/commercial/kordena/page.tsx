@@ -252,7 +252,7 @@ export default async function KordenaCommercialPage() {
           </section>
 
           {context.role === "owner" || context.role === "admin" ? (
-            <KordenaCommercialAdminForm sourceId={source.id} />
+            <KordenaCommercialAdminForm sourceId={source.id} catalog={snapshot.catalog} />
           ) : null}
         </>
       )}
