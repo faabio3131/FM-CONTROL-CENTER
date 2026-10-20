@@ -1,6 +1,7 @@
 import type { NewSourceDefinition, SourceDefinition, SourceRepository } from "@/domain/integration/contracts";
 import type { ProductRepository } from "@/domain/products/contracts";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
+import { profileForSourceType, sourceMatchesAdapter } from "@/application/integration/saas-adapter-profiles";
 
 export class InvalidProductSourceBindingError extends Error {
   constructor() { super("integration.product_source_binding_invalid"); }
@@ -42,30 +43,23 @@ export class SourceRegistryService {
     assertConfigContainsNoSecrets(input.config);
     if (!input.name.trim() || !input.sourceType.trim() || !input.authoritativeDomain.trim()) throw new Error("integration.source_definition_invalid");
     if (input.freshnessSeconds !== undefined && (!Number.isInteger(input.freshnessSeconds) || input.freshnessSeconds < 1)) throw new Error("integration.freshness_invalid");
-    const knownCommercial = {
-      "kordena-commercial-v1": {
-        slug: "kordena",
-        secretRef: "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN",
-      },
-      "iron-commercial-v1": {
-        slug: "iron",
-        secretRef: "env:FMCC_IRON_CONTROL_PLANE_TOKEN",
-      },
-    } as const;
-    const binding = input.sourceType in knownCommercial
-      ? knownCommercial[input.sourceType as keyof typeof knownCommercial]
-      : null;
+    const binding = profileForSourceType(input.sourceType);
     if (binding && !input.productId) throw new InvalidProductSourceBindingError();
     if (input.productId) {
       const product = await this.products?.findById(context.tenantId, input.productId);
       if (!product || product.status !== "active") throw new InvalidProductScopeError();
       if (
         binding &&
-        (product.slug !== binding.slug ||
-          input.secretRef !== binding.secretRef ||
-          input.mappingVersion !== input.sourceType ||
-          input.authoritativeDomain !== "commercial" ||
-          input.syncMode !== "pull")
+        (product.slug !== binding.productSlug ||
+          !sourceMatchesAdapter({
+            id: "preflight", tenantId: context.tenantId,
+            productId: input.productId, name: input.name,
+            sourceType: input.sourceType,
+            authoritativeDomain: input.authoritativeDomain,
+            status: "configured", syncMode: input.syncMode,
+            secretRef: input.secretRef, mappingVersion: input.mappingVersion ?? "",
+            config: input.config ?? {},
+          }, binding))
       ) {
         throw new InvalidProductSourceBindingError();
       }
