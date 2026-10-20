@@ -163,7 +163,7 @@ export async function dispatchVerifiedVendePaidLicense(
     tenantId:claimed.externalTenantId,
     planCode:claimed.planCode,planRevision:claimed.planRevision,
     actorUserId:claimed.actorId,approvedAt:claimed.approvedAt,
-  });
+  }, new Date(), token);
   try {
     const reply=await http(config.assistantOrigin+
       "/internal/v1/command/assistant-plans/bind",{
@@ -252,6 +252,7 @@ export async function reconcileBlockedVendePaidLicense(
     externalTenantId: billingVendeLicenseOutbox.externalTenantId,
     planCode: billingVendeLicenseOutbox.planCode,
     planRevision: billingVendeLicenseOutbox.planRevision,
+    operationNonce: billingVendeLicenseOutbox.claimToken,
     invoiceStatus: billingInvoices.status,
   }).from(billingVendeLicenseOutbox).innerJoin(
     billingInvoices, and(
@@ -273,6 +274,7 @@ export async function reconcileBlockedVendePaidLicense(
     tenantId: row.externalTenantId,
     planCode: row.planCode,
     planRevision: row.planRevision,
+    operationNonce: row.operationNonce ?? "",
   });
   let confirmed = false;
   try {
