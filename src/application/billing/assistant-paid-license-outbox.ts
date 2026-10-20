@@ -120,7 +120,9 @@ export async function dispatchVerifiedVendePaidLicense(
     throw new AssistantPlanDeliveryUnavailable();
   // A license must never be dispatched for a subsequently reversed payment
   // or a retired/unpublished commercial policy.
-  const [eligibility]=await db.select({
+  const token=randomUUID();
+  const claimed=await db.transaction(async tx => {
+    const [eligibility]=await tx.select({
     invoiceStatus:billingInvoices.status,
     paymentStatus:billingProviderPayments.status,
     planStatus:assistantPlanRevisions.status,
@@ -143,12 +145,11 @@ export async function dispatchVerifiedVendePaidLicense(
       eq(billingVendeLicenseOutbox.id,outboxId),
       eq(billingVendeLicenseOutbox.tenantId,config.organizationId),
       eq(billingVendeLicenseOutbox.state,"pending"),
-    )).limit(1);
-  if (!eligibility || eligibility.invoiceStatus!=="paid" ||
+    )).for("update").limit(1);
+    if (!eligibility || eligibility.invoiceStatus!=="paid" ||
       eligibility.paymentStatus!=="received" ||
       eligibility.planStatus!=="published") throw new AssistantPlanDeliveryUnavailable();
-  const token=randomUUID();
-  const [claimed]=await db.update(billingVendeLicenseOutbox).set({
+    const [claimed]=await tx.update(billingVendeLicenseOutbox).set({
     state:"processing",claimToken:token,claimedAt:new Date(),
     attempts:1,
   }).where(and(
@@ -157,6 +158,8 @@ export async function dispatchVerifiedVendePaidLicense(
     eq(billingVendeLicenseOutbox.state,"pending"),
     eq(billingVendeLicenseOutbox.attempts,0),
   )).returning();
+    return claimed;
+  });
   if (!claimed) throw new AssistantPlanDeliveryUnavailable();
   // Never automatically put a claimed attempt back to pending after a timeout.
   const signed=signAssistantPlanLicenseBind(config,{
