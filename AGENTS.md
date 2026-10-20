@@ -57,3 +57,6 @@ O catálogo único de perfis de adaptadores fica em `src/application/integration
 
 ## Gate C08 de pré-admissão de SaaS
 `src/application/integration/saas-adapter-preflight.ts` é somente diagnóstico local do Source Registry e Adapter Profile. A API C08 expõe `adapterPreflight` sanitizado sem criar autorização, conexão E2E, credencial, consumo, entitlement ou billing. Diferencie `local_contract_ready` de `externallyHomologated`; não pule revisão do handshake S2S nem invente live. Corrija bloqueios antes de merge; mantenha uma PR regular por vez.
+
+## Manifesto offline C08
+`inspectSaasCapabilityManifest` é parser de dados NÃO CONFIÁVEIS e somente valida compatibilidade técnica com o `Connector` real. Ele não autentica serviços, não escolhe HMAC/mTLS, não governa permissão, não executa comandos nem confirma E2E. Para integrá-lo à rede é obrigatório transporte autenticado e validação determinística de tenant/identidade nas duas pontas, além de testes de replay e recuperação.

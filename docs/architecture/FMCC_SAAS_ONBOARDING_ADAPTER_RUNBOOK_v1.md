@@ -29,3 +29,7 @@ O FMCC controla o registro comercial e as fontes governadas. Command é o painel
 
 ## Evolução ainda pendente
 Handshake S2S versionado, envelope de comando e receipts, disponibilidade de provedores/ambientes, matriz cross-repo Kordena/IRON/Assistant/VendeAtendeIA e onboarding completo de SaaS sintético com executor de ponta a ponta devem receber WPs próprios do cronograma C04–C08. Este documento não promove o draft do protocolo a contrato final aprovado.
+
+## C08 — Manifesto de capacidades (gate puramente interno)
+O parser `inspectSaasCapabilityManifest` aceita somente `fmcc.saas-capabilities.v1`, ID de produto e tipo/versão que correspondam ao adaptador real instalado, uma janela de validade curta e capacidades suportadas pelo Connector local. Nenhuma URL, token, secretRef ou tenant poderá ser injetado no manifesto. Exige ao menos leitura de snapshot e facts para este perfil de ingestão comercial; outras capacidades precisam corresponder ao runtime.
+Este parser **não é handshake autenticado**, não troca credenciais, não registra tenant nem aplica entitlement ou billing. O transporte e a autorização S2S permanecem dependentes dos contratos e escolhas de segurança aprovados; não promover manifesto recebido de fonte não autenticada à autoridade.
