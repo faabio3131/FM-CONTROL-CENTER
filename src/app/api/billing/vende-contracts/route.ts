@@ -71,7 +71,7 @@ export async function POST(request:Request){
       typeof body.dueDate!=="string"||typeof body.calendarRegion!=="string"||
       typeof body.autoRenew!=="boolean"))
       return respond({error:"vende.c06_payload_invalid"},400);
-    if(requested==="request_delinquency_suspension" &&
+    if(requested!=="enroll_paid_term" &&
        (!Number.isSafeInteger(body.expectedRevision) ||
          (body.expectedRevision as number)<1))
       return respond({error:"vende.c06_payload_invalid"},400);
@@ -85,9 +85,9 @@ export async function POST(request:Request){
     const result=requested==="enroll_paid_term"
       ?await service.enrollPaidTerm(context,proof,{
         productId:body.productId,subscriptionId:body.subscriptionId,
-        invoiceId:body.invoiceId,effectiveFrom:body.effectiveFrom as string,
+        invoiceId:body.invoiceId as string,effectiveFrom:body.effectiveFrom as string,
         paidThrough:body.paidThrough as string,dueDate:body.dueDate as string,
-        calendarRegion:body.calendarRegion as string,sourceRef:body.sourceRef,
+        calendarRegion:body.calendarRegion as string,sourceRef:body.sourceRef as string,
         operationId:body.operationId,autoRenew:body.autoRenew as boolean,
       })
       :requested==="schedule_cancellation"
