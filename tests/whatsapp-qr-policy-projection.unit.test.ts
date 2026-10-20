@@ -18,6 +18,7 @@ const revision={
   displaySeconds:30,revision:4,actorId:"fm-admin",approvedAt,
 };
 const env={
+  NODE_ENV:"test" as const,
   FM_COMMAND_VENDE_QR_POLICY_SYNC_ENABLED:"true",
   FM_COMMAND_CORE_BRIDGE_ASSISTANT_URL:config.assistantOrigin,
   FM_COMMAND_CORE_BRIDGE_CONTROL_KEY_ID:config.keyId,
