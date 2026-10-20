@@ -64,10 +64,13 @@ def test_command_assistant_core_separate_processes_postgres_recovery(tmp_path):
     if not db_source.startswith("postgresql://") or "127.0.0.1:5432" not in db_source:
         pytest.fail("unsafe isolated PostgreSQL test configuration")
     name = "f3_network_" + uuid4().hex[:12]
-    admin_engine = create_engine(db_source, isolation_level="AUTOCOMMIT")
-    admin_engine.connect().execute(text(f'CREATE DATABASE "{name}"'))
     from sqlalchemy.engine import make_url
-    pg_url = make_url(db_source).set(database=name).render_as_string(hide_password=False)
+
+    source = make_url(db_source).set(drivername="postgresql+psycopg")
+    admin_engine = create_engine(source, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as conn:
+        conn.execute(text(f'CREATE DATABASE "{name}"'))
+    pg_url = source.set(database=name).render_as_string(hide_password=False)
     # Core's database models are schema-complete in this disposable database;
     # separately certified Core PG migration tests validate Alembic upgrades.
     import core.ai_admin_audit  # noqa: F401
