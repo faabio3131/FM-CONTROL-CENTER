@@ -13,7 +13,6 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
@@ -23,11 +22,11 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from core.ai_control_plane import ControlPlaneBase
-from core.ai_provider_evidence_store import (
-    TrustedProviderEvidenceStore, sign_verified_gateway_attestation,
-)
+from core.ai_provider_evidence_store import TrustedProviderEvidenceStore
+from core.ai_provider_source_verifier import ProviderSigningPolicy
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from core.ai_quota_store import QuotaRequirement, QuotaReservations
-from core.ai_verified_usage_receipt import VerifiedProviderUsageReceipt
 
 from f3_command_assistant_cross_runtime import signed_node_request
 
@@ -100,21 +99,31 @@ def test_command_assistant_core_separate_processes_postgres_recovery(tmp_path):
                              capability="ai.total_tokens", units=400, policy_revision=5),
         ), request_id="usage-network-1", at=now,
     )
-    receipt = VerifiedProviderUsageReceipt(
-        provider="gemini", model="synthetic-model",
-        request_id="usage-network-1", tenant_id="tenant-a", unit_id="unit-a",
-        input_tokens=140, output_tokens=60, provider_cost_usd=Decimal("0.0025"),
-        evidence_digest="b" * 64,
-    )
     evidence = TrustedProviderEvidenceStore(
         sessions, source_id="fm-gateway-network-ci", gateway_secret=KEY,
     )
-    evidence.record_attested(
-        evidence_id="provider-proof-network-1", receipt=receipt,
-        gateway_signature=sign_verified_gateway_attestation(
-            evidence_id="provider-proof-network-1",
-            source_id="fm-gateway-network-ci", receipt=receipt, secret=KEY,
+    signing_key = Ed25519PrivateKey.generate()
+    source_policy = ProviderSigningPolicy(
+        issuer="synthetic-provider-signed",
+        public_key=signing_key.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw,
         ),
+    )
+    signed_payload = json.dumps({
+        "issuer": "synthetic-provider-signed",
+        "request_id": "usage-network-1", "tenant_id": "tenant-a",
+        "unit_id": "unit-a", "provider": "gemini", "model": "synthetic-model",
+        "input_tokens": 140, "output_tokens": 60, "cost_usd": "0.0025",
+        "no_charge": False, "observed_at": int(now.timestamp()),
+    }, sort_keys=True, separators=(",", ":")).encode()
+    assert evidence.record_verified_source(
+        evidence_id="provider-proof-network-1",
+        provider_payload=signed_payload,
+        provider_signature=signing_key.sign(
+            b"FM_PROVIDER_USAGE_SOURCE_V1\\n" + signed_payload,
+        ),
+        source_policy=source_policy, expected_request_id="usage-network-1",
+        expected_tenant_id="tenant-a", expected_unit_id="unit-a", at=now,
     )
     assistant_port, core_port = _port(), _port()
     env = {
