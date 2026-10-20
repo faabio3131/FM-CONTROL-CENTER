@@ -32,7 +32,7 @@ Data: 2026-10-20. PR auditada: #123, base `ee818f67af11f7e227680a016c7f7e1252d06
 - Nenhum segredo real, migração em banco permanente, deploy, cobrança, QR WhatsApp ou homologação externa nesta unidade.
 - Risco de entrega remota aplicada apesar da reversão de pagamento depois de HTTP 200 exige recuperação governada/compensação independente; o candidato corretamente conserva `unknown` sem inventar revogação.
 - Estornos, refunds, direito legal, preço, calendário e consentimento exigem fontes versionadas e auditáveis.
- 
+
 ## Parecer provisório
 
 **Candidata interna auditada em avanço, NÃO release completo e NÃO merge automaticamente autorizado.** Próxima promoção exige os workflows aplicáveis no SHA exato, resolução/aceite fundamentado dos achados bloqueantes e revisão independente registrada. Não usar simples conclusão de CI como prova de operação comercial integral.
