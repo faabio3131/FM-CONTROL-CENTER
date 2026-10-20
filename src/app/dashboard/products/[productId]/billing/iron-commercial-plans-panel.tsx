@@ -3,13 +3,17 @@
 import type { BillingProductPlanView } from "@/application/billing/product-billing-authority-service";
 import type { IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 import { IronCommercialPlanCreateForm } from "./iron-commercial-plan-create-form";
+import type { IronPublishedPlanVersion } from "@/infrastructure/integration/iron-commercial-connector";
+import { IronPlanVersionBindingForm } from "./iron-plan-version-binding-form";
 
-export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAvailable, canWrite }: {
+export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAvailable, canWrite, publishedIronPlans, publishedIronPlansAvailable }: {
   productId: string;
   canWrite: boolean;
   plans: readonly BillingProductPlanView[];
   mappings: readonly IronVersionedPlanMapping[];
   mappingAvailable: boolean;
+  publishedIronPlans: readonly IronPublishedPlanVersion[];
+  publishedIronPlansAvailable: boolean;
 }) {
   return <section className="executive-section" aria-label="Planos comerciais IRON">
     <div className="section-heading">
@@ -36,6 +40,20 @@ export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAv
             <span>Revisão {mapping.revision} · vínculo imutável</span>
           </article>)}</div>}
       <p>Os direitos e limites do IRON continuam sob sua autoridade canônica. Esta tela não concede licença ou altera quota.</p>
+    </div>
+
+    <div className="panel">
+      <h3>Vincular preço da FM a uma versão publicada do IRON</h3>
+      <p>O catálogo de versões vem diretamente do domínio canônico do IRON. Registrar um vínculo não publica preços, ativa uma assinatura ou concede direitos.</p>
+      <IronPlanVersionBindingForm
+        productId={productId}
+        plans={plans}
+        mappings={mappings}
+        canWrite={canWrite}
+        mappingAvailable={mappingAvailable}
+        publishedPlans={publishedIronPlans}
+        publishedPlansAvailable={publishedIronPlansAvailable}
+      />
     </div>
     <div className="panel">
       <h3>Novo plano comercial</h3>

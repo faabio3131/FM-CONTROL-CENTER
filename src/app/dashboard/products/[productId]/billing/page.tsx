@@ -21,7 +21,7 @@ import { ProductBillingAuthorityService, type BillingProductPlanView } from "@/a
 import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
 import { PostgresIronPlanMappingRepository } from "@/infrastructure/billing/postgres-iron-plan-mapping-repository";
 import type { IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
-import { IronCommercialConnector, IRON_COMMERCIAL_SOURCE_TYPE, IRON_COMMERCIAL_SECRET_REF, environmentIronControlTenantId } from "@/infrastructure/integration/iron-commercial-connector";
+import { IronCommercialConnector, IRON_COMMERCIAL_SOURCE_TYPE, IRON_COMMERCIAL_SECRET_REF, environmentIronControlTenantId, type IronPublishedPlanVersion } from "@/infrastructure/integration/iron-commercial-connector";
 
 export default async function ProductBillingPage({
   params,
@@ -114,6 +114,22 @@ export default async function ProductBillingPage({
     }
   }
 
+  let publishedIronPlans: readonly IronPublishedPlanVersion[] = [];
+  let publishedIronPlansAvailable = false;
+  if (isIron && ironSources.length === 1) {
+    try {
+      const catalog = await new IronCommercialConnector().publishedPlanVersions({
+        tenantId: context.tenantId, correlationId: context.correlationId, timeoutMs: 8000,
+      }, ironSources[0]);
+      if (!catalog.truncated) {
+        publishedIronPlans = catalog.plans;
+        publishedIronPlansAvailable = true;
+      }
+    } catch {
+      // If the S2S contract is missing or invalid, writes remain unavailable.
+    }
+  }
+
   let overview = null;
   let upstreamError: string | null = null;
   if (source) {
@@ -172,6 +188,8 @@ export default async function ProductBillingPage({
             mappingAvailable={ironMappingsAvailable}
             canWrite={roleHasPermission(context.role,"billing:write") &&
               (context.role==="owner"||context.role==="admin")}
+            publishedIronPlans={publishedIronPlans}
+            publishedIronPlansAvailable={publishedIronPlansAvailable}
           />
         ) : (
           <section className="panel"><h2>Planos indisponíveis</h2>

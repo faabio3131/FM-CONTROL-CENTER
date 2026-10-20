@@ -7,6 +7,7 @@ import { requirePermission } from "@/domain/security/tenant-context";
 import { IronPlanMappingError } from "@/domain/billing/iron-versioned-plan-mapping";
 import { PostgresIronPlanMappingRepository } from "@/infrastructure/billing/postgres-iron-plan-mapping-repository";
 import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
+import { IronCommercialConnector } from "@/infrastructure/integration/iron-commercial-connector";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,17 @@ export async function POST(
 
     const { productId } = await params;
     const source = await singleIronSource(context.tenantId, productId);
+    // Revalidate against the authoritative published IRON versions at the
+    // time of the governed write. Browser choices are not authority.
+    const catalog = await new IronCommercialConnector().publishedPlanVersions({
+      tenantId: context.tenantId,
+      correlationId: context.correlationId,
+      timeoutMs: 8000,
+    }, source);
+    if (catalog.truncated || !catalog.plans.some(plan =>
+        plan.planCode === input.ironPlanCode && plan.version === input.ironPlanVersion)) {
+      return NextResponse.json({ error: "billing.iron_plan_version_unverified" }, { status: 409 });
+    }
     const result = await new PostgresIronPlanMappingRepository().register(
       context.tenantId, productId, source.id, {
         commercialPlanCode: input.commercialPlanCode,

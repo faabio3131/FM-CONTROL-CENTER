@@ -34,6 +34,59 @@ export interface IronCommercialSnapshot {
   readonly coverage: Readonly<Record<string, string>>;
 }
 
+
+/** IRON-owned published SaaS plans, never FM-controlled prices. */
+export interface IronPublishedPlanVersion {
+  readonly planCode: string;
+  readonly displayName: string;
+  readonly version: number;
+  readonly publishedAt: string;
+}
+export interface IronPublishedPlanCatalog {
+  readonly plans: readonly IronPublishedPlanVersion[];
+  readonly asOf: string;
+  readonly truncated: boolean;
+}
+
+export function parseIronPublishedPlanCatalog(value: unknown): IronPublishedPlanCatalog {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new IronCommercialConnectorError("integration.iron_plan_catalog_invalid");
+  }
+  const data = value as Record<string, unknown>;
+  if (data.schema_version !== "iron.fmcc.plan-versions.v1" ||
+      data.product_code !== "IRON_FIT_CORE" ||
+      data.source_authority !== "IRON_PRODUCT_PLAN_VERSION" ||
+      typeof data.as_of !== "string" || Number.isNaN(Date.parse(data.as_of)) ||
+      typeof data.truncated !== "boolean" ||
+      !Array.isArray(data.plans) || data.plans.length > 256) {
+    throw new IronCommercialConnectorError("integration.iron_plan_catalog_invalid");
+  }
+  const seen = new Set<string>();
+  const plans: IronPublishedPlanVersion[] = [];
+  for (const candidate of data.plans) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      throw new IronCommercialConnectorError("integration.iron_plan_catalog_invalid");
+    }
+    const item = candidate as Record<string, unknown>;
+    if (typeof item.plan_code !== "string" || !/^[A-Z][A-Z0-9_]{1,63}$/.test(item.plan_code) ||
+        typeof item.display_name !== "string" || item.display_name.trim().length < 2 ||
+        item.display_name.length > 160 ||
+        !Number.isSafeInteger(item.version) || (item.version as number) < 1 ||
+        typeof item.published_at !== "string" ||
+        Number.isNaN(Date.parse(item.published_at))) {
+      throw new IronCommercialConnectorError("integration.iron_plan_catalog_invalid");
+    }
+    const key = item.plan_code + ":" + item.version;
+    if (seen.has(key)) throw new IronCommercialConnectorError("integration.iron_plan_catalog_duplicate");
+    seen.add(key);
+    plans.push({
+      planCode: item.plan_code, displayName: item.display_name,
+      version: item.version as number, publishedAt: item.published_at,
+    });
+  }
+  return { plans, asOf: data.as_of, truncated: data.truncated };
+}
+
 export interface IronSubscriptionCommand {
   readonly action: "subscription.status.sync" | "subscription.plan.transition";
   readonly gymId: string;
@@ -212,6 +265,17 @@ export class IronCommercialConnector implements Connector {
       throw new IronCommercialConnectorError("integration.iron_snapshot_contract_invalid");
     }
     return body as IronCommercialSnapshot;
+  }
+
+  async publishedPlanVersions(
+    context: ConnectorContext,
+    source: SourceDefinition,
+  ): Promise<IronPublishedPlanCatalog> {
+    const response = await this.request(context, source, "/api/v1/control-plane/fmcc/plan-versions");
+    if (!response.ok) {
+      throw new IronCommercialConnectorError("integration.iron_plan_catalog_unavailable");
+    }
+    return parseIronPublishedPlanCatalog(await response.json());
   }
 
   async subscriptionCommand(
