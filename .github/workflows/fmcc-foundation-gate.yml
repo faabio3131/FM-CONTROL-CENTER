@@ -65,14 +65,14 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/-FM-Assistant-Base
-          ref: 419bc942cc9dc02d9125288ec5200a76aaa52bc9
+          ref: 0c8e702427de3a5db0447d3b750948724c6b1b61
           path: assistant-source
           persist-credentials: false
       - name: Checkout pinned public Core (internal quota and recovery)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/FM-Core-Base-
-          ref: 7154020f45da7b82f847b7644ebaeb73f0565b76
+          ref: 2ec1daef94db2c3c5ddd0ff116079e725b087071
           path: core-source
           persist-credentials: false
       - name: Set up Python for Command to Assistant contract
