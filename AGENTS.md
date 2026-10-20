@@ -60,3 +60,7 @@ O catálogo único de perfis de adaptadores fica em `src/application/integration
 
 ## Manifesto offline C08
 `inspectSaasCapabilityManifest` é parser de dados NÃO CONFIÁVEIS e somente valida compatibilidade técnica com o `Connector` real. Ele não autentica serviços, não escolhe HMAC/mTLS, não governa permissão, não executa comandos nem confirma E2E. Para integrá-lo à rede é obrigatório transporte autenticado e validação determinística de tenant/identidade nas duas pontas, além de testes de replay e recuperação.
+
+
+## C04 — Publicação do limite visual do QR FM→Assistant (20/10/2026)
+A autoridade é a revisão persistida da política QR corporativa VendeAtendeIA, editada apenas por owner/admin FM, com step-up. Uma sincronização manual autenticada, pré-auditada e desativada por padrão pela flag `FM_COMMAND_VENDE_QR_POLICY_SYNC_ENABLED` envia a revisão assinada sob HMAC de caminho separado para `/internal/v1/command/whatsapp-qr/policy`; somente origem HTTPS pré-configurada. Nunca aceitar URL, tenant, segundos, revisão ou ator do corpo enviado pelo cliente. O Assistant rejeita replay de nonce, versões antigas, assinaturas inválidas, escopos estrangeiros e revisões conflitantes. Falha de rede permanece `unconfirmed`, mesmo se o provedor HTTP tiver aplicado a mudança; uma nova solicitação humana pode retransmitir apenas a mesma revisão idempotente, sem efeitos financeiros. O período é cap de **exibição**, não promessa de validade real da Evolution. Nenhuma ativação externa/deploy/credencial autorizada.
