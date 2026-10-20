@@ -107,6 +107,12 @@ export default async function ProductPage({
           </p>
         </div>
         <div>
+          {process.env.FM_COMMAND_PLATFORM_ORGANIZATION_ID === context.tenantId &&
+            (context.role === "owner" || context.role === "admin") ? (
+            <Link className="button" href={`/dashboard/products/${productId}/assistant-plans`}>
+              Planos e franquias
+            </Link>
+          ) : null}
           {roleHasPermission(context.role, "billing:read") ? (
             <Link
               className="button"

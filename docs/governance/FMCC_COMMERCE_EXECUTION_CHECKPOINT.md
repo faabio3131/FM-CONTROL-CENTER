@@ -164,3 +164,18 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - PR #110 (`feat/fmcc-c08-operator-next-actions-20261020`) tem base `main` para certificar o conjunto acumulado e o incremento, preservando a PR #109 como checkpoint. Não aplicar dois merges do mesmo código.
 - Cabeçalho do incremento anterior `b7038a77a29bef570aa6dbd42f588563f2655e87`. A verificação de CI deve ser refeita no HEAD resultante desta atualização documental. Resultado dos gates não deve ser antecipado.
 - Certificação de comunicação E2E real entre FMCC, IRON, Kordena, Assistant/VendeAtendeIA e as decisões comerciais C06 continuam pendentes e segregadas das validações internas.
+
+
+## Reconciliação pós-merge comercial × F3 Command/Assistant (candidata)
+- CURRENT de entrada 2026-10-20: `main@7230f209f146807b8243834fc728544b1f471744` após PR #110 (52 commits adicionais e 4/4 workflows verdes no HEAD candidato). PR #90 `e5d20529b462d59ad0edfbf9dc590189d61aa5e7` tem 65 arquivos de diff e 4/4 checks SUCCESS no seu HEAD original, mas não estava integrada à main.
+- Branch de reconciliação `reconcile/fmcc-commercial-f3-bridge-20261020`: união dos commits via merge de dois pais, preservando todas as 65 alterações da PR #90 e as 71 alterações comerciais da PR #110. Somente 3 caminhos se sobrepõem: workflow PostgreSQL (C06 e Vende outbox), página de produto (IRON consumo IA + Assistant planos) e teste de acesso a rotas (ambos). Nenhum contrato financeiro foi convertido em autorização fictícia.
+- Após este commit de reconciliação: CI precisa executar Foundation, Cognitive, F21 e PostgreSQL isolado NO SHA DO MERGE; revisão técnica de diff/segurança, gate de migrações descartáveis e revisão independente proporcional permanecem obrigatórios antes de promoção. `main` não é alterada por esta candidata; sem credenciais, workers reais, migrations operacionais ou deploy.
+- PR #62 antiga de billing possui gate cognitivo FAILURE em seu HEAD e mudanças arquiteturais paralelas; não mesclar indiscriminadamente. #73 possui edição de interface antiga superada por implementação posterior; preservar atual. #89 documento de reconciliação de evidências históricas pode ser integrado separadamente como registro datado.
+
+## Reconciliação de PRs autorizada — 20/10/2026
+- Merge comercial integrado via PR #110, SHA main `7230f209f146807b8243834fc728544b1f471744`, 4/4 workflows SUCCESS no HEAD `795c5ebee981f7e4fd97dbea8085a17dbf162af8`.
+- PRs empilhadas comerciais anteriores já pertenciam à ancestralidade do merge; oito foram fechadas como incorporadas por ancestralidade, com comentários rastreáveis. Não repetir merges.
+- F3 Core↔Assistant, outbox e worker VendeAtendeIA reconciliados com a main comercial, PR #111, merge SHA `ad1f9c949e7db44eee3f2823cd68a263a5daa3fc`. Commit candidato `6770c8574e211f6b886db3716237b4270fc53481`: Foundation, Cognitive, F21, PostgreSQL isolado 4/4 SUCCESS; validação CI pós-merge deve ser registrada à parte.
+- PR #90 coberta pela ancestralidade da #111, sem reaplicar branch antiga. Workers/credenciais reais, migrations operacionais, produção e homologação externa continuam pendentes, não ativados pelo merge.
+- PR #73 de UI encerrada por subsunção comprovada na main, que já contém todos os estilos compactos com evolução posterior. PR #62 permanece em Draft/STOP de integração por divergência arquitetural de billing e `cognitive-governed FAILURE` no SHA original, sem forçar merge.
+- PR #89 guarda evidência financeira datada de 15/10: integrar como documento histórico e nunca como CURRENT da data atual. C06 continua aguardando políticas comerciais aprovadas.
