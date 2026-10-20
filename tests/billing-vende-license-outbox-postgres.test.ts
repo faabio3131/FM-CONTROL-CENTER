@@ -156,6 +156,44 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
     expect(state.rows[0]).toMatchObject({ state: "blocked", attempts: 1 });
   });
 
+  it("reconciles blocked intent with signed Assistant state, never resending the license", async () => {
+    const candidate = await pool.query(
+      "SELECT id FROM fmcc_billing_vende_license_outbox WHERE tenant_id=$1 AND state='blocked' LIMIT 1",
+      [tenant],
+    );
+    const id = candidate.rows[0].id as string;
+    const config = {
+      assistantOrigin: "https://assistant.example.test",
+      keyId: "ci-key",
+      signingKey: "a-synthetic-test-only-secret-that-is-over-32-characters",
+      organizationId: tenant,
+    };
+    let calls = 0;
+    const unknown = (async (url: RequestInfo | URL, init?: RequestInit) => {
+      calls++;
+      expect(String(url)).toContain("/assistant-plans/binding-status");
+      expect(String(url).endsWith("/binding-status")).toBe(true);
+      expect(new Headers(init?.headers).get("X-FM-Command-Signature"))
+        .toMatch(/^[0-9a-f]{64}$/);
+      return new Response(JSON.stringify({ status: "not_confirmed" }), {status: 200});
+    }) as typeof fetch;
+    expect(await service.reconcileBlockedVendePaidLicense(id, config, unknown))
+      .toBe("still_blocked");
+    const positive = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ status: "bound_confirmed" }), {status: 200});
+    }) as typeof fetch;
+    expect(await service.reconcileBlockedVendePaidLicense(id, config, positive))
+      .toBe("delivered");
+    expect(calls).toBe(2);
+    await expect(service.dispatchVerifiedVendePaidLicense(id, config, positive))
+      .rejects.toThrow();
+    const final = await pool.query(
+      "SELECT state,attempts FROM fmcc_billing_vende_license_outbox WHERE id=$1", [id],
+    );
+    expect(final.rows[0]).toMatchObject({state:"delivered",attempts:1});
+  });
+
   it("dispatches signed binding once and prevents replay of consumed intent", async () => {
     const row = await pool.query(
       "SELECT id FROM fmcc_billing_vende_license_outbox WHERE tenant_id=$1 AND invoice_id=$2",
