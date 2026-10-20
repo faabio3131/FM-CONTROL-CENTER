@@ -83,3 +83,65 @@ export function signCoreAIRecoveryAuthorization(
     throw new CoreAIRecoveryAuthorityDenied();
   }
 }
+
+
+export interface CoreAIRecoveryTarget {
+  requestId: string;
+  tenantId: string;
+  unitId: string;
+  evidenceId: string;
+  requestsRevision: number;
+  tokensRevision: number;
+}
+
+/** Send one governed Command recovery operation; never retry uncertain results. */
+export async function sendGovernedCoreAIRecovery(
+  target: CoreAIRecoveryTarget,
+  actor: CoreAIRecoveryActor,
+  config: CoreAIRecoveryJWTConfig & { coreOrigin: string },
+  options: { http?: typeof fetch; now?: Date } = {},
+): Promise<void> {
+  let origin: URL;
+  try {
+    origin = new URL(config.coreOrigin);
+  } catch {
+    throw new CoreAIRecoveryAuthorityDenied();
+  }
+  if (
+    origin.protocol !== "https:" || !origin.hostname ||
+    origin.username || origin.password || origin.pathname !== "/" ||
+    origin.search || origin.hash ||
+    ![target.requestId, target.tenantId, target.unitId, target.evidenceId]
+      .every((value) => validId.test(value)) ||
+    !Number.isSafeInteger(target.requestsRevision) ||
+    !Number.isSafeInteger(target.tokensRevision) ||
+    target.requestsRevision < 1 || target.tokensRevision < 1
+  ) {
+    throw new CoreAIRecoveryAuthorityDenied();
+  }
+  const token = signCoreAIRecoveryAuthorization(actor, config, options);
+  const body = JSON.stringify({
+    request_id: target.requestId, tenant_id: target.tenantId,
+    unit_id: target.unitId, evidence_id: target.evidenceId,
+    requests_revision: target.requestsRevision,
+    tokens_revision: target.tokensRevision,
+  });
+  try {
+    const response = await (options.http ?? fetch)(
+      origin.origin + CORE_AI_RECOVERY_PATH,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body, redirect: "manual", cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    if (response.status !== 204) throw new CoreAIRecoveryAuthorityDenied();
+  } catch {
+    // A timeout may mean the Core already settled. Never automatically retry.
+    throw new CoreAIRecoveryAuthorityDenied();
+  }
+}
