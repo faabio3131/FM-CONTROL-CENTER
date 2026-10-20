@@ -95,3 +95,21 @@ CREATE UNIQUE INDEX "fmcc_vende_lifecycle_operation_uq" ON "fmcc_vende_lifecycle
 CREATE UNIQUE INDEX "fmcc_vende_lifecycle_revision_uq" ON "fmcc_vende_lifecycle_command" USING btree ("tenant_id","subscription_id","revision");
 --> statement-breakpoint
 CREATE INDEX "fmcc_vende_lifecycle_ready_idx" ON "fmcc_vende_lifecycle_command" USING btree ("state","created_at");
+--> statement-breakpoint
+CREATE TABLE "fmcc_vende_payment_attestation" (
+ "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+ "tenant_id" text NOT NULL,
+ "invoice_id" uuid NOT NULL,
+ "external_payment_ref" text NOT NULL,
+ "outcome" text NOT NULL,
+ "verified_at" timestamp with time zone NOT NULL,
+ "source_ref" text NOT NULL,
+ "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+ CONSTRAINT "fmcc_vende_attestation_outcome_ck" CHECK ("outcome" in ('unpaid_verified','settled_verified','reversed_verified'))
+);
+--> statement-breakpoint
+ALTER TABLE "fmcc_vende_payment_attestation" ADD CONSTRAINT "fmcc_vende_attestation_invoice_fk" FOREIGN KEY ("tenant_id","invoice_id") REFERENCES "public"."fmcc_billing_invoice"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+CREATE UNIQUE INDEX "fmcc_vende_payment_attestation_ref_uq" ON "fmcc_vende_payment_attestation" USING btree ("tenant_id","invoice_id","external_payment_ref");
+--> statement-breakpoint
+CREATE INDEX "fmcc_vende_attestation_fresh_idx" ON "fmcc_vende_payment_attestation" USING btree ("tenant_id","invoice_id","verified_at");
