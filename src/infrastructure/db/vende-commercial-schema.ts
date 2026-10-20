@@ -104,6 +104,7 @@ export const vendeLifecycleCommands = pgTable("fmcc_vende_lifecycle_command",{
   productId:uuid("product_id").notNull(),
   subscriptionId:uuid("subscription_id").notNull(),
   customerId:uuid("customer_id").notNull(),
+  sourceInvoiceId:uuid("source_invoice_id"),
   operationId:text("operation_id").notNull(),
   expectedRevision:integer("expected_revision").notNull(),
   revision:integer("revision").notNull(),
@@ -119,6 +120,9 @@ export const vendeLifecycleCommands = pgTable("fmcc_vende_lifecycle_command",{
 },t=>[
   uniqueIndex("fmcc_vende_lifecycle_operation_uq").on(t.tenantId,t.operationId),
   uniqueIndex("fmcc_vende_lifecycle_revision_uq").on(t.tenantId,t.subscriptionId,t.revision),
+  foreignKey({name:"fmcc_vende_lifecycle_source_invoice_fk",
+    columns:[t.tenantId,t.sourceInvoiceId],
+    foreignColumns:[billingInvoices.tenantId,billingInvoices.id]}),
   foreignKey({name:"fmcc_vende_lifecycle_subscription_fk",
     columns:[t.tenantId,t.subscriptionId,t.productId,t.customerId],
     foreignColumns:[billingSubscriptions.tenantId,billingSubscriptions.id,
