@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { buildC08IntegrationReadiness, type C08EvidenceState, type C08NextAction } from "@/application/integration/c08-product-readiness";
 import { assertC08SnapshotCapacity, readC08OperationalStates } from "@/application/integration/c08-operational-snapshot";
+import { SAAS_ADAPTER_PROFILES, profileForProductSlug } from "@/application/integration/saas-adapter-profiles";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -199,9 +200,28 @@ export default async function SourcesPage() {
           de contrato, autenticação, versão publicada, dados e recuperação.</p>
       </section>
 
+      <section className="executive-section" aria-labelledby="c08-adapters-title">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">C08 · Preparação de novos SaaS</span>
+            <h2 id="c08-adapters-title">Catálogo de adaptadores</h2>
+          </div>
+          <p>Adaptador implementado não significa fonte conectada, testes E2E aprovados ou homologação.</p>
+        </div>
+        <p>Adaptadores disponíveis neste build: {SAAS_ADAPTER_PROFILES.map(profile => profile.title.replace("Conectar ", "")).join(", ")}.</p>
+        {activeProducts.filter(product => !profileForProductSlug(product.slug)).length > 0 ? (
+          <p role="status">
+            SaaS sem adaptador neste build: {activeProducts
+              .filter(product => !profileForProductSlug(product.slug))
+              .map(product => product.name).join(", ")}. A conexão exige contrato e adaptador aprovados;
+            não serão criados endpoints ou credenciais automaticamente.
+          </p>
+        ) : null}
+      </section>
       <SourceControlPanel
         products={activeProducts}
         sources={safeSources}
+        supportedAdapters={SAAS_ADAPTER_PROFILES}
         canWrite={roleHasPermission(context.role, "source:write")}
       />
     </main>
