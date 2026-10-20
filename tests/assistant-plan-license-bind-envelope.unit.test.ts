@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  signAssistantPlanLicenseBind, ASSISTANT_PLAN_LICENSE_BIND_PATH,
+  signAssistantPlanLicenseBind, signAssistantPlanBindingStatus,
+  ASSISTANT_PLAN_LICENSE_BIND_PATH, ASSISTANT_PLAN_BINDING_STATUS_PATH,
   type PlanProjectionConfig,
 } from "../src/application/billing/assistant-plan-outbox-dispatcher";
 import { signCommandBridgeRequest } from "../src/application/integration/fm-core-bridge-governance";
@@ -56,4 +57,28 @@ describe("Corporate VendeAtendeIA license binding envelope",()=>{
       ...grant,approvedAt:new Date("2026-10-19T00:00:00Z"),
     },now)).toThrow();
   });
+
+  it("correlates signed status to the exact original binding operation nonce", () => {
+    const nonce="f3-outbox-attempt-correlation-123456789";
+    const bind=signAssistantPlanLicenseBind(config,grant,now,nonce);
+    expect(bind.headers["X-FM-Command-Nonce"]).toBe(nonce);
+    const status=signAssistantPlanBindingStatus(config,{
+      tenantId:grant.tenantId,planCode:grant.planCode,
+      planRevision:grant.planRevision,operationNonce:nonce,
+    },now);
+    expect(JSON.parse(status.body).operation_nonce).toBe(nonce);
+    expect(status.headers["X-FM-Command-Signature"]).toBe(
+      signCommandBridgeRequest(
+        config.signingKey,config.keyId,
+        status.headers["X-FM-Command-Timestamp"],
+        status.headers["X-FM-Command-Nonce"],
+        Buffer.from(status.body,"utf8"),ASSISTANT_PLAN_BINDING_STATUS_PATH,
+      ),
+    );
+    expect(() => signAssistantPlanBindingStatus(config,{
+      tenantId:grant.tenantId,planCode:grant.planCode,
+      planRevision:grant.planRevision,operationNonce:"short",
+    },now)).toThrow();
+  });
+
 });
