@@ -7,6 +7,7 @@ import pg from "pg";
 import { GovernedVendeC06Service } from "../src/application/billing/vende-c06-governed-execution";
 import {
   dispatchVendeDelinquencyOnce,reconcileUnknownVendeDelinquency,
+  quarantineAbandonedVendeClaims,
 } from "../src/application/billing/vende-c06-delivery";
 
 const database=process.env.DATABASE_URL??"";
@@ -160,4 +161,17 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(await reconcileUnknownVendeDelinquency(cmd.id,config,http)).toBe("unknown");
     expect(calls).toBe(3); // no second mutation, one signed readback only
   });
+  it("quarantines orphaned in-flight claims without re-sending a message",async()=>{
+    const cmd=await makePending();
+    await pool.query(
+      "UPDATE fmcc_vende_lifecycle_command SET state='processing',claimed_at=$1 WHERE id=$2",
+      [new Date(Date.now()-20*60_000),cmd.id],
+    );
+    expect(await quarantineAbandonedVendeClaims(config,new Date(),5)).toBe(1);
+    const latest=(await pool.query(
+      "SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0];
+    expect(latest.state).toBe("unknown");
+    expect(await quarantineAbandonedVendeClaims(config,new Date(),5)).toBe(0);
+  });
+
 });
