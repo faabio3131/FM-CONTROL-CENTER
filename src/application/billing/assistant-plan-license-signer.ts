@@ -25,7 +25,6 @@ export function signAssistantPlanLicenseBind(
       !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/.test(grant.planCode) ||
       !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(grant.actorUserId) ||
       !Number.isSafeInteger(grant.planRevision) || grant.planRevision < 1 ||
-    !/^[A-Za-z0-9_-]{22,96}$/.test(grant.operationNonce) ||
       Number.isNaN(grant.approvedAt.getTime()) ||
       !Number.isFinite(now.getTime()) ||
       grant.approvedAt.getTime() > now.getTime() + 15000 ||
@@ -73,6 +72,7 @@ export function signAssistantPlanBindingStatus(
     !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(grant.tenantId) ||
     !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/.test(grant.planCode) ||
     !Number.isSafeInteger(grant.planRevision) || grant.planRevision < 1 ||
+    !/^[A-Za-z0-9_-]{22,96}$/.test(grant.operationNonce) ||
     !Number.isFinite(now.getTime()) ||
     config.signingKey.length < 32 ||
     !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(config.keyId)
