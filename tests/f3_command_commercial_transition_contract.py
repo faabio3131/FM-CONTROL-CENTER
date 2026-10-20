@@ -85,9 +85,19 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
         signing_key=KEY,trusted_organization="fm-company",
     )
     try:
+        unknown=signed("STATUS",int(expiry.timestamp()),int(expiry.timestamp()))
+        assert service.read_status(**unknown)["operation_status"]=="not_applied"
         suspend=signed("SUSPEND_DELINQUENCY",int(expiry.timestamp()),
                        int(expiry.timestamp()))
         assert service.apply(**suspend)=="suspended"
+        proof=signed("STATUS",int(expiry.timestamp()),int(expiry.timestamp()))
+        state=service.read_status(**proof)
+        assert state["operation_status"]=="applied"
+        assert state["license_status"]=="suspended"
+        assert state["applied_action"]=="SUSPEND_DELINQUENCY"
+        assert state["tenant_id"]=="tenant-cross"
+        with pytest.raises(CommercialLicenseTransitionDenied):
+            service.read_status(**proof)  # read nonce cannot replay
         with pytest.raises(CommercialLicenseTransitionDenied):
             service.apply(**suspend)
         extended=int((now+timedelta(days=31)).timestamp())
