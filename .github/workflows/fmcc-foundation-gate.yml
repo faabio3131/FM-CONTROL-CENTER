@@ -65,14 +65,14 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/-FM-Assistant-Base
-          ref: c41e640c5be8a7d5f6db3d9c505226f10de95ffd
+          ref: dd88c9b3d7a3ba7e22e54f938758609dc1100d96
           path: assistant-source
           persist-credentials: false
       - name: Checkout pinned public Core (internal quota and recovery)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/FM-Core-Base-
-          ref: 78885dc4383255678b7639163c9c33975dfb793a
+          ref: 7b53958ebb69d88bfd0b12116d92faa4573e43be
           path: core-source
           persist-credentials: false
       - name: Set up Python for Command to Assistant contract
@@ -90,7 +90,8 @@ jobs:
           python -m pytest tests/f3_command_assistant_cross_runtime.py
           tests/f3_command_assistant_core_usage_recovery.py
           tests/f3_three_process_network.py
-          tests/f3_command_license_quota_journey.py -q -rs
+          tests/f3_command_license_quota_journey.py
+          tests/f3_command_license_security_hold_contract.py -q -rs
       - name: Isolate tested Assistant checkout outside Next.js workspace
         run: |
           mkdir -p "$RUNNER_TEMP/f3-cross-runtime"
