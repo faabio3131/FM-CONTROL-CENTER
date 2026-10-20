@@ -65,7 +65,7 @@ describe("C06 governed Vende dates, calendar, PostgreSQL transaction / no remote
     const data={productId,region:"BR-SP",revision:1,validFrom:"2026-10-01",
       validThrough:"2026-12-31",holidays:["2026-10-26"],
       sourceRef:"fm-calendar-reviewed-2026"};
-    await expect(svc.publishCalendar({...context,role:"staff"},proof,data,now))
+    await expect(svc.publishCalendar({...context,role:"viewer" as const},proof,data,now))
       .rejects.toThrow();
     await expect(svc.publishCalendar(context,{...proof,userId:"other"},data,now))
       .rejects.toThrow("step_up");
