@@ -99,6 +99,13 @@
       "when": 1792420000000,
       "tag": "0013_whatsapp_qr_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792450000000,
+      "tag": "0014_vende_paid_license_outbox",
+      "breakpoints": true
     }
   ]
 }
