@@ -112,21 +112,25 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({result},{headers:{"Cache-Control":"no-store"}});
     }
+    if (typeof body.outboxId !== "string" || !UUID.test(body.outboxId)) {
+      return NextResponse.json({error:"billing.reconciliation_input_invalid"},{status:400});
+    }
+    const outboxId = body.outboxId;
     // Write the intent before the external request, or do not transmit.
     await recordAuditEvent(context, {
       action:"billing.vende_license.reconciliation_requested",
-      resourceType:"vende_license_outbox", resourceId:body.outboxId,
-      result:"allowed", metadata:{outboxId:body.outboxId},
+      resourceType:"vende_license_outbox", resourceId:outboxId,
+      result:"allowed", metadata:{outboxId:outboxId},
     });
     const config = planProjectionConfigFromEnvironment();
-    const status = await reconcileBlockedVendePaidLicense(body.outboxId,config);
+    const status = await reconcileBlockedVendePaidLicense(outboxId,config);
     await recordAuditEvent(context, {
       action:"billing.vende_license.reconciliation_checked",
-      resourceType:"vende_license_outbox", resourceId:body.outboxId,
-      result:"success", metadata:{outboxId:body.outboxId,status},
+      resourceType:"vende_license_outbox", resourceId:outboxId,
+      result:"success", metadata:{outboxId:outboxId,status},
     });
     return NextResponse.json(
-      {outboxId:body.outboxId,status},
+      {outboxId:outboxId,status},
       {headers:{"Cache-Control":"no-store"}},
     );
   } catch (error) {return failure(error);}
