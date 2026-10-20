@@ -59,7 +59,7 @@ export async function POST(request:Request){
       typeof body.autoRenew!=="boolean"))
       return respond({error:"vende.c06_payload_invalid"},400);
     if(requested==="request_delinquency_suspension" &&
-       (!Number.isSafeInteger(body.expectedRevision) || 
+       (!Number.isSafeInteger(body.expectedRevision) ||
          (body.expectedRevision as number)<1))
       return respond({error:"vende.c06_payload_invalid"},400);
     const proof=await verifyPasswordStepUp(h,body.password);
