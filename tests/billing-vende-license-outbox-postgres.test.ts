@@ -233,4 +233,25 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
     await expect(service.drainVerifiedVendePaidLicenses(config, 0, send as typeof fetch))
       .rejects.toThrow();
   });
+
+  it("quarantines stale processing crash without creating an automatic replay", async () => {
+    const row = await pool.query(
+      "SELECT id FROM fmcc_billing_vende_license_outbox WHERE tenant_id=$1 AND state='blocked' LIMIT 1",
+      [tenant],
+    );
+    expect(row.rows).toHaveLength(1);
+    const id = row.rows[0].id as string;
+    await pool.query(
+      "UPDATE fmcc_billing_vende_license_outbox SET state='processing', claimed_at=now()-interval '5 minutes' WHERE id=$1",
+      [id],
+    );
+    expect(await service.quarantineStaleVendeLicenseClaims(tenant)).toBe(1);
+    expect(await service.quarantineStaleVendeLicenseClaims(tenant)).toBe(0);
+    const result = await pool.query(
+      "SELECT state, attempts FROM fmcc_billing_vende_license_outbox WHERE id=$1", [id],
+    );
+    expect(result.rows[0]).toMatchObject({state:"blocked",attempts:1});
+    await expect(service.quarantineStaleVendeLicenseClaims("foreign")).rejects.toThrow();
+  });
+
 });
