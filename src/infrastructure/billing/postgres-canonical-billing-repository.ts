@@ -1,6 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
-import { billingGatewayAccounts, billingInvoices, billingProviderPayments, billingSubscriptions } from "@/infrastructure/db/billing-schema";
+import {
+  billingCustomerBindings, billingGatewayAccounts, billingInvoices,
+  billingProviderPayments, billingSubscriptions, billingVendeLicenseOutbox,
+} from "@/infrastructure/db/billing-schema";
+import { assistantPlanRevisions } from "@/infrastructure/db/assistant-plan-schema";
+import { productDefinitions } from "@/infrastructure/db/platform-schema";
 import type { BillingAttribution } from "@/domain/billing/payment-attribution";
 import type { CanonicalBillingRepository } from "@/application/billing/canonical-billing-service";
 
@@ -78,6 +83,54 @@ export class PostgresCanonicalBillingRepository implements CanonicalBillingRepos
       if (!payment.length) throw new Error("billing.payment_binding_mismatch");
       await tx.update(billingProviderPayments).set({status:"received"}).where(eq(billingProviderPayments.id,payment[0].id));
       await tx.update(billingInvoices).set({status:"paid"}).where(and(eq(billingInvoices.tenantId,tenantId),eq(billingInvoices.id,invoiceId)));
+      // The payment settlement and Vende license outbox are one atomic DB
+      // transaction. No provider callback/body may select a recipient or plan.
+      const [issued] = await tx.select({
+        slug: productDefinitions.slug,
+        productId: billingInvoices.productId,
+        subscriptionId: billingInvoices.subscriptionId,
+        customerId: billingInvoices.customerId,
+      }).from(billingInvoices).innerJoin(productDefinitions,and(
+        eq(productDefinitions.tenantId,billingInvoices.tenantId),
+        eq(productDefinitions.id,billingInvoices.productId),
+      )).where(and(eq(billingInvoices.tenantId,tenantId),
+        eq(billingInvoices.id,invoiceId))).limit(1);
+      if (issued?.slug === "vendeatendeia") {
+        const [recipient] = await tx.select({
+          externalTenantId: billingCustomerBindings.externalTenantId,
+          planCode: billingSubscriptions.planCode,
+        }).from(billingSubscriptions).innerJoin(billingCustomerBindings,and(
+          eq(billingCustomerBindings.tenantId,billingSubscriptions.tenantId),
+          eq(billingCustomerBindings.productId,billingSubscriptions.productId),
+          eq(billingCustomerBindings.customerId,billingSubscriptions.customerId),
+        )).where(and(
+          eq(billingSubscriptions.tenantId,tenantId),
+          eq(billingSubscriptions.id,issued.subscriptionId),
+          eq(billingSubscriptions.productId,issued.productId),
+          eq(billingSubscriptions.customerId,issued.customerId),
+        )).limit(1);
+        const [revision] = recipient ? await tx.select().from(assistantPlanRevisions)
+          .where(and(
+            eq(assistantPlanRevisions.tenantId,tenantId),
+            eq(assistantPlanRevisions.productId,issued.productId),
+            eq(assistantPlanRevisions.planCode,recipient.planCode),
+            eq(assistantPlanRevisions.status,"published"),
+          )).orderBy(desc(assistantPlanRevisions.revision)).limit(1) : [];
+        if (!recipient || !revision?.publishedAt ||
+            !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(recipient.externalTenantId)) {
+          // Verified payment remains retrievable from the gateway record;
+          // do not invent a tenant license without the FM-published plan.
+          throw new Error("billing.vende_license_mapping_unavailable");
+        }
+        await tx.insert(billingVendeLicenseOutbox).values({
+          tenantId,productId:issued.productId,invoiceId,
+          subscriptionId:issued.subscriptionId,
+          externalTenantId:recipient.externalTenantId,
+          planCode:revision.planCode,planRevision:revision.revision,
+          actorId:revision.actorId,approvedAt:revision.publishedAt,
+          state:"pending",
+        }).onConflictDoNothing();
+      }
     });
   }
 }
