@@ -187,7 +187,11 @@ describe("C08 product integration readiness - evidence is not homologation", () 
     const page = readFileSync(resolve("src/app/dashboard/sources/page.tsx"), "utf8");
     expect(page).toContain("buildC08IntegrationReadiness(");
     expect(page).toContain("<SourceControlPanel");
-    expect(page).toContain("Próxima verificação: {nextActions[item.nextAction]}");
+    expect(page).toContain("Próxima verificação: {preflight &&");
+    expect(page).toContain('preflight.status !== "local_contract_ready"');
+    expect(page).toContain("preflightLabels[preflight.status]");
+    expect(page).toContain("nextActions[item.nextAction]");
+    expect(page).toContain("Compatibilidade local:");
     expect(page).toContain("Estes números não representam integrações certificadas.");
     expect(page).toContain("Fonte registrada não equivale a integração homologada");
     expect(page).not.toContain("authenticatedSaasE2eCertified ? \"Sim\"");
