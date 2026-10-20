@@ -55,3 +55,45 @@ export function signAssistantPlanLicenseBind(
     "X-FM-Command-Signature":signature,
   }};
 }
+
+
+export const ASSISTANT_PLAN_BINDING_STATUS_PATH =
+  "/internal/v1/command/assistant-plans/binding-status";
+
+/** Cryptographically authenticated read-only proof, never a resend. */
+export function signAssistantPlanBindingStatus(
+  config: PlanProjectionConfig,
+  grant: Pick<GovernedLicenseBind, "tenantId"|"planCode"|"planRevision">,
+  now: Date = new Date(),
+) {
+  if (
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(grant.tenantId) ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/.test(grant.planCode) ||
+    !Number.isSafeInteger(grant.planRevision) || grant.planRevision < 1 ||
+    !Number.isFinite(now.getTime()) ||
+    config.signingKey.length < 32 ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(config.keyId)
+  ) throw new LicenseBindingSigningDenied();
+  const body = JSON.stringify({
+    product_code: "VENDEATENDEIA",
+    organization_id: config.organizationId,
+    tenant_id: grant.tenantId, plan_code: grant.planCode,
+    plan_revision: grant.planRevision,
+  });
+  const timestamp = String(Math.floor(now.getTime() / 1000));
+  const nonce = randomBytes(24).toString("base64url");
+  const digest = createHash("sha256").update(Buffer.from(body, "utf8")).digest("hex");
+  const canonical = [
+    "POST", ASSISTANT_PLAN_BINDING_STATUS_PATH,
+    config.keyId, timestamp, nonce, digest,
+  ].join("\n");
+  const signature = createHmac("sha256", config.signingKey)
+    .update(canonical, "ascii").digest("hex");
+  return { body, headers: {
+    "Content-Type": "application/json",
+    "X-FM-Command-Key-ID": config.keyId,
+    "X-FM-Command-Timestamp": timestamp,
+    "X-FM-Command-Nonce": nonce,
+    "X-FM-Command-Signature": signature,
+  }};
+}
