@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks=vi.hoisted(()=>({
   session:vi.fn(),authority:vi.fn(),stepUp:vi.fn(),audit:vi.fn(),
-  enroll:vi.fn(),suspend:vi.fn(),
+  enroll:vi.fn(),suspend:vi.fn(),cancel:vi.fn(),regularize:vi.fn(),
 }));
 vi.mock("next/headers",()=>({headers:vi.fn(async()=>new Headers())}));
 vi.mock("../src/application/security/resolve-tenant-context",()=>({
@@ -20,6 +20,8 @@ vi.mock("../src/application/billing/vende-c06-governed-execution",()=>({
   GovernedVendeC06Service:class{
     enrollPaidTerm=mocks.enroll;
     requestSuspension=mocks.suspend;
+    scheduleCancellation=mocks.cancel;
+    requestRegularization=mocks.regularize;
   },
 }));
 import { POST } from "../src/app/api/billing/vende-contracts/route";
@@ -87,4 +89,40 @@ describe("C06 governed contract ingress: no external authority from request body
     expect(mocks.audit.mock.invocationCallOrder[1])
       .toBeLessThan(mocks.suspend.mock.invocationCallOrder[0]);
   });
+  it("rejects lifecycle tenant spoofing and requires distinct evidence fields",async()=>{
+    const cancelled={action:"schedule_cancellation",
+      productId:base.productId,subscriptionId:base.subscriptionId,
+      expectedRevision:1,operationId:"cancel-consent-123",
+      customerConsentRef:"verified-consent-fm-123",password:base.password};
+    const regularize={action:"request_regularization",
+      productId:base.productId,subscriptionId:base.subscriptionId,
+      paidInvoiceId:base.invoiceId,expectedRevision:1,
+      operationId:"reactivate-paid-123",sourceRef:"settlement-readback-123",
+      password:base.password};
+    for(const invalid of [
+      {...cancelled,tenantId:"foreign"},
+      {...cancelled,sourceRef:"ignored-field"},
+      {...cancelled,expectedRevision:"1"},
+      {...regularize,providerPaid:true},
+      {...regularize,invoiceId:base.invoiceId},
+      {...regularize,paidInvoiceId:null},
+    ])expect((await POST(request(invalid))).status).toBe(400);
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(mocks.regularize).not.toHaveBeenCalled();
+    mocks.cancel.mockResolvedValueOnce({state:"cancel_at_period_end",
+      paidAccessUntil:"2026-11-15",remoteEntitlementConfirmed:false});
+    mocks.regularize.mockResolvedValueOnce({state:"reactivation_pending",
+      remoteEntitlementConfirmed:false});
+    const first=await POST(request(cancelled));
+    expect(first.status).toBe(202);
+    expect(await first.json()).toMatchObject({deliveryConfirmed:false,
+      result:{state:"cancel_at_period_end",remoteEntitlementConfirmed:false}});
+    const second=await POST(request(regularize));
+    expect(second.status).toBe(202);
+    expect(await second.json()).toMatchObject({deliveryConfirmed:false,
+      result:{state:"reactivation_pending",remoteEntitlementConfirmed:false}});
+    expect(mocks.cancel).toHaveBeenCalledOnce();
+    expect(mocks.regularize).toHaveBeenCalledOnce();
+  });
+
 });
