@@ -117,6 +117,35 @@ export async function dispatchVerifiedVendePaidLicense(
   if (!UUID.test(outboxId) ||
       config.organizationId!==process.env.FM_COMMAND_PLATFORM_ORGANIZATION_ID)
     throw new AssistantPlanDeliveryUnavailable();
+  // A license must never be dispatched for a subsequently reversed payment
+  // or a retired/unpublished commercial policy.
+  const [eligibility]=await db.select({
+    invoiceStatus:billingInvoices.status,
+    paymentStatus:billingProviderPayments.status,
+    planStatus:assistantPlanRevisions.status,
+  }).from(billingVendeLicenseOutbox)
+    .innerJoin(billingInvoices,and(
+      eq(billingInvoices.tenantId,billingVendeLicenseOutbox.tenantId),
+      eq(billingInvoices.id,billingVendeLicenseOutbox.invoiceId),
+    ))
+    .innerJoin(billingProviderPayments,and(
+      eq(billingProviderPayments.tenantId,billingInvoices.tenantId),
+      eq(billingProviderPayments.invoiceId,billingInvoices.id),
+      eq(billingProviderPayments.gatewayAccountId,billingInvoices.gatewayAccountId),
+    ))
+    .innerJoin(assistantPlanRevisions,and(
+      eq(assistantPlanRevisions.tenantId,billingVendeLicenseOutbox.tenantId),
+      eq(assistantPlanRevisions.productId,billingVendeLicenseOutbox.productId),
+      eq(assistantPlanRevisions.planCode,billingVendeLicenseOutbox.planCode),
+      eq(assistantPlanRevisions.revision,billingVendeLicenseOutbox.planRevision),
+    )).where(and(
+      eq(billingVendeLicenseOutbox.id,outboxId),
+      eq(billingVendeLicenseOutbox.tenantId,config.organizationId),
+      eq(billingVendeLicenseOutbox.state,"pending"),
+    )).limit(1);
+  if (!eligibility || eligibility.invoiceStatus!=="paid" ||
+      eligibility.paymentStatus!=="received" ||
+      eligibility.planStatus!=="published") throw new AssistantPlanDeliveryUnavailable();
   const token=randomUUID();
   const [claimed]=await db.update(billingVendeLicenseOutbox).set({
     state:"processing",claimToken:token,claimedAt:new Date(),
