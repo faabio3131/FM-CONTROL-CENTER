@@ -60,3 +60,7 @@ O catálogo único de perfis de adaptadores fica em `src/application/integration
 
 ## Manifesto offline C08
 `inspectSaasCapabilityManifest` é parser de dados NÃO CONFIÁVEIS e somente valida compatibilidade técnica com o `Connector` real. Ele não autentica serviços, não escolhe HMAC/mTLS, não governa permissão, não executa comandos nem confirma E2E. Para integrá-lo à rede é obrigatório transporte autenticado e validação determinística de tenant/identidade nas duas pontas, além de testes de replay e recuperação.
+
+
+## F3 — Release gate for cross-repository licensed AI consumption (20/10/2026)
+`tests/f3_command_license_quota_journey.py` must execute the **actual Command license signer** and Assistant binding verifier with unique nonce both before and after tenant license suspension, then require Core signed-grant quota admission to fail for the subsequent request. It is forbidden to certify any stale binding-status as current entitlement. Foundation pins fully specified Assistant/Core commits and runs against disposable storage; a green Core or Assistant CI alone does not prove this cross-code contract. Maintain the history of held, uncertain reservations; never refund unknown provider usage. All production activations, real secrets and external provider homologation remain postponed until full construction. No claim that F3 is complete based solely on this gate.
