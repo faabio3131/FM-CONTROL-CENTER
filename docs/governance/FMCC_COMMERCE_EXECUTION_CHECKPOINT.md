@@ -109,3 +109,11 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - Estados candidate_for_review nao autorizam execucao (executionAuthorized=false): cancelamento, inadimplencia, reativacao, renovacao, migracao e conversao de trial. Policy nao infere trial, data de vigencia ou prorata.
 - Alternativa rejeitada: mutacao direta de assinatura sem politica comercial aprovada, historico transacional, periodo efetivo e provas de provider/ack. Contratos e executor futuro exigem step-up, fingerprint, idempotencia, auditoria, outbox, versionamento e recuperacao.
 - C06 AINDA PENDENTE: executor transacional governado, eficacia das mudancas e testes posteriores. Nenhuma migration real, cobranca, deploy ou ativacao.
+## C06 — Registro governado de intenções contratuais (20/10/2026)
+- Preflight: main d9bcc38e; PR #101 em 608e750d9; este incremento deriva de #101, sem reconstruir billing ou criar migrations.
+- Implementado: preview de cinco minutos vinculado a ator, tenant, assinatura, estado e amostra financeira; token aleatório armazenado apenas como SHA256, único uso; ID de idempotência com hash escopado; transação PostgreSQL e locks para concorrência.
+- POST de preview e POST de registro requerem identidade autorizada; operação final exige owner/admin, billing:write, senha validada no step-up, comparação de ator e confirmação explícita na UI.
+- Persistência: eventos imutáveis na auditoria existente, com estado awaiting_policy. **Não é fila executável e não equivale à autorização para modificar assinatura.** Ausência de tabela nova intencional. Auditoria registra somente metadados mínimos; não armazena senha ou token claro.
+- O histórico de faturas é limitado; casos truncados bloqueiam a intenção. Estorno registrado bloqueia candidaturas pertinentes. Revalidação ocorre no momento de registrar intenção; qualquer futuro executor deve revalidar ainda sob lock e verificar autoridade financeira original.
+- Pendência C06: definir/aprovar políticas de vigência, prorrata, tolerância e estorno; criar ledger/eventos de transição, executor transacional próprio, outbox/ack e confirmação de estado antes de alterar dinheiro/licenças. Esta PR não executa tais mutações.
+- Gates no SHA final pendentes. Render PostgreSQL permanece intocado, sem deploy nem homologação externa.

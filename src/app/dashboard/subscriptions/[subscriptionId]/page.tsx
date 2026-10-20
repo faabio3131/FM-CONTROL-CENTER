@@ -6,6 +6,7 @@ import {
   SubscriptionTraceInputError,
 } from "@/application/billing/billing-subscription-trace-service";
 import { previewSubscriptionLifecycle } from "@/domain/billing/subscription-lifecycle-policy";
+import { LifecycleIntentRequestForm } from "./lifecycle-intent-request-form";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { roleHasPermission } from "@/domain/security/permissions";
 import {
@@ -100,6 +101,16 @@ export default async function SubscriptionTracePage({
           ))}
         </div>
       </section>
+
+      {roleHasPermission(context.role, "billing:write") &&
+        (context.role === "owner" || context.role === "admin") ? (
+        <section className="panel" aria-labelledby="lifecycle-intent">
+          <h2 id="lifecycle-intent">Registrar intenção de mudança contratual</h2>
+          <LifecycleIntentRequestForm subscriptionId={trace.subscription.subscriptionId}
+            recordedStatus={trace.subscription.status}
+            options={previewSubscriptionLifecycle(trace).options}/>
+        </section>
+      ) : null}
 
       <section className="panel" aria-labelledby="invoice-trace">
         <h2 id="invoice-trace">Faturas e pagamentos registrados</h2>
