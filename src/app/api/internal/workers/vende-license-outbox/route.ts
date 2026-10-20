@@ -31,8 +31,9 @@ export async function POST(request: Request) {
   if (!authorized(request)) {
     return NextResponse.json({error:"billing.worker_unauthorized"}, {status:401,headers:noStore});
   }
-  if (request.headers.has("content-length") &&
-      request.headers.get("content-length") !== "0") {
+  // A streaming/chunked POST can omit Content-Length: reject any body,
+  // not only requests advertising a positive length.
+  if (request.body !== null) {
     return NextResponse.json({error:"billing.worker_input_forbidden"},{status:400,headers:noStore});
   }
   try {
