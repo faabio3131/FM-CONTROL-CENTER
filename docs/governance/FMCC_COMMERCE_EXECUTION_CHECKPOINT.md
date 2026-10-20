@@ -32,3 +32,28 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 - C02–C09: não declarar concluídas sem respectivos gates e evidências. Recuperar progresso existente antes de implementar.
 - Sem produção deliberada nesta unidade, migração de banco real, configuração de preço ou credenciais reais pelo executor.
 - Próximo passo: comprovar no ambiente de prévia FMCC qual commit é servido, testar jornada de configuração Command → plataforma comercial Kordena em ambiente controlado e continuar cronograma C02 sem confundir homologação externa com construção.
+
+## Checkout e inventário antirretrabalho — C01, 20/10/2026
+**DECISÃO posterior:** executar checkout/preflight de branch/SHA e verificar código + PRs + interfaces + contratos + runtime antes de abrir implementação. Prioridade é terminar construção e integração interna; homologação externa/publicação são gates posteriores. Não interpretar isso como autorização para bypass, merge sem gates ou publicação.
+
+**Repositórios/SHAs examinados:** FMCC main d9bcc38ef40188998bf78d165d688417addd4f9b; IRON backend main 36ea0432d1069ee1ab37ebd774bdc7e8af6343b2; PR FMCC #94 de C01 em reconciliação com main; IRON PR #142 de contrato S2S de planos publicados. Checkout local direto não disponível no executor (DNS GitHub indisponível); acesso remoto ao conteúdo e SHA foi verificado via GitHub App, sem alterar trabalho local.
+
+**JÁ EXISTENTE — NÃO RECONSTRUIR**
+- C01 Kordena: editor de preços/quotas governado PR #91 na main FMCC; catálogo canônico de planos/preços é da vertical Kordena.
+- C01 IRON: FMCC usa fmcc_billing_product_plan, API de produto/planos, step-up e SourceRegistry; IRON backend já possui ProductPlan/ProductPlanVersion, publicação e entitlements como autoridade, com mutações SUPER_ADMIN. Não criar tabela ou engine paralela.
+- C02: tabelas FMCC customer, binding, subscription e invoice e POST /api/billing/products/[productId]/prepare já criam vínculos e faturas idempotentes sob constraints. A PR #96 (separada) entrega leitura das assinaturas; não recriar o domínio.
+- C03: inbox, emissão/recuperação Asaas, reconciliação verificada, outbox e rotas IRON já têm implementações especializadas; verificar cobertura por SaaS antes de generalizar, sem contar gateway como homologado.
+- C04: IRON tem lifecycle por comando autenticado; FMCC tem entrega de licenças IRON por outbox. PR #90 cobre identidades Core↔Assistant (outra autoridade); não copiar esse fluxo de identidade como integração financeira.
+- C05: Kordena budget ledger/FinOps integrado somente na staging, não provar runtime pelo histórico. C07: Metric Engine FMCC existe; PR #95 adiciona IA IRON, sem inventar tokens/custos.
+- C08: conectores Kordena/IRON já existem com escopo tenant, allowlist HTTPS e secretRef. Não duplicar os conectores nem tratar a existência do adapter como conexão real.
+ 
+**LACUNA DE INTEGRAÇÃO RESOLVIDA EM CÓDIGO CANDIDATO (sem publicação)**
+- PR IRON #142: GET /api/v1/control-plane/fmcc/plan-versions pela mesma guard S2S, retorna apenas versões PUBLISHED com limite e autoridade explícita; IRON S0 Quality Gate passou no SHA de42e6da71fb3d726b1d6383cc94c24a29c53fa0.
+- PR FMCC #94: tela comercial passa a buscar esse contrato, apresentar escolhas canônicas de versões em português e registrar vínculo imutável apenas para plano comercial FM inativo. API revalida autorização por role/billing:write + password step-up e consulta novamente IRON na hora da escrita; se fonte/versão indisponível, incorreta ou truncada, falha fechada. Não ativa preço, licença, cobrança ou provider.
+- A PR #94 partiu de baseline antiga; para não descartar as 18 mudanças posteriores da main, foi reconciliada por merge normal de dois pais no SHA 711cd30be1586a3ad82603eebb60178e09761396, preservando Kordena/editor/governança e IRON/C01. Comparação main..branch após merge: 13 ahead / 0 behind. Nada foi aplicado a main ou produção.
+
+**PENDÊNCIAS / PRÓXIMO**
+- Validar gates no SHA final após checkpoint, código cruzado IRON↔FMCC, negativa de catálogo inválido e regras de autorização; nenhuma homologação externa ocorreu.
+- PR #95 modifica iron-commercial-connector.ts e precisa ser reconciliada com #94 antes de merge; preservar ambas as capacidades (plans + AI usage).
+- C02 ainda precisa lifecycle e histórico completo; C03–C09 dependem de gates de construção e contratos, não reiniciar estruturas já construídas.
+- O Render preview não pôde ser confirmado neste checkout; deploy/versionamento permanece não verificado. Não declarar publicado por commit no GitHub.
