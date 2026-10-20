@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import {
-  billingCustomerBindings, billingGatewayAccounts, billingInvoices,
+  billingAuditEvents, billingCustomerBindings, billingGatewayAccounts, billingInvoices,
   billingProviderPayments, billingSubscriptions, billingVendeLicenseOutbox,
 } from "@/infrastructure/db/billing-schema";
 import { assistantPlanRevisions } from "@/infrastructure/db/assistant-plan-schema";
@@ -122,14 +122,32 @@ export class PostgresCanonicalBillingRepository implements CanonicalBillingRepos
           // do not invent a tenant license without the FM-published plan.
           throw new Error("billing.vende_license_mapping_unavailable");
         }
-        await tx.insert(billingVendeLicenseOutbox).values({
+        const [enqueued] = await tx.insert(billingVendeLicenseOutbox).values({
           tenantId,productId:issued.productId,invoiceId,
           subscriptionId:issued.subscriptionId,
           externalTenantId:recipient.externalTenantId,
           planCode:revision.planCode,planRevision:revision.revision,
           actorId:revision.actorId,approvedAt:revision.publishedAt,
           state:"pending",
-        }).onConflictDoNothing();
+        }).onConflictDoNothing().returning({id:billingVendeLicenseOutbox.id});
+        if (enqueued) {
+          await tx.insert(billingAuditEvents).values({
+            tenantId,actorId:"system-billing",
+            action:"vende.license.outbox.enqueued",
+            subjectId:issued.productId,correlationId:invoiceId,
+          });
+        } else {
+          const [original] = await tx.select().from(billingVendeLicenseOutbox).where(and(
+            eq(billingVendeLicenseOutbox.tenantId,tenantId),
+            eq(billingVendeLicenseOutbox.invoiceId,invoiceId),
+          )).limit(1);
+          if (!original || original.subscriptionId!==issued.subscriptionId ||
+              original.externalTenantId!==recipient.externalTenantId ||
+              original.planCode!==revision.planCode ||
+              original.planRevision!==revision.revision) {
+            throw new Error("billing.vende_license_replay_conflict");
+          }
+        }
       }
     });
   }
