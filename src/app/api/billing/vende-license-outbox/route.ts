@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/application/audit/record-audit-event";
 import { reconcileBlockedVendePaidLicense } from "@/application/billing/assistant-paid-license-outbox";
 import { planProjectionConfigFromEnvironment } from "@/application/billing/assistant-plan-outbox-dispatcher";
+import { assertVendeWorkerEnabled, readVendeQueueHealth, runGovernedVendeLicenseWorker } from "@/application/billing/vende-license-worker";
 import { StepUpRequiredError, verifyPasswordStepUp } from "@/application/security/password-step-up";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import {
@@ -54,11 +55,12 @@ export async function GET() {
       eq(billingVendeLicenseOutbox.tenantId, context.tenantId),
       inArray(billingVendeLicenseOutbox.state, ["pending","processing","blocked"]),
     )).orderBy(desc(billingVendeLicenseOutbox.createdAt)).limit(50);
+    const health = await readVendeQueueHealth(context.tenantId);
     await recordAuditEvent(context, {
       action:"billing.vende_license.outbox_viewed", resourceType:"vende_license_outbox",
       result:"success", metadata:{count:items.length},
     });
-    return NextResponse.json({items}, {headers:{"Cache-Control":"no-store"}});
+    return NextResponse.json({items,health,workerEnabled:process.env.FM_COMMAND_VENDE_LICENSE_WORKER_ENABLED==="true"}, {headers:{"Cache-Control":"no-store"}});
   } catch (error) {return failure(error);}
 }
 
@@ -76,15 +78,40 @@ export async function POST(request: Request) {
       return NextResponse.json({error:"billing.reconciliation_input_invalid"},{status:400});
     }
     const body = raw as Record<string, unknown>;
-    if (Object.keys(body).some(key=>!["action","outboxId","password"].includes(key)) ||
-        body.action !== "reconcile" || typeof body.outboxId !== "string" ||
-        !UUID.test(body.outboxId) || typeof body.password !== "string" ||
+    const reconcile = body.action === "reconcile";
+    const runOnce = body.action === "run_once";
+    if ((!reconcile && !runOnce) ||
+        Object.keys(body).some(key=>!["action","outboxId","password","limit"].includes(key)) ||
+        (reconcile && (typeof body.outboxId !== "string" || !UUID.test(body.outboxId) ||
+          body.limit !== undefined)) ||
+        (runOnce && (body.outboxId !== undefined ||
+          !Number.isSafeInteger(body.limit) || (body.limit as number) < 1 ||
+          (body.limit as number) > 20)) ||
+        typeof body.password !== "string" ||
         !body.password.trim() || body.password.length > 128) {
       return NextResponse.json({error:"billing.reconciliation_input_invalid"},{status:400});
     }
     const proof = await verifyPasswordStepUp(requestHeaders, body.password);
     if (proof.userId !== context.userId) throw new StepUpRequiredError();
 
+    if (runOnce) {
+      // An operator can request a bounded batch, but cannot turn on the
+      // production worker using the API. FM must activate its deployment flag.
+      assertVendeWorkerEnabled();
+      await recordAuditEvent(context, {
+        action:"billing.vende_license.worker_requested",
+        resourceType:"vende_license_outbox",result:"allowed",
+        metadata:{limit:body.limit},
+      });
+      const config = planProjectionConfigFromEnvironment();
+      const result = await runGovernedVendeLicenseWorker(config,{limit:body.limit as number});
+      await recordAuditEvent(context, {
+        action:"billing.vende_license.worker_completed",
+        resourceType:"vende_license_outbox",result:"success",
+        metadata:{limit:body.limit,delivered:result.delivered,blocked:result.blocked,quarantined:result.quarantined},
+      });
+      return NextResponse.json({result},{headers:{"Cache-Control":"no-store"}});
+    }
     // Write the intent before the external request, or do not transmit.
     await recordAuditEvent(context, {
       action:"billing.vende_license.reconciliation_requested",
