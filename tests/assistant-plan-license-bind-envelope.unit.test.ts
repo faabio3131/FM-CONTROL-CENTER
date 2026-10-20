@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  signAssistantPlanLicenseBind, signAssistantPlanBindingStatus,
-  ASSISTANT_PLAN_LICENSE_BIND_PATH, ASSISTANT_PLAN_BINDING_STATUS_PATH,
+  signAssistantPlanLicenseBind,
+  ASSISTANT_PLAN_LICENSE_BIND_PATH,
   type PlanProjectionConfig,
 } from "../src/application/billing/assistant-plan-outbox-dispatcher";
+import {
+  signAssistantPlanBindingStatus,
+  ASSISTANT_PLAN_BINDING_STATUS_PATH,
+} from "../src/application/billing/assistant-plan-license-signer";
 import { signCommandBridgeRequest } from "../src/application/integration/fm-core-bridge-governance";
 
 const config:PlanProjectionConfig = {
