@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { MetricView } from "@/application/metrics/metric-service";
@@ -112,6 +113,13 @@ export default async function ProductPage({
               href={`/dashboard/products/${productId}/billing`}
             >
               Billing
+            </Link>
+          ) : null}
+          {cockpit.product.slug === FMCC_IRON_PRODUCT_SLUG &&
+          roleHasPermission(context.role, "billing:read") &&
+          (context.role === "owner" || context.role === "admin") ? (
+            <Link className="button" href={`/dashboard/products/${productId}/usage`}>
+              Consumo de IA
             </Link>
           ) : null}
           {roleHasPermission(context.role, "receivable:read") ? (

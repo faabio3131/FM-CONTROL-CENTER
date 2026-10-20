@@ -56,14 +56,20 @@ export class PostgresIronPlanMappingRepository {
           source.productSlug !== FMCC_IRON_PRODUCT_SLUG)
         throw new Error("billing.iron_mapping_source_scope_denied");
 
-      const [plan] = await tx.select({ code: billingProductPlans.planCode })
-        .from(billingProductPlans).where(and(
-          eq(billingProductPlans.tenantId, tenantId),
-          eq(billingProductPlans.productId, productId),
-          eq(billingProductPlans.planCode, input.commercialPlanCode.trim().toUpperCase()),
-          eq(billingProductPlans.status, "active"),
-        )).limit(1);
-      if (!plan) throw new Error("billing.iron_commercial_plan_not_found");
+      // A new FM plan begins inactive: register its immutable IRON version
+      // binding while it is still a draft. This does NOT activate the plan,
+      // issue invoices, or grant any SaaS entitlement. Invoice preparation
+      // independently requires status=active and a matching binding.
+      const [plan] = await tx.select({
+        code: billingProductPlans.planCode,
+        status: billingProductPlans.status,
+      }).from(billingProductPlans).where(and(
+        eq(billingProductPlans.tenantId, tenantId),
+        eq(billingProductPlans.productId, productId),
+        eq(billingProductPlans.planCode, input.commercialPlanCode.trim().toUpperCase()),
+      )).limit(1);
+      if (!plan || (plan.status !== "inactive" && plan.status !== "active"))
+        throw new Error("billing.iron_commercial_plan_not_found");
       const result = appendIronPlanMapping(source.config, input);
       if (result.created) {
         await tx.update(sourceDefinitions).set({ config: result.config, updatedAt: new Date() }).where(and(
