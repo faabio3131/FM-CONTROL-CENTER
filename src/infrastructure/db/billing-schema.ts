@@ -282,6 +282,7 @@ export const billingVendeLicenseOutbox = pgTable("fmcc_billing_vende_license_out
   planCode: text("plan_code").notNull(),
   planRevision: integer("plan_revision").notNull(),
   actorId: text("actor_id").notNull(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }).notNull(),
   state: text("state").notNull().default("pending"),
   attempts: integer("attempts").notNull().default(0),
   claimedAt: timestamp("claimed_at", { withTimezone: true }),
