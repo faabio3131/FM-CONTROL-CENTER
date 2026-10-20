@@ -11,7 +11,11 @@ import {
 const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{2,127}$/;
 const DATE = /^(20\d{2})-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/;
 const asDate = (value:string) => {
-  if(!DATE.test(value) || new Date(value+"T00:00:00Z").toISOString().slice(0,10)!==value)
+  if(typeof value!=="string" || !DATE.test(value) ||
+     Number(value.slice(8))===0)
+    throw new VendeCommercialPolicyDenied("vende.contract_date_invalid");
+  const date=new Date(value+"T00:00:00Z");
+  if(!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==value)
     throw new VendeCommercialPolicyDenied("vende.contract_date_invalid");
   return value;
 };
