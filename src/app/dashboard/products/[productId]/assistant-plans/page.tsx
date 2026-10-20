@@ -7,6 +7,7 @@ import { PostgresProductRepository } from "@/infrastructure/products/postgres-pr
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { AssistantPlanEditor } from "./assistant-plan-editor";
 import { WhatsAppQRPolicyEditor } from "./whatsapp-qr-policy-editor";
+import { VendeLicenseQueueSupervisor } from "./vende-license-queue-supervisor";
 
 export default async function AssistantPlansPage({params}:{params:Promise<{productId:string}>}) {
   let context;
@@ -33,5 +34,6 @@ export default async function AssistantPlansPage({params}:{params:Promise<{produ
     </header>
     <AssistantPlanEditor productId={productId}/>
     <WhatsAppQRPolicyEditor productId={productId}/>
+    {product.slug==="vendeatendeia"?<VendeLicenseQueueSupervisor/>:null}
   </main>;
 }
