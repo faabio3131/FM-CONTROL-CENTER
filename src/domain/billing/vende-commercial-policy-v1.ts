@@ -70,7 +70,7 @@ export interface FmApprovedBusinessCalendar {
   readonly validThrough: string;
   readonly holidays: readonly string[];
 }
-function validatedCalendar(calendar: FmApprovedBusinessCalendar | null): {
+export function validateVendeBusinessCalendar(calendar: FmApprovedBusinessCalendar | null): {
   readonly from: number; readonly through: number; readonly holidays: ReadonlySet<string>;
 } {
   if (!calendar || calendar.authority!=="fm_governed_business_calendar" ||
@@ -110,7 +110,7 @@ export interface DelinquencySchedule {
 export function scheduleVendeDelinquency(
   dueDate: string, calendar: FmApprovedBusinessCalendar | null,
 ): DelinquencySchedule {
-  const evidence=validatedCalendar(calendar);
+  const evidence=validateVendeBusinessCalendar(calendar);
   const due=dateValue(dueDate);
   if(due<evidence.from || due>evidence.through)
     throw new VendeCommercialPolicyDenied("vende.calendar_coverage_incomplete");
