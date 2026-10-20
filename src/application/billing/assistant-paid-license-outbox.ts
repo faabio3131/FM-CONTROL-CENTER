@@ -3,6 +3,7 @@
  * customer-supplied tenant ID. Network delivery occurs after the DB commit.
  */
 import { randomUUID } from "node:crypto";
+import { signAssistantPlanBindingStatus } from "./assistant-plan-license-signer";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import {
@@ -228,4 +229,75 @@ export async function drainVerifiedVendePaidLicenses(
     }
   }
   return {delivered,blocked};
+}
+
+
+/** Governed recovery: check Assistant's current binding, never replay delivery.
+ *
+ * A positive signed read-only response can certify an earlier HTTP timeout.
+ * A negative/unknown response cannot prove non-delivery, so the row remains
+ * blocked; a human must perform a separate, audited remediation.
+ */
+export async function reconcileBlockedVendePaidLicense(
+  outboxId: string,
+  config: PlanProjectionConfig,
+  http: typeof fetch = fetch,
+): Promise<"delivered" | "still_blocked"> {
+  if (
+    !UUID.test(outboxId) ||
+    config.organizationId !== process.env.FM_COMMAND_PLATFORM_ORGANIZATION_ID
+  ) throw new AssistantPlanDeliveryUnavailable();
+  const [row] = await db.select({
+    id: billingVendeLicenseOutbox.id,
+    externalTenantId: billingVendeLicenseOutbox.externalTenantId,
+    planCode: billingVendeLicenseOutbox.planCode,
+    planRevision: billingVendeLicenseOutbox.planRevision,
+    invoiceStatus: billingInvoices.status,
+  }).from(billingVendeLicenseOutbox).innerJoin(
+    billingInvoices, and(
+      eq(billingInvoices.tenantId, billingVendeLicenseOutbox.tenantId),
+      eq(billingInvoices.id, billingVendeLicenseOutbox.invoiceId),
+    ),
+  ).where(and(
+    eq(billingVendeLicenseOutbox.id, outboxId),
+    eq(billingVendeLicenseOutbox.tenantId, config.organizationId),
+    eq(billingVendeLicenseOutbox.state, "blocked"),
+    eq(billingVendeLicenseOutbox.attempts, 1),
+  )).limit(1);
+  if (!row || row.invoiceStatus !== "paid")
+    throw new AssistantPlanDeliveryUnavailable();
+
+  // Reuse the already authorized FM corporate service identity, not
+  // a user-provided network URL or an unsigned browser request.
+  const signed = signAssistantPlanBindingStatus(config, {
+    tenantId: row.externalTenantId,
+    planCode: row.planCode,
+    planRevision: row.planRevision,
+  });
+  let confirmed = false;
+  try {
+    const reply = await http(config.assistantOrigin +
+      "/internal/v1/command/assistant-plans/binding-status", {
+      method: "POST", headers: signed.headers, body: signed.body,
+      redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(5000),
+    });
+    if (reply.status !== 200) return "still_blocked";
+    const response: unknown = await reply.json();
+    confirmed = !!response && typeof response === "object" &&
+      !Array.isArray(response) &&
+      (response as Record<string, unknown>).status === "bound_confirmed";
+  } catch {
+    return "still_blocked";
+  }
+  if (!confirmed) return "still_blocked";
+  const [done] = await db.update(billingVendeLicenseOutbox).set({
+    state: "delivered", deliveredAt: new Date(),
+  }).where(and(
+    eq(billingVendeLicenseOutbox.id, outboxId),
+    eq(billingVendeLicenseOutbox.tenantId, config.organizationId),
+    eq(billingVendeLicenseOutbox.state, "blocked"),
+    eq(billingVendeLicenseOutbox.attempts, 1),
+  )).returning({ id: billingVendeLicenseOutbox.id });
+  if (!done) throw new AssistantPlanDeliveryUnavailable();
+  return "delivered";
 }
