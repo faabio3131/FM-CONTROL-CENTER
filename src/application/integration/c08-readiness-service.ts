@@ -2,6 +2,7 @@ import type { SourceRepository, SyncOperationalReader } from "@/domain/integrati
 import type { ProductRepository } from "@/domain/products/contracts";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
 import { buildC08IntegrationReadiness } from "@/application/integration/c08-product-readiness";
+import { assertC08SnapshotCapacity, readC08OperationalStates } from "@/application/integration/c08-operational-snapshot";
 
 /**
  * Read-only C08 API use-case for Command/Core. Calls only tenant-scoped stores,
@@ -24,17 +25,8 @@ export class C08ReadinessService {
       this.products.list(context.tenantId),
       this.sources.list(context.tenantId),
     ]);
-    // Excessively large snapshots require paginated repository contracts, not
-    // silent truncation that could misrepresent missing source bindings.
-    if (sources.length > 256 || products.length > 256) {
-      throw new Error("integration.c08_snapshot_capacity_unverified");
-    }
-    const operational = new Map(await Promise.all(
-      sources.filter(source => source.tenantId === context.tenantId).map(async source => [
-        source.id,
-        await this.sync.operationalState(context.tenantId, source.id),
-      ] as const),
-    ));
+    assertC08SnapshotCapacity(products, sources);
+    const operational = await readC08OperationalStates(context.tenantId, sources, this.sync);
     return buildC08IntegrationReadiness(context.tenantId, products, sources, operational, now);
   }
 }

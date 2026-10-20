@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { buildC08IntegrationReadiness, type C08EvidenceState, type C08NextAction } from "@/application/integration/c08-product-readiness";
+import { assertC08SnapshotCapacity, readC08OperationalStates } from "@/application/integration/c08-operational-snapshot";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -45,21 +46,17 @@ export default async function SourcesPage() {
   );
   const syncRepository = new PostgresSyncRepository();
 
-  const [sources, products] = await Promise.all([
+  const [sourceRecords, productRecords] = await Promise.all([
     sourceService.list(context),
     productService.list(context),
   ]);
-
-  const operationalStates = new Map(
-    await Promise.all(
-      sources.map(async (source) => [
-        source.id,
-        await syncRepository.operationalState(
-          context.tenantId,
-          source.id,
-        ),
-      ] as const),
-    ),
+  assertC08SnapshotCapacity(productRecords, sourceRecords);
+  // Defensive tenant filter: even a broken repository must not leak foreign
+  // metadata in the operator controls or trigger foreign synchronization reads.
+  const sources = sourceRecords.filter(source => source.tenantId === context.tenantId);
+  const products = productRecords.filter(product => product.tenantId === context.tenantId);
+  const operationalStates = await readC08OperationalStates(
+    context.tenantId, sourceRecords, syncRepository,
   );
 
   const safeSources = sources.map((source) => {
