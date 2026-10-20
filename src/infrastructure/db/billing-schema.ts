@@ -266,3 +266,33 @@ export const billingIronCustomerEnrollments = pgTable("fmcc_billing_iron_custome
   foreignKey({name:"fmcc_iron_payer_gateway_fk",columns:[t.tenantId,t.gatewayAccountId],foreignColumns:[billingGatewayAccounts.tenantId,billingGatewayAccounts.id]}),
   check("fmcc_iron_payer_status_ck",sql`${t.status} in ('reserved','uncertain','enrolled','blocked')`),
 ]);
+
+
+/** Approved VendeAtendeIA paid invoice → Assistant license binding intent.
+ * The payment and plan mappings are verified in the *same transaction* used
+ * to enqueue; a provider callback alone cannot issue a license.
+ */
+export const billingVendeLicenseOutbox = pgTable("fmcc_billing_vende_license_outbox", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  invoiceId: uuid("invoice_id").notNull(),
+  subscriptionId: uuid("subscription_id").notNull(),
+  externalTenantId: text("external_tenant_id").notNull(),
+  planCode: text("plan_code").notNull(),
+  planRevision: integer("plan_revision").notNull(),
+  actorId: text("actor_id").notNull(),
+  state: text("state").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  claimToken: uuid("claim_token"),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("fmcc_vende_license_outbox_invoice_uq").on(t.tenantId,t.invoiceId),
+  index("fmcc_vende_license_outbox_ready_idx").on(t.state,t.createdAt),
+  foreignKey({name:"fmcc_vende_license_outbox_invoice_fk",columns:[t.tenantId,t.invoiceId],foreignColumns:[billingInvoices.tenantId,billingInvoices.id]}),
+  check("fmcc_vende_license_outbox_revision_ck",sql`${t.planRevision} > 0`),
+  check("fmcc_vende_license_outbox_attempts_ck",sql`${t.attempts} between 0 and 12`),
+  check("fmcc_vende_license_outbox_state_ck",sql`${t.state} in ('pending','processing','delivered','blocked')`),
+]);
