@@ -40,6 +40,15 @@ describe("Command C01 — IRON commercial plan workspace", () => {
     expect(api).not.toContain("clientSecret");
   });
 
+  it("permits safe plan-version binding for inactive drafts without activating payment", () => {
+    const repo = source("src/infrastructure/billing/postgres-iron-plan-mapping-repository.ts");
+    const billing = source("src/infrastructure/billing/postgres-product-billing-authority-repository.ts");
+    expect(repo).toContain('plan.status !== "inactive" && plan.status !== "active"');
+    expect(repo).toContain("appendIronPlanMapping(source.config, input)");
+    expect(billing).toContain('eq(billingProductPlans.status, "active")');
+    expect(billing).toContain("resolveIronPlanMapping(sources[0].config, plan.planCode)");
+  });
+
   it("reads canonical IRON mapping without exposing an unvalidated entitlement write button", () => {
     const panel = source("src/app/dashboard/products/[productId]/billing/iron-commercial-plans-panel.tsx");
     const page = source("src/app/dashboard/products/[productId]/billing/page.tsx");
