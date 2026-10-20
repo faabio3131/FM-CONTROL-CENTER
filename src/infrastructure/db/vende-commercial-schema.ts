@@ -31,7 +31,7 @@ export const vendeContractTerms = pgTable("fmcc_vende_contract_terms", {
       billingSubscriptions.productId,billingSubscriptions.customerId]}),
   check("fmcc_vende_terms_dates_ck",sql`${t.paidThrough} >= ${t.effectiveFrom}`),
   check("fmcc_vende_terms_revision_ck",sql`${t.revision} > 0`),
-  check("fmcc_vende_terms_state_ck",sql`${t.lifecycleState} in ('active','past_due','suspended','suspension_pending','cancel_at_period_end','cancelled')`),
+  check("fmcc_vende_terms_state_ck",sql`${t.lifecycleState} in ('active','past_due','suspended','suspension_pending','reactivation_pending','cancel_at_period_end','cancelled')`),
   index("fmcc_vende_terms_due_idx").on(t.tenantId,t.dueDate,t.lifecycleState),
 ]);
 
