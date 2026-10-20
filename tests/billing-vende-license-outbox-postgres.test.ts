@@ -99,6 +99,63 @@ describe("Vende paid license projection in disposable PostgreSQL", () => {
     }]);
   });
 
+  it("denies reversed payment and quarantines uncertain delivery without resend", async () => {
+    const another = await pool.query(
+      "INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,currency) VALUES($1,$2,$3,$4,$5,900,'BRL') RETURNING id",
+      [tenant, productId, customerId, subId, gatewayId],
+    );
+    const invoice = another.rows[0].id as string;
+    const providerPaymentId = "asaas-ci-other-" + randomUUID();
+    await pool.query(
+      "INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES($1,$2,$3,$4,'received')",
+      [tenant, invoice, gatewayId, providerPaymentId],
+    );
+    const { PostgresCanonicalBillingRepository } = await import(
+      "../src/infrastructure/billing/postgres-canonical-billing-repository"
+    );
+    await new PostgresCanonicalBillingRepository().markInvoicePaid(
+      tenant, invoice, providerPaymentId,
+    );
+    const queued = await pool.query(
+      "SELECT id FROM fmcc_billing_vende_license_outbox WHERE tenant_id=$1 AND invoice_id=$2",
+      [tenant, invoice],
+    );
+    const id = queued.rows[0].id as string;
+    const config = {
+      assistantOrigin: "https://assistant.example.test", keyId: "ci-key",
+      signingKey: "only-a-synthetic-fm-command-test-key-000000000",
+      organizationId: tenant,
+    };
+    await pool.query(
+      "UPDATE fmcc_billing_invoice SET status='reversed' WHERE tenant_id=$1 AND id=$2",
+      [tenant, invoice],
+    );
+    let calls = 0;
+    const transport = (async () => {
+      calls++;
+      throw new Error("provider timeout");
+    }) as typeof fetch;
+    await expect(service.dispatchVerifiedVendePaidLicense(id, config, transport))
+      .rejects.toThrow();
+    expect(calls).toBe(0); // no dispatch on reversed invoice
+
+    await pool.query(
+      "UPDATE fmcc_billing_invoice SET status='paid' WHERE tenant_id=$1 AND id=$2",
+      [tenant, invoice],
+    );
+    await expect(service.dispatchVerifiedVendePaidLicense(id, config, transport))
+      .rejects.toThrow();
+    expect(calls).toBe(1);
+    await expect(service.dispatchVerifiedVendePaidLicense(id, config, transport))
+      .rejects.toThrow();
+    expect(calls).toBe(1); // uncertain result never automatically retried
+    const state = await pool.query(
+      "SELECT state,attempts FROM fmcc_billing_vende_license_outbox WHERE id=$1",
+      [id],
+    );
+    expect(state.rows[0]).toMatchObject({ state: "blocked", attempts: 1 });
+  });
+
   it("dispatches signed binding once and prevents replay of consumed intent", async () => {
     const row = await pool.query(
       "SELECT id FROM fmcc_billing_vende_license_outbox WHERE tenant_id=$1 AND invoice_id=$2",
