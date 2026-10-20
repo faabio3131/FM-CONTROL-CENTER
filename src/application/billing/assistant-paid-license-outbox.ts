@@ -294,16 +294,51 @@ export async function reconcileBlockedVendePaidLicense(
     return "still_blocked";
   }
   if (!confirmed) return "still_blocked";
-  const [done] = await db.update(billingVendeLicenseOutbox).set({
-    state: "delivered", deliveredAt: new Date(),
-  }).where(and(
-    eq(billingVendeLicenseOutbox.id, outboxId),
-    eq(billingVendeLicenseOutbox.tenantId, config.organizationId),
-    eq(billingVendeLicenseOutbox.state, "blocked"),
-    eq(billingVendeLicenseOutbox.attempts, 1),
-  )).returning({ id: billingVendeLicenseOutbox.id });
-  if (!done) throw new AssistantPlanDeliveryUnavailable();
-  return "delivered";
+  // The signed status proves only the exact remote attempt. Payment, plan
+  // publication and local attempt authority may change while HTTP is in
+  // flight. Recheck all of them inside one transaction before certifying.
+  return db.transaction(async tx => {
+    const [verified] = await tx.select({
+      invoiceStatus: billingInvoices.status,
+      paymentStatus: billingProviderPayments.status,
+      planStatus: assistantPlanRevisions.status,
+    }).from(billingVendeLicenseOutbox)
+      .innerJoin(billingInvoices, and(
+        eq(billingInvoices.tenantId, billingVendeLicenseOutbox.tenantId),
+        eq(billingInvoices.id, billingVendeLicenseOutbox.invoiceId),
+      ))
+      .innerJoin(billingProviderPayments, and(
+        eq(billingProviderPayments.tenantId, billingInvoices.tenantId),
+        eq(billingProviderPayments.invoiceId, billingInvoices.id),
+        eq(billingProviderPayments.gatewayAccountId, billingInvoices.gatewayAccountId),
+      ))
+      .innerJoin(assistantPlanRevisions, and(
+        eq(assistantPlanRevisions.tenantId, billingVendeLicenseOutbox.tenantId),
+        eq(assistantPlanRevisions.productId, billingVendeLicenseOutbox.productId),
+        eq(assistantPlanRevisions.planCode, billingVendeLicenseOutbox.planCode),
+        eq(assistantPlanRevisions.revision, billingVendeLicenseOutbox.planRevision),
+      ))
+      .where(and(
+        eq(billingVendeLicenseOutbox.id, outboxId),
+        eq(billingVendeLicenseOutbox.tenantId, config.organizationId),
+        eq(billingVendeLicenseOutbox.state, "blocked"),
+        eq(billingVendeLicenseOutbox.attempts, 1),
+        eq(billingVendeLicenseOutbox.claimToken, row.operationNonce!),
+      )).for("update").limit(1);
+    if (!verified || verified.invoiceStatus !== "paid" ||
+        verified.paymentStatus !== "received" ||
+        verified.planStatus !== "published") return "still_blocked";
+    const [done] = await tx.update(billingVendeLicenseOutbox).set({
+      state: "delivered", deliveredAt: new Date(),
+    }).where(and(
+      eq(billingVendeLicenseOutbox.id, outboxId),
+      eq(billingVendeLicenseOutbox.tenantId, config.organizationId),
+      eq(billingVendeLicenseOutbox.state, "blocked"),
+      eq(billingVendeLicenseOutbox.attempts, 1),
+      eq(billingVendeLicenseOutbox.claimToken, row.operationNonce!),
+    )).returning({ id: billingVendeLicenseOutbox.id });
+    return done ? "delivered" : "still_blocked";
+  });
 }
 
 
