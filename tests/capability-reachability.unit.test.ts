@@ -53,6 +53,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
       "/dashboard/products/[productId]/receivables",
       "/dashboard/products/[productId]/usage",
       "/dashboard/subscriptions/[subscriptionId]",
+      "/dashboard/billing/operations",
       "/dashboard/alerts/rules/[ruleId]",
       "/dashboard/settings/platform-integrations",
     ]);
@@ -69,6 +70,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     const dashboard = source("src/app/dashboard/page.tsx");
     const product = source("src/app/dashboard/products/[productId]/page.tsx");
     const subscriptions = source("src/app/dashboard/subscriptions/page.tsx");
+    const operations = source("src/app/dashboard/operations/page.tsx");
     const alertControl = source("src/app/dashboard/alerts/alert-control-panel.tsx");
     const settings = source("src/app/dashboard/settings/page.tsx");
 
@@ -77,6 +79,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     expect(product).toContain("/dashboard/products/${productId}/receivables");
     expect(product).toContain("/dashboard/products/${productId}/usage");
     expect(subscriptions).toContain("/dashboard/subscriptions/${record.subscriptionId}");
+    expect(operations).toContain("/dashboard/billing/operations");
     expect(alertControl).toContain(
       "/dashboard/alerts/rules/${encodeURIComponent(rule.id)}",
     );

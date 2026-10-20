@@ -5,6 +5,7 @@ import { MetricService } from "@/application/metrics/metric-service";
 import { OperationalHealthService } from "@/application/operations/operational-health-service";
 import { OperationsIntelligenceService } from "@/application/operations/operations-intelligence-service";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
+import { roleHasPermission } from "@/domain/security/permissions";
 import { AuthenticationRequiredError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-store";
 import { PostgresOperationalHealthRepository } from "@/infrastructure/operations/postgres-health-repository";
@@ -52,6 +53,9 @@ export default async function OperationsPage() {
             série temporal governada.
           </p>
         </div>
+        {roleHasPermission(context.role, "billing:read") ? (
+          <Link href="/dashboard/billing/operations">Filas financeiras</Link>
+        ) : null}
         <Link href="/dashboard">Voltar</Link>
       </header>
 
