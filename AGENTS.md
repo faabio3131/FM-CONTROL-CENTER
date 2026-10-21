@@ -198,3 +198,16 @@ Processamento antigo e aprovação vencida geram alertas, nunca jobs automático
 Endpoint GET tem no-store, RBAC FM, erro sanitizado, zero POST/mutação.
 Nenhum scheduler/worker/provider/migration/deploy é ativado nesta unidade.
 Referência e rollback: docs/FMCC_VENDE_C06_CLAIMS_MONITOR.md.
+
+### B1.11 — detectar operação remota aplicada sem confirmação financeira local (21/10/2026)
+Se o readback autenticado do Assistant indicar `applied` e o Command não conseguir
+confirmar atomicamente elegibilidade de pagamento/contrato, preservar o comando
+`unknown` e emitir um único evento `vende.compensation_review.required`
+na mesma transação do claim sob lock. A evidência é append-only, escopada
+por tenant, produto e operação, sem segredos nem suposição de revogação automática.
+Recuperações repetidas NÃO reenviam mutações ou duplicam alerta.
+O total no painel é HISTÓRICO, não casos abertos nem execução de compensação.
+Não alterar billing, quotas, licença, gateway, política comercial, worker,
+deploy ou migrations. Reparação efetiva e varredura de reversões após
+`delivered` permanecem no cronograma. Fonte e rollback:
+`docs/FMCC_VENDE_COMPENSATION_RISK_B111.md`.

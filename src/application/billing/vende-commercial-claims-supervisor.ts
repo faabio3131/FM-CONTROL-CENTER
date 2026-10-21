@@ -5,6 +5,8 @@
 import {and,asc,eq,inArray,isNull,lt,or,sql} from "drizzle-orm";
 import {db} from "@/infrastructure/db/client";
 import {productDefinitions} from "@/infrastructure/db/platform-schema";
+import {auditEvents} from "@/infrastructure/db/foundation-schema";
+import {VENDE_COMPENSATION_REVIEW_ACTION} from "./vende-compensation-risk";
 import {vendeLifecycleCommands} from "@/infrastructure/db/vende-commercial-schema";
 import {requireFMPlanAuthority} from "./assistant-plan-catalog-service";
 import type {TenantContext} from "@/domain/security/tenant-context";
@@ -55,6 +57,16 @@ export async function readVendeClaimsMonitor(
       isNull(vendeLifecycleCommands.deliveredAt),
       or(isNull(vendeLifecycleCommands.approvedAt),
         lt(vendeLifecycleCommands.approvedAt,approvalBefore))));
+  // Historical, immutable total. Not a count of open/resolved cases:
+  // a human reconciliation workflow will define that state separately.
+  const [risks]=await db.select({total:sql<number>`count(*)::int`})
+    .from(auditEvents).where(and(
+      eq(auditEvents.tenantId,context.tenantId),
+      eq(auditEvents.action,VENDE_COMPENSATION_REVIEW_ACTION),
+      eq(auditEvents.resourceType,"vende_lifecycle_command"),
+      sql`${auditEvents.metadata} ->> 'productId' = ${productId}`,
+    ));
+  const compensationReviewEvents=Number(risks?.total??0);
   const recent=await db.select({
     id:vendeLifecycleCommands.id,action:vendeLifecycleCommands.action,
     operationId:vendeLifecycleCommands.operationId,
@@ -74,8 +86,8 @@ export async function readVendeClaimsMonitor(
   const staleProcessing=Number(stale?.total??0);
   const expiredApprovals=Number(expired?.total??0);
   return {
-    totals,staleProcessing,expiredApprovals,
-    alert:totals.unknown>0||staleProcessing>0?"critical" as const:
+    totals,staleProcessing,expiredApprovals,compensationReviewEvents,
+    alert:totals.unknown>0||staleProcessing>0||compensationReviewEvents>0?"critical" as const:
       expiredApprovals>0?"attention" as const:"healthy" as const,
     items:recent.slice(0,50),truncated:recent.length>50,
     // Never infer current entitlement solely from these Command-side states.

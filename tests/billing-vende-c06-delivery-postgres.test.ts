@@ -653,4 +653,72 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     await expect(readVendeClaimsMonitor(context,"invalid")).rejects.toThrow();
   });
 
+  it("B1.11 records ONE compensation-risk audit if reactivation is applied remotely but payment reverses",async()=>{
+    const cmd=await makeReactivation();
+    let applied=false,mutations=0;
+    const http=(async(url:RequestInfo|URL)=>{
+      const pathname=new URL(String(url)).pathname;
+      if(pathname.endsWith("/commercial-transition")){
+        mutations++;applied=true;
+        await pool.query("UPDATE fmcc_billing_provider_payment SET status='refunded' WHERE invoice_id=$1",[cmd.invoiceId]);
+        return json({status:"active"});
+      }
+      if(pathname.endsWith("/commercial-status"))
+        return json({tenant_id:cmd.external,operation_status:applied?"applied":"not_applied",
+          applied_action:applied?"REACTIVATE_VERIFIED":null,
+          license_status:applied?"active":"suspended",plan_code:"BASE",plan_revision:1,
+          valid_until:cmd.validUntil});
+      throw Error("unexpected route");
+    }) as typeof fetch;
+    expect(await dispatchVendeReactivationOnce(cmd.id,config,http)).toBe("unknown");
+    expect(await reconcileUnknownVendeReactivation(cmd.id,config,http)).toBe("unknown");
+    expect(mutations).toBe(1);
+    const logs=(await pool.query(
+      "SELECT actor_type,result,metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.required'",
+      [tenant,cmd.id])).rows;
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({actor_type:"service",result:"needs_human_review",
+      metadata:{reason:"reactivation_unconfirmed",action:"REACTIVATE_VERIFIED",
+        observedRemoteAction:"REACTIVATE_VERIFIED",automaticCompensationAuthorized:false}});
+    expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0].state)
+      .toBe("unknown");
+    expect((await pool.query("SELECT lifecycle_state FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
+      [cmd.subscriptionId])).rows[0].lifecycle_state).toBe("reactivation_pending");
+    const monitor=await readVendeClaimsMonitor(context,productId);
+    expect(monitor.compensationReviewEvents).toBeGreaterThanOrEqual(1);
+  });
+
+  it("B1.11 retains one compensation alert when remote suspension succeeded but invoice settled during I/O",async()=>{
+    const cmd=await makePending();let applied=false,mutations=0;
+    const external=(await pool.query(
+      "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",[tenant])).rows[0].external_tenant_id as string;
+    const http=(async(url:RequestInfo|URL)=>{
+      const pathname=new URL(String(url)).pathname;
+      if(pathname.endsWith("/commercial-transition")){
+        mutations++;applied=true;
+        await pool.query("UPDATE fmcc_billing_invoice SET status='paid' WHERE id=$1",[cmd.invoiceId]);
+        return json({status:"suspended"});
+      }
+      if(pathname.endsWith("/commercial-status"))
+        return json({tenant_id:external,operation_status:applied?"applied":"not_applied",
+          applied_action:applied?"SUSPEND_DELINQUENCY":null,
+          license_status:applied?"suspended":"active",plan_code:"BASE",plan_revision:1,
+          valid_until:Math.floor(Date.now()/1000)+86400});
+      throw Error("unexpected route");
+    }) as typeof fetch;
+    expect(await dispatchVendeDelinquencyOnce(cmd.id,config,http)).toBe("unknown");
+    expect(await reconcileUnknownVendeDelinquency(cmd.id,config,http)).toBe("unknown");
+    expect(mutations).toBe(1);
+    const logs=(await pool.query(
+      "SELECT metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.required'",
+      [tenant,cmd.id])).rows;
+    expect(logs).toHaveLength(1);
+    expect(logs[0].metadata).toMatchObject({reason:"suspension_unconfirmed",
+      observedRemoteAction:"SUSPEND_DELINQUENCY",automaticCompensationAuthorized:false});
+    expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",
+      [cmd.id])).rows[0].state).toBe("unknown");
+    expect((await pool.query("SELECT lifecycle_state FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
+      [cmd.subscriptionId])).rows[0].lifecycle_state).toBe("suspension_pending");
+  });
+
 });

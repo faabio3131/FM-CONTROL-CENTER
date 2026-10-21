@@ -22,6 +22,7 @@ import {
 } from "./assistant-commercial-lifecycle-signer";
 
 import { currentBoundVendePaymentEvidence } from "./vende-payment-evidence";
+import {recordVendeCompensationRisk} from "./vende-compensation-risk";
 
 export class VendeCommercialDeliveryDenied extends Error {
   constructor(code="vende.commercial_delivery_unavailable"){super(code);}
@@ -134,7 +135,7 @@ async function financialFence(
 }
 async function transitionState(
   id:string,expected:"processing"|"unknown",next:"unknown"|"delivered",
-  now:Date,remoteAck:boolean,
+  now:Date,remoteAck:boolean,remoteProof:RemoteStatus|null=null,
 ):Promise<"unknown"|"delivered">{
   return db.transaction(async tx=>{
     const [row]=await tx.select().from(vendeLifecycleCommands)
@@ -157,6 +158,11 @@ async function transitionState(
       }).where(eq(vendeLifecycleCommands.id,id));
       return "delivered";
     }
+    // If the SaaS already suspended but payment now rules out suspension,
+    // record a governed compensation alert rather than marking delivered.
+    if(!accepted && remoteProof?.operation_status==="applied")
+      await recordVendeCompensationRisk(tx,row,remoteProof,
+        "suspension_unconfirmed",now);
     await tx.update(vendeLifecycleCommands).set({
       state:"unknown",
     }).where(eq(vendeLifecycleCommands.id,id));
@@ -222,7 +228,7 @@ export async function dispatchVendeDelinquencyOnce(
     if(remote.operation_status==="applied"){
       return transitionState(commandId,"processing","delivered",new Date(),
         remote.applied_action==="SUSPEND_DELINQUENCY" &&
-        remote.license_status==="suspended");
+        remote.license_status==="suspended",remote);
     }
     if(!["active","trial"].includes(remote.license_status))
       return transitionState(commandId,"processing","unknown",new Date(),false);
@@ -277,7 +283,7 @@ export async function dispatchVendeDelinquencyOnce(
       proof.applied_action==="SUSPEND_DELINQUENCY" &&
       proof.license_status==="suspended";
     return transitionState(commandId,"processing",ack?"delivered":"unknown",
-      new Date(),ack);
+      new Date(),ack,proof);
   }catch{
     return transitionState(commandId,"processing","unknown",new Date(),false);
   }
@@ -303,7 +309,7 @@ export async function reconcileUnknownVendeDelinquency(
       snapshot.applied_action==="SUSPEND_DELINQUENCY" &&
       snapshot.license_status==="suspended";
     return transitionState(commandId,"unknown",applied?"delivered":"unknown",
-      new Date(),applied);
+      new Date(),applied,snapshot);
   }catch{return "unknown";}
 }
 

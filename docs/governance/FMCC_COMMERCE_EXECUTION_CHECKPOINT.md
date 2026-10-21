@@ -393,3 +393,22 @@ sem mutate, scheduler ou retry. API/painel e teste PostgreSQL/route no candidato
 CI no HEAD ainda por certificar. Rollback em docs/FMCC_VENDE_C06_CLAIMS_MONITOR.md.
 Depois: tratar compensação distribuída e demais transições comerciais, sem refazer
 F0-F2/B0/B1.1–B1.9. F3/F9/B1 global continuam BUILD_IN_PROGRESS.
+
+### B1.10 integrada / B1.11 risco de compensação em validação (21/10/2026)
+PR #136 integrada em `9fdbe5b3f9999b059ce1dd91d84eccc69d8bc27a`.
+Gates HEAD `90119e3fbf2eb08dfb6a2078d9925c5ff351f598`:
+Foundation 39595483867, Billing PG 39595483705, F21 39595483646,
+Cognitive 39595483662 SUCCESS. Gates pós-merge na main:
+Foundation 39596152129, Billing PG 39596152307, F21 39596152264,
+Cognitive 39596152280 SUCCESS. B1.10 GREEN_INTERNO.
+
+B1.11 instrumenta ambas as transições C06 já implementadas para preservar
+um único registro auditável de risco quando prova de operação aplicada no
+Assistant não pode ser confirmada localmente pela situação financeira/contratual
+atual. O comando permanece unknown, sem alterar licença, pagamento ou fazer retry.
+Reaproveita a tabela de auditoria e o monitor B1.10, sem nova migration.
+Testes PG sintéticos simulam refund após reativação remota, pagamento durante
+suspensão remota, replay de reconciliação e ausência de efeitos automáticos.
+CI no novo HEAD ainda PENDENTE nesta anotação: não declarar B1.11 concluído.
+Reparação financeira/entitlement governada, reconciliação retroativa após delivered,
+demais transições e cronograma B2–B11 continuam em aberto. Sem homologação externa.
