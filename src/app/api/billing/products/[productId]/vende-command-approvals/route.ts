@@ -65,7 +65,7 @@ export async function POST(request:Request,{params}:Params){
        (b.expectedApprovedAt!==null&&(typeof b.expectedApprovedAt!=="string"||b.expectedApprovedAt.length>30)))
       return reply({error:"approval.invalid"},400);
     const action=b.action??"SUSPEND_DELINQUENCY";
-    if(!["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL"].includes(action))
+    if(typeof action!=="string"||!["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL"].includes(action))
       return reply({error:"approval.invalid"},400);
     const proof=await verifyPasswordStepUp(h,b.password);
     // The service validates the same actor and writes the complete approval
