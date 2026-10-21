@@ -11,6 +11,7 @@ import type {StepUpProof} from "@/application/security/password-step-up";
 import {vendeContractTerms,vendeLifecycleCommands} from "@/infrastructure/db/vende-commercial-schema";
 import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "@/domain/billing/vende-commercial-policy-v1";
 import {currentBoundVendePaymentEvidence} from "./vende-payment-evidence";
+import {recordVendeCompensationRisk} from "./vende-compensation-risk";
 import type {PlanProjectionConfig} from "./assistant-plan-outbox-dispatcher";
 import {ASSISTANT_COMMERCIAL_TRANSITION_PATH,signAssistantCommercialTransition} from "./assistant-commercial-lifecycle-signer";
 import {VendeCommercialDeliveryDenied,requireVendeCommercialDelivery,postVendeCommercialSigned,
@@ -83,6 +84,11 @@ async function finish(id:string,expected:"processing"|"unknown",proof:VendeRemot
       await tx.update(vendeLifecycleCommands).set({state:"delivered",deliveredAt:now}).where(eq(vendeLifecycleCommands.id,id));
       return "delivered" as const;
     }
+    // The Assistant may have applied the activation before a financial reversal.
+    // Preserve a durable, deduplicated human-compensation alert atomically
+    // with UNKNOWN. Never invent proof that the remote license was revoked.
+    if(proof?.operation_status==="applied")
+      await recordVendeCompensationRisk(tx,row,proof,"reactivation_unconfirmed",now);
     await tx.update(vendeLifecycleCommands).set({state:"unknown"}).where(eq(vendeLifecycleCommands.id,id));
     return "unknown" as const;
   });
