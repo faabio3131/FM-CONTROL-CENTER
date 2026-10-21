@@ -19,7 +19,7 @@ from sqlalchemy.orm import sessionmaker
 from core.ai_control_plane import ControlPlaneBase
 from core.ai_plan_usage_guard import PlanUsageGuard
 from core.ai_quota_store import QuotaDenied, QuotaReservations
-from core.ai_router import CapabilityIA, SolicitacaoIA
+from core.ai_router import CapabilityIA, ConteudoAudioIA, SolicitacaoIA
 from core.ai_service_contracts import TextMessage, TextRequestContent
 from core.ai_signed_plan_authority import SignedAssistantPlanAuthority
 
@@ -127,6 +127,28 @@ def test_command_binding_reserves_core_quota_and_revocation_fails_closed(tmp_pat
         with pytest.raises(QuotaDenied):
             guard.admit(request=request("ai-request-1"), at=datetime.now(UTC))
 
+        # The exact same Assistant license MUST govern audio transcription,
+        # not just text generation. Both capabilities debit the same
+        # tenant-level token budget in Core before any provider attempt.
+        audio = SolicitacaoIA(
+            tenant_id="tenant-a", unidade_id="unit-a",
+            request_id="audio-request-1", correlation_id="audio-request-1",
+            capability=CapabilityIA.ATENDIMENTO_TRANSCRICAO,
+            conteudo=ConteudoAudioIA(
+                audio=b"synthetic-audio-content", mime_type="audio/wav",
+                instrucao="Transcreva o audio em portugues",
+            ),
+        )
+        audio_policy = guard.admit(request=audio, at=datetime.now(UTC))
+        assert audio_policy.revision == 1
+        both = quota.usage_snapshot(
+            tenant_id="tenant-a", unit_id="__tenant__",
+            capability="ai.total_tokens", at=datetime.now(UTC),
+        )
+        assert both.reserved_units == 360
+        with pytest.raises(QuotaDenied):
+            guard.admit(request=audio, at=datetime.now(UTC))
+
         with assistant_sessions.begin() as db:
             db.get(TenantLicenseORM, "tenant-a").status = "suspended"
 
@@ -148,11 +170,22 @@ def test_command_binding_reserves_core_quota_and_revocation_fails_closed(tmp_pat
         ) == "not_confirmed"
         with pytest.raises((QuotaDenied, PlanLimitDenied)):
             guard.admit(request=request("ai-request-2"), at=datetime.now(UTC))
+        with pytest.raises((QuotaDenied, PlanLimitDenied)):
+            guard.admit(request=SolicitacaoIA(
+                tenant_id="tenant-a", unidade_id="unit-a",
+                request_id="audio-request-after-revocation",
+                correlation_id="audio-request-after-revocation",
+                capability=CapabilityIA.ATENDIMENTO_TRANSCRICAO,
+                conteudo=ConteudoAudioIA(
+                    audio=b"synthetic-audio", mime_type="audio/wav",
+                    instrucao="Transcreva",
+                ),
+            ), at=datetime.now(UTC))
         final = quota.usage_snapshot(
             tenant_id="tenant-a", unit_id="__tenant__",
             capability="ai.total_tokens", at=datetime.now(UTC),
         )
-        assert final.reserved_units == 180  # prior attempt still accounted
+        assert final.reserved_units == 360  # text and audio remain accounted
     finally:
         engine.dispose()
         try:
