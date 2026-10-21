@@ -8,6 +8,7 @@ const tenant="fm-c06-life-"+randomUUID();
 const pool=new pg.Pool({connectionString:dbUrl,max:4,allowExitOnIdle:true});
 const clock=new Date("2026-10-20T20:00:00.000Z");
 const ctx={tenantId:tenant,userId:"fm-owner",role:"owner" as const,correlationId:"life-test"};
+const settledPaymentRef="provider-"+randomUUID();
 const proof={userId:"fm-owner",verifiedAt:clock};
 let productId:string,customerId:string,gw:string;
 let cancelSubscription:string,reactivateSubscription:string,reactivateInvoice:string;
@@ -50,7 +51,7 @@ describe("C06 - contract lifecycle CAS, supervised cancellation and reactivation
       [tenant,productId,customerId,reactivateSubscription,gw])).rows[0].id;
     await pool.query(
       "INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES ($1,$2,$3,$4,'received')",
-      [tenant,reactivateInvoice,gw,"provider-"+randomUUID()],
+      [tenant,reactivateInvoice,gw,settledPaymentRef],
     );
   });
   afterAll(async()=>{
@@ -102,14 +103,19 @@ describe("C06 - contract lifecycle CAS, supervised cancellation and reactivation
     await expect(svc.requestRegularization(ctx,proof,input,clock))
       .rejects.toThrow("attestation_stale");
     await pool.query(
-      "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'signed-gateway-readback')",
-      [tenant,reactivateInvoice,"verified-"+randomUUID(),new Date("2026-10-19T20:00:00Z")],
+      "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'signed-gateway-stale')",
+      [tenant,reactivateInvoice,settledPaymentRef,new Date("2026-10-19T20:00:00Z")],
     );
     await expect(svc.requestRegularization(ctx,proof,input,clock))
       .rejects.toThrow("attestation_stale");
     await pool.query(
+      "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'unrelated-payment-proof')",
+      [tenant,reactivateInvoice,"unrelated-"+randomUUID(),clock],
+    );
+    await expect(svc.requestRegularization(ctx,proof,input,clock)).rejects.toThrow("attestation_stale");
+    await pool.query(
       "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'signed-gateway-readback')",
-      [tenant,reactivateInvoice,"verified-"+randomUUID(),clock],
+      [tenant,reactivateInvoice,settledPaymentRef,clock],
     );
     const result=await svc.requestRegularization(ctx,proof,input,clock);
     expect(result).toMatchObject({

@@ -4,17 +4,19 @@
  * read-only reconciliation. Never call this from an unauthenticated customer
  * route. No worker is enabled by default.
  */
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { billingInvoices } from "@/infrastructure/db/billing-schema";
 import {
-  vendeContractTerms,vendeLifecycleCommands,vendePaymentAttestations,
+  vendeContractTerms,vendeLifecycleCommands,
 } from "@/infrastructure/db/vende-commercial-schema";
 import type { PlanProjectionConfig } from "@/application/billing/assistant-plan-outbox-dispatcher";
 import {
   ASSISTANT_COMMERCIAL_STATUS_PATH,ASSISTANT_COMMERCIAL_TRANSITION_PATH,
   signAssistantCommercialStatus,signAssistantCommercialTransition,
 } from "./assistant-commercial-lifecycle-signer";
+
+import { currentBoundVendePaymentEvidence } from "./vende-payment-evidence";
 
 export class VendeCommercialDeliveryDenied extends Error {
   constructor(code="vende.commercial_delivery_unavailable"){super(code);}
@@ -63,15 +65,8 @@ async function financialFence(
     eq(billingInvoices.subscriptionId,row.subscriptionId),
   )).for("update").limit(1);
   if(!invoice||invoice.status!=="pending")return false;
-  const [last]=await tx.select().from(vendePaymentAttestations).where(and(
-    eq(vendePaymentAttestations.tenantId,row.tenantId),
-    eq(vendePaymentAttestations.invoiceId,row.sourceInvoiceId),
-  )).orderBy(desc(vendePaymentAttestations.verifiedAt),
-    desc(vendePaymentAttestations.createdAt),
-    desc(vendePaymentAttestations.observationSequence)).limit(1);
-  if(!last||last.outcome!=="unpaid_verified" ||
-     last.verifiedAt.getTime()>now.getTime()+15000 ||
-     now.getTime()-last.verifiedAt.getTime()>15*60_000)return false;
+  const last=await currentBoundVendePaymentEvidence(tx,invoice,now);
+  if(!last||last.outcome!=="unpaid_verified")return false;
   return true;
 }
 async function transitionState(

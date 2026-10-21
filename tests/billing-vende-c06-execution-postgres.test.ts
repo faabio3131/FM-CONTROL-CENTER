@@ -9,6 +9,7 @@ const now=new Date("2026-10-30T15:00:00.000Z");
 let productId:string,customerId:string,subscriptionId:string,paidId:string,unpaidId:string,gatewayId:string;
 let service:typeof import("../src/application/billing/vende-c06-governed-execution");
 const context={tenantId:tenant,userId:"fm-owner",role:"owner" as const,correlationId:"c06-ci"};
+const unpaidPaymentRef="pending-provider-"+randomUUID();
 const proof={userId:"fm-owner",verifiedAt:now};
 
 describe("C06 governed Vende dates, calendar, PostgreSQL transaction / no remote effects",()=>{
@@ -47,6 +48,10 @@ describe("C06 governed Vende dates, calendar, PostgreSQL transaction / no remote
       "INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status) VALUES ($1,$2,$3,$4,$5,950,'pending') RETURNING id",
       [tenant,productId,customerId,subscriptionId,gatewayId]);
     unpaidId=unpaid.rows[0].id;
+    await pool.query(
+      "INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES ($1,$2,$3,$4,'pending')",
+      [tenant,unpaidId,gatewayId,unpaidPaymentRef],
+    );
   });
   afterAll(async()=>{
     try {
@@ -107,7 +112,7 @@ describe("C06 governed Vende dates, calendar, PostgreSQL transaction / no remote
       .rejects.toThrow("evidence_missing_or_stale");
     await pool.query(
       "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'unpaid_verified',$4,$5)",
-      [tenant,unpaidId,"provider-readback-"+randomUUID(),now,"authenticated-provider-readback"]);
+      [tenant,unpaidId,unpaidPaymentRef,now,"authenticated-provider-readback"]);
     await expect(svc.requestSuspension(context,{...proof,verifiedAt:new Date("2026-10-28T15:00:00Z")},args,now))
       .rejects.toThrow("step_up");
     const early=new Date("2026-10-29T15:00:00Z");
@@ -121,8 +126,13 @@ describe("C06 governed Vende dates, calendar, PostgreSQL transaction / no remote
     const args={productId,subscriptionId,invoiceId:unpaidId,expectedRevision:1,
       operationId:"c06-hold-verified-final",sourceRef:"fm-psp-proof-final"};
     await pool.query(
+      "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'unpaid_verified',$4,'unrelated-fresh-proof')",
+      [tenant,unpaidId,"unrelated-"+randomUUID(),now],
+    );
+    await expect(svc.requestSuspension(context,proof,args,now)).rejects.toThrow("evidence_missing_or_stale");
+    await pool.query(
       "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'unpaid_verified',$4,$5)",
-      [tenant,unpaidId,"provider-readback-"+randomUUID(),now,"verified-gateway-response"]);
+      [tenant,unpaidId,unpaidPaymentRef,now,"verified-gateway-response"]);
     const [x,y]=await Promise.allSettled([
       svc.requestSuspension(context,proof,args,now),
       svc.requestSuspension(context,proof,args,now),
