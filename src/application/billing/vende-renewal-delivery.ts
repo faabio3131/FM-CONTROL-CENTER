@@ -149,6 +149,12 @@ export async function reapproveVendeRenewal(
   input:{productId:string;commandId:string;expectedApprovedAt:string|null},now:Date=new Date(),
 ){
   requireFMPlanAuthority(context,true);
+  if(process.env.NODE_ENV==="test")console.warn("B115_PRECHECK",JSON.stringify({
+    product:UUID.test(input.productId),command:UUID.test(input.commandId),
+    actor:proof.userId===context.userId,approved:hasFreshVendeApproval(proof.verifiedAt,now),
+    cas:input.expectedApprovedAt,expectedISO:input.expectedApprovedAt!==null?
+      new Date(input.expectedApprovedAt).toISOString():null,
+  }));
   if(!UUID.test(input.productId)||!UUID.test(input.commandId)||proof.userId!==context.userId||
      !hasFreshVendeApproval(proof.verifiedAt,now)||
      (input.expectedApprovedAt!==null&&
@@ -246,6 +252,9 @@ export async function reconcileUnknownVendeRenewal(
     eq(vendeLifecycleCommands.id,commandId),eq(vendeLifecycleCommands.tenantId,config.organizationId),
     eq(vendeLifecycleCommands.action,"RENEW_VERIFIED"),eq(vendeLifecycleCommands.state,"unknown"),
   )).limit(1);
+  if(process.env.NODE_ENV==="test")console.warn("B115_RECONCILE",JSON.stringify({
+    found:!!row,state:row?.state,target:!!row?.deliveryTarget,tenant:config.organizationId===row?.tenantId,
+  }));
   if(!row||!row.deliveryTarget)return denied();
   try{return await finish(commandId,"unknown",
     await readVendeCommercialSnapshot(base,row,config,http,now));}
