@@ -164,3 +164,13 @@ reconstruir NULL legado a partir do contrato atual. Histórico corporativo FM va
 produto/assinatura/tenant e pagina por revisão (100). Snapshot representa intenção
 contratual aprovada; não representa ACK remoto, preço ou quotas do catálogo. Documentação:
 docs/FMCC_VENDE_CONTRACT_REVISION_HISTORY.md. Homologação externa permanece adiada.
+
+### B1.8 — entrega interna de reativação
+Reativação mantém os IDs e plano da assinatura vigente, exige fatura paga, PSP received e
+observação settled fresca vinculada. Revalidar produto, binding, revisão, período pago e
+aprovação original após status I/O. Persistir delivery_target antes de qualquer mutação;
+ACK deve coincidir em operação/action/tenant/plano/revisão/validade. Pago até é dia civil
+America/Sao_Paulo completo, convertido sem offset UTC fixo; não reduzir validade remota.
+Timeout/crash vira unknown: recuperar somente por leitura, nunca reconstruir target nem
+reenviar. Quarentena abrange reativação. Sem rota pública/scheduler novo ou ativação real;
+flag C06 permanece OFF. Detalhes: docs/FMCC_VENDE_REACTIVATION_DELIVERY.md.

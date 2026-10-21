@@ -346,3 +346,17 @@ quota ou ACK. Migration aditiva 0019 e testes de isolamento/paginação/conserva
 Gates finais pendentes. Detalhes: FMCC_VENDE_CONTRACT_REVISION_HISTORY.md. Permanecem
 transições comerciais restantes, snapshot comercial de preço/quotas e compensação distribuída;
 não declarar B1/F3 ou SaaS 100% concluído.
+
+### B1.7 integrada / B1.8 reativação em certificação
+PR #133 integrada em `c04f73c6e54aeb939518faf98fd75af0ce8c2c71`. HEAD
+ad93e1d18ac29920b42387ce948f80d1d27a0ae1: Foundation 39550742829, Billing PG
+39550742833, F21 39550742849, Cognitive 39550742847 SUCCESS. Pós-merge:
+Foundation 39551213484, Billing PG 39551213550, F21 39551213544, Cognitive
+39551213507 SUCCESS. Fixture UUID/text corrigido antes da certificação, sem retirar gates.
+
+B1.8 implementa entrega interna one-shot de REACTIVATE_VERIFIED, alvo persistido antes do
+POST, período civil completo, ACK exato, fences financeiros e readback de outcome incerto.
+Migration 0020 aditiva; nenhuma ativação, deploy, migration operacional ou provider real.
+Gates finais pendentes; detalhes em FMCC_VENDE_REACTIVATION_DELIVERY.md. Próximo escopo:
+reaprovação/supervisão comercial, demais transições e compensação. B1/F3 e produto global
+continuam IN_PROGRESS, sem declaração BUILD_COMPLETE_INTERNAL_GREEN.

@@ -56,6 +56,18 @@ export function fmLocalCivilDate(at: Date): string {
   const find=(type:string)=>parts.find(x=>x.type===type)?.value;
   return `${find("year")}-${find("month")}-${find("day")}`;
 }
+/** Exclusive end of a paid civil day in the governed timezone. Search the
+ * calendar boundary instead of assuming a fixed UTC offset (DST changes it). */
+export function fmPaidThroughExclusiveInstant(paidThrough:string):Date {
+  const center=dateValue(paidThrough);
+  let low=Math.floor((center-DAY)/1000),high=Math.floor((center+3*DAY)/1000);
+  while(low<high){
+    const mid=Math.floor((low+high)/2);
+    if(fmLocalCivilDate(new Date(mid*1000))>paidThrough)high=mid;
+    else low=mid+1;
+  }
+  return new Date(low*1000);
+}
 /**
  * A trusted backend/calendar registry MUST supply this record; client
  * headers/body are not acceptable calendar evidence. Format verification

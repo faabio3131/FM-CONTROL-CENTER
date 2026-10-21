@@ -141,6 +141,13 @@
       "when": 1792560690543,
       "tag": "0019_vende_contract_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792561733336,
+      "tag": "0020_vende_reactivation_target",
+      "breakpoints": true
     }
   ]
 }
