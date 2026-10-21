@@ -13,6 +13,7 @@ import {
 } from "../src/application/billing/vende-c06-delivery";
 
 import {dispatchVendeReactivationOnce,reconcileUnknownVendeReactivation,reapproveVendeReactivation} from "../src/application/billing/vende-reactivation-delivery";
+import {dispatchVendeFinalCancellationOnce,reconcileUnknownVendeFinalCancellation,reapproveVendeFinalCancellation} from "../src/application/billing/vende-final-cancellation-delivery";
 import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/billing/vende-commercial-policy-v1";
 import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercial-claims-supervisor";
 
@@ -85,6 +86,27 @@ async function makeReactivation(){
   const id=(await pool.query("SELECT id FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND operation_id=$2",[tenant,operationId])).rows[0].id as string;
   const external=(await pool.query("SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",[tenant])).rows[0].external_tenant_id as string;
   return {...original,id,operationId,approvedAt,paymentRef,external,validUntil:fmPaidThroughExclusiveInstant(paidThrough).getTime()/1000};
+}
+
+
+async function makeCancellation(paidThrough=fmLocalCivilDate(new Date(Date.now()-86400_000))){
+  const scheduleAt=new Date(Date.now()-2*86400_000);
+  const sub=(await pool.query(
+    "INSERT INTO fmcc_billing_subscription(tenant_id,product_id,customer_id,plan_code,status) VALUES ($1,$2,$3,'BASE','active') RETURNING id",
+    [tenant,productId,customerId])).rows[0].id as string;
+  await pool.query(
+    "INSERT INTO fmcc_vende_contract_terms(tenant_id,product_id,subscription_id,customer_id,revision,effective_from,paid_through,due_date,auto_renew,lifecycle_state,source_ref,actor_id) VALUES ($1,$2,$3,$4,1,'2026-09-01',$5,$5,true,'active','fm-accepted-contract','fm-owner')",
+    [tenant,productId,sub,customerId,paidThrough]);
+  const operationId="cancel-"+randomUUID();
+  await new GovernedVendeC06Service().scheduleCancellation(context,{userId:context.userId,verifiedAt:scheduleAt},
+    {productId,subscriptionId:sub,expectedRevision:1,operationId,customerConsentRef:"fm-recorded-customer-consent"},scheduleAt);
+  const row=(await pool.query(
+    "SELECT id,approved_at FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND operation_id=$2",
+    [tenant,operationId])).rows[0];
+  const external=(await pool.query("SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
+    [tenant])).rows[0].external_tenant_id as string;
+  return {id:row.id as string,approvedAt:row.approved_at as Date,
+    subscriptionId:sub,operationId,external,validUntil:fmPaidThroughExclusiveInstant(paidThrough).getTime()/1000};
 }
 
 describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK",()=>{
@@ -719,6 +741,106 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       [cmd.id])).rows[0].state).toBe("unknown");
     expect((await pool.query("SELECT lifecycle_state FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
       [cmd.subscriptionId])).rows[0].lifecycle_state).toBe("suspension_pending");
+  });
+
+  it("B1.13 requires fresh human approval at deadline, then cancels one time only with signed proof",async()=>{
+    const cmd=await makeCancellation();
+    let calls=0,applied=false;
+    const http=(async(url:RequestInfo|URL,init?:RequestInit)=>{
+      const body=JSON.parse(String(init?.body));
+      if(new URL(String(url)).pathname.endsWith("/commercial-transition")){
+        calls++;expect(body).toMatchObject({tenant_id:cmd.external,command_request_id:cmd.operationId,
+          action:"CANCEL_AT_PERIOD_END",expected_plan_code:"BASE",verified_payment_ref:"none",
+          expected_valid_until:cmd.validUntil,target_valid_until:cmd.validUntil});
+        applied=true;return json({ok:true});
+      }
+      return json({tenant_id:cmd.external,operation_status:applied?"applied":"not_applied",
+        applied_action:applied?"CANCEL_AT_PERIOD_END":null,
+        license_status:applied?"cancelled":"active",
+        plan_code:"BASE",plan_revision:1,valid_until:cmd.validUntil});
+    }) as typeof fetch;
+    await expect(dispatchVendeFinalCancellationOnce(cmd.id,config,http)).rejects.toThrow();
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    const input={productId,commandId:cmd.id,expectedApprovedAt:cmd.approvedAt.toISOString()};
+    const two=await Promise.allSettled([
+      reapproveVendeFinalCancellation(context,proof,input),
+      reapproveVendeFinalCancellation(context,proof,input),
+    ]);
+    expect(two.filter(x=>x.status==="fulfilled")).toHaveLength(1);
+    expect(two.filter(x=>x.status==="rejected")).toHaveLength(1);
+    expect(await dispatchVendeFinalCancellationOnce(cmd.id,config,http)).toBe("delivered");
+    expect(calls).toBe(1);
+    const result=(await pool.query(
+      "SELECT state,claimed_at,delivered_at FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0];
+    expect(result.state).toBe("delivered");expect(result.claimed_at).not.toBeNull();
+    expect(result.delivered_at).not.toBeNull();
+    expect((await pool.query("SELECT lifecycle_state,auto_renew FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
+      [cmd.subscriptionId])).rows[0]).toMatchObject({lifecycle_state:"cancelled",auto_renew:false});
+    expect((await pool.query("SELECT status FROM fmcc_billing_subscription WHERE id=$1",
+      [cmd.subscriptionId])).rows[0].status).toBe("cancelled");
+    await expect(dispatchVendeFinalCancellationOnce(cmd.id,config,http)).rejects.toThrow();
+    expect(calls).toBe(1);
+    const audit=(await pool.query("SELECT count(*)::int AS n FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.cancellation_intent.reapproved'",
+      [tenant,cmd.id])).rows[0].n;
+    expect(audit).toBe(1);
+  });
+  it("B1.13 never approves or delivers cancellation before complete paid local date",async()=>{
+    const later=fmLocalCivilDate(new Date(Date.now()+2*86400_000));
+    const cmd=await makeCancellation(later);
+    await expect(reapproveVendeFinalCancellation(context,{userId:context.userId,verifiedAt:new Date()},
+      {productId,commandId:cmd.id,expectedApprovedAt:cmd.approvedAt.toISOString()})).rejects.toThrow();
+    const before=(async()=>{throw Error("must_not_touch_network");}) as typeof fetch;
+    await expect(dispatchVendeFinalCancellationOnce(cmd.id,config,before)).rejects.toThrow();
+    const rows=(await pool.query("SELECT state,claimed_at FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0];
+    expect(rows).toEqual({state:"pending",claimed_at:null});
+    expect((await pool.query("SELECT status FROM fmcc_billing_subscription WHERE id=$1",
+      [cmd.subscriptionId])).rows[0].status).toBe("active");
+  });
+  it("B1.13 recovers timeout after applied cancellation strictly by read-only status, without POST replay",async()=>{
+    const cmd=await makeCancellation();
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    await reapproveVendeFinalCancellation(context,proof,
+      {productId,commandId:cmd.id,expectedApprovedAt:cmd.approvedAt.toISOString()});
+    let sent=false,mutations=0,reads=0;
+    const http=(async(url:RequestInfo|URL)=>{
+      if(new URL(String(url)).pathname.endsWith("/commercial-transition")){
+        sent=true;mutations++;throw Error("simulated timeout after apply");
+      }
+      reads++;return json({tenant_id:cmd.external,
+        operation_status:sent?"applied":"not_applied",
+        applied_action:sent?"CANCEL_AT_PERIOD_END":null,
+        license_status:sent?"cancelled":"active",plan_code:"BASE",plan_revision:1,valid_until:cmd.validUntil});
+    }) as typeof fetch;
+    expect(await dispatchVendeFinalCancellationOnce(cmd.id,config,http)).toBe("unknown");
+    expect(await reconcileUnknownVendeFinalCancellation(cmd.id,config,http)).toBe("delivered");
+    expect(mutations).toBe(1);expect(reads).toBe(2);
+    expect((await pool.query("SELECT status FROM fmcc_billing_subscription WHERE id=$1",
+      [cmd.subscriptionId])).rows[0].status).toBe("cancelled");
+  });
+  it("B1.13 rejects mismatched readback and quarantines old processing without retries",async()=>{
+    const cmd=await makeCancellation();
+    await reapproveVendeFinalCancellation(context,{userId:context.userId,verifiedAt:new Date()},
+      {productId,commandId:cmd.id,expectedApprovedAt:cmd.approvedAt.toISOString()});
+    let sent=false,posts=0;
+    const http=(async(url:RequestInfo|URL)=>{
+      if(new URL(String(url)).pathname.endsWith("/commercial-transition")){
+        sent=true;posts++;return json({ok:true});
+      }
+      return json({tenant_id:cmd.external,operation_status:sent?"applied":"not_applied",
+        applied_action:sent?"CANCEL_AT_PERIOD_END":null,
+        license_status:"active",plan_code:"BASE",plan_revision:1,valid_until:cmd.validUntil});
+    }) as typeof fetch;
+    expect(await dispatchVendeFinalCancellationOnce(cmd.id,config,http)).toBe("unknown");
+    expect(await reconcileUnknownVendeFinalCancellation(cmd.id,config,http)).toBe("unknown");
+    expect(posts).toBe(1);
+    expect((await pool.query("SELECT lifecycle_state FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
+      [cmd.subscriptionId])).rows[0].lifecycle_state).toBe("cancel_at_period_end");
+    const orphan=await makeCancellation();
+    await pool.query("UPDATE fmcc_vende_lifecycle_command SET state='processing',claimed_at=$1 WHERE id=$2",
+      [new Date(Date.now()-20*60_000),orphan.id]);
+    expect(await quarantineAbandonedVendeClaims(config)).toBeGreaterThanOrEqual(1);
+    expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",
+      [orphan.id])).rows[0].state).toBe("unknown");
   });
 
 });
