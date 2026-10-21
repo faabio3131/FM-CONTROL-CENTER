@@ -220,6 +220,17 @@ describe("C06 - contract lifecycle CAS, supervised cancellation and reactivation
     await expect(requestVerifiedVendeRenewal(ctx,proof,input,clock)).rejects.toThrow();
     await expect(requestVerifiedVendeRenewal({...ctx,tenantId:"foreign"},proof,input,clock)).rejects.toThrow();
     await expect(requestVerifiedVendeRenewal(ctx,{...proof,userId:"attacker"},input,clock)).rejects.toThrow();
+    const enrollmentInvoice=(await pool.query(
+      "INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status,created_at) VALUES ($1,$2,$3,$4,$5,14900,'paid','2026-09-01T00:00:00Z') RETURNING id",
+      [tenant,productId,customerId,subscriptionId,gw])).rows[0].id as string;
+    const oldPayment="provider-initial-"+randomUUID();
+    await pool.query("INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES ($1,$2,$3,$4,'received')",
+      [tenant,enrollmentInvoice,gw,oldPayment]);
+    await pool.query("INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'initial-invoice-proof')",
+      [tenant,enrollmentInvoice,oldPayment,clock]);
+    await expect(requestVerifiedVendeRenewal(ctx,proof,{
+      ...input,paidInvoiceId:enrollmentInvoice,operationId:"renew-original-payment-"+randomUUID(),
+    },clock)).rejects.toThrow();
     expect((await pool.query("SELECT count(*)::int AS n FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2",
       [tenant,subscriptionId])).rows[0].n).toBe(0);
   });
