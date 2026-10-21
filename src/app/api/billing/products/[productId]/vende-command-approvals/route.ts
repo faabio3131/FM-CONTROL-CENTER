@@ -8,6 +8,7 @@ import { requireFMPlanAuthority } from "@/application/billing/assistant-plan-cat
 import { reapproveVendeDelinquency } from "@/application/billing/vende-c06-delivery";
 import { reapproveVendeReactivation } from "@/application/billing/vende-reactivation-delivery";
 import { reapproveVendeFinalCancellation } from "@/application/billing/vende-final-cancellation-delivery";
+import {reapproveVendeRenewal} from "@/application/billing/vende-renewal-delivery";
 import {fmLocalCivilDate} from "@/domain/billing/vende-commercial-policy-v1";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { verifyPasswordStepUp } from "@/application/security/password-step-up";
@@ -24,7 +25,7 @@ export async function GET(request:Request,{params}:Params){
     if([...q.keys()].some(k=>k!=="action")||q.getAll("action").length>1)
       return reply({error:"approval.invalid"},400);
     const action=q.get("action")??"SUSPEND_DELINQUENCY";
-    if(typeof action!=="string"||!["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL"].includes(action))
+    if(typeof action!=="string"||!["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL","RENEW_VERIFIED"].includes(action))
       return reply({error:"approval.invalid"},400);
     const [product]=await db.select({id:productDefinitions.id}).from(productDefinitions).where(and(
       eq(productDefinitions.tenantId,context.tenantId),eq(productDefinitions.id,productId),
@@ -65,7 +66,7 @@ export async function POST(request:Request,{params}:Params){
        (b.expectedApprovedAt!==null&&(typeof b.expectedApprovedAt!=="string"||b.expectedApprovedAt.length>30)))
       return reply({error:"approval.invalid"},400);
     const action=b.action??"SUSPEND_DELINQUENCY";
-    if(typeof action!=="string"||!["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL"].includes(action))
+    if(typeof action!=="string"||!["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL","RENEW_VERIFIED"].includes(action))
       return reply({error:"approval.invalid"},400);
     const proof=await verifyPasswordStepUp(h,b.password);
     // The service validates the same actor and writes the complete approval
@@ -74,6 +75,7 @@ export async function POST(request:Request,{params}:Params){
     return reply(await (action==="REACTIVATE_VERIFIED"
       ?reapproveVendeReactivation(context,proof,input)
       :action==="SCHEDULE_CANCEL"?reapproveVendeFinalCancellation(context,proof,input)
+      :action==="RENEW_VERIFIED"?reapproveVendeRenewal(context,proof,input)
       :reapproveVendeDelinquency(context,proof,input)),200);
   }catch{return reply({error:"approval.authority_or_state_denied"},403);}
 }
