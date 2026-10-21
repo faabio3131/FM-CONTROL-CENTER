@@ -167,6 +167,44 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(await reconcileUnknownVendeDelinquency(cmd.id,config,http)).toBe("unknown");
     expect(calls).toBe(4); // signed readback after mutation + recovery; no second mutation
   });
+  it("payment confirmed during status read blocks mutation before it reaches Assistant",async()=>{
+    const cmd=await makePending();
+    let readCount=0,mutationCount=0;
+    const external=(await pool.query(
+      "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
+      [tenant],
+    )).rows[0].external_tenant_id as string;
+    const http=(async(url:RequestInfo|URL)=>{
+      const path=new URL(String(url)).pathname;
+      if(path.endsWith("/commercial-status")){
+        readCount++;
+        // Concurrent provider reconciliation wins during remote status I/O.
+        await pool.query("UPDATE fmcc_billing_invoice SET status='paid' WHERE id=$1",
+          [cmd.invoiceId]);
+        return json({
+          tenant_id:external,operation_status:"not_applied",applied_action:null,
+          license_status:"active",plan_code:"BASE",plan_revision:1,
+          valid_until:Math.floor(Date.now()/1000)+86400*5,
+        });
+      }
+      if(path.endsWith("/commercial-transition")){
+        mutationCount++;
+        throw Error("a paid tenant must never receive this POST");
+      }
+      throw Error("unknown path");
+    }) as typeof fetch;
+    expect(await dispatchVendeDelinquencyOnce(cmd.id,config,http)).toBe("unknown");
+    expect([readCount,mutationCount]).toEqual([1,0]);
+    const row=(await pool.query(
+      "SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id],
+    )).rows[0];
+    expect(row.state).toBe("unknown");
+    const term=(await pool.query(
+      "SELECT lifecycle_state FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
+      [cmd.subscriptionId],
+    )).rows[0];
+    expect(term.lifecycle_state).toBe("suspension_pending");
+  });
   it("forged HTTP 200 without correlated Assistant status proof never suspends",async()=>{
     const cmd=await makePending();
     let postCount=0,statusCount=0;
