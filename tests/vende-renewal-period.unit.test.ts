@@ -16,7 +16,7 @@ describe("B1.14 renewal date calculator — FM civil calendar",()=>{
     expect(actual.validUntil).toBe(fmPaidThroughExclusiveInstant(expected).getTime()/1000);
   });
   it("rejects impossible/corrupt dates and billing intervals",()=>{
-    for(const date of ["2026-02-30","2026-00-15","2026-13-01","not-a-day",""]) 
+    for(const date of ["2026-02-30","2026-00-15","2026-13-01","not-a-day",""])
       expect(()=>nextVendePaidThrough(date,"monthly")).toThrow();
     expect(()=>nextVendePaidThrough("2026-10-21","weekly" as "monthly")).toThrow();
   });
