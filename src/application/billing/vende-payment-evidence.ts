@@ -35,7 +35,7 @@ export async function currentBoundVendePaymentEvidence(
   )).orderBy(desc(vendePaymentAttestations.verifiedAt),
     desc(vendePaymentAttestations.createdAt),
     desc(vendePaymentAttestations.observationSequence)).limit(1);
-  if(!last || last.externalPaymentRef!==payment.externalPaymentId ||
+  if(!last || last.outcome==="needs_attention" || last.externalPaymentRef!==payment.externalPaymentId ||
      !Number.isFinite(last.verifiedAt.getTime()) ||
      last.verifiedAt.getTime()>now.getTime()+15_000 ||
      now.getTime()-last.verifiedAt.getTime()>15*60_000)return null;
