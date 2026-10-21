@@ -448,3 +448,24 @@ PENDENTE de validação dos gates 4/4 e auditoria; não marcar como encerrado
 até CI e pós-merge verdes.
 Ainda faltam renovação, upgrade, downgrade, compensação humana efetiva,
 preços/quotas e demais fases B2–B11. BUILD_COMPLETE_INTERNAL_GREEN não concedido.
+
+### B1.13 integrada / B1.14 intenção de renovação em certificação (21/10/2026)
+PR #139 merge em main `7c49fc15601f3186d01406ae7eacc90fe75f4e97`.
+Primeira CI encontrou incompatibilidade TypeScript na ação não confiável e uma
+expectativa inadequada de quarentena, corrigidas sem retirar testes/gates.
+HEAD corrigido `e6872abbebef7f832055f6ea9432e4ebaa5e4472`:
+Foundation 39646757906, Billing PG 39646757851, F21 39646757892,
+Cognitive 39646757883 — SUCCESS. Pós-merge na main:
+Foundation 39647650959, Billing PG 39647651311, F21 39647651654,
+Cognitive 39647651158 — SUCCESS. B1.13 WP = GREEN_INTERNO,
+sem deploy, migration produtiva ou homologação externa.
+
+B1.14 adiciona pedido governado de renovação: FM step-up e consentimento,
+fatura/cobrança/observação PSP canônicas, mesma precificação publicada FM nos
+catálogos billing/AI e preço do invoice, ciclo mensal/anual derivado do servidor,
+target de renovação congelado no JSONB existente, intenção pending com auditoria
+sem conceder dias extra. Testes de PostgreSQL, calendário, preço/tenant,
+HTTP injeção e imutabilidade local. B1.14 ainda PENDENTE de 4/4 no HEAD e
+pós-merge; B1.15 precisa assinatura/ACK S2S antes da efetiva renovação.
+Também pendentes upgrade/downgrade, reparação governada e fases B2–B11.
+BUILD_COMPLETE_INTERNAL_GREEN NÃO concedido.
