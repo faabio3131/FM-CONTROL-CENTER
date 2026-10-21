@@ -469,3 +469,19 @@ HTTP injeção e imutabilidade local. B1.14 ainda PENDENTE de 4/4 no HEAD e
 pós-merge; B1.15 precisa assinatura/ACK S2S antes da efetiva renovação.
 Também pendentes upgrade/downgrade, reparação governada e fases B2–B11.
 BUILD_COMPLETE_INTERNAL_GREEN NÃO concedido.
+
+### B1.14 integrada / B1.15 renovação assinada em certificação (21/10/2026)
+PR #140 integrada na main bf528c8f6dfefcc9ca077e0615c5c9faf8faa4b1.
+HEAD anterior 703ef7031ab0ef360af8041abb8765a3094e1d30:
+Foundation 39650347651, Billing PG 39650347482, F21 39650347662
+e Cognitive 39650347389 SUCCESS. Pós-merge: Foundation 39663989774,
+Billing PG 39663989787, F21 39663989859 e Cognitive 39663989977 SUCCESS.
+B1.14 GREEN_INTERNO. Nenhuma homologação ou credencial externa.
+
+B1.15 adiciona reaprovação FM e execução S2S single-shot, confirmação
+exata do Assistant e atualização atômica do período, revisão e histórico
+BEFORE/AFTER somente após ACK assinado. Timeout => unknown e reconciliação
+read-only. PostgreSQL sintético, interface de aprovação e API testados.
+A nova CI AINDA NÃO certificada neste checkpoint. Permanecem upgrade,
+downgrade, compensação humana e fases B2–B11. BUILD_COMPLETE_INTERNAL_GREEN
+ainda não concedido.
