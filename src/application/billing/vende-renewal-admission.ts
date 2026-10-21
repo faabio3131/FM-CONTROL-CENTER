@@ -61,7 +61,10 @@ export async function requestVerifiedVendeRenewal(
       eq(billingInvoices.subscriptionId,term.subscriptionId),
       eq(billingInvoices.customerId,term.customerId),
     )).for("update").limit(1);
-    if(!invoice||invoice.currency!=="BRL"||invoice.status!=="paid")return denied();
+    // The original enrollment invoice predates contract creation and cannot
+    // be reused to buy the first renewal. An invoice must be a later cycle.
+    if(!invoice||invoice.currency!=="BRL"||invoice.status!=="paid"||
+       invoice.createdAt<=term.createdAt)return denied();
     const [payment]=await tx.select().from(billingProviderPayments).where(and(
       eq(billingProviderPayments.tenantId,context.tenantId),
       eq(billingProviderPayments.invoiceId,invoice.id),
