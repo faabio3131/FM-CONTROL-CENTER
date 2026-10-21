@@ -241,3 +241,17 @@ Processing órfão pode ser isolado, nunca reencaminhado. Cliente cancelado que
 retornar terá nova identidade comercial, sem reset de trial.
 Testes PostgreSQL/route, quatro gates PR e pós-merge obrigatórios, sem deploy real.
 Guia: docs/FMCC_VENDE_FINAL_CANCELLATION_B113.md.
+
+### B1.14 — admissão transacional de renovação por pagamento verificado (21/10/2026)
+NÃO produzir RENEW_VERIFIED com data/plano/preço enviado livremente pelo frontend.
+FM owner/admin com step-up recente e referência de consentimento autoriza somente
+o intento pending, após fatura paid BRL vinculada, provider received e evidência
+settled_verified atual para a conta/ID de pagamento canônicos. Exigir plano
+billing active e plano AI published na revisão autorizada, ambos com mesmo
+planCode, preço exato e intervalo monthly/yearly do invoice, sem desconto
+inventado. Derivar next paidThrough civil (inclui EOM/leap) e validUntil IANA,
+congelar no delivery_target existente e criar auditoria TX. Não atualizar
+contrato, assinatura, quota ou entitlement antes do ACK S2S de B1.15.
+Proibir reutilização do invoice em outra transição C06; estado pending não é
+assinatura renovada. Sem migration nova, worker, PSP real ou deploy.
+Guia: docs/FMCC_VENDE_RENEWAL_ADMISSION_B114.md.
