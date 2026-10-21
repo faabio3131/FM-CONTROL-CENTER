@@ -35,6 +35,8 @@ try {
     ["fmcc_billing_iron_customer_enrollment","fmcc_iron_payer_provider_ref_uq"],
     ["fmcc_billing_vende_license_outbox","fmcc_vende_license_outbox_invoice_uq"],
     ["fmcc_vende_payment_attestation","fmcc_vende_payment_observation_uq"],
+    ["fmcc_vende_payment_readback_binding","fmcc_vende_readback_binding_invoice_uq"],
+    ["fmcc_vende_payment_readback_attempt","fmcc_vende_readback_attempt_operation_uq"],
   ]) {
     const result = await client.query(
       "SELECT indexname FROM pg_indexes WHERE tablename=$1 AND indexname=$2",

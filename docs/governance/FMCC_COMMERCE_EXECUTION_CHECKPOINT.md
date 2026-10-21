@@ -276,3 +276,14 @@ PR #127 integrada em `25b4f58a31ac9484624276aeb155a0942358505c`. HEAD `01f9ed223
 B1.2 centraliza leitura de evidência fresca e determinística com vínculo tenant/fatura/conta/pagamento, bloqueando suspensão e regularização se a última observação apontar para outro pagamento. Não usa observação antiga como fallback. Estado local recebido/confirmado/revertido/desconhecido não sustenta unpaid. Testes reais PostgreSQL com dados sintéticos cobrem vínculo incorreto, ausência, conta estrangeira, prova recente divergente sobre prova antiga válida e bloqueio antes de HTTP, além das jornadas positivas existentes. TypeScript e lint locais aprovados; gates SQL da unidade pendentes.
 
 Rollback: revert de código, mantendo migração 0016 e delivery OFF. Sem endpoint novo, migração adicional, segredo, deploy ou homologação externa. Ainda faltam produtor PSP autenticado, compensação do intervalo entre chamada remota e liquidação, snapshot contratual e lifecycle completo; B1/F3/F9 não encerrados.
+
+### B1.2 integrada / B1.3 produtor PSP em certificação
+PR #128 integrada em `f385d9eddd86374f3bfe62a08f60806ff813d7e5`. Pós-merge Foundation
+39541645092, Billing PG 39541645055, F21 39541645101 e Cognitive 39541645086 SUCCESS.
+B1.3 constrói associação FM do payer PSP, GET autenticado configurável por conta/ambiente/
+secret_ref, ledger de tentativas e produtor de observações append-only. Invalidação antes
+da rede, revalidação de snapshot, estado needs_attention, replay sem rede e quarentena
+protegem contra prova velha e resposta tardia. Nenhum status financeiro/licença é alterado.
+Migration 0017 somente em banco descartável; CI final ainda pendente. Fontes oficiais,
+threat boundaries e rollback em docs/FMCC_VENDE_PAYMENT_READBACK.md. O marco global interno
+permanece aberto; composição API/UI/scheduler e compensação comercial são próximas unidades.

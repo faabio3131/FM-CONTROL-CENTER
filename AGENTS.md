@@ -122,3 +122,12 @@ B0 concluído com quatro gates pós-merge na main `9b27fb0663c16d3d1d8d05cbe4add
 
 ### B1.2 — vínculo canônico da evidência de pagamento
 Toda decisão C06 que consome atestação deve usar `currentBoundVendePaymentEvidence`: tenant, fatura e conta do gateway identificam um único pagamento persistido; external_payment_ref da última observação deve coincidir exatamente. Não buscar prova positiva antiga se a última for inválida. Evidência unpaid com pagamento local recebido/confirmado/revertido ou estado desconhecido falha fechada. O produtor autenticado do PSP e a compensação de corrida remota continuam tarefas separadas; o leitor não autentica payload público.
+
+### B1.3 — produtor governado de observações PSP
+`VendePaymentReadbackService` e adapter Asaas GET são internos, OFF por padrão. Registrar
+payer PSP separadamente do ID SaaS, com revisão FM e vínculo imutável por fatura. Nunca
+aceitar webhook/frontend como evidência. Claim e needs_attention precedem HTTP; snapshot
+canônico é revalidado depois. Processing ou evidência incerta mais nova bloqueiam prova
+anterior, inclusive com skew de relógio. Replay não consulta nem refresca prova; quarentena
+após 30s nunca reenvia. Não alterar invoice/payment/licença a partir desta leitura.
+Configuração, limites, testes, rollback e pendências: docs/FMCC_VENDE_PAYMENT_READBACK.md.

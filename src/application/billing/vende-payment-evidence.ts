@@ -3,6 +3,8 @@ import { db } from "@/infrastructure/db/client";
 import { billingInvoices, billingProviderPayments } from "@/infrastructure/db/billing-schema";
 import { vendePaymentAttestations } from "@/infrastructure/db/vende-commercial-schema";
 
+import { vendePaymentReadbackAttempts } from "@/infrastructure/db/vende-payment-readback-schema";
+
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type InvoiceIdentity = Pick<typeof billingInvoices.$inferSelect,"id"|"tenantId"|"gatewayAccountId">;
 
@@ -21,16 +23,30 @@ export async function currentBoundVendePaymentEvidence(
     eq(billingProviderPayments.gatewayAccountId,invoice.gatewayAccountId),
   )).limit(1);
   if(!payment)return null;
+  const [inFlight]=await tx.select().from(vendePaymentReadbackAttempts).where(and(
+    eq(vendePaymentReadbackAttempts.tenantId,invoice.tenantId),
+    eq(vendePaymentReadbackAttempts.invoiceId,invoice.id),
+    eq(vendePaymentReadbackAttempts.state,"processing"),
+  )).limit(1);
+  if(inFlight)return null;
   const [last]=await tx.select().from(vendePaymentAttestations).where(and(
     eq(vendePaymentAttestations.tenantId,invoice.tenantId),
     eq(vendePaymentAttestations.invoiceId,invoice.id),
   )).orderBy(desc(vendePaymentAttestations.verifiedAt),
     desc(vendePaymentAttestations.createdAt),
     desc(vendePaymentAttestations.observationSequence)).limit(1);
-  if(!last || last.externalPaymentRef!==payment.externalPaymentId ||
+  if(!last || last.outcome==="needs_attention" || last.externalPaymentRef!==payment.externalPaymentId ||
      !Number.isFinite(last.verifiedAt.getTime()) ||
      last.verifiedAt.getTime()>now.getTime()+15_000 ||
      now.getTime()-last.verifiedAt.getTime()>15*60_000)return null;
+  // An uncertain readback invalidates all earlier evidence, including proof
+  // with tolerated future clock skew. New positive proof must be appended later.
+  const [uncertain]=await tx.select().from(vendePaymentAttestations).where(and(
+    eq(vendePaymentAttestations.tenantId,invoice.tenantId),
+    eq(vendePaymentAttestations.invoiceId,invoice.id),
+    eq(vendePaymentAttestations.outcome,"needs_attention"),
+  )).orderBy(desc(vendePaymentAttestations.observationSequence)).limit(1);
+  if(uncertain && uncertain.observationSequence>last.observationSequence)return null;
   // A locally received/confirmed/reversed payment is never unpaid proof.
   // Unknown provider status requires reconciliation, not optimistic suspension.
   if(last.outcome==="unpaid_verified" &&
