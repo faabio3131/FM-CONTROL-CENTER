@@ -1,0 +1,1 @@
+ALTER TABLE "fmcc_vende_lifecycle_command" ADD COLUMN "delivery_target" jsonb;

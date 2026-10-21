@@ -4,7 +4,7 @@
  * read-only reconciliation. Never call this from an unauthenticated customer
  * route. No worker is enabled by default.
  */
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, inArray } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { billingCustomerBindings, billingInvoices } from "@/infrastructure/db/billing-schema";
 import { productDefinitions } from "@/infrastructure/db/platform-schema";
@@ -324,7 +324,7 @@ export async function quarantineAbandonedVendeClaims(
     const abandoned=await tx.select({id:vendeLifecycleCommands.id})
       .from(vendeLifecycleCommands).where(and(
         eq(vendeLifecycleCommands.tenantId,config.organizationId),
-        eq(vendeLifecycleCommands.action,"SUSPEND_DELINQUENCY"),
+        inArray(vendeLifecycleCommands.action,["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED"]),
         eq(vendeLifecycleCommands.state,"processing"),
         lt(vendeLifecycleCommands.claimedAt,expired),
       )).orderBy(vendeLifecycleCommands.claimedAt).limit(limit)
@@ -340,3 +340,8 @@ export async function quarantineAbandonedVendeClaims(
     return quarantined;
   });
 }
+
+// Internal transport primitives, shared by governed commercial dispatchers.
+export {enabled as requireVendeCommercialDelivery,postSigned as postVendeCommercialSigned,
+  signedRemoteSnapshot as readVendeCommercialSnapshot,freshApproval as hasFreshVendeApproval};
+export type {RemoteStatus as VendeRemoteCommercialStatus};
