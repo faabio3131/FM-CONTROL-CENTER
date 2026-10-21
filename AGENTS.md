@@ -188,3 +188,13 @@ pagamento/quotas nem muda licença. Suspensões B1.6 continuam compatíveis com 
 legados sem campo action; seleção de ação externa jamais prevalece sobre row.action.
 Auditoria, testes e rollback: docs/FMCC_VENDE_REACTIVATION_DELIVERY.md. Gates 4/4
 obrigatórios no HEAD e pós-merge; habilitação real continua OFF.
+
+### B1.10 — supervisão somente leitura de claims comerciais (21/10/2026)
+A API e UI C06 de supervisão são consultas FM corporativas por tenant+produto,
+sem aceitar escopo de cliente por query. Agregados cobrem todas as linhas;
+a projeção recente é limitada e sinaliza truncamento. Unknown não autoriza
+reenvio e delivered no Command não dispensa conferência do entitlement corrente.
+Processamento antigo e aprovação vencida geram alertas, nunca jobs automáticos.
+Endpoint GET tem no-store, RBAC FM, erro sanitizado, zero POST/mutação.
+Nenhum scheduler/worker/provider/migration/deploy é ativado nesta unidade.
+Referência e rollback: docs/FMCC_VENDE_C06_CLAIMS_MONITOR.md.
