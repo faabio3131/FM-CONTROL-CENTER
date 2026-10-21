@@ -45,13 +45,21 @@ async function eligibility(tx:Tx,row:Command,now:Date){
   // Downgrade cannot execute before paid-through EXCLUSIVE instant.
   if(isUpgrade?now.getTime()/1000>=t.previousValidUntil
      :now.getTime()/1000<t.previousValidUntil)return null;
+  const [term]=await tx.select().from(vendeContractTerms).where(and(
+    eq(vendeContractTerms.tenantId,row.tenantId),
+    eq(vendeContractTerms.productId,row.productId),
+    eq(vendeContractTerms.subscriptionId,row.subscriptionId),
+    eq(vendeContractTerms.customerId,row.customerId),
+  )).for("update").limit(1);
+  if(!term||term.revision!==row.expectedRevision||term.lifecycleState!=="active"||
+     !term.autoRenew)return null;
   const [invoice]=await tx.select().from(billingInvoices).where(and(
     eq(billingInvoices.tenantId,row.tenantId),eq(billingInvoices.id,row.sourceInvoiceId),
     eq(billingInvoices.productId,row.productId),eq(billingInvoices.subscriptionId,row.subscriptionId),
     eq(billingInvoices.customerId,row.customerId),
   )).for("update").limit(1);
   if(!invoice||invoice.status!=="paid"||invoice.currency!=="BRL"||
-     invoice.amountMinor!==t.amountMinor)return null;
+     invoice.amountMinor!==t.amountMinor||invoice.createdAt<=term.createdAt)return null;
   const [payment]=await tx.select().from(billingProviderPayments).where(and(
     eq(billingProviderPayments.tenantId,row.tenantId),
     eq(billingProviderPayments.invoiceId,invoice.id),
@@ -61,14 +69,6 @@ async function eligibility(tx:Tx,row:Command,now:Date){
   const observed=await currentBoundVendePaymentEvidence(tx,invoice,now);
   if(!observed||observed.outcome!=="settled_verified"||
      observed.externalPaymentRef!==t.paymentRef)return null;
-  const [term]=await tx.select().from(vendeContractTerms).where(and(
-    eq(vendeContractTerms.tenantId,row.tenantId),
-    eq(vendeContractTerms.productId,row.productId),
-    eq(vendeContractTerms.subscriptionId,row.subscriptionId),
-    eq(vendeContractTerms.customerId,row.customerId),
-  )).for("update").limit(1);
-  if(!term||term.revision!==row.expectedRevision||term.lifecycleState!=="active"||
-     !term.autoRenew||invoice.createdAt<=term.createdAt)return null;
   const [subscription]=await tx.select().from(billingSubscriptions).where(and(
     eq(billingSubscriptions.tenantId,row.tenantId),eq(billingSubscriptions.id,row.subscriptionId),
     eq(billingSubscriptions.productId,row.productId),eq(billingSubscriptions.customerId,row.customerId),
@@ -102,7 +102,7 @@ async function eligibility(tx:Tx,row:Command,now:Date){
     :nextVendePaidThrough(term.dueDate,t.billingInterval).paidThrough;
   if(t.validUntil!==next.validUntil||t.paidThrough!==next.paidThrough||
      t.nextDueDate!==nextDue||
-     row.effectiveDate!==(isUpgrade?term.paidThrough:term.paidThrough))return null;
+     row.effectiveDate!==term.paidThrough)return null;
   return {term,subscription,target:t};
 }
 function exactAck(proof:VendeRemoteCommercialStatus|null,row:Command,t:Target){
