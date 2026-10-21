@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { bigserial, boolean, check, date, foreignKey, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { billingInvoices, billingSubscriptions } from "./billing-schema";
 import { productDefinitions } from "./platform-schema";
+import type { VendeContractRevisionSnapshot } from "@/domain/billing/vende-contract-snapshot";
 
 /** Vende-specific *current* approved contractual dates, NEVER inferred from invoice.created_at.
  * One row per tenant/subscription, revision-CAS updates and append-only audit.
@@ -47,6 +48,8 @@ export const vendeContractTermAudit = pgTable("fmcc_vende_contract_term_audit", 
   newState:text("new_state").notNull(),
   effectiveDate:date("effective_date",{mode:"string"}).notNull(),
   sourceRef:text("source_ref").notNull(),
+  // NULL means historical data was not captured; never reconstruct from current terms.
+  termsSnapshot:jsonb("terms_snapshot").$type<VendeContractRevisionSnapshot>(),
   createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
 },t=>[
   uniqueIndex("fmcc_vende_term_audit_revision_uq").on(t.tenantId,t.subscriptionId,t.revision),
