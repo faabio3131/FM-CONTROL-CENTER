@@ -101,6 +101,7 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
   it("delivers at most once and marks suspended only after a signed ACK and fresh finance check",async()=>{
     const cmd=await makePending();
     const calls:string[]=[];
+    let remoteApplied=false;
     const http=(async(url:RequestInfo|URL)=>{
       const path=new URL(String(url)).pathname;
       calls.push(path);
@@ -108,15 +109,20 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
         tenant_id:(await pool.query(
           "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",[tenant],
         )).rows[0].external_tenant_id,
-        operation_status:"not_applied",applied_action:null,
-        license_status:"active",plan_code:"BASE",plan_revision:1,
+        operation_status:remoteApplied?"applied":"not_applied",
+        applied_action:remoteApplied?"SUSPEND_DELINQUENCY":null,
+        license_status:remoteApplied?"suspended":"active",
+        plan_code:"BASE",plan_revision:1,
         valid_until:Math.floor(Date.now()/1000)+86400*5,
       });
-      if(path.endsWith("/commercial-transition"))return json({status:"suspended"});
+      if(path.endsWith("/commercial-transition")){
+        remoteApplied=true;
+        return json({status:"suspended"});
+      }
       throw Error("untrusted route");
     }) as typeof fetch;
     expect(await dispatchVendeDelinquencyOnce(cmd.id,config,http)).toBe("delivered");
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     const state=(await pool.query(
       "SELECT lifecycle_state FROM fmcc_vende_contract_terms WHERE tenant_id=$1 AND subscription_id=$2",
       [tenant,cmd.subscriptionId])).rows[0];
@@ -126,7 +132,7 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(delivery.state).toBe("delivered");
     expect(delivery.delivered_at).not.toBeNull();
     await expect(dispatchVendeDelinquencyOnce(cmd.id,config,http)).rejects.toThrow();
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
   });
   it("payment reversal during network I/O remains UNKNOWN; recovery cannot falsely confirm",async()=>{
     const cmd=await makePending();
@@ -159,7 +165,68 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       [cmd.subscriptionId])).rows[0];
     expect(term.lifecycle_state).toBe("suspension_pending");
     expect(await reconcileUnknownVendeDelinquency(cmd.id,config,http)).toBe("unknown");
-    expect(calls).toBe(3); // no second mutation, one signed readback only
+    expect(calls).toBe(4); // signed readback after mutation + recovery; no second mutation
+  });
+  it("forged HTTP 200 without correlated Assistant status proof never suspends",async()=>{
+    const cmd=await makePending();
+    let postCount=0,statusCount=0;
+    const external=(await pool.query(
+      "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
+      [tenant],
+    )).rows[0].external_tenant_id as string;
+    const http=(async(url:RequestInfo|URL)=>{
+      const path=new URL(String(url)).pathname;
+      if(path.endsWith("/commercial-status")){
+        statusCount++;
+        return json({
+          tenant_id:external,operation_status:"not_applied",applied_action:null,
+          license_status:"active",plan_code:"BASE",plan_revision:1,
+          valid_until:Math.floor(Date.now()/1000)+86400*5,
+        });
+      }
+      if(path.endsWith("/commercial-transition")){
+        postCount++;
+        return json({status:"suspended"}); // Untrusted optimistic ACK!
+      }
+      throw Error("wrong-path");
+    }) as typeof fetch;
+    expect(await dispatchVendeDelinquencyOnce(cmd.id,config,http)).toBe("unknown");
+    expect([postCount,statusCount]).toEqual([1,2]);
+    const state=(await pool.query(
+      "SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id],
+    )).rows[0];
+    expect(state.state).toBe("unknown");
+    const term=(await pool.query(
+      "SELECT lifecycle_state FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
+      [cmd.subscriptionId],
+    )).rows[0];
+    expect(term.lifecycle_state).toBe("suspension_pending");
+  });
+  it("forged cross-tenant readback never confirms an HTTP 200 ACK",async()=>{
+    const cmd=await makePending();
+    let statusCount=0;
+    const http=(async(url:RequestInfo|URL)=>{
+      const path=new URL(String(url)).pathname;
+      if(path.endsWith("/commercial-status")){
+        statusCount++;
+        return json({
+          tenant_id:statusCount===1
+            ? (await pool.query(
+              "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
+              [tenant],
+            )).rows[0].external_tenant_id : "attacker-tenant",
+          operation_status:statusCount===1?"not_applied":"applied",
+          applied_action:statusCount===1?null:"SUSPEND_DELINQUENCY",
+          license_status:statusCount===1?"active":"suspended",
+          plan_code:"BASE",plan_revision:1,
+          valid_until:Math.floor(Date.now()/1000)+86400*5,
+        });
+      }
+      if(path.endsWith("/commercial-transition"))return json({status:"suspended"});
+      throw Error("wrong-path");
+    }) as typeof fetch;
+    expect(await dispatchVendeDelinquencyOnce(cmd.id,config,http)).toBe("unknown");
+    expect(statusCount).toBe(2);
   });
   it("quarantines orphaned in-flight claims without re-sending a message",async()=>{
     const cmd=await makePending();
