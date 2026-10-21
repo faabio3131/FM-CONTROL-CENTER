@@ -24,7 +24,9 @@ qualquer autorização de aplicação. Sem mudança em códigos ou direitos do c
   que corresponder exatamente ao preço governado. Descontos, prorrata ou
   arbitragem de preço não são inventados neste fluxo.
 - Um invoice que já seja fonte de qualquer lifecycle intent C06 não pode pagar
-  outra renovação (proteção contra reutilização de liquidação).
+  outra renovação (proteção contra reutilização de liquidação). A fatura também
+  deve ser posterior à criação do contrato: a fatura original de matrícula
+  jamais pode ser revendida como a primeira renovação.
 - A próxima paidThrough e nextDueDate são calculadas pelo servidor em datas
   civis, respeitando duração de 1 mês/ano, virada de mês, fim de mês e ano
   bissexto. validUntil é fim **exclusivo** do dia pago na timezone
