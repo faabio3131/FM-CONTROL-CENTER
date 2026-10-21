@@ -26,21 +26,20 @@ import {recordVendeCompensationRisk} from "./vende-compensation-risk";
 type Tx=Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Command=typeof vendeLifecycleCommands.$inferSelect;
 type Target=NonNullable<Command["deliveryTarget"]>;
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const denied=():never=>{throw new VendeCommercialDeliveryDenied();};
 
 /** Re-evaluate exactly the immutable B1.14 commercial snapshot. The remote
  * readback is a separate pre-POST fence; never infer license state from
  * payment, billing subscription or Command claim status. */
 async function eligible(tx:Tx,row:Command,now:Date){
-  const reject=(step:number)=>{if(process.env.NODE_ENV==="test")console.warn("B115_DIAG_FENCE",step);return null;};
   const t=row.deliveryTarget;
   if(row.action!=="RENEW_VERIFIED"||!row.sourceInvoiceId||!t||
      t.schema!=="fm.vende.renewal-target.v1"||!t.paidThrough||!t.nextDueDate||
      !t.previousValidUntil||!t.amountMinor||!t.billingInterval||
      !Number.isSafeInteger(t.planRevision)||t.planRevision<1||
      t.termsRevision!==row.revision||row.revision!==row.expectedRevision+1||
-     t.paidThrough!==row.effectiveDate||t.validUntil<=now.getTime()/1000)return reject(2);
+     t.paidThrough!==row.effectiveDate||t.validUntil<=now.getTime()/1000)return null;
   // Keep invoice before contract lock in delivery/reconciliation.
   const [invoice]=await tx.select().from(billingInvoices).where(and(
     eq(billingInvoices.id,row.sourceInvoiceId),eq(billingInvoices.tenantId,row.tenantId),
@@ -48,28 +47,28 @@ async function eligible(tx:Tx,row:Command,now:Date){
     eq(billingInvoices.customerId,row.customerId),
   )).for("update").limit(1);
   if(!invoice||invoice.status!=="paid"||invoice.currency!=="BRL"||
-     invoice.amountMinor!==t.amountMinor)return reject(3);
+     invoice.amountMinor!==t.amountMinor)return null;
   const [payment]=await tx.select().from(billingProviderPayments).where(and(
     eq(billingProviderPayments.tenantId,row.tenantId),
     eq(billingProviderPayments.invoiceId,invoice.id),
     eq(billingProviderPayments.gatewayAccountId,invoice.gatewayAccountId),
   )).limit(1);
-  if(!payment||payment.status!=="received")return reject(4);
+  if(!payment||payment.status!=="received")return null;
   const evidence=await currentBoundVendePaymentEvidence(tx,invoice,now);
   if(!evidence||evidence.outcome!=="settled_verified"||
-     evidence.externalPaymentRef!==t.paymentRef)return reject(5);
+     evidence.externalPaymentRef!==t.paymentRef)return null;
   const [term]=await tx.select().from(vendeContractTerms).where(and(
     eq(vendeContractTerms.tenantId,row.tenantId),eq(vendeContractTerms.productId,row.productId),
     eq(vendeContractTerms.customerId,row.customerId),
     eq(vendeContractTerms.subscriptionId,row.subscriptionId),
   )).for("update").limit(1);
   if(!term||term.revision!==row.expectedRevision||term.lifecycleState!=="active"||
-     !term.autoRenew||invoice.createdAt<=term.createdAt)return reject(6);
+     !term.autoRenew||invoice.createdAt<=term.createdAt)return null;
   const [subscription]=await tx.select().from(billingSubscriptions).where(and(
     eq(billingSubscriptions.tenantId,row.tenantId),eq(billingSubscriptions.id,row.subscriptionId),
     eq(billingSubscriptions.productId,row.productId),eq(billingSubscriptions.customerId,row.customerId),
   )).for("update").limit(1);
-  if(!subscription||subscription.status!=="active"||subscription.planCode!==t.planCode)return reject(7);
+  if(!subscription||subscription.status!=="active"||subscription.planCode!==t.planCode)return null;
   const [product]=await tx.select({id:productDefinitions.id}).from(productDefinitions).where(and(
     eq(productDefinitions.tenantId,row.tenantId),eq(productDefinitions.id,row.productId),
     eq(productDefinitions.slug,"vendeatendeia"),eq(productDefinitions.status,"active"),
@@ -79,7 +78,7 @@ async function eligible(tx:Tx,row:Command,now:Date){
     eq(billingCustomerBindings.customerId,row.customerId),
     eq(billingCustomerBindings.externalTenantId,row.externalTenantId),
   )).limit(1);
-  if(!product||!binding)return reject(8);
+  if(!product||!binding)return null;
   const [billingPlan]=await tx.select().from(billingProductPlans).where(and(
     eq(billingProductPlans.tenantId,row.tenantId),eq(billingProductPlans.productId,row.productId),
     eq(billingProductPlans.planCode,t.planCode),eq(billingProductPlans.status,"active"),
@@ -92,12 +91,12 @@ async function eligible(tx:Tx,row:Command,now:Date){
   if(!billingPlan||!aiPlan||billingPlan.currency!=="BRL"||
      billingPlan.interval!==t.billingInterval||
      billingPlan.amountMinor!==t.amountMinor||aiPlan.amountMinor!==t.amountMinor||
-     aiPlan.billingInterval!==t.billingInterval)return reject(9);
+     aiPlan.billingInterval!==t.billingInterval)return null;
   const next=nextVendePaidThrough(term.paidThrough,t.billingInterval);
   const nextDue=nextVendePaidThrough(term.dueDate,t.billingInterval).paidThrough;
   if(t.paidThrough!==next.paidThrough||t.validUntil!==next.validUntil||
      t.previousValidUntil!==fmPaidThroughExclusiveInstant(term.paidThrough).getTime()/1000||
-     t.nextDueDate!==nextDue||t.validUntil<=t.previousValidUntil)return reject(10);
+     t.nextDueDate!==nextDue||t.validUntil<=t.previousValidUntil)return null;
   return {term,target:t};
 }
 function exactAck(proof:VendeRemoteCommercialStatus|null,t:Target){
@@ -149,12 +148,6 @@ export async function reapproveVendeRenewal(
   input:{productId:string;commandId:string;expectedApprovedAt:string|null},now:Date=new Date(),
 ){
   requireFMPlanAuthority(context,true);
-  if(process.env.NODE_ENV==="test")console.warn("B115_PRECHECK",JSON.stringify({
-    product:UUID.test(input.productId),command:UUID.test(input.commandId),
-    actor:proof.userId===context.userId,approved:hasFreshVendeApproval(proof.verifiedAt,now),
-    cas:input.expectedApprovedAt,expectedISO:input.expectedApprovedAt!==null?
-      new Date(input.expectedApprovedAt).toISOString():null,
-  }));
   if(!UUID.test(input.productId)||!UUID.test(input.commandId)||proof.userId!==context.userId||
      !hasFreshVendeApproval(proof.verifiedAt,now)||
      (input.expectedApprovedAt!==null&&
@@ -252,9 +245,6 @@ export async function reconcileUnknownVendeRenewal(
     eq(vendeLifecycleCommands.id,commandId),eq(vendeLifecycleCommands.tenantId,config.organizationId),
     eq(vendeLifecycleCommands.action,"RENEW_VERIFIED"),eq(vendeLifecycleCommands.state,"unknown"),
   )).limit(1);
-  if(process.env.NODE_ENV==="test")console.warn("B115_RECONCILE",JSON.stringify({
-    found:!!row,state:row?.state,target:!!row?.deliveryTarget,tenant:config.organizationId===row?.tenantId,
-  }));
   if(!row||!row.deliveryTarget)return denied();
   try{return await finish(commandId,"unknown",
     await readVendeCommercialSnapshot(base,row,config,http,now));}
