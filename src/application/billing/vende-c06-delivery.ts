@@ -67,7 +67,8 @@ async function financialFence(
     eq(vendePaymentAttestations.tenantId,row.tenantId),
     eq(vendePaymentAttestations.invoiceId,row.sourceInvoiceId),
   )).orderBy(desc(vendePaymentAttestations.verifiedAt),
-    desc(vendePaymentAttestations.createdAt)).limit(1);
+    desc(vendePaymentAttestations.createdAt),
+    desc(vendePaymentAttestations.observationSequence)).limit(1);
   if(!last||last.outcome!=="unpaid_verified" ||
      last.verifiedAt.getTime()>now.getTime()+15000 ||
      now.getTime()-last.verifiedAt.getTime()>15*60_000)return false;
