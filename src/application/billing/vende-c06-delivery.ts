@@ -22,6 +22,7 @@ import {
 } from "./assistant-commercial-lifecycle-signer";
 
 import { currentBoundVendePaymentEvidence } from "./vende-payment-evidence";
+import {recordVendeCompensationRisk} from "./vende-compensation-risk";
 
 export class VendeCommercialDeliveryDenied extends Error {
   constructor(code="vende.commercial_delivery_unavailable"){super(code);}
@@ -157,6 +158,13 @@ async function transitionState(
       }).where(eq(vendeLifecycleCommands.id,id));
       return "delivered";
     }
+    // If the SaaS already suspended but payment now rules out suspension,
+    // record a governed compensation alert rather than marking delivered.
+    if(remoteAck && !accepted)
+      await recordVendeCompensationRisk(tx,row,{
+        operation_status:"applied",applied_action:"SUSPEND_DELINQUENCY",
+        license_status:"suspended",plan_code:"",plan_revision:0,valid_until:0,
+      },"suspension_finance_changed",now);
     await tx.update(vendeLifecycleCommands).set({
       state:"unknown",
     }).where(eq(vendeLifecycleCommands.id,id));
