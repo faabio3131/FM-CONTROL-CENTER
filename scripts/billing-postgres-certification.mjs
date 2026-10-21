@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import pg from "pg";
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
 try {
@@ -7,8 +9,18 @@ try {
   assert.match(version.rows[0].server_version, /^18\./);
   const tables = await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fmcc_billing_%' ORDER BY tablename");
   assert.equal(tables.rowCount, 15, "Expected fifteen Billing tables including Vende paid-license outbox");
-  const migrations = await client.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations");
-  assert.equal(migrations.rows[0].n, 16, "Expected migrations 0000-0015");
+  const journal = JSON.parse(readFileSync(new URL("../drizzle/meta/_journal.json", import.meta.url), "utf8"));
+  const migrations = await client.query("SELECT hash,created_at FROM drizzle.__drizzle_migrations ORDER BY id");
+  assert.equal(migrations.rowCount, journal.entries.length, "Applied migration count differs from journal");
+  for (const [index, entry] of journal.entries.entries()) {
+    const sql = readFileSync(new URL("../drizzle/" + entry.tag + ".sql", import.meta.url), "utf8");
+    assert.equal(migrations.rows[index].hash, createHash("sha256").update(sql).digest("hex"), "Migration content mismatch: " + entry.tag);
+    assert.equal(String(migrations.rows[index].created_at), String(entry.when), "Migration ordering mismatch: " + entry.tag);
+  }
+  const observationColumn = await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='fmcc_vende_payment_attestation' AND column_name='observation_sequence' AND is_nullable='NO'");
+  assert.equal(observationColumn.rowCount, 1, "Missing deterministic payment observation sequence");
+  const legacyIndex = await client.query("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='fmcc_vende_payment_attestation_ref_uq'");
+  assert.equal(legacyIndex.rowCount, 0, "Legacy index still blocks successive payment evidence");
   const idx = await client.query("SELECT indexname FROM pg_indexes WHERE tablename='fmcc_billing_provider_payment' AND indexname='fmcc_billing_provider_invoice_uq'");
   assert.equal(idx.rowCount, 1, "Missing one-payment-per-invoice index");
   for (const [tableName,indexName] of [
@@ -22,6 +34,7 @@ try {
     ["fmcc_billing_iron_customer_enrollment","fmcc_iron_payer_academy_uq"],
     ["fmcc_billing_iron_customer_enrollment","fmcc_iron_payer_provider_ref_uq"],
     ["fmcc_billing_vende_license_outbox","fmcc_vende_license_outbox_invoice_uq"],
+    ["fmcc_vende_payment_attestation","fmcc_vende_payment_observation_uq"],
   ]) {
     const result = await client.query(
       "SELECT indexname FROM pg_indexes WHERE tablename=$1 AND indexname=$2",

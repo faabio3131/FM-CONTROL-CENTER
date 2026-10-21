@@ -294,7 +294,7 @@ export class GovernedVendeC06Service {
         eq(vendePaymentAttestations.invoiceId,invoice.id),
       )).orderBy(desc(vendePaymentAttestations.verifiedAt),
         desc(vendePaymentAttestations.createdAt),
-    desc(vendePaymentAttestations.observationSequence)).limit(1);
+        desc(vendePaymentAttestations.observationSequence)).limit(1);
       if(!attestation || attestation.outcome!=="settled_verified" ||
          attestation.verifiedAt.getTime()>now.getTime()+15_000 ||
          now.getTime()-attestation.verifiedAt.getTime()>15*60_000)
@@ -389,7 +389,7 @@ export class GovernedVendeC06Service {
         eq(vendePaymentAttestations.invoiceId,input.invoiceId),
       )).orderBy(desc(vendePaymentAttestations.verifiedAt),
         desc(vendePaymentAttestations.createdAt),
-    desc(vendePaymentAttestations.observationSequence)).limit(1);
+        desc(vendePaymentAttestations.observationSequence)).limit(1);
       if(!attestation || attestation.outcome!=="unpaid_verified" ||
          attestation.verifiedAt.getTime()>now.getTime()+15_000 ||
          now.getTime()-attestation.verifiedAt.getTime()>15*60_000)
