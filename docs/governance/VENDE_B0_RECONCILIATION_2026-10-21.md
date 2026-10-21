@@ -99,3 +99,7 @@ antes da nova evidência. O gate externo do Preview permanece manual.
 ### Reconciliação adicional da PR #125
 
 A PR #125 (HEAD `0d5f75bf26a848b0cde90e00092cfe1369c326aa`) também sobrepunha o contrato de recuperação integrado na #124. Preservamos os pins mais recentes de Assistant/Core e o lock atual (Rolldown 1.2.14), sem regressão para versões antigas da #125. Incorporamos a rejeição de reutilização de issuer/audience/PEM como chave de serviço, com teste negativo antes de qualquer rede. A recuperação do binding nativo no CI passa a corresponder ao lock 1.2.14. A #125 só pode ser encerrada como substituída após merge verde desta correção.
+
+## B0 encerrado — evidência pós-merge
+
+PR #126 integrada em `9b27fb0663c16d3d1d8d05cbe4addea1c91c38ea`. Main: Foundation `39539307125`, Billing PostgreSQL `39539307099`, F21 `39539307126` e Cognitive `39539307114`, todos SUCCESS. PR #125 encerrada como substituída após incorporar sua proteção adicional. Assistant `8279f3c10993ace277f713c01688a3412fc3e92a`: 3/3 SUCCESS; Core `6434dd81c056f5f3162f11aa6f624c625ceb4702`: 2/2 SUCCESS. Autodeploy Render revalidado OFF antes do merge. B0 fechado; B1 continua em construção.

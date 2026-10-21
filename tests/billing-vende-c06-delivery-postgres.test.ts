@@ -1,6 +1,7 @@
 /** Fully synthetic HTTPS responses; real SQL/claim/outbox/finance fences.
  * No Evolution, Assistant HTTP service, real gateway or deployment.
  */
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { beforeAll,afterAll,describe,it,expect } from "vitest";
 import pg from "pg";
@@ -266,6 +267,61 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(await dispatchVendeDelinquencyOnce(cmd.id,config,http)).toBe("unknown");
     expect(statusCount).toBe(2);
   });
+  it("upgrades existing evidence without losing rows in an isolated rollback transaction",async()=>{
+    const client=await pool.connect();
+    const schema="evidence_migration_"+randomUUID().replaceAll("-","");
+    try{
+      await client.query("BEGIN");
+      await client.query(`CREATE SCHEMA ${schema}`);
+      await client.query(`SET LOCAL search_path TO ${schema},public`);
+      await client.query("CREATE TABLE fmcc_vende_payment_attestation (LIKE public.fmcc_vende_payment_attestation INCLUDING DEFAULTS)");
+      await client.query("ALTER TABLE fmcc_vende_payment_attestation DROP COLUMN observation_sequence");
+      await client.query("CREATE UNIQUE INDEX fmcc_vende_payment_attestation_ref_uq ON fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref)");
+      const invoice=randomUUID();
+      const args=[tenant,invoice,"same-provider-payment",new Date()];
+      await client.query("INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'unpaid_verified',$4,'before-migration')",args);
+      await client.query(readFileSync(new URL("../drizzle/0016_vende_payment_observation_history.sql",import.meta.url),"utf8"));
+      await client.query("INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'after-migration')",args);
+      const result=await client.query("SELECT outcome,observation_sequence FROM fmcc_vende_payment_attestation ORDER BY observation_sequence");
+      expect(result.rows.map(row=>row.outcome)).toEqual(["unpaid_verified","settled_verified"]);
+      expect(result.rows.every(row=>BigInt(row.observation_sequence)>0n)).toBe(true);
+    }finally{
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("preserves repeated observations of one payment and blocks suspension after settlement",async()=>{
+    const cmd=await makePending();
+    const original=(await pool.query(
+      "SELECT external_payment_ref FROM fmcc_vende_payment_attestation WHERE tenant_id=$1 AND invoice_id=$2",
+      [tenant,cmd.invoiceId],
+    )).rows[0].external_payment_ref;
+    const at=new Date();
+    const insert="INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref,created_at) VALUES ($1,$2,$3,$4,$5,$6,$5) RETURNING observation_sequence::text";
+    const unpaid=await pool.query(insert,[tenant,cmd.invoiceId,original,"unpaid_verified",at,"observation-unpaid"]);
+    const settled=await pool.query(insert,[tenant,cmd.invoiceId,original,"settled_verified",at,"observation-settled"]);
+    expect(BigInt(settled.rows[0].observation_sequence)).toBeGreaterThan(BigInt(unpaid.rows[0].observation_sequence));
+    // Idempotency is per observation, not per payment. Conflicting replay also fails.
+    await expect(pool.query(insert,[tenant,cmd.invoiceId,original,"unpaid_verified",at,"observation-settled"]))
+      .rejects.toMatchObject({code:"23505"});
+    // A late-arriving older readback must not replace the newest evidence.
+    await pool.query(insert,[tenant,cmd.invoiceId,original,"unpaid_verified",new Date(at.getTime()-1000),"late-old-observation"]);
+    let networkCalls=0;
+    await expect(dispatchVendeDelinquencyOnce(cmd.id,config,(async()=>{
+      networkCalls++;return json({});
+    }) as typeof fetch,at)).rejects.toThrow();
+    expect(networkCalls).toBe(0);
+    const rows=(await pool.query(
+      "SELECT outcome FROM fmcc_vende_payment_attestation WHERE tenant_id=$1 AND invoice_id=$2 ORDER BY verified_at DESC,created_at DESC,observation_sequence DESC",
+      [tenant,cmd.invoiceId],
+    )).rows;
+    expect(rows).toHaveLength(4);
+    expect(rows[0].outcome).toBe("settled_verified");
+    const pending=(await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0];
+    expect(pending.state).toBe("pending");
+  });
+
   it("quarantines orphaned in-flight claims without re-sending a message",async()=>{
     const cmd=await makePending();
     await pool.query(

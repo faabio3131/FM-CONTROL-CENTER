@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, date, foreignKey, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigserial, boolean, check, date, foreignKey, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { billingInvoices, billingSubscriptions } from "./billing-schema";
 import { productDefinitions } from "./platform-schema";
 
@@ -75,9 +75,12 @@ export const vendeBusinessCalendars = pgTable("fmcc_vende_business_calendar",{
 ]);
 
 /** Only the trusted gateway reconciler may write these observations.
+ * Append a new sourceRef for each authenticated observation of the SAME payment.
+ * Replaying an observation must not create another row. Never overwrite history.
  * No public route and no synthetic 'unpaid' derived from a webhook.
  */
 export const vendePaymentAttestations = pgTable("fmcc_vende_payment_attestation",{
+  observationSequence:bigserial("observation_sequence",{mode:"bigint"}).notNull(),
   id:uuid("id").defaultRandom().primaryKey(),
   tenantId:text("tenant_id").notNull(),
   invoiceId:uuid("invoice_id").notNull(),
@@ -87,7 +90,7 @@ export const vendePaymentAttestations = pgTable("fmcc_vende_payment_attestation"
   sourceRef:text("source_ref").notNull(),
   createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
 },t=>[
-  uniqueIndex("fmcc_vende_payment_attestation_ref_uq").on(t.tenantId,t.invoiceId,t.externalPaymentRef),
+  uniqueIndex("fmcc_vende_payment_observation_uq").on(t.tenantId,t.invoiceId,t.externalPaymentRef,t.sourceRef),
   foreignKey({name:"fmcc_vende_attestation_invoice_fk",
     columns:[t.tenantId,t.invoiceId],
     foreignColumns:[billingInvoices.tenantId,billingInvoices.id]}),

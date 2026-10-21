@@ -116,3 +116,6 @@ PR #124 já integrada em `2a041d282a0135c02a36daef53fcc6fb90100705`; não repeti
 PRs #114/#118–#123 substituídas. Corrigir/validar Cognitive em push main;
 confirmar os quatro workflows pós-merge antes de encerrar B0. Cada aplicação
 continua com homologação externa adiada e executores reais OFF.
+
+### B1 — evidências financeiras sucessivas
+B0 concluído com quatro gates pós-merge na main `9b27fb0663c16d3d1d8d05cbe4addea1c91c38ea`. Preservar histórico de observações do mesmo pagamento: cada leitura autenticada futura recebe source_ref próprio; repetir a mesma observação não pode inserir outra linha. Ordenar por verified_at, created_at e observation_sequence decrescentes em todos os fences. A sequência desempata observações, não prova autenticidade nem substitui vínculo canônico do PSP. Nenhuma rota pública de gravação ou executor real é habilitado por esta migração.
