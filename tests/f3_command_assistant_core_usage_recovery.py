@@ -114,6 +114,7 @@ def test_command_assistant_core_revocation_quota_and_recovery(
         core = FastAPI()
         core.include_router(governed_recovery_router(
             trust=policy, evidence=evidence, ledger=quota,
+            transport_key="synthetic-fm-command-core-recovery-key-123",
         ))
         http = TestClient(core)
         endpoint = "/internal/v1/command/ai/usage/reconcile"
@@ -122,8 +123,14 @@ def test_command_assistant_core_revocation_quota_and_recovery(
             "unit_id": "unit-a", "evidence_id": "provider-proof-1",
             "requests_revision": 2, "tokens_revision": 2,
         }
-        auth = {"Authorization": "Bearer " + signed["token"]}
+        auth = {
+            "Authorization": "Bearer " + signed["token"],
+            "X-FM-Recovery-Service-Key": "synthetic-fm-command-core-recovery-key-123",
+        }
         assert http.post(endpoint, json=request).status_code == 401
+        assert http.post(endpoint, json=request, headers={
+            "Authorization": auth["Authorization"],
+        }).status_code == 401
         wrong = dict(request, tenant_id="attacker-tenant")
         assert http.post(endpoint, json=wrong, headers=auth).status_code == 409
         assert http.post(endpoint, json=request, headers=auth).status_code == 204
