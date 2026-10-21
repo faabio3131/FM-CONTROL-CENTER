@@ -68,3 +68,16 @@ banco real. A migration 0015 só é executada em bancos descartáveis nesta etap
 Após CI verde: conferir head/base, merge com expected_head_sha, conferir quatro
 workflows pós-merge e registrar evidência. Próximo bloco: B1, fechar lacunas
 internas F3/C06; nenhuma homologação externa antecipada.
+
+## Correção do contrato descoberta pelo gate conjunto
+Foundation run `39537380245` em `dae5774889a81e36887dc71b56020003a1fdbe87`
+falhou nos dois testes de recuperação: o Core atual exige `transport_key`, mas
+Command e harness ainda usavam somente JWT. PostgreSQL/F21/Cognitive passaram.
+Causa raiz: pins antigos escondiam incompatibilidade entre os repositórios.
+
+Corrigidos sender Command e servidores sintéticos: identidade técnica dedicada
+`recoveryServiceKey`, header `X-FM-Recovery-Service-Key`, validação antes de rede,
+RSA >=2048 e payload sem segredo. Os testes agora exigem 401 tanto para JWT
+isolado quanto para chave técnica isolada, além de 204 com ambas, 409 no replay
+e ledger/audit único. Não relaxada nenhuma barreira do Core. Seis testes Node
+passaram e typecheck passou; executar novamente os quatro workflows finais.

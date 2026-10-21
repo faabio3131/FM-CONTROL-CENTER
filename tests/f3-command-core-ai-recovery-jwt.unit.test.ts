@@ -12,6 +12,7 @@ const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const privateKeyPem = keys.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 const cfg = {
   privateKeyPem,
+  recoveryServiceKey: "synthetic-command-recovery-service-key-32-bytes",
   issuer: "fm-command",
   audience: "fm-core-recovery",
   corporateOrganizationId: "fm-company",
@@ -73,6 +74,8 @@ describe("Command → Core governed usage authority", () => {
           expect(init?.redirect).toBe("manual");
           const headers = new Headers(init?.headers);
           expect(headers.get("Authorization")?.startsWith("Bearer ")).toBe(true);
+          expect(headers.get("X-FM-Recovery-Service-Key")).toBe(cfg.recoveryServiceKey);
+          expect(String(init?.body)).not.toContain(cfg.recoveryServiceKey);
           expect(JSON.parse(String(init?.body))).toEqual({
             request_id: "request-1", tenant_id: "tenant-1",
             unit_id: "unit-1", evidence_id: "evidence-1",
@@ -83,6 +86,29 @@ describe("Command → Core governed usage authority", () => {
       },
     );
     expect(observed).toBe(1);
+  });
+
+  it("refuses absent, short or header-injected service credentials before network", async () => {
+    let calls = 0;
+    const target = {
+      requestId: "request-1", tenantId: "tenant-1", unitId: "unit-1",
+      evidenceId: "evidence-1", requestsRevision: 1, tokensRevision: 1,
+    };
+    for (const recoveryServiceKey of [undefined, "short", "a".repeat(32) + "\n", " ".repeat(40)]) {
+      await expect(sendGovernedCoreAIRecovery(target, actor, {
+        ...cfg, coreOrigin: "https://core.example.test",
+        recoveryServiceKey: recoveryServiceKey as string,
+      }, {now, http: (async () => { calls++; return new Response(null, {status: 204}); }) as typeof fetch}))
+        .rejects.toThrow(CoreAIRecoveryAuthorityDenied);
+    }
+    expect(calls).toBe(0);
+  });
+
+  it("rejects RSA keys below the Core trust policy strength", () => {
+    const weak = generateKeyPairSync("rsa", {modulusLength: 1024});
+    expect(() => signCoreAIRecoveryAuthorization(actor, {
+      ...cfg, privateKeyPem: weak.privateKey.export({type: "pkcs8", format: "pem"}).toString(),
+    }, {now})).toThrow(CoreAIRecoveryAuthorityDenied);
   });
 
   it("never retries after unknown Core status or trusts an insecure endpoint", async () => {
