@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks=vi.hoisted(()=>({
   session:vi.fn(),authority:vi.fn(),stepUp:vi.fn(),audit:vi.fn(),
-  enroll:vi.fn(),suspend:vi.fn(),cancel:vi.fn(),regularize:vi.fn(),
+  enroll:vi.fn(),suspend:vi.fn(),cancel:vi.fn(),regularize:vi.fn(),renew:vi.fn(),
 }));
 vi.mock("next/headers",()=>({headers:vi.fn(async()=>new Headers())}));
 vi.mock("../src/application/security/resolve-tenant-context",()=>({
@@ -24,6 +24,7 @@ vi.mock("../src/application/billing/vende-c06-governed-execution",()=>({
     requestRegularization=mocks.regularize;
   },
 }));
+vi.mock("../src/application/billing/vende-renewal-admission",()=>({requestVerifiedVendeRenewal:mocks.renew}));
 import { POST } from "../src/app/api/billing/vende-contracts/route";
 
 const base={
@@ -48,6 +49,7 @@ beforeEach(()=>{
   mocks.stepUp.mockResolvedValue({userId:"fm-owner",verifiedAt:new Date()});
   mocks.audit.mockResolvedValue(undefined);
   mocks.suspend.mockResolvedValue({state:"pending",remoteEntitlementConfirmed:false,revision:2});
+  mocks.renew.mockResolvedValue({state:"pending",remoteEntitlementConfirmed:false,revision:2});
 });
 describe("C06 governed contract ingress: no external authority from request body",()=>{
   it("refuses spoofed tenant, fake provider status, URL and extra fields",async()=>{
@@ -123,6 +125,27 @@ describe("C06 governed contract ingress: no external authority from request body
       result:{state:"reactivation_pending",remoteEntitlementConfirmed:false}});
     expect(mocks.cancel).toHaveBeenCalledOnce();
     expect(mocks.regularize).toHaveBeenCalledOnce();
+  });
+
+  it("B1.14 admits only an explicitly reviewed renewal with fixed typed fields",async()=>{
+    const payload={action:"request_verified_renewal",productId:base.productId,
+      subscriptionId:base.subscriptionId,paidInvoiceId:base.invoiceId,
+      expectedRevision:1,planRevision:1,operationId:"fm-renewal-12345",
+      sourceRef:"fm-verified-payment",customerConsentRef:"fm-renewal-consent",
+      password:base.password};
+    for(const extra of [{tenantId:"foreign"},{paidThrough:"2035-01-01"},
+      {planRevision:"1"},{priceMinor:1},{confirmed:true},{customerConsentRef:null}]){
+      expect((await POST(request({...payload,...extra}))).status).toBe(400);
+    }
+    expect(mocks.renew).not.toHaveBeenCalled();
+    const response=await POST(request(payload));
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({deliveryConfirmed:false,
+      result:{state:"pending",remoteEntitlementConfirmed:false}});
+    expect(mocks.renew).toHaveBeenCalledWith(expect.objectContaining({tenantId:"fm-company"}),
+      expect.objectContaining({userId:"fm-owner"}),
+      expect.objectContaining({paidInvoiceId:base.invoiceId,planRevision:1,
+        sourceRef:"fm-verified-payment",customerConsentRef:"fm-renewal-consent"}));
   });
 
 });
