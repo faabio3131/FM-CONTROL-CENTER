@@ -225,3 +225,19 @@ O indicador no Command é contagem histórica, não alerta aberto ou compensado;
 estado corrente do Assistant continua desconhecido sem readback S2S.
 O produtor fica OFF por padrão. CI 4/4 + pós-merge, sem deploy/homologação.
 Detalhes: `docs/FMCC_VENDE_POST_DELIVERY_RECONCILIATION_B112.md`.
+
+### B1.13 — cancelamento final governado ao fim do período pago (21/10/2026)
+SCHEDULE_CANCEL continua sendo intenção pendente com autoRenew=false; não é ACK.
+Não enviar licença CANCEL_AT_PERIOD_END antes de fmPaidThroughExclusiveInstant(paidThrough).
+O step-up original de agendamento expira e NÃO pode ser renovado por executor;
+somente a FM owner/admin pode reaprovar o comando devido com senha e CAS exato.
+Revalidar produto, escopo, termo na revisão, cliente/assinatura/binding SaaS,
+prazo e plano, antes e depois do readback remoto. O dispatcher privado
+OFF por padrão envia operação assinada uma única vez, sem fila automática.
+Somente ACK S2S exato por leitura assinada autoriza mudar contrato e assinatura
+locais para cancelled. Timeout, falta de prova, corrida ou resposta divergente
+permanecem unknown para read-only reconciliation sem segundo POST.
+Processing órfão pode ser isolado, nunca reencaminhado. Cliente cancelado que
+retornar terá nova identidade comercial, sem reset de trial.
+Testes PostgreSQL/route, quatro gates PR e pós-merge obrigatórios, sem deploy real.
+Guia: docs/FMCC_VENDE_FINAL_CANCELLATION_B113.md.
