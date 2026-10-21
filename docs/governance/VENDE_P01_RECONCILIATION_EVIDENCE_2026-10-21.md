@@ -49,3 +49,16 @@ Core apenas por seus testes atuais verdes. Respeitar review independente quando
 obrigatória, branches protegidas, desligar auto-deploy e nunca usar segredos
 reais, gateway, servidor Evolution, fornecedor IA ou bases de produção antes
 do build completo. Para cada WP, preservar HEAD, testes, gate e rollback.
+
+## Gate complementar P01 — quotas compartilhadas de texto e áudio
+A jornada de teste que já utiliza o signer do Command, receptor de licença
+do Assistant e guarda de quota transacional do Core passa a fazer duas
+admissões sob a mesma assinatura: `ai.requests` e `ai.total_tokens`
+para texto e áudio. Os 180 tokens reservados para cada modalidade
+compartilham a mesma franquia técnica agregada do tenant (360 no fixture)
+e a mesma revogação ativa do Assistant. Replays das duas capacidades são
+negados antes de provider. Depois de suspensão, nenhuma modalidade pode
+obter nova reserva; as anteriores não são automaticamente estornadas.
+É teste interno com banco descartável, sem chamada real a gateway, modelo
+ou serviço público. A matriz completa de usage/provider costs ainda depende
+dos demais gates P01.
