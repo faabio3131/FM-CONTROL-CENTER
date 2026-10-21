@@ -24,7 +24,7 @@ export async function GET(request:Request,{params}:Params){
     if([...q.keys()].some(k=>k!=="action")||q.getAll("action").length>1)
       return reply({error:"approval.invalid"},400);
     const action=q.get("action")??"SUSPEND_DELINQUENCY";
-    if(!["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL"].includes(action))
+    if(typeof action!=="string"||!["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL"].includes(action))
       return reply({error:"approval.invalid"},400);
     const [product]=await db.select({id:productDefinitions.id}).from(productDefinitions).where(and(
       eq(productDefinitions.tenantId,context.tenantId),eq(productDefinitions.id,productId),
