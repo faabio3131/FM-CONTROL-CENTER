@@ -47,3 +47,28 @@ Rollback: manter flag C06 OFF, reverter dispatcher sem apagar targets/claims. Pr
 coluna 0020 e evidências; não resetar unknown/processing para pending. Todas as migrations
 operacionais continuam proibidas nesta etapa. Auditoria em passe separado nesta sessão;
 quatro gates PR e pós-merge obrigatórios antes de encerrar o bloco.
+
+## B1.9 — reaprovação governada, sem reenvio
+O painel corporativo de aprovações existentes foi ampliado para selecionar
+SUSPEND_DELINQUENCY ou REACTIVATE_VERIFIED sem duplicar autoridades/rotas. GET
+consulta até 50 comandos pendentes nunca tentados por produto, tenant e ação;
+query inválida/duplicada é rejeitada. POST mantém compatibilidade com a ação
+legada de suspensão, ou exige enum action explícita para reativação e senha do
+ator autenticado, sem aceitar tenant, novo approval timestamp ou outcome externos.
+
+No serviço de reativação, sob lock da claim e no mesmo TX, exigir approval anterior
+nulo ou expirado, CAS exato, step-up FM recente e mesmo usuário, estado pending
+sem claim/target/delivery, invoice paid BRL, PSP received, observação settled_verified
+fresca vinculada, contrato reactivation_pending na revisão, período válido,
+assinatura não cancelada, plano/tenant/binding e produto ativo. Auditoria append-only
+with old/new approval e actor precede UPDATE; falha cancela toda a transação.
+Nenhuma operação externa é enviada pela reaprovação, sem alteração de invoice,
+ledger, entitlement, quota ou licença. Desconhecidos não são reabertos nem recebem
+nova tentativa; apenas reconciliação B1.8 read-only resolve outcomes incertos.
+
+Testes PostgreSQL descartáveis abrangem corrida de aprovação única, aprovação
+original ausente/expirada/válida, target fixo, estados tentados, tenant divergente,
+rollback de mutações negadas, pagamento estornado, contrato e binding divergentes.
+Teste de rota assegura ação estrita, autoridade, senha e payload limitado.
+Rollback: reverter fluxo B1.9 sem alterar esquema/dados, preservar auditoria,
+B1.8 e flags OFF. Não realizar operação real de gateway, SaaS ou migration produtiva.
