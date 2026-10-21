@@ -117,6 +117,7 @@ export async function sendGovernedCoreAIRecovery(
     origin.search || origin.hash ||
     typeof config.recoveryServiceKey !== "string" ||
     !/^[\x21-\x7e]{32,512}$/.test(config.recoveryServiceKey) ||
+    [config.privateKeyPem, config.issuer, config.audience].includes(config.recoveryServiceKey) ||
     ![target.requestId, target.tenantId, target.unitId, target.evidenceId]
       .every((value) => validId.test(value)) ||
     !Number.isSafeInteger(target.requestsRevision) ||

@@ -254,3 +254,11 @@ HEADs certificados Assistant/Core; quatro gates internos no pós-merge; teste
 externo Render exclusivamente manual. Inventário, auditoria, limitações e
 rollback em `VENDE_B0_RECONCILIATION_2026-10-21.md`. CI final pendente; nenhum
 merge ou encerramento de F3 presumido. Autonomia reafirmada pelo proprietário.
+
+### B0 — integração e verificação pós-merge
+PR #124 integrada em `2a041d282a0135c02a36daef53fcc6fb90100705`, depois de
+4/4 gates SUCCESS no HEAD `840a7c8ae3680dadc9a78c41a7495f7a4f19bcdd`.
+Corrigido contrato de recuperação Command/Core com dupla identidade; os sete
+contratos no CI passaram. PRs #114/#118–#123 encerradas como substituídas.
+Acompanhamento pós-merge detectou gatilho Cognitive ausente em main; correção
+obrigatória desta unidade antes de declarar B0 encerrado. B1 ainda não certificado.

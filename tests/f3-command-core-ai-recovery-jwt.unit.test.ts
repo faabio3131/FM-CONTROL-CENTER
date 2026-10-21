@@ -104,6 +104,22 @@ describe("Command → Core governed usage authority", () => {
     expect(calls).toBe(0);
   });
 
+  it("rejects reuse of public JWT identifiers as service credentials before network", async () => {
+    let calls = 0;
+    for (const field of ["issuer", "audience"] as const) {
+      const publicIdentifier = "public-identifier-" + "a".repeat(32);
+      await expect(sendGovernedCoreAIRecovery({
+        requestId: "request-1", tenantId: "tenant-1", unitId: "unit-1",
+        evidenceId: "evidence-1", requestsRevision: 1, tokensRevision: 1,
+      }, actor, {
+        ...cfg, [field]: publicIdentifier, recoveryServiceKey: publicIdentifier,
+        coreOrigin: "https://core.example.test",
+      }, { now, http: (async () => { calls++; return new Response(null, {status: 204}); }) as typeof fetch }))
+        .rejects.toThrow(CoreAIRecoveryAuthorityDenied);
+    }
+    expect(calls).toBe(0);
+  });
+
   it("rejects RSA keys below the Core trust policy strength", () => {
     const weak = generateKeyPairSync("rsa", {modulusLength: 1024});
     expect(() => signCoreAIRecoveryAuthorization(actor, {
