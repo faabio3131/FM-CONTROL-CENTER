@@ -428,3 +428,23 @@ nem operação compensatória automática. Checagem no mesmo TX da observação,
 sem lock invertido na claim. Testes PG simulam ambos os casos, replays e controles.
 CI nova unidade ainda a certificar. Demais transições contratuais/compensação
 governada permanecem em aberto, B1/F3/F9 global NÃO concluídos.
+
+### B1.12 integrada / B1.13 cancelamento definitivo em certificação (21/10/2026)
+PR #138 integrada em `84f21024867bdfa7ed6122ecd3f53da4d5c8baa2`.
+Gates HEAD `6475d4335c4b0cf2e8403a85bc918814ca983bd2`:
+Foundation 39612866081, Billing PG 39612866180, F21 39612866284,
+Cognitive 39612866310 SUCCESS; pós-merge da main: Foundation 39613507705,
+Billing PG 39613507591, F21 39613507556 e Cognitive 39613507595 SUCCESS.
+B1.12 WP GREEN_INTERNO, não homologação.
+
+B1.13 fecha a transição SCHEDULE_CANCEL -> CANCEL_AT_PERIOD_END:
+reaprovação FM explícita somente após o dia local integralmente pago,
+one-shot assinado com contrato/tenant/plano revalidados, confirmação S2S
+exata antes de alterar estados locais para cancelled, timeout em unknown
+e reconciliação exclusivamente read-only. Compatibilidade com cancelamento
+programado, suspensão, reativação e regras comerciais preservada.
+UI, API e testes PG sintéticos incluídos. Este candidato ainda está
+PENDENTE de validação dos gates 4/4 e auditoria; não marcar como encerrado
+até CI e pós-merge verdes.
+Ainda faltam renovação, upgrade, downgrade, compensação humana efetiva,
+preços/quotas e demais fases B2–B11. BUILD_COMPLETE_INTERNAL_GREEN não concedido.
