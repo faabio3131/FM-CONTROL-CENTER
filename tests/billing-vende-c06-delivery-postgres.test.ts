@@ -12,7 +12,7 @@ import {
   reapproveVendeDelinquency,
 } from "../src/application/billing/vende-c06-delivery";
 
-import {dispatchVendeReactivationOnce,reconcileUnknownVendeReactivation} from "../src/application/billing/vende-reactivation-delivery";
+import {dispatchVendeReactivationOnce,reconcileUnknownVendeReactivation,reapproveVendeReactivation} from "../src/application/billing/vende-reactivation-delivery";
 import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/billing/vende-commercial-policy-v1";
 
 const database=process.env.DATABASE_URL??"";
@@ -563,6 +563,70 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(await quarantineAbandonedVendeClaims(config)).toBe(1);
     const noNetwork=(async()=>{throw Error("missing target must not read or mutate");}) as typeof fetch;
     expect(await reconcileUnknownVendeReactivation(orphan.id,config,noNetwork)).toBe("unknown");
+  });
+
+  it("reapproves an expired, never-attempted REACTIVATE_VERIFIED intent once with atomic audit",async()=>{
+    for(const prior of [null,new Date(Date.now()-301_000)]){
+      const cmd=await makeReactivation();
+      await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=$1,actor_id='original-approver' WHERE id=$2",[prior,cmd.id]);
+      const proof={userId:context.userId,verifiedAt:new Date()};
+      const input={productId,commandId:cmd.id,expectedApprovedAt:prior?.toISOString()??null};
+      const outcomes=await Promise.allSettled([
+        reapproveVendeReactivation(context,proof,input),
+        reapproveVendeReactivation(context,proof,input),
+      ]);
+      expect(outcomes.filter(r=>r.status==="fulfilled")).toHaveLength(1);
+      expect(outcomes.filter(r=>r.status==="rejected")).toHaveLength(1);
+      const row=(await pool.query(
+        "SELECT state,claimed_at,delivered_at,delivery_target,actor_id,approved_at FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id],
+      )).rows[0];
+      expect(row.state).toBe("pending");expect(row.claimed_at).toBeNull();
+      expect(row.delivered_at).toBeNull();expect(row.delivery_target).toBeNull();
+      expect(row.actor_id).toBe(context.userId);
+      expect(row.approved_at.getTime()).toBe(proof.verifiedAt.getTime());
+      const logs=(await pool.query(
+        "SELECT metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.reactivation_intent.reapproved'",
+        [tenant,cmd.id],
+      )).rows;
+      expect(logs).toHaveLength(1);
+      expect(logs[0].metadata).toMatchObject({
+        previousActorId:"original-approver",previousApprovedAt:prior?.toISOString()??null,
+        approvedAt:proof.verifiedAt.toISOString(),paymentRef:cmd.paymentRef,
+      });
+    }
+  });
+  it("blocks reactivation reapproval on stale finance, changed revision, attempts, foreign scope and invalid proof",async()=>{
+    const cases=["processing","unknown","delivered","blocked","claimed","target","invoice","payment",
+      "revision","cancelled","binding","valid","cas","actor","proof","foreign"];
+    for(const mode of cases){
+      const cmd=await makeReactivation();
+      const prior=new Date(Date.now()-301_000);
+      await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=$1 WHERE id=$2",[prior,cmd.id]);
+      if(["processing","unknown","delivered","blocked"].includes(mode))
+        await pool.query("UPDATE fmcc_vende_lifecycle_command SET state=$1 WHERE id=$2",[mode,cmd.id]);
+      if(mode==="claimed")await pool.query("UPDATE fmcc_vende_lifecycle_command SET claimed_at=now() WHERE id=$1",[cmd.id]);
+      if(mode==="target")await pool.query(
+        "UPDATE fmcc_vende_lifecycle_command SET delivery_target=$1::jsonb WHERE id=$2",
+        [JSON.stringify({schema:"fm.vende.reactivation-target.v1",planCode:"BASE",planRevision:1,
+          validUntil:cmd.validUntil,paymentRef:cmd.paymentRef,termsRevision:3}),cmd.id],
+      );
+      if(mode==="invoice")await pool.query("UPDATE fmcc_billing_invoice SET status='pending' WHERE id=$1",[cmd.invoiceId]);
+      if(mode==="payment")await pool.query("UPDATE fmcc_billing_provider_payment SET status='refunded' WHERE invoice_id=$1",[cmd.invoiceId]);
+      if(mode==="revision")await pool.query("UPDATE fmcc_vende_contract_terms SET revision=revision+1 WHERE subscription_id=$1",[cmd.subscriptionId]);
+      if(mode==="cancelled")await pool.query("UPDATE fmcc_billing_subscription SET status='cancelled' WHERE id=$1",[cmd.subscriptionId]);
+      if(mode==="binding")await pool.query("UPDATE fmcc_vende_lifecycle_command SET external_tenant_id='foreign-tenant' WHERE id=$1",[cmd.id]);
+      if(mode==="valid")await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=now() WHERE id=$1",[cmd.id]);
+      const input={productId,commandId:cmd.id,expectedApprovedAt:mode==="cas"?null:prior.toISOString()};
+      const proof={userId:mode==="actor"?"not-owner":context.userId,
+        verifiedAt:mode==="proof"?new Date(Date.now()-301_000):new Date()};
+      const actualContext=mode==="foreign"?{...context,tenantId:"foreign-fm"}:context;
+      await expect(reapproveVendeReactivation(actualContext,proof,input)).rejects.toThrow();
+      const audit=(await pool.query(
+        "SELECT count(*)::int AS n FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.reactivation_intent.reapproved'",
+        [tenant,cmd.id],
+      )).rows[0];
+      expect(audit.n).toBe(0);
+    }
   });
 
 });
