@@ -22,7 +22,7 @@ export const VENDE_COMPENSATION_REVIEW_ACTION="vende.compensation_review.require
  * creating an unbounded number of risk tickets. Failure rolls back the claim
  * transition, leaving it NOT delivered. */
 export async function recordVendeCompensationRisk(
-  tx:Tx,row:Command,remote:RemoteObserved,reason:"reactivation_unconfirmed"|"suspension_unconfirmed"|"renewal_unconfirmed",
+  tx:Tx,row:Command,remote:RemoteObserved,reason:"reactivation_unconfirmed"|"suspension_unconfirmed"|"renewal_unconfirmed"|"upgrade_unconfirmed"|"downgrade_unconfirmed",
   now:Date,
 ):Promise<boolean>{
   if(remote.operation_status!=="applied")return false;
@@ -75,14 +75,16 @@ export async function recordPostDeliveryVendePaymentRisk(
     eq(vendeLifecycleCommands.tenantId,input.tenantId),
     eq(vendeLifecycleCommands.sourceInvoiceId,input.invoiceId),
     eq(vendeLifecycleCommands.state,"delivered"),
-    inArray(vendeLifecycleCommands.action,["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED"]),
+    inArray(vendeLifecycleCommands.action,["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","APPLY_UPGRADE","APPLY_DOWNGRADE"]),
   ));
   let flagged=0;
   for(const row of commands){
     const reason=row.action==="REACTIVATE_VERIFIED" && input.outcome==="reversed_verified"
       ?"reactivation_payment_reversed_after_delivery"
       :row.action==="SUSPEND_DELINQUENCY" && input.outcome==="settled_verified"
-        ?"delinquency_paid_after_delivery":null;
+        ?"delinquency_paid_after_delivery"
+        :["APPLY_UPGRADE","APPLY_DOWNGRADE"].includes(row.action)&&input.outcome==="reversed_verified"
+          ?"plan_change_payment_reversed_after_delivery":null;
     if(!reason)continue;
     // The PSP observation is source verified; the current Assistant license
     // has NOT been queried and cannot be inferred from Command delivered.
