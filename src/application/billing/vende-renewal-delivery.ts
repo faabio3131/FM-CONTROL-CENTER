@@ -33,13 +33,14 @@ const denied=():never=>{throw new VendeCommercialDeliveryDenied();};
  * readback is a separate pre-POST fence; never infer license state from
  * payment, billing subscription or Command claim status. */
 async function eligible(tx:Tx,row:Command,now:Date){
+  const reject=(step:number)=>{if(process.env.NODE_ENV==="test")console.warn("B115_DIAG_FENCE",step);return reject(1);};
   const t=row.deliveryTarget;
   if(row.action!=="RENEW_VERIFIED"||!row.sourceInvoiceId||!t||
      t.schema!=="fm.vende.renewal-target.v1"||!t.paidThrough||!t.nextDueDate||
      !t.previousValidUntil||!t.amountMinor||!t.billingInterval||
      !Number.isSafeInteger(t.planRevision)||t.planRevision<1||
      t.termsRevision!==row.revision||row.revision!==row.expectedRevision+1||
-     t.paidThrough!==row.effectiveDate||t.validUntil<=now.getTime()/1000)return null;
+     t.paidThrough!==row.effectiveDate||t.validUntil<=now.getTime()/1000)return reject(2);
   // Keep invoice before contract lock in delivery/reconciliation.
   const [invoice]=await tx.select().from(billingInvoices).where(and(
     eq(billingInvoices.id,row.sourceInvoiceId),eq(billingInvoices.tenantId,row.tenantId),
@@ -47,28 +48,28 @@ async function eligible(tx:Tx,row:Command,now:Date){
     eq(billingInvoices.customerId,row.customerId),
   )).for("update").limit(1);
   if(!invoice||invoice.status!=="paid"||invoice.currency!=="BRL"||
-     invoice.amountMinor!==t.amountMinor)return null;
+     invoice.amountMinor!==t.amountMinor)return reject(3);
   const [payment]=await tx.select().from(billingProviderPayments).where(and(
     eq(billingProviderPayments.tenantId,row.tenantId),
     eq(billingProviderPayments.invoiceId,invoice.id),
     eq(billingProviderPayments.gatewayAccountId,invoice.gatewayAccountId),
   )).limit(1);
-  if(!payment||payment.status!=="received")return null;
+  if(!payment||payment.status!=="received")return reject(4);
   const evidence=await currentBoundVendePaymentEvidence(tx,invoice,now);
   if(!evidence||evidence.outcome!=="settled_verified"||
-     evidence.externalPaymentRef!==t.paymentRef)return null;
+     evidence.externalPaymentRef!==t.paymentRef)return reject(5);
   const [term]=await tx.select().from(vendeContractTerms).where(and(
     eq(vendeContractTerms.tenantId,row.tenantId),eq(vendeContractTerms.productId,row.productId),
     eq(vendeContractTerms.customerId,row.customerId),
     eq(vendeContractTerms.subscriptionId,row.subscriptionId),
   )).for("update").limit(1);
   if(!term||term.revision!==row.expectedRevision||term.lifecycleState!=="active"||
-     !term.autoRenew||invoice.createdAt<=term.createdAt)return null;
+     !term.autoRenew||invoice.createdAt<=term.createdAt)return reject(6);
   const [subscription]=await tx.select().from(billingSubscriptions).where(and(
     eq(billingSubscriptions.tenantId,row.tenantId),eq(billingSubscriptions.id,row.subscriptionId),
     eq(billingSubscriptions.productId,row.productId),eq(billingSubscriptions.customerId,row.customerId),
   )).for("update").limit(1);
-  if(!subscription||subscription.status!=="active"||subscription.planCode!==t.planCode)return null;
+  if(!subscription||subscription.status!=="active"||subscription.planCode!==t.planCode)return reject(7);
   const [product]=await tx.select({id:productDefinitions.id}).from(productDefinitions).where(and(
     eq(productDefinitions.tenantId,row.tenantId),eq(productDefinitions.id,row.productId),
     eq(productDefinitions.slug,"vendeatendeia"),eq(productDefinitions.status,"active"),
@@ -78,7 +79,7 @@ async function eligible(tx:Tx,row:Command,now:Date){
     eq(billingCustomerBindings.customerId,row.customerId),
     eq(billingCustomerBindings.externalTenantId,row.externalTenantId),
   )).limit(1);
-  if(!product||!binding)return null;
+  if(!product||!binding)return reject(8);
   const [billingPlan]=await tx.select().from(billingProductPlans).where(and(
     eq(billingProductPlans.tenantId,row.tenantId),eq(billingProductPlans.productId,row.productId),
     eq(billingProductPlans.planCode,t.planCode),eq(billingProductPlans.status,"active"),
@@ -91,12 +92,12 @@ async function eligible(tx:Tx,row:Command,now:Date){
   if(!billingPlan||!aiPlan||billingPlan.currency!=="BRL"||
      billingPlan.interval!==t.billingInterval||
      billingPlan.amountMinor!==t.amountMinor||aiPlan.amountMinor!==t.amountMinor||
-     aiPlan.billingInterval!==t.billingInterval)return null;
+     aiPlan.billingInterval!==t.billingInterval)return reject(9);
   const next=nextVendePaidThrough(term.paidThrough,t.billingInterval);
   const nextDue=nextVendePaidThrough(term.dueDate,t.billingInterval).paidThrough;
   if(t.paidThrough!==next.paidThrough||t.validUntil!==next.validUntil||
      t.previousValidUntil!==fmPaidThroughExclusiveInstant(term.paidThrough).getTime()/1000||
-     t.nextDueDate!==nextDue||t.validUntil<=t.previousValidUntil)return null;
+     t.nextDueDate!==nextDue||t.validUntil<=t.previousValidUntil)return reject(10);
   return {term,target:t};
 }
 function exactAck(proof:VendeRemoteCommercialStatus|null,t:Target){
