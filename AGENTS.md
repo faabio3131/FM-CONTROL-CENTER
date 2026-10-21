@@ -288,3 +288,19 @@ Timeout/erro => unknown, reconciliação apenas READ-ONLY; sem replay,
 compensação ou estorno automático. Quatro gates HEAD, revisão e quatro
 gates pós-merge exigidos. Não homologar/ativar PSP/Assistant externos.
 Runbook: docs/FMCC_VENDE_PLAN_CHANGE_B116.md.
+
+### PROMPT 01/04 — pacote de investigação governada de compensação (21/10/2026)
+Escopo: fechar B1/F3/F9 sem reconstruir as PRs certificadas #134–142.
+Os eventos `vende.compensation_review.required` são alertas históricos;
+não equivalem a casos resolvidos. Somente operador FM com owner/admin,
+comercial:write e reautenticação pessoal <=300s pode registrar decisão
+`investigating` ou `escalated`, com compare-and-swap de versão e audit
+append-only. Casos são escopados a tenant/produto/claim original. Nunca
+aceitar `resolved`, estorno, reenvio de licença, reativação, alteração de
+pagamento ou quota nesta revisão; não inventar state/validade do Assistant.
+Concorrência: lock da claim serializa versões de revisão; falha de auditoria
+reverte tudo. GET é read-only e contagem histórica, não casos fechados.
+A reparação real exige outra etapa, provas financeiras e estado remoto
+independentes, decisão explícita e testes E2E. Nenhum deploy ou homologação
+externa. Matriz: docs/governance/VENDE_P01_RECONCILIATION_EVIDENCE_2026-10-21.md.
+P01 continua IN_PROGRESS até terminar todas as lacunas dos três repositórios.
