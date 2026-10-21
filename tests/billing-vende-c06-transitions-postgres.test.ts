@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, describe, it, expect } from "vitest";
 import pg from "pg";
 import { GovernedVendeC06Service } from "../src/application/billing/vende-c06-governed-execution";
+import {requestVerifiedVendeRenewal} from "../src/application/billing/vende-renewal-admission";
+import {fmPaidThroughExclusiveInstant} from "../src/domain/billing/vende-commercial-policy-v1";
 
 const dbUrl=process.env.DATABASE_URL??"";
 const tenant="fm-c06-life-"+randomUUID();
@@ -59,7 +61,8 @@ describe("C06 - contract lifecycle CAS, supervised cancellation and reactivation
       for(const tab of [
         "fmcc_vende_lifecycle_command","fmcc_vende_contract_term_audit",
         "fmcc_vende_payment_attestation","fmcc_vende_business_calendar",
-        "fmcc_vende_contract_terms","fmcc_billing_provider_payment",
+        "fmcc_vende_contract_terms","fmcc_assistant_plan_revision","fmcc_billing_product_plan",
+        "fmcc_audit_event","fmcc_billing_provider_payment",
         "fmcc_billing_invoice","fmcc_billing_subscription",
         "fmcc_billing_customer_binding","fmcc_billing_gateway_account",
         "fmcc_billing_customer","fmcc_product_definition",
@@ -160,6 +163,65 @@ describe("C06 - contract lifecycle CAS, supervised cancellation and reactivation
       {productId,subscriptionId,beforeRevision:0}])await expect(svc.contractHistory(ctx,input)).rejects.toThrow();
     await expect(svc.contractHistory({...ctx,tenantId:"foreign"},{productId,subscriptionId})).rejects.toThrow();
     await expect(svc.contractHistory({...ctx,role:"viewer"},{productId,subscriptionId})).rejects.toThrow();
+  });
+
+  it("B1.14 stages one FM-priced renewal from a settled invoice without extending current entitlement",async()=>{
+    const subscriptionId=await createContract("active",true);
+    await pool.query("INSERT INTO fmcc_billing_product_plan(tenant_id,product_id,plan_code,name,interval,amount_minor,status) VALUES ($1,$2,'PLUS','Premium FM','monthly',14900,'active') ON CONFLICT (tenant_id,product_id,plan_code) DO NOTHING",
+      [tenant,productId]);
+    await pool.query("INSERT INTO fmcc_assistant_plan_revision(tenant_id,product_id,plan_code,revision,label,billing_interval,amount_minor,allowances,status,actor_id) VALUES ($1,$2,'PLUS',1,'Premium FM','monthly',14900,$3::jsonb,'published','fm-owner') ON CONFLICT (tenant_id,product_id,plan_code,revision) DO NOTHING",
+      [tenant,productId,JSON.stringify([{resource:"ai.requests",scope:"tenant",limitUnits:100,windowSeconds:86400},
+        {resource:"ai.total_tokens",scope:"tenant",limitUnits:100000,windowSeconds:86400}])]);
+    const paidInvoiceId=(await pool.query(
+      "INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status) VALUES ($1,$2,$3,$4,$5,14900,'paid') RETURNING id",
+      [tenant,productId,customerId,subscriptionId,gw])).rows[0].id as string;
+    const externalPaymentRef="provider-renew-"+randomUUID();
+    await pool.query("INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES ($1,$2,$3,$4,'received')",
+      [tenant,paidInvoiceId,gw,externalPaymentRef]);
+    await pool.query("INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'provider-verified-renewal')",
+      [tenant,paidInvoiceId,externalPaymentRef,clock]);
+    const input={productId,subscriptionId,paidInvoiceId,expectedRevision:1,planRevision:1,
+      operationId:"renew-"+randomUUID(),sourceRef:"fm-verified-renewal",
+      customerConsentRef:"fm-consented-autorenew"};
+    const result=await requestVerifiedVendeRenewal(ctx,proof,input,clock);
+    expect(result).toMatchObject({state:"pending",revision:2,
+      paidThrough:"2026-12-15",amountMinor:14900,currency:"BRL",remoteEntitlementConfirmed:false});
+    const row=(await pool.query("SELECT action,state,approved_at,delivery_target,source_invoice_id FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND operation_id=$2",
+      [tenant,input.operationId])).rows[0];
+    expect(row.action).toBe("RENEW_VERIFIED");expect(row.state).toBe("pending");
+    expect(row.approved_at.getTime()).toBe(clock.getTime());
+    expect(row.source_invoice_id).toBe(paidInvoiceId);
+    expect(row.delivery_target).toMatchObject({
+      schema:"fm.vende.renewal-target.v1",planCode:"PLUS",planRevision:1,
+      termsRevision:2,paidThrough:"2026-12-15",nextDueDate:"2026-12-16",
+      amountMinor:14900,billingInterval:"monthly",paymentRef:externalPaymentRef,
+      previousValidUntil:fmPaidThroughExclusiveInstant("2026-11-15").getTime()/1000,
+    });
+    expect(row.delivery_target.validUntil).toBe(fmPaidThroughExclusiveInstant("2026-12-15").getTime()/1000);
+    const after=(await pool.query("SELECT revision,paid_through::text,lifecycle_state FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
+      [subscriptionId])).rows[0];
+    expect(after).toEqual({revision:1,paid_through:"2026-11-15",lifecycle_state:"active"});
+    await expect(requestVerifiedVendeRenewal(ctx,proof,input,clock)).rejects.toThrow();
+    await expect(requestVerifiedVendeRenewal(ctx,proof,{...input,operationId:"renew-again-"+randomUUID()},clock)).rejects.toThrow();
+  });
+  it("B1.14 denies nonmatching billing price, stale evidence, invalid actor and cross-tenant renewal",async()=>{
+    const subscriptionId=await createContract("active",true);
+    const invoiceId=(await pool.query(
+      "INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status) VALUES ($1,$2,$3,$4,$5,14800,'paid') RETURNING id",
+      [tenant,productId,customerId,subscriptionId,gw])).rows[0].id as string;
+    const paymentRef="provider-invalid-price-"+randomUUID();
+    await pool.query("INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES ($1,$2,$3,$4,'received')",
+      [tenant,invoiceId,gw,paymentRef]);
+    await pool.query("INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'provider-invalid-price-proof')",
+      [tenant,invoiceId,paymentRef,clock]);
+    const input={productId,subscriptionId,paidInvoiceId:invoiceId,expectedRevision:1,planRevision:1,
+      operationId:"renew-invalid-"+randomUUID(),sourceRef:"fm-renew-probe",
+      customerConsentRef:"fm-consented-autorenew"};
+    await expect(requestVerifiedVendeRenewal(ctx,proof,input,clock)).rejects.toThrow();
+    await expect(requestVerifiedVendeRenewal({...ctx,tenantId:"foreign"},proof,input,clock)).rejects.toThrow();
+    await expect(requestVerifiedVendeRenewal(ctx,{...proof,userId:"attacker"},input,clock)).rejects.toThrow();
+    expect((await pool.query("SELECT count(*)::int AS n FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2",
+      [tenant,subscriptionId])).rows[0].n).toBe(0);
   });
 
 });
