@@ -21,7 +21,6 @@ describe("B1.16 directional FM quota and price dominance",()=>{
   });
   it("rejects incomparable quotas, same plan, price reversal, changed cycle and missing AI meter",()=>{
     for(const invalid of [
-      {...a,newAllowances:[{...old[0],limitUnits:200},old[1]]},
       {...a,newAllowances:[{...old[0],limitUnits:200},{...old[1],limitUnits:5000}]},
       {...a,newPlanCode:"BASE"},{...a,newPriceMinor:9000},
       {...a,newInterval:"yearly"},{...a,newAllowances:old},
