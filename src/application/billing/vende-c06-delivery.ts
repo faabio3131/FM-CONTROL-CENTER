@@ -176,14 +176,14 @@ export async function dispatchVendeDelinquencyOnce(
         eq(vendeLifecycleCommands.tenantId,row.tenantId),
         eq(vendeLifecycleCommands.state,"processing"),
       )).for("update").limit(1);
-      if(!claimed)return false;
+      if(!claimed || !await financialFence(tx,claimed,new Date()))return false;
+      // Match the claim's invoice-before-term lock order to limit deadlocks.
       const [term]=await tx.select().from(vendeContractTerms).where(and(
         eq(vendeContractTerms.tenantId,row.tenantId),
         eq(vendeContractTerms.subscriptionId,row.subscriptionId),
       )).for("update").limit(1);
       return !!term && term.lifecycleState==="suspension_pending" &&
-        term.revision===row.revision &&
-        await financialFence(tx,claimed,new Date());
+        term.revision===row.revision;
     });
     if(!stillUnpaid)
       return transitionState(commandId,"processing","unknown",new Date(),false);
