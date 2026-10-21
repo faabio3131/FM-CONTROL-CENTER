@@ -24,7 +24,7 @@ const json=(data:object)=>new Response(JSON.stringify(data),{
   status:200,headers:{"Content-Type":"application/json"},
 });
 
-async function makePending(){
+async function makePending(verifiedAt:Date=new Date()){
   const sub=await pool.query(
     "INSERT INTO fmcc_billing_subscription(tenant_id,product_id,customer_id,plan_code,status) VALUES ($1,$2,$3,'BASE','active') RETURNING id",
     [tenant,productId,customerId],
@@ -50,17 +50,18 @@ async function makePending(){
   );
   const operationId="hold-"+randomUUID();
   const out=await new GovernedVendeC06Service().requestSuspension(
-    context,{userId:"fm-owner",verifiedAt:new Date()},
+    context,{userId:"fm-owner",verifiedAt},
     {productId,subscriptionId,invoiceId,expectedRevision:1,
       operationId,sourceRef:"fm-reviewed-delivery"},
     new Date(),
   );
   expect(out.state).toBe("pending");
   const cmd=await pool.query(
-    "SELECT id,source_invoice_id FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND operation_id=$2",
+    "SELECT id,source_invoice_id,approved_at FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND operation_id=$2",
     [tenant,operationId],
   );
   expect(cmd.rows[0].source_invoice_id).toBe(invoiceId);
+  expect(cmd.rows[0].approved_at.getTime()).toBe(verifiedAt.getTime());
   return {id:cmd.rows[0].id as string,invoiceId,subscriptionId,operationId};
 }
 
@@ -105,10 +106,11 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     }
   });
   it("delivers at most once and marks suspended only after a signed ACK and fresh finance check",async()=>{
-    const cmd=await makePending();
+    const originalApproval=new Date(Date.now()-240_000);
+    const cmd=await makePending(originalApproval);
     const calls:string[]=[];
     let remoteApplied=false;
-    const http=(async(url:RequestInfo|URL)=>{
+    const http=(async(url:RequestInfo|URL,init?:RequestInit)=>{
       const path=new URL(String(url)).pathname;
       calls.push(path);
       if(path.endsWith("/commercial-status"))return json({
@@ -122,6 +124,7 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
         valid_until:Math.floor(Date.now()/1000)+86400*5,
       });
       if(path.endsWith("/commercial-transition")){
+        expect(JSON.parse(String(init?.body)).approved_at).toBe(Math.floor(originalApproval.getTime()/1000));
         remoteApplied=true;
         return json({status:"suspended"});
       }
@@ -139,6 +142,47 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(delivery.delivered_at).not.toBeNull();
     await expect(dispatchVendeDelinquencyOnce(cmd.id,config,http)).rejects.toThrow();
     expect(calls).toHaveLength(3);
+  });
+  it("blocks absent, expired and future approval before claim or network, without fabricating a new date",async()=>{
+    let calls=0;
+    const http=(async()=>{calls++;throw Error("must not call");}) as typeof fetch;
+    for(const approved of [null,new Date(Date.now()-301_000),new Date(Date.now()+60_000)]){
+      const cmd=await makePending();
+      await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=$1 WHERE id=$2",[approved,cmd.id]);
+      await expect(dispatchVendeDelinquencyOnce(cmd.id,config,http)).rejects.toThrow();
+      const row=(await pool.query("SELECT state,claimed_at,approved_at FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0];
+      expect(row.state).toBe("pending");expect(row.claimed_at).toBeNull();
+      expect(row.approved_at?.getTime()??null).toBe(approved?.getTime()??null);
+    }
+    expect(calls).toBe(0);
+  });
+  it("rechecks approval after status I/O and does not mutate if the original proof changed",async()=>{
+    for(const drift of ["expiry","actor"]){
+      const cmd=await makePending();let calls=0;
+      const http=(async(url:RequestInfo|URL)=>{
+        calls++;expect(new URL(String(url)).pathname).toMatch(/commercial-status$/);
+        if(drift==="expiry")await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=$1 WHERE id=$2",[new Date(Date.now()-301_000),cmd.id]);
+        else await pool.query("UPDATE fmcc_vende_lifecycle_command SET actor_id='changed-actor' WHERE id=$1",[cmd.id]);
+        return json({tenant_id:(await pool.query("SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",[tenant])).rows[0].external_tenant_id,
+          operation_status:"not_applied",applied_action:null,license_status:"active",
+          plan_code:"BASE",plan_revision:1,valid_until:Math.floor(Date.now()/1000)+86400});
+      }) as typeof fetch;
+      expect(await dispatchVendeDelinquencyOnce(cmd.id,config,http)).toBe("unknown");
+      expect(calls).toBe(1);
+      expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0].state).toBe("unknown");
+    }
+  });
+  it("allows read-only recovery of an unknown delivery after approval expires",async()=>{
+    const cmd=await makePending();let calls=0;
+    await pool.query("UPDATE fmcc_vende_lifecycle_command SET state='unknown',approved_at=$1 WHERE id=$2",[new Date(Date.now()-301_000),cmd.id]);
+    const http=(async(url:RequestInfo|URL)=>{
+      calls++;expect(new URL(String(url)).pathname).toMatch(/commercial-status$/);
+      return json({tenant_id:(await pool.query("SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",[tenant])).rows[0].external_tenant_id,
+        operation_status:"applied",applied_action:"SUSPEND_DELINQUENCY",license_status:"suspended",
+        plan_code:"BASE",plan_revision:1,valid_until:Math.floor(Date.now()/1000)+86400});
+    }) as typeof fetch;
+    expect(await reconcileUnknownVendeDelinquency(cmd.id,config,http)).toBe("delivered");
+    expect(calls).toBe(1);
   });
   it("payment reversal during network I/O remains UNKNOWN; recovery cannot falsely confirm",async()=>{
     const cmd=await makePending();

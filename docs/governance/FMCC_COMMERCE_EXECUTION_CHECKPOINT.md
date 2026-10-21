@@ -304,3 +304,17 @@ não aceita prova financeira; recorded não significa paid. Testes de ingresso e
 projeção PostgreSQL adicionados. CI do HEAD final ainda pendente. Rollback em
 FMCC_VENDE_PAYMENT_READBACK.md. Lifecycle completo, scheduler e compensação de corrida
 continuam abertos; F3/F9 e BUILD_COMPLETE_INTERNAL_GREEN não declarados concluídos.
+
+### B1.4 integrada / B1.5 aprovação original em certificação
+PR #130 integrada em `1bbf3ca6b54a9acbc35847546891369dde0f2169`. HEAD
+`ba1027bc9884d9d4ad92b6a5700bb992a09aaed7`: Foundation 39545398683,
+Billing PG 39545398732, F21 39545398783, Cognitive 39545398760 SUCCESS.
+Pós-merge: Foundation 39545812758, Billing PG 39545812668, F21 39545812649,
+Cognitive 39545812647 SUCCESS. Render autodeploy OFF revalidado antes do merge.
+
+Revisão B1 detectou aprovação artificialmente recente no dispatcher C06: approvedAt
+era now no envio. B1.5 persiste o StepUpProof original, bloqueia intent sem prova ou
+com aprovação vencida/futura antes da rede e revalida antes da mutação. Migration
+0018 preserva NULL legado não autorizante. Readback tardio continua sem reenvio.
+Testes SQL adicionados; gates finais pendentes. Detalhes e rollback no runbook
+FMCC_VENDE_C06_APPROVAL_FRESHNESS.md. Nenhuma ativação externa ou mudança de política.

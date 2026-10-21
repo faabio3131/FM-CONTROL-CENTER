@@ -22,6 +22,11 @@ export class VendeCommercialDeliveryDenied extends Error {
   constructor(code="vende.commercial_delivery_unavailable"){super(code);}
 }
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function freshApproval(approvedAt:Date|null,now:Date):approvedAt is Date {
+  if(!approvedAt)return false;
+  const age=now.getTime()-approvedAt.getTime();
+  return Number.isFinite(age)&&age>=0&&age<=300_000;
+}
 type RemoteStatus={
   tenant_id:string;operation_status:"applied"|"not_applied";
   applied_action:string|null;license_status:string;
@@ -136,6 +141,7 @@ export async function dispatchVendeDelinquencyOnce(
     if(!candidate || candidate.state!=="pending" ||
        candidate.action!=="SUSPEND_DELINQUENCY" ||
        candidate.tenantId!==config.organizationId ||
+       !freshApproval(candidate.approvedAt,now) ||
        !await financialFence(tx,candidate,now))
       throw new VendeCommercialDeliveryDenied();
     const [term]=await tx.select().from(vendeContractTerms).where(and(
@@ -172,7 +178,10 @@ export async function dispatchVendeDelinquencyOnce(
         eq(vendeLifecycleCommands.tenantId,row.tenantId),
         eq(vendeLifecycleCommands.state,"processing"),
       )).for("update").limit(1);
-      if(!claimed || !await financialFence(tx,claimed,new Date()))return false;
+      if(!claimed || !freshApproval(claimed.approvedAt,new Date()) ||
+         claimed.approvedAt.getTime()!==row.approvedAt?.getTime() ||
+         claimed.actorId!==row.actorId ||
+         !await financialFence(tx,claimed,new Date()))return false;
       // Match the claim's invoice-before-term lock order to limit deadlocks.
       const [term]=await tx.select().from(vendeContractTerms).where(and(
         eq(vendeContractTerms.tenantId,row.tenantId),
@@ -183,9 +192,12 @@ export async function dispatchVendeDelinquencyOnce(
     });
     if(!stillUnpaid)
       return transitionState(commandId,"processing","unknown",new Date(),false);
+    const mutationAt=new Date();
+    if(!freshApproval(row.approvedAt,mutationAt))
+      return transitionState(commandId,"processing","unknown",mutationAt,false);
     const signed=signAssistantCommercialTransition(config,{
       tenantId:row.externalTenantId,actorId:row.actorId,
-      operationId:row.operationId,approvedAt:now,
+      operationId:row.operationId,approvedAt:row.approvedAt,
       action:"SUSPEND_DELINQUENCY",expectedStatus:remote.license_status as "active"|"trial",
       expectedPlanCode:remote.plan_code,
       expectedPlanRevision:remote.plan_revision,
@@ -193,8 +205,8 @@ export async function dispatchVendeDelinquencyOnce(
       targetPlanCode:remote.plan_code,
       targetPlanRevision:remote.plan_revision,
       targetValidUntil:new Date(remote.valid_until*1000),
-      effectiveAt:now,verifiedPaymentRef:"none",
-    },now);
+      effectiveAt:mutationAt,verifiedPaymentRef:"none",
+    },mutationAt);
     const response=await postSigned(base,ASSISTANT_COMMERCIAL_TRANSITION_PATH,signed,http);
     // An unsigned HTTP 2xx body is never authoritative proof of a remote
     // mutation. Require a fresh, separately signed request-scoped readback.

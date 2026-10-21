@@ -241,7 +241,7 @@ export class GovernedVendeC06Service {
         action:"SCHEDULE_CANCEL",state:"pending",
         externalTenantId:binding.externalTenantId,
         effectiveDate:term.paidThrough,sourceRef:input.customerConsentRef,
-        actorId:context.userId,
+        actorId:context.userId,approvedAt:proof.verifiedAt,
       });
       return {operationId:input.operationId,revision:nextRevision,
         state:"cancel_at_period_end" as const,paidAccessUntil:term.paidThrough,
@@ -335,6 +335,7 @@ export class GovernedVendeC06Service {
         revision:nextRevision,action:"REACTIVATE_VERIFIED",state:"pending",
         externalTenantId:binding.externalTenantId,
         effectiveDate:today,sourceRef:input.sourceRef,actorId:context.userId,
+        approvedAt:proof.verifiedAt,
       });
       return {state:"reactivation_pending" as const,
         revision:nextRevision,operationId:input.operationId,
@@ -434,7 +435,7 @@ export class GovernedVendeC06Service {
         expectedRevision:term.revision,revision:newRevision,
         action:"SUSPEND_DELINQUENCY",state:"pending",
         externalTenantId:binding.externalTenantId,effectiveDate:today,
-        sourceRef:input.sourceRef,actorId:context.userId,
+        sourceRef:input.sourceRef,actorId:context.userId,approvedAt:proof.verifiedAt,
       }).returning({id:vendeLifecycleCommands.id,state:vendeLifecycleCommands.state});
       return {operationId:input.operationId,revision:newRevision,
         state:command.state,remoteEntitlementConfirmed:false,
