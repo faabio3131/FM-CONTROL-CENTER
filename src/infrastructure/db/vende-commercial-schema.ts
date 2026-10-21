@@ -125,8 +125,13 @@ export const vendeLifecycleCommands = pgTable("fmcc_vende_lifecycle_command",{
   approvedAt:timestamp("approved_at",{withTimezone:true}),
   // Fixed before one-shot reactivation I/O. NULL never proves a delivered target.
   deliveryTarget:jsonb("delivery_target").$type<{
-    schema:"fm.vende.reactivation-target.v1";planCode:string;planRevision:number;
-    validUntil:number;paymentRef:string;termsRevision:number;
+    schema:"fm.vende.reactivation-target.v1"|"fm.vende.renewal-target.v1";
+    planCode:string;planRevision:number;validUntil:number;
+    paymentRef:string;termsRevision:number;
+    // Renewal-only locked commercial snapshot: no DB migration, JSONB already
+    // exists. Always check schema before treating these as approved values.
+    paidThrough?:string;previousValidUntil?:number;nextDueDate?:string;
+    amountMinor?:number;billingInterval?:"monthly"|"yearly";
   }>(),
   createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
   claimedAt:timestamp("claimed_at",{withTimezone:true}),
