@@ -68,3 +68,21 @@ O catálogo único de perfis de adaptadores fica em `src/application/integration
 - `requestSuspension` grava **suspension_pending**, auditoria e `outbox.pending` no mesmo TX; `pending` NUNCA equivale a licença suspensa na vertical, ACK confirmado ou revogação efetiva no Core. O worker remoto deve ser construído para entrega assinada não-replay e reconciliação read-only; não realizar POST cego. A tabela de observações *não possui* entrada HTTP pública: um reconciliador autorizado deverá preenchê-la de forma verificável depois de provider GET real, sem interpretar webhook isolado como prova.
 - Testes PostgreSQL descartáveis: escopo FM, step-up, calendário holiday, idempotência/revisão, pagamento não verificado, ata de aprovação, PSP attestation stale, corrida dupla concorrente, audit/outbox exatamente uma vez.
 - Aprovado **somente planejamento de software**: migration nunca aplicada no banco persistente de produção, nenhum deploy, gateway/IA/Evolution reais, cobranças, alteração financeira nem suspensão remota de clientes. Gates no HEAD final, CI de migração + PostgreSQL, revisão independente e integração cross-repo ainda exigidos. Reativação, upgrade/downgrade, cancelamento efetivo e worker com confirmação S2S permanecem fases de implementação interna distintas, não homologação externa.
+
+## VendeAtendeIA — cronograma vinculante de construção 100% interna (20/10/2026)
+
+- Para WPs do VendeAtendeIA, seguir o cronograma canônico
+  `faabio3131/-FM-Assistant-Base/docs/governance/CRONOGRAMA_MESTRE_CONSTRUCAO_100_INTERNA.md`,
+  preservando o plano FMCC F00–F22 para capacidades corporativas comuns.
+- A primeira unidade é B0: reconciliar diffs únicos e dependências das PRs #114 e #118–#124,
+  selecionar um candidato canônico, impedir duplicidade de autoridade e integrar somente conteúdo
+  completo com 4/4 gates, contratos cross-repo e CI pós-merge verdes.
+- As configurações de produto, plano, preço, limite, calendário, gateway, credencial e destino SaaS
+  devem ser data-driven e governadas; cadastrar novo cliente não pode exigir código ou deploy.
+- Construir agora ports, configuração, fakes, migrations e testes internos. Asaas/WhatsApp/Evolution,
+  provider de IA, Vault/TLS/DNS, credenciais e operações reais ficam em homologação externa somente
+  após `BUILD_COMPLETE_INTERNAL_GREEN`.
+- O executor está autorizado a corrigir, reconciliar branches/PRs, commit/push, executar auditoria
+  interna em passe separado, fazer merge de WP 100% verde, validar main e avançar sem nova consulta.
+- Continuam fora da autorização genérica: deploy/cutover, banco/segredo/cobrança/envio real, gasto,
+  homologação externa antecipada, política comercial nova e operação destrutiva.
