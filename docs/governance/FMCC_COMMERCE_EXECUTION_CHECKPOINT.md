@@ -318,3 +318,17 @@ com aprovação vencida/futura antes da rede e revalida antes da mutação. Migr
 0018 preserva NULL legado não autorizante. Readback tardio continua sem reenvio.
 Testes SQL adicionados; gates finais pendentes. Detalhes e rollback no runbook
 FMCC_VENDE_C06_APPROVAL_FRESHNESS.md. Nenhuma ativação externa ou mudança de política.
+
+### B1.5 integrada / B1.6 reaprovação supervisionada em certificação
+PR #131 integrada em `d2bead865677c5318f947b9b15b8289bfb19934a`. HEAD
+caace57edcdd7cf425f755642de514c01822ac74: Foundation 39546398150, Billing PG
+39546398063, F21 39546398204 e Cognitive 39546398434 SUCCESS. Pós-merge:
+Foundation 39546812827, Billing PG 39546812802, F21 39546812784 e Cognitive
+39546812834 SUCCESS. Nenhum deploy/migration operacional/provider real.
+
+B1.6 fecha a reaprovação humana de intents vencidos nunca tentados: API e painel FM,
+step-up original, CAS, evidência financeira e contrato revalidados, vínculo SaaS exato,
+auditoria append-only atômica e nenhuma rede/reset de estados incertos. Testes negativos,
+concorrência e rollback por falha de auditoria adicionados. Gates finais pendentes.
+Não declarar lifecycle completo ou BUILD_COMPLETE_INTERNAL_GREEN; permanecem snapshot
+contratual, demais transições, compensação distribuída e módulos seguintes do cronograma.

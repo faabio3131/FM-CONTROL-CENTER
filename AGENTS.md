@@ -147,3 +147,12 @@ com mais de 300s bloqueia antes de claim/rede; revalidar prova e ator antes da m
 Migration aditiva mantém NULL legado não autorizante, sem backfill que invente aprovação.
 Readback de outcome unknown pode continuar após expiração, sem segunda mutação. Renovação
 de aprovação exige fluxo FM explícito ainda separado; nunca UPDATE automático do timestamp.
+
+### B1.6 — reaprovação FM explícita
+`reapproveVendeDelinquency` permite nova aprovação humana somente de SUSPEND_DELINQUENCY
+pending, sem claimed_at/delivered_at, com aprovação ausente ou vencida. Exigir RBAC FM,
+step-up do mesmo ator, CAS da aprovação observada, produto ativo, vínculo SaaS canônico,
+contrato na revisão esperada e evidência unpaid fresca. Preservar aprovação/ator anteriores
+na auditoria transacional; falha de auditoria deve impedir a alteração. Nunca resetar
+processing/unknown/delivered/blocked nem disparar rede neste fluxo. API/painel não podem
+fornecer nova data de aprovação ou trocar estado. Delivery continua OFF por padrão.

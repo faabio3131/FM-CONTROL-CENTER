@@ -6,7 +6,12 @@
  */
 import { and, eq, lt } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
-import { billingInvoices } from "@/infrastructure/db/billing-schema";
+import { billingCustomerBindings, billingInvoices } from "@/infrastructure/db/billing-schema";
+import { productDefinitions } from "@/infrastructure/db/platform-schema";
+import { auditEvents } from "@/infrastructure/db/foundation-schema";
+import { requireFMPlanAuthority } from "./assistant-plan-catalog-service";
+import type { TenantContext } from "@/domain/security/tenant-context";
+import type { StepUpProof } from "@/application/security/password-step-up";
 import {
   vendeContractTerms,vendeLifecycleCommands,
 } from "@/infrastructure/db/vende-commercial-schema";
@@ -26,6 +31,59 @@ function freshApproval(approvedAt:Date|null,now:Date):approvedAt is Date {
   if(!approvedAt)return false;
   const age=now.getTime()-approvedAt.getTime();
   return Number.isFinite(age)&&age>=0&&age<=300_000;
+}
+
+/** Human reapproval of a never-attempted intent. No network or status reset.
+ * Compare the previously observed approval to reject concurrent/stale requests.
+ * The old and new approvals remain in the atomic audit record.
+ */
+export async function reapproveVendeDelinquency(
+  context:TenantContext,proof:StepUpProof,
+  input:{productId:string;commandId:string;expectedApprovedAt:string|null},
+  now:Date=new Date(),
+){
+  requireFMPlanAuthority(context,true);
+  if(!UUID.test(input.productId)||!UUID.test(input.commandId)||proof.userId!==context.userId||
+     !freshApproval(proof.verifiedAt,now)||
+     (input.expectedApprovedAt!==null && (typeof input.expectedApprovedAt!=="string" ||
+      !Number.isFinite(Date.parse(input.expectedApprovedAt)) ||
+      new Date(input.expectedApprovedAt).toISOString()!==input.expectedApprovedAt)))
+    throw new VendeCommercialDeliveryDenied();
+  return db.transaction(async tx=>{
+    const [row]=await tx.select().from(vendeLifecycleCommands).where(and(
+      eq(vendeLifecycleCommands.id,input.commandId),eq(vendeLifecycleCommands.tenantId,context.tenantId),
+      eq(vendeLifecycleCommands.productId,input.productId),
+    )).for("update").limit(1);
+    if(!row||row.action!=="SUSPEND_DELINQUENCY"||row.state!=="pending"||row.claimedAt||row.deliveredAt||
+       (row.approvedAt?.toISOString()??null)!==input.expectedApprovedAt||
+       (row.approvedAt && now.getTime()-row.approvedAt.getTime()<=300_000))
+      throw new VendeCommercialDeliveryDenied();
+    const [product]=await tx.select({id:productDefinitions.id}).from(productDefinitions).where(and(
+      eq(productDefinitions.tenantId,context.tenantId),eq(productDefinitions.id,input.productId),
+      eq(productDefinitions.slug,"vendeatendeia"),eq(productDefinitions.status,"active"),
+    )).limit(1);
+    if(!product||!await financialFence(tx,row,now))throw new VendeCommercialDeliveryDenied();
+    const [term]=await tx.select().from(vendeContractTerms).where(and(
+      eq(vendeContractTerms.tenantId,context.tenantId),eq(vendeContractTerms.subscriptionId,row.subscriptionId),
+      eq(vendeContractTerms.productId,input.productId),eq(vendeContractTerms.customerId,row.customerId),
+    )).for("update").limit(1);
+    const [binding]=await tx.select().from(billingCustomerBindings).where(and(
+      eq(billingCustomerBindings.tenantId,context.tenantId),eq(billingCustomerBindings.productId,input.productId),
+      eq(billingCustomerBindings.customerId,row.customerId),eq(billingCustomerBindings.externalTenantId,row.externalTenantId),
+    )).limit(1);
+    if(!term||term.revision!==row.revision||term.lifecycleState!=="suspension_pending"||!binding)
+      throw new VendeCommercialDeliveryDenied();
+    await tx.insert(auditEvents).values({tenantId:context.tenantId,actorId:context.userId,actorType:"user",
+      action:"vende.commercial_intent.reapproved",resourceType:"vende_lifecycle_command",resourceId:row.id,
+      result:"success",correlationId:context.correlationId,metadata:{
+        previousActorId:row.actorId,previousApprovedAt:row.approvedAt?.toISOString()??null,
+        approvedAt:proof.verifiedAt.toISOString(),operationId:row.operationId,productId:row.productId,
+        revision:row.revision,sourceInvoiceId:row.sourceInvoiceId,
+      }});
+    await tx.update(vendeLifecycleCommands).set({approvedAt:proof.verifiedAt,actorId:context.userId})
+      .where(eq(vendeLifecycleCommands.id,row.id));
+    return {commandId:row.id,approvedAt:proof.verifiedAt.toISOString(),state:"pending" as const,dispatched:false};
+  });
 }
 type RemoteStatus={
   tenant_id:string;operation_status:"applied"|"not_applied";
