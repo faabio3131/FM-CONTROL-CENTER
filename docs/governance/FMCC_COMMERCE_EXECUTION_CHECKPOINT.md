@@ -523,3 +523,19 @@ NÃO confundir uma revisão humana documentada com licença reparada ou
 compensação financeira realizada. Requisitos P01 de sincronização
 Command→Assistant→Core, quotas de todos os providers/attempts, compensação
 com prova remota, matrizes cross-service ainda EM ABERTO. P01 não é GREEN.
+
+### P01 — controle de quotas e supervisão comercial reconciliados (21/10/2026)
+PR #143 (compensation triage) integrada na main
+`2783477bf1865086b108d4a1f6d6497a4a0dd6f0`, 4/4 SUCCESS
+no HEAD e 4/4 SUCCESS pós-merge (Foundation 39696259576,
+Billing PostgreSQL 39696259553, Cognitive 39696259570,
+F21 39696259587). Não declara compensação executada.
+
+O seguinte WP do Prompt 01 amplia o teste REAL de contrato assinado
+Command→Assistant→Core, antes limitado a texto, para inclusão de áudio,
+orçamento compartilhado, replay denial e revogação conjunta.
+Corrige também o monitor de aprovações vencidas para renovação/upgrade,
+e exige data de corte paga para cancelamento/downgrade, mantendo
+essas transições pending sem tentar executá-las precocemente.
+CI deste WP ainda pendente, não certificar antes dos gates 4/4 e pós-merge.
+Prompt_01_GREEN_INTERNO AINDA NÃO CONCEDIDO.
