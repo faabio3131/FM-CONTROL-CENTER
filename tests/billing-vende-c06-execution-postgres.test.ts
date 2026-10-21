@@ -103,6 +103,11 @@ describe("C06 governed Vende dates, calendar, PostgreSQL transaction / no remote
       "SELECT due_date::text,paid_through::text,revision FROM fmcc_vende_contract_terms WHERE tenant_id=$1 AND subscription_id=$2",
       [tenant,subscriptionId]);
     expect(row.rows).toMatchObject([{due_date:"2026-10-23",paid_through:"2026-10-22",revision:1}]);
+    expect((await svc.contractHistory(context,{productId,subscriptionId})).items[0]).toMatchObject({
+      snapshotStatus:"captured",termsSnapshot:{schema:"fm.vende.contract-terms.v1",before:null,
+        after:{revision:1,productId,subscriptionId,effectiveFrom:"2026-10-01",paidThrough:"2026-10-22",
+          dueDate:"2026-10-23",autoRenew:true,sourceRef:"fm-contract-approved-v1"}},
+    });
   });
   it("requires fresh trusted unpaid observation and 3 full working days, never D5 early",async()=>{
     const svc=new service.GovernedVendeC06Service();
@@ -149,6 +154,10 @@ describe("C06 governed Vende dates, calendar, PostgreSQL transaction / no remote
       "SELECT lifecycle_state,revision FROM fmcc_vende_contract_terms WHERE tenant_id=$1",
       [tenant]);
     expect(state.rows).toMatchObject([{lifecycle_state:"suspension_pending",revision:2}]);
+    expect((await svc.contractHistory(context,{productId,subscriptionId})).items[0]).toMatchObject({termsSnapshot:{
+      before:{revision:1,lifecycleState:"active",paidThrough:"2026-10-22"},
+      after:{revision:2,lifecycleState:"suspension_pending",paidThrough:"2026-10-22"},
+    }});
     const pending=await pool.query(
       "SELECT action,state FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1",
       [tenant]);

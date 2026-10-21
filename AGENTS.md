@@ -156,3 +156,11 @@ contrato na revisão esperada e evidência unpaid fresca. Preservar aprovação/
 na auditoria transacional; falha de auditoria deve impedir a alteração. Nunca resetar
 processing/unknown/delivered/blocked nem disparar rede neste fluxo. API/painel não podem
 fornecer nova data de aprovação ou trocar estado. Delivery continua OFF por padrão.
+
+### B1.7 — histórico das revisões contratuais
+As quatro mutações de termos C06 registram before/after na mesma transação da revisão,
+com projeção explícita e schema fm.vende.contract-terms.v1. Não reescrever auditoria nem
+reconstruir NULL legado a partir do contrato atual. Histórico corporativo FM valida
+produto/assinatura/tenant e pagina por revisão (100). Snapshot representa intenção
+contratual aprovada; não representa ACK remoto, preço ou quotas do catálogo. Documentação:
+docs/FMCC_VENDE_CONTRACT_REVISION_HISTORY.md. Homologação externa permanece adiada.

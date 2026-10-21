@@ -332,3 +332,17 @@ auditoria append-only atômica e nenhuma rede/reset de estados incertos. Testes 
 concorrência e rollback por falha de auditoria adicionados. Gates finais pendentes.
 Não declarar lifecycle completo ou BUILD_COMPLETE_INTERNAL_GREEN; permanecem snapshot
 contratual, demais transições, compensação distribuída e módulos seguintes do cronograma.
+
+### B1.6 integrada / B1.7 histórico contratual em certificação
+PR #132 integrada em `20f2285d9f6d89fed1724454025752c848e16a1f`. HEAD
+060182cb275ca5ff5abc5fb9209fad3229296d00: Foundation 39549090207, Billing PG
+39549090231, F21 39549090257 e Cognitive 39549090282 SUCCESS. Pós-merge:
+Foundation 39549554430, Billing PG 39549554434, F21 39549554443 e Cognitive
+39549554572 SUCCESS. Render autodeploy OFF. Nenhuma ativação externa.
+
+B1.7 captura termos before/after nas quatro mutações C06 e permite consulta corporativa
+paginada no painel. Legado NULL permanece explicitamente incompleto; não inventar preço,
+quota ou ACK. Migration aditiva 0019 e testes de isolamento/paginação/conservação adicionados.
+Gates finais pendentes. Detalhes: FMCC_VENDE_CONTRACT_REVISION_HISTORY.md. Permanecem
+transições comerciais restantes, snapshot comercial de preço/quotas e compensação distribuída;
+não declarar B1/F3 ou SaaS 100% concluído.

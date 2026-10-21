@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { billingCustomerBindings, billingInvoices, billingProviderPayments, billingSubscriptions } from "@/infrastructure/db/billing-schema";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/domain/billing/vende-commercial-policy-v1";
 
 import { currentBoundVendePaymentEvidence } from "./vende-payment-evidence";
+import { captureVendeContractRevision } from "@/domain/billing/vende-contract-snapshot";
 
 /** Internal Command transaction coordinator. Never calls external HTTP.
  * Successful commit means QUEUED, not a license change/remote ACK.
@@ -65,6 +66,30 @@ export type ApprovedTermDraft = Readonly<{
 }>;
 
 export class GovernedVendeC06Service {
+  async contractHistory(context:TenantContext,input:{productId:string;subscriptionId:string;beforeRevision?:number}){
+    requireFMPlanAuthority(context,false);uuid(input.productId);uuid(input.subscriptionId);
+    if(input.beforeRevision!==undefined&&(!Number.isSafeInteger(input.beforeRevision)||input.beforeRevision<1))
+      throw new VendeC06Denied();
+    return db.transaction(async tx=>{
+      await requireVende(tx,context.tenantId,input.productId);
+      const [subscription]=await tx.select({id:billingSubscriptions.id}).from(billingSubscriptions).where(and(
+        eq(billingSubscriptions.tenantId,context.tenantId),eq(billingSubscriptions.productId,input.productId),
+        eq(billingSubscriptions.id,input.subscriptionId),
+      )).limit(1);
+      if(!subscription)throw new VendeC06Denied();
+      const rows=await tx.select({revision:vendeContractTermAudit.revision,action:vendeContractTermAudit.action,
+        operationId:vendeContractTermAudit.operationId,actorId:vendeContractTermAudit.actorId,
+        sourceRef:vendeContractTermAudit.sourceRef,effectiveDate:vendeContractTermAudit.effectiveDate,
+        previousState:vendeContractTermAudit.previousState,newState:vendeContractTermAudit.newState,
+        createdAt:vendeContractTermAudit.createdAt,termsSnapshot:vendeContractTermAudit.termsSnapshot,
+      }).from(vendeContractTermAudit).where(and(
+        eq(vendeContractTermAudit.tenantId,context.tenantId),eq(vendeContractTermAudit.subscriptionId,input.subscriptionId),
+        ...(input.beforeRevision===undefined?[]:[lt(vendeContractTermAudit.revision,input.beforeRevision)]),
+      )).orderBy(desc(vendeContractTermAudit.revision)).limit(101);
+      const items=rows.slice(0,100).map(row=>({...row,snapshotStatus:row.termsSnapshot?"captured":"historical_snapshot_unavailable"}));
+      return {items,nextBeforeRevision:rows.length>100?items[items.length-1].revision:null};
+    });
+  }
   /** Signed-in FM operator must provide the approved holiday source. No
    * outside municipal calendar is assumed or auto-fetched.
    */
@@ -162,14 +187,15 @@ export class GovernedVendeC06Service {
         dueDate:draft.dueDate,autoRenew:draft.autoRenew,
         calendarRegion:draft.calendarRegion,lifecycleState:"active",
         sourceRef:draft.sourceRef,actorId:context.userId,
-      }).returning({id:vendeContractTerms.id,revision:vendeContractTerms.revision});
+      }).returning();
       await tx.insert(vendeContractTermAudit).values({
         tenantId:context.tenantId,subscriptionId:draft.subscriptionId,
         revision:1,operationId:draft.operationId,action:"ENROLL_PAID_TERM",
         actorId:context.userId,previousState:null,newState:"active",
         effectiveDate:draft.effectiveFrom,sourceRef:draft.sourceRef,
+        termsSnapshot:captureVendeContractRevision(null,term),
       });
-      return term;
+      return {id:term.id,revision:term.revision};
     });
   }
   /** FM-authorized non-renewal scheduling. This changes the Command's
@@ -224,7 +250,7 @@ export class GovernedVendeC06Service {
       }).where(and(eq(vendeContractTerms.id,term.id),
         eq(vendeContractTerms.revision,term.revision),
         eq(vendeContractTerms.tenantId,context.tenantId),
-      )).returning({revision:vendeContractTerms.revision});
+      )).returning();
       if(!updated)throw new VendeC06Denied("vende.c06_revision_conflict");
       await tx.insert(vendeContractTermAudit).values({
         tenantId:context.tenantId,subscriptionId:term.subscriptionId,
@@ -232,6 +258,7 @@ export class GovernedVendeC06Service {
         action:"SCHEDULE_CANCEL",actorId:context.userId,
         previousState:term.lifecycleState,newState:"cancel_at_period_end",
         effectiveDate:term.paidThrough,sourceRef:input.customerConsentRef,
+        termsSnapshot:captureVendeContractRevision(term,updated),
       });
       await tx.insert(vendeLifecycleCommands).values({
         tenantId:context.tenantId,productId:term.productId,
@@ -318,7 +345,7 @@ export class GovernedVendeC06Service {
       }).where(and(eq(vendeContractTerms.id,term.id),
         eq(vendeContractTerms.tenantId,context.tenantId),
         eq(vendeContractTerms.revision,term.revision),
-      )).returning({revision:vendeContractTerms.revision});
+      )).returning();
       if(!updated)throw new VendeC06Denied("vende.c06_revision_conflict");
       await tx.insert(vendeContractTermAudit).values({
         tenantId:context.tenantId,subscriptionId:term.subscriptionId,
@@ -326,6 +353,7 @@ export class GovernedVendeC06Service {
         action:"REACTIVATE_VERIFIED",actorId:context.userId,
         previousState:term.lifecycleState,newState:"reactivation_pending",
         effectiveDate:today,sourceRef:input.sourceRef,
+        termsSnapshot:captureVendeContractRevision(term,updated),
       });
       await tx.insert(vendeLifecycleCommands).values({
         tenantId:context.tenantId,productId:term.productId,
@@ -419,7 +447,7 @@ export class GovernedVendeC06Service {
         eq(vendeContractTerms.id,term.id),
         eq(vendeContractTerms.tenantId,context.tenantId),
         eq(vendeContractTerms.revision,term.revision),
-      )).returning({revision:vendeContractTerms.revision});
+      )).returning();
       if(!updated)throw new VendeC06Denied("vende.c06_revision_conflict");
       await tx.insert(vendeContractTermAudit).values({
         tenantId:context.tenantId,subscriptionId:term.subscriptionId,
@@ -427,6 +455,7 @@ export class GovernedVendeC06Service {
         action:"SUSPEND_DELINQUENCY",actorId:context.userId,
         previousState:term.lifecycleState,newState:"suspension_pending",
         effectiveDate:today,sourceRef:input.sourceRef,
+        termsSnapshot:captureVendeContractRevision(term,updated),
       });
       const [command]=await tx.insert(vendeLifecycleCommands).values({
         tenantId:context.tenantId,productId:input.productId,

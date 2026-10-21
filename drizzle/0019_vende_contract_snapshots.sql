@@ -1,0 +1,1 @@
+ALTER TABLE "fmcc_vende_contract_term_audit" ADD COLUMN "terms_snapshot" jsonb;

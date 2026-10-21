@@ -94,6 +94,15 @@ describe("C06 - contract lifecycle CAS, supervised cancellation and reactivation
       [tenant,cancelSubscription])).rows;
     expect(out).toEqual([{action:"SCHEDULE_CANCEL",state:"pending",effective_date:"2026-11-15"}]);
     await expect(svc.scheduleCancellation(ctx,proof,input,clock)).rejects.toThrow();
+    const history=await svc.contractHistory(ctx,{productId,subscriptionId:cancelSubscription});
+    expect(history.items).toHaveLength(1);
+    expect(history.items[0]).toMatchObject({snapshotStatus:"captured",termsSnapshot:{
+      schema:"fm.vende.contract-terms.v1",
+      before:{revision:1,lifecycleState:"active",autoRenew:true,paidThrough:"2026-11-15"},
+      after:{revision:2,lifecycleState:"cancel_at_period_end",autoRenew:false,paidThrough:"2026-11-15"},
+    }});
+    await pool.query("UPDATE fmcc_vende_contract_terms SET paid_through='2026-12-15' WHERE tenant_id=$1 AND subscription_id=$2",[tenant,cancelSubscription]);
+    expect((await svc.contractHistory(ctx,{productId,subscriptionId:cancelSubscription})).items).toEqual(history.items);
   });
   it("regularization fails closed on absent or stale settlement, never revives cancelled",async()=>{
     const svc=new GovernedVendeC06Service();
@@ -131,6 +140,26 @@ describe("C06 - contract lifecycle CAS, supervised cancellation and reactivation
       "SELECT lifecycle_state,revision FROM fmcc_vende_contract_terms WHERE tenant_id=$1 AND subscription_id=$2",
       [tenant,reactivateSubscription])).rows[0];
     expect(term).toMatchObject({lifecycle_state:"reactivation_pending",revision:2});
+    expect((await svc.contractHistory(ctx,{productId,subscriptionId:reactivateSubscription})).items[0]).toMatchObject({
+      termsSnapshot:{before:{revision:1,lifecycleState:"suspended"},after:{revision:2,lifecycleState:"reactivation_pending"}},
+    });
     await expect(svc.requestRegularization(ctx,proof,input,clock)).rejects.toThrow();
   });
+  it("scopes and paginates legacy history without inventing snapshots",async()=>{
+    const svc=new GovernedVendeC06Service();const subscriptionId=await createContract("active",true);
+    await pool.query(`INSERT INTO fmcc_vende_contract_term_audit
+      (tenant_id,subscription_id,revision,operation_id,action,actor_id,new_state,effective_date,source_ref)
+      SELECT $1,$2,n,'legacy-'||$2||'-'||n,'SCHEDULE_CANCEL','fm-owner','active','2026-10-01','legacy'
+      FROM generate_series(1,101) n`,[tenant,subscriptionId]);
+    const first=await svc.contractHistory(ctx,{productId,subscriptionId});
+    expect(first.items).toHaveLength(100);expect(first.nextBeforeRevision).toBe(2);
+    expect(first.items.every(x=>x.termsSnapshot===null&&x.snapshotStatus==="historical_snapshot_unavailable")).toBe(true);
+    const last=await svc.contractHistory(ctx,{productId,subscriptionId,beforeRevision:first.nextBeforeRevision!});
+    expect(last.items.map(x=>x.revision)).toEqual([1]);expect(last.nextBeforeRevision).toBeNull();
+    for(const input of [{productId:randomUUID(),subscriptionId},{productId,subscriptionId:randomUUID()},
+      {productId,subscriptionId,beforeRevision:0}])await expect(svc.contractHistory(ctx,input)).rejects.toThrow();
+    await expect(svc.contractHistory({...ctx,tenantId:"foreign"},{productId,subscriptionId})).rejects.toThrow();
+    await expect(svc.contractHistory({...ctx,role:"viewer"},{productId,subscriptionId})).rejects.toThrow();
+  });
+
 });
