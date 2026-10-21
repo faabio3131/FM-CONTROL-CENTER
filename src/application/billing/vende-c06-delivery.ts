@@ -179,9 +179,16 @@ export async function dispatchVendeDelinquencyOnce(
       effectiveAt:now,verifiedPaymentRef:"none",
     },now);
     const response=await postSigned(base,ASSISTANT_COMMERCIAL_TRANSITION_PATH,signed,http);
-    const reply:unknown=response.ok?await response.json():null;
-    const ack=response.ok && !!reply && typeof reply==="object" &&
-      (reply as {status?:unknown}).status==="suspended";
+    // An unsigned HTTP 2xx body is never authoritative proof of a remote
+    // mutation. Require a fresh, separately signed request-scoped readback.
+    // Timeout, missing readback or mismatched tenant/action stays UNKNOWN;
+    // recovery may only repeat the safe read, never the mutation.
+    if(!response.ok)
+      return transitionState(commandId,"processing","unknown",new Date(),false);
+    const proof=await signedRemoteSnapshot(base,row,config,http,new Date());
+    const ack=proof.operation_status==="applied" &&
+      proof.applied_action==="SUSPEND_DELINQUENCY" &&
+      proof.license_status==="suspended";
     return transitionState(commandId,"processing",ack?"delivered":"unknown",
       new Date(),ack);
   }catch{
