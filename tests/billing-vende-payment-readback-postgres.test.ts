@@ -39,6 +39,22 @@ async function bind(svc:VendePaymentReadbackService,f:Fixture){
 async function evidence(f:Fixture){
   return db.transaction(tx=>currentBoundVendePaymentEvidence(tx,{tenantId:tenant,id:f.invoiceId,gatewayAccountId:gatewayId},at));
 }
+
+async function deliveredCommand(f:Fixture,action:"SUSPEND_DELINQUENCY"|"REACTIVATE_VERIFIED"){
+  const invoice=(await pool.query("SELECT subscription_id FROM fmcc_billing_invoice WHERE id=$1",[f.invoiceId])).rows[0];
+  const id=(await pool.query(
+    "INSERT INTO fmcc_vende_lifecycle_command (tenant_id,product_id,subscription_id,customer_id,source_invoice_id,operation_id,expected_revision,revision,action,state,external_tenant_id,effective_date,source_ref,actor_id,claimed_at,delivered_at) VALUES ($1,$2,$3,$4,$5,$6,1,2,$7,'delivered',$8,'2026-10-21','synthetic-delivered-fixture',$9,$10,$10) RETURNING id",
+    [tenant,productId,invoice.subscription_id,customerId,f.invoiceId,"completed-"+randomUUID(),action,
+      "assistant-fixture-"+randomUUID(),context.userId,at],
+  )).rows[0].id as string;
+  return id;
+}
+async function postDeliveryRisk(id:string){
+  return (await pool.query(
+    "SELECT metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.required'",
+    [tenant,id],
+  )).rows as {metadata:Record<string,unknown>}[];
+}
 async function seedOldProof(f:Fixture){
   await pool.query("INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'unpaid_verified',$4,'old-future-skew-proof')",
     [tenant,f.invoiceId,f.paymentId,new Date(at.getTime()+10_000)]);
@@ -58,7 +74,7 @@ describe("Vende PSP producer — real disposable SQL, synthetic HTTP only",()=>{
   afterAll(async()=>{
     delete process.env.FM_COMMAND_VENDE_PAYMENT_READBACK_ENABLED;
     try{
-      for(const table of ["fmcc_vende_payment_readback_attempt","fmcc_vende_payment_readback_binding","fmcc_vende_payment_attestation","fmcc_billing_audit_event","fmcc_billing_provider_payment","fmcc_billing_invoice","fmcc_billing_subscription","fmcc_billing_gateway_account","fmcc_billing_customer","fmcc_product_definition"])
+      for(const table of ["fmcc_audit_event","fmcc_vende_lifecycle_command","fmcc_vende_payment_readback_attempt","fmcc_vende_payment_readback_binding","fmcc_vende_payment_attestation","fmcc_billing_audit_event","fmcc_billing_provider_payment","fmcc_billing_invoice","fmcc_billing_subscription","fmcc_billing_gateway_account","fmcc_billing_customer","fmcc_product_definition"])
         await pool.query(`DELETE FROM ${table} WHERE tenant_id=$1`,[tenant]);
     }finally{await pool.end();}
   });
@@ -178,4 +194,51 @@ describe("Vende PSP producer — real disposable SQL, synthetic HTTP only",()=>{
     }finally{release();}
     await rejection;expect(reads).toBe(1);expect(await evidence(f)).toBeNull();
   });
+  it.each([
+    ["REACTIVATE_VERIFIED","REFUNDED","reactivation_payment_reversed_after_delivery"],
+    ["SUSPEND_DELINQUENCY","RECEIVED","delinquency_paid_after_delivery"],
+  ] as const)("B1.12 flags post-delivery %s after provider %s once without touching finance/entitlements",async(action,status,reason)=>{
+    const f=await fixture();
+    const id=await deliveredCommand(f,action);
+    let reads=0;
+    const svc=service((async()=>{reads++;return json(payload(f,status));}) as typeof fetch);
+    await bind(svc,f);
+    expect(await svc.observe(context,proof,f)).toEqual({state:"recorded",replayed:false});
+    expect(await svc.observe(context,proof,f)).toEqual({state:"recorded",replayed:true});
+    expect(await svc.observe(context,proof,{...f,observationId:randomUUID()}))
+      .toEqual({state:"recorded",replayed:false});
+    expect(reads).toBe(2);
+    const logs=await postDeliveryRisk(id);
+    expect(logs).toHaveLength(1);
+    expect(logs[0].metadata).toMatchObject({
+      reason,action,currentAssistantLicenseVerified:false,
+      automaticCompensationAuthorized:false,observationId:f.observationId,
+    });
+    expect(JSON.stringify(logs)).not.toContain("synthetic-never-real-api-key");
+    expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[id])).rows[0].state)
+      .toBe("delivered");
+    expect((await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",[f.invoiceId])).rows[0].status)
+      .toBe("pending");
+    expect((await pool.query("SELECT status FROM fmcc_billing_provider_payment WHERE invoice_id=$1",[f.invoiceId])).rows[0].status)
+      .toBe("pending");
+  });
+
+  it("B1.12 ignores unsupported/uncertain evidence and a command that was never delivered",async()=>{
+    for(const [action,status] of [
+      ["REACTIVATE_VERIFIED","PENDING"],["SUSPEND_DELINQUENCY","REFUNDED"],
+      ["REACTIVATE_VERIFIED","CONFIRMED"],
+    ] as const){
+      const f=await fixture(),id=await deliveredCommand(f,action);
+      const svc=service((async()=>json(payload(f,status))) as typeof fetch);
+      await bind(svc,f);await svc.observe(context,proof,f);
+      expect(await postDeliveryRisk(id)).toHaveLength(0);
+    }
+    const pending=await fixture();
+    const pendingId=await deliveredCommand(pending,"REACTIVATE_VERIFIED");
+    await pool.query("UPDATE fmcc_vende_lifecycle_command SET state='pending',delivered_at=NULL WHERE id=$1",[pendingId]);
+    const svc=service((async()=>json(payload(pending,"REFUNDED"))) as typeof fetch);
+    await bind(svc,pending);await svc.observe(context,proof,pending);
+    expect(await postDeliveryRisk(pendingId)).toHaveLength(0);
+  });
+
 });
