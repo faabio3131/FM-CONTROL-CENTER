@@ -149,7 +149,7 @@ describe("C06 - contract lifecycle CAS, supervised cancellation and reactivation
     const svc=new GovernedVendeC06Service();const subscriptionId=await createContract("active",true);
     await pool.query(`INSERT INTO fmcc_vende_contract_term_audit
       (tenant_id,subscription_id,revision,operation_id,action,actor_id,new_state,effective_date,source_ref)
-      SELECT $1,$2,n,'legacy-'||$2||'-'||n,'SCHEDULE_CANCEL','fm-owner','active','2026-10-01','legacy'
+      SELECT $1,$2::uuid,n,'legacy-'||($2::uuid)::text||'-'||n,'SCHEDULE_CANCEL','fm-owner','active','2026-10-01','legacy'
       FROM generate_series(1,101) n`,[tenant,subscriptionId]);
     const first=await svc.contractHistory(ctx,{productId,subscriptionId});
     expect(first.items).toHaveLength(100);expect(first.nextBeforeRevision).toBe(2);
