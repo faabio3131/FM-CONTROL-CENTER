@@ -267,3 +267,24 @@ revisão, vigência e histórico BEFORE/AFTER somente com ACK S2S exato.
 Unknown nunca é reenviado; compensação é alerta, sem reversão automática.
 Dispatcher OFF por padrão; quatro gates PR e pós-merge. Sem deploy ou
 homologação externa. Runbook: docs/FMCC_VENDE_RENEWAL_DELIVERY_B115.md.
+
+### B1.16 — upgrade/downgrade dirigidos pelos catálogos da FM (21/10/2026)
+Todas as funcionalidades SaaS continuam disponíveis; planos mudam apenas
+quotas/consumo. A FM governa preços, ciclos e versões publicadas. Só permitir
+upgrade se preço e todos os tetos de quota forem monotonicamente maiores
+(com ao menos um teto maior); downgrade exige preço menor e limites menores,
+no mesmo ciclo e com mesmas chaves resource/scope/window. Sem prorrata,
+desconto, troca arbitrária de periodicidade ou datas vindas do frontend.
+Pagamento vinculado ao MESMO tenant/produto/assinatura deve estar pago e
+settled_verified, sem reutilizar invoice de matrícula ou outra intent.
+Ao preparar, congelar versão/plano de origem e destino, preço, prova,
+prazo e vigência no JSONB do comando; NÃO alterar licenças nem planos.
+Downgrade só pode acontecer após o fim EXCLUSIVO do dia integral pago,
+e exige reautenticação humana FM quando estiver devido.
+Dispatcher privado OFF por padrão. Após revalidações e readback assinado
+do estado anterior, enviar UM comando assinado. Somente ACK remoto exato
+autoriza atualizar assinatura, contrato e trilha BEFORE/AFTER na mesma TX.
+Timeout/erro => unknown, reconciliação apenas READ-ONLY; sem replay,
+compensação ou estorno automático. Quatro gates HEAD, revisão e quatro
+gates pós-merge exigidos. Não homologar/ativar PSP/Assistant externos.
+Runbook: docs/FMCC_VENDE_PLAN_CHANGE_B116.md.

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks=vi.hoisted(()=>({
   session:vi.fn(),authority:vi.fn(),stepUp:vi.fn(),audit:vi.fn(),
-  enroll:vi.fn(),suspend:vi.fn(),cancel:vi.fn(),regularize:vi.fn(),renew:vi.fn(),
+  enroll:vi.fn(),suspend:vi.fn(),cancel:vi.fn(),regularize:vi.fn(),renew:vi.fn(),change:vi.fn(),
 }));
 vi.mock("next/headers",()=>({headers:vi.fn(async()=>new Headers())}));
 vi.mock("../src/application/security/resolve-tenant-context",()=>({
@@ -25,6 +25,7 @@ vi.mock("../src/application/billing/vende-c06-governed-execution",()=>({
   },
 }));
 vi.mock("../src/application/billing/vende-renewal-admission",()=>({requestVerifiedVendeRenewal:mocks.renew}));
+vi.mock("../src/application/billing/vende-plan-change-admission",()=>({requestVerifiedVendePlanChange:mocks.change}));
 import { POST } from "../src/app/api/billing/vende-contracts/route";
 
 const base={
@@ -50,6 +51,7 @@ beforeEach(()=>{
   mocks.audit.mockResolvedValue(undefined);
   mocks.suspend.mockResolvedValue({state:"pending",remoteEntitlementConfirmed:false,revision:2});
   mocks.renew.mockResolvedValue({state:"pending",remoteEntitlementConfirmed:false,revision:2});
+  mocks.change.mockResolvedValue({state:"pending",remoteEntitlementConfirmed:false,revision:2});
 });
 describe("C06 governed contract ingress: no external authority from request body",()=>{
   it("refuses spoofed tenant, fake provider status, URL and extra fields",async()=>{
@@ -146,6 +148,34 @@ describe("C06 governed contract ingress: no external authority from request body
       expect.objectContaining({userId:"fm-owner"}),
       expect.objectContaining({paidInvoiceId:base.invoiceId,planRevision:1,
         sourceRef:"fm-verified-payment",customerConsentRef:"fm-renewal-consent"}));
+  });
+
+  it("B1.16 accepts only typed FM upgrade/downgrade requests with no arbitrary amount or expiry",async()=>{
+    const baseChange={productId:base.productId,subscriptionId:base.subscriptionId,
+      paidInvoiceId:base.invoiceId,expectedRevision:1,
+      oldPlanRevision:1,targetPlanRevision:2,targetPlanCode:"PLUS",
+      sourceRef:"fm-signed-provider-receipt",
+      operationId:"fm-plan-change-12345",
+      customerConsentRef:"fm-reviewed-plan-change",
+      password:base.password};
+    for(const action of ["request_verified_upgrade","request_verified_downgrade"] as const){
+      const body={...baseChange,action};
+      for(const extra of [{tenantId:"foreign"},{amountMinor:1},{validUntil:9999999999},
+        {newInterval:"yearly"},{targetPlanRevision:"2"},{confirmed:true},
+        {customerConsentRef:null}])
+        expect((await POST(request({...body,...extra}))).status).toBe(400);
+      const response=await POST(request(body));
+      expect(response.status).toBe(202);
+      expect(await response.json()).toMatchObject({deliveryConfirmed:false,
+        result:{state:"pending",remoteEntitlementConfirmed:false}});
+      expect(mocks.change).toHaveBeenCalledWith(
+        expect.objectContaining({tenantId:"fm-company"}),
+        expect.objectContaining({userId:"fm-owner"}),
+        action==="request_verified_upgrade"?"APPLY_UPGRADE":"APPLY_DOWNGRADE",
+        expect.objectContaining({targetPlanRevision:2,targetPlanCode:"PLUS",
+          paidInvoiceId:base.invoiceId}));
+    }
+    expect(mocks.change).toHaveBeenCalledTimes(2);
   });
 
 });

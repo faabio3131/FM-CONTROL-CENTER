@@ -485,3 +485,25 @@ read-only. PostgreSQL sintético, interface de aprovação e API testados.
 A nova CI AINDA NÃO certificada neste checkpoint. Permanecem upgrade,
 downgrade, compensação humana e fases B2–B11. BUILD_COMPLETE_INTERNAL_GREEN
 ainda não concedido.
+
+### B1.15 certificado / B1.16 upgrades e downgrades em CI (21/10/2026)
+PR #141 integrada na main `300de01c0b79ecfaf880ecb291d3c136fea04465`.
+CI HEAD `811f64bda18942f58c286b11964933edff1f8d90`: Foundation
+39667592360, Billing PG 39667591742, Cognitive 39667591960 e F21
+39667592065 todos SUCCESS. CI pós-merge Foundation 39668527177,
+Billing PG 39668527147, Cognitive 39668527111 e F21 39668527259
+todos SUCCESS. B1.15 GREEN_INTERNO, sem deploy/homologação real.
+
+B1.16 introduz duas transições sob uma fonte da verdade FM:
+APPLY_UPGRADE — quotas monotonicamente maiores e preço maior, preservando
+todo período já pago; APPLY_DOWNGRADE — quotas e preço inferiores com
+execução somente após o dia civil integralmente pago, nova vigência
+e cobrança do próximo ciclo confirmada. Admitir apenas invoice paid,
+recebida e settled_verified sem reuso, quotas/versões publicadas,
+identidade/revisão canônica, step-up FM, consentimento e alvo imutável.
+Dispatch single-shot OFF por padrão, readback anterior e ACK posterior S2S
+exatos antes de trocar plano, revisão e datas locais. Unknown read-only,
+reversão PSP auditada como risco humano. Testes PG sintéticos, unidade,
+rotas e interface. B1.16 AINDA PENDENTE de 4/4 CI neste checkpoint.
+Continuam pendentes reparação financeira humana, outras frentes B1,
+B2–B11 e o selo BUILD_COMPLETE_INTERNAL_GREEN.

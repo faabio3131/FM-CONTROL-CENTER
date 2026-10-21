@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-type Action="SUSPEND_DELINQUENCY"|"REACTIVATE_VERIFIED"|"SCHEDULE_CANCEL"|"RENEW_VERIFIED";
+type Action="SUSPEND_DELINQUENCY"|"REACTIVATE_VERIFIED"|"SCHEDULE_CANCEL"|"RENEW_VERIFIED"|"APPLY_UPGRADE"|"APPLY_DOWNGRADE";
 type Item={id:string;action:Action;operationId:string;invoiceId:string|null;revision:number;approvedAt:string|null;claimedAt:string|null};
 export function VendeCommandApprovals({productId}:{productId:string}){
   const [action,setAction]=useState<Action>("SUSPEND_DELINQUENCY");
@@ -8,7 +8,7 @@ export function VendeCommandApprovals({productId}:{productId:string}){
   const [truncated,setTruncated]=useState(false);const [password,setPassword]=useState("");
   const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");
   const url=`/api/billing/products/${encodeURIComponent(productId)}/vende-command-approvals`;
-  const kind=action==="REACTIVATE_VERIFIED"?"reativação":action==="SCHEDULE_CANCEL"?"cancelamento definitivo ao término pago":action==="RENEW_VERIFIED"?"renovação verificada":"suspensão";
+  const kind=action==="REACTIVATE_VERIFIED"?"reativação":action==="SCHEDULE_CANCEL"?"cancelamento definitivo ao término pago":action==="RENEW_VERIFIED"?"renovação verificada":action==="APPLY_UPGRADE"?"upgrade com pagamento verificado":action==="APPLY_DOWNGRADE"?"downgrade após período pago":"suspensão";
   async function load(){
     const r=await fetch(`${url}?action=${encodeURIComponent(action)}`,{cache:"no-store"});
     if(!r.ok)throw Error("unavailable");
@@ -42,6 +42,8 @@ export function VendeCommandApprovals({productId}:{productId:string}){
         <option value="REACTIVATE_VERIFIED">Reativação após pagamento confirmado</option>
         <option value="SCHEDULE_CANCEL">Cancelamento ao fim do período pago (exige aprovação na data)</option>
         <option value="RENEW_VERIFIED">Renovação com pagamento verificado</option>
+        <option value="APPLY_UPGRADE">Upgrade com pagamento verificado</option>
+        <option value="APPLY_DOWNGRADE">Downgrade ao fim integral do período pago</option>
       </select>
     </label>
     <button type="button" className="button" disabled={busy} onClick={()=>void refresh()}>Consultar aprovações pendentes</button>
