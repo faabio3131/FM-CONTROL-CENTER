@@ -287,3 +287,20 @@ protegem contra prova velha e resposta tardia. Nenhum status financeiro/licença
 Migration 0017 somente em banco descartável; CI final ainda pendente. Fontes oficiais,
 threat boundaries e rollback em docs/FMCC_VENDE_PAYMENT_READBACK.md. O marco global interno
 permanece aberto; composição API/UI/scheduler e compensação comercial são próximas unidades.
+
+### B1.3 integrada / B1.4 supervisão em certificação
+PR #129 integrada em `a8ed1bf9e103d32e537a1c8bba76277269e81046`. HEAD certificado
+`95092a99c88387de14a9e7ea39e34cc598e14f78`: Foundation 39544246450, Billing PG
+39544246498, F21 39544246451 e Cognitive 39544246463 SUCCESS. Primeira execução
+detectou retorno de needs_attention pelo leitor; corrigido para null fail-closed,
+mantendo teste de quarentena/resposta tardia. Pós-merge: Foundation 39544577244,
+Billing PG 39544577294, F21 39544577265 e Cognitive 39544577221 SUCCESS.
+Autodeploy Render revalidado OFF antes do merge; nenhum provider real acessado.
+
+B1.4 adiciona supervisão local limitada por fatura, API corporativa com validação
+estrita e reautenticação, associação do payer e quarentena auditadas, consulta PSP
+condicionada à flag do servidor e operação identificada sem retry automático. UI
+não aceita prova financeira; recorded não significa paid. Testes de ingresso e
+projeção PostgreSQL adicionados. CI do HEAD final ainda pendente. Rollback em
+FMCC_VENDE_PAYMENT_READBACK.md. Lifecycle completo, scheduler e compensação de corrida
+continuam abertos; F3/F9 e BUILD_COMPLETE_INTERNAL_GREEN não declarados concluídos.

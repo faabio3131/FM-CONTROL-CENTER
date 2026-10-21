@@ -77,6 +77,27 @@ describe("Vende PSP producer — real disposable SQL, synthetic HTTP only",()=>{
     expect(calls).toBe(0);
     expect((await pool.query("SELECT count(*)::int AS n FROM fmcc_vende_payment_readback_attempt WHERE invoice_id=$1",[f.invoiceId])).rows[0].n).toBe(0);
   });
+  it("returns only bounded corporate invoice metadata without secrets or foreign state",async()=>{
+    const f=await fixture();let reads=0;
+    const svc=service((async()=>{reads++;return json(payload(f));}) as typeof fetch);
+    expect(await svc.inspect(context,f)).toMatchObject({invoiceId:f.invoiceId,binding:null,attempts:[]});
+    await bind(svc,f);
+    for(let n=0;n<21;n++)await svc.observe(context,proof,{...f,observationId:randomUUID()});
+    delete process.env.FM_COMMAND_VENDE_PAYMENT_READBACK_ENABLED;
+    try{
+      const view=await svc.inspect(context,f);
+      expect(view.attempts).toHaveLength(20);expect(view.truncated).toBe(true);
+      expect(view.readbackEnabled).toBe(false);expect(view.binding?.providerCustomerRef).toBe(payer);
+      const serialized=JSON.stringify(view);
+      for(const forbidden of ["secretRef","snapshotHash","synthetic-never-real-api-key","vault://","actorId","tenantId"])
+        expect(serialized).not.toContain(forbidden);
+      await expect(svc.inspect({...context,tenantId:"foreign"},f)).rejects.toThrow();
+      await expect(svc.inspect({...context,role:"viewer"},f)).rejects.toThrow();
+      await expect(svc.inspect(context,{...f,productId:randomUUID()})).rejects.toThrow();
+      await expect(svc.inspect(context,{...f,invoiceId:randomUUID()})).rejects.toThrow();
+      expect(reads).toBe(21);
+    }finally{process.env.FM_COMMAND_VENDE_PAYMENT_READBACK_ENABLED="true";}
+  });
   it.each(["PENDING","RECEIVED","REFUNDED","CONFIRMED"])("records %s without mutating payment, invoice or entitlement",async status=>{
     const f=await fixture();let reads=0;
     const svc=service((async()=>{reads++;return json(payload(f,status));}) as typeof fetch);

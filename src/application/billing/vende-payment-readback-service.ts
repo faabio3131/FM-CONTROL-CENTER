@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { billingAuditEvents,billingGatewayAccounts,billingInvoices,billingProviderPayments } from "@/infrastructure/db/billing-schema";
 import { productDefinitions } from "@/infrastructure/db/platform-schema";
@@ -72,6 +72,34 @@ async function audit(tx:Tx,context:TenantContext,action:string,subjectId:string)
 export class VendePaymentReadbackService {
   constructor(private readonly port:VendePaymentReadbackPort=new AsaasVendePaymentReadOnlyClient(),
     private readonly clock:()=>Date=()=>new Date()){}
+
+  /** Corporate read model. Explicit columns prevent credential/snapshot exposure. */
+  async inspect(context:TenantContext,input:Identity){
+    requireFMPlanAuthority(context,false);ids(input);
+    return db.transaction(async tx=>{
+      const {invoice,payment}=await canonical(tx,context.tenantId,input);
+      const [binding]=await tx.select({
+        providerCustomerRef:vendePaymentReadbackBindings.providerCustomerRef,
+        sourceRef:vendePaymentReadbackBindings.sourceRef,
+        createdAt:vendePaymentReadbackBindings.createdAt,
+      }).from(vendePaymentReadbackBindings).where(and(
+        eq(vendePaymentReadbackBindings.tenantId,context.tenantId),
+        eq(vendePaymentReadbackBindings.invoiceId,input.invoiceId),
+      )).limit(1);
+      const attempts=await tx.select({
+        observationId:vendePaymentReadbackAttempts.observationId,
+        state:vendePaymentReadbackAttempts.state,reason:vendePaymentReadbackAttempts.reason,
+        startedAt:vendePaymentReadbackAttempts.startedAt,finishedAt:vendePaymentReadbackAttempts.finishedAt,
+      }).from(vendePaymentReadbackAttempts).where(and(
+        eq(vendePaymentReadbackAttempts.tenantId,context.tenantId),
+        eq(vendePaymentReadbackAttempts.invoiceId,input.invoiceId),
+      )).orderBy(desc(vendePaymentReadbackAttempts.startedAt),desc(vendePaymentReadbackAttempts.id)).limit(21);
+      return {invoiceId:invoice.id,amountMinor:invoice.amountMinor,currency:invoice.currency,
+        externalPaymentRef:payment.externalPaymentId,binding:binding??null,
+        attempts:attempts.slice(0,20),truncated:attempts.length>20,
+        readbackEnabled:process.env.FM_COMMAND_VENDE_PAYMENT_READBACK_ENABLED==="true"};
+    });
+  }
 
   async bindPayer(context:TenantContext,proof:StepUpProof,
     input:Identity & {providerCustomerRef:string;sourceRef:string}){
