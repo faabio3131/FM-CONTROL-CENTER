@@ -9,6 +9,7 @@ import { GovernedVendeC06Service } from "../src/application/billing/vende-c06-go
 import {
   dispatchVendeDelinquencyOnce,reconcileUnknownVendeDelinquency,
   quarantineAbandonedVendeClaims,
+  reapproveVendeDelinquency,
 } from "../src/application/billing/vende-c06-delivery";
 
 const database=process.env.DATABASE_URL??"";
@@ -93,6 +94,7 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
   afterAll(async()=>{
     try{
       for(const tab of [
+        "fmcc_audit_event",
         "fmcc_vende_lifecycle_command","fmcc_vende_contract_term_audit",
         "fmcc_vende_payment_attestation","fmcc_vende_business_calendar",
         "fmcc_vende_contract_terms","fmcc_billing_provider_payment",
@@ -183,6 +185,47 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     }) as typeof fetch;
     expect(await reconcileUnknownVendeDelinquency(cmd.id,config,http)).toBe("delivered");
     expect(calls).toBe(1);
+  });
+  it("reapproves only a never-attempted intent, with one atomic audit under concurrency",async()=>{
+    for(const prior of [null,new Date(Date.now()-301_000)]){
+      const cmd=await makePending();
+      await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=$1,actor_id='original-reviewer' WHERE id=$2",[prior,cmd.id]);
+      const verifiedAt=new Date();const proof={userId:context.userId,verifiedAt};
+      const input={productId,commandId:cmd.id,expectedApprovedAt:prior?.toISOString()??null};
+      const results=await Promise.allSettled([reapproveVendeDelinquency(context,proof,input),reapproveVendeDelinquency(context,proof,input)]);
+      expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
+      const row=(await pool.query("SELECT state,claimed_at,approved_at,actor_id FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0];
+      expect(row.state).toBe("pending");expect(row.claimed_at).toBeNull();
+      expect(row.approved_at.getTime()).toBe(verifiedAt.getTime());expect(row.actor_id).toBe(context.userId);
+      const logs=(await pool.query("SELECT metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2",[tenant,cmd.id])).rows;
+      expect(logs).toHaveLength(1);expect(logs[0].metadata).toMatchObject({previousActorId:"original-reviewer",previousApprovedAt:prior?.toISOString()??null,approvedAt:verifiedAt.toISOString()});
+      await expect(reapproveVendeDelinquency(context,proof,{...input,expectedApprovedAt:verifiedAt.toISOString()})).rejects.toThrow();
+    }
+  });
+  it("denies reapproval for attempted, unknown, delivered, foreign, stale-proof or paid intents",async()=>{
+    for(const mode of ["processing","unknown","delivered","blocked","claimed","paid","product","tenant","actor","stepup","cas","revision"]){
+      const cmd=await makePending();const prior=new Date(Date.now()-301_000);
+      await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=$1 WHERE id=$2",[prior,cmd.id]);
+      if(["processing","unknown","delivered","blocked"].includes(mode))await pool.query("UPDATE fmcc_vende_lifecycle_command SET state=$1 WHERE id=$2",[mode,cmd.id]);
+      if(mode==="claimed")await pool.query("UPDATE fmcc_vende_lifecycle_command SET claimed_at=now() WHERE id=$1",[cmd.id]);
+      if(mode==="paid")await pool.query("UPDATE fmcc_billing_invoice SET status='paid' WHERE id=$1",[cmd.invoiceId]);
+      if(mode==="revision")await pool.query("UPDATE fmcc_vende_contract_terms SET revision=revision+1 WHERE subscription_id=$1",[cmd.subscriptionId]);
+      await expect(reapproveVendeDelinquency(mode==="tenant"?{...context,tenantId:"foreign"}:context,
+        {userId:mode==="actor"?"foreign":context.userId,verifiedAt:mode==="stepup"?prior:new Date()},
+        {commandId:cmd.id,productId:mode==="product"?randomUUID():productId,expectedApprovedAt:mode==="cas"?null:prior.toISOString()},
+      )).rejects.toThrow();
+      expect((await pool.query("SELECT approved_at FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0].approved_at.getTime()).toBe(prior.getTime());
+      expect((await pool.query("SELECT count(*)::int AS n FROM fmcc_audit_event WHERE resource_id=$1",[cmd.id])).rows[0].n).toBe(0);
+    }
+  });
+  it("rolls back approval when its audit cannot persist",async()=>{
+    const cmd=await makePending();const prior=new Date(Date.now()-301_000);
+    await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=$1 WHERE id=$2",[prior,cmd.id]);
+    await expect(reapproveVendeDelinquency({...context,correlationId:null as unknown as string},
+      {userId:context.userId,verifiedAt:new Date()},
+      {productId,commandId:cmd.id,expectedApprovedAt:prior.toISOString()},
+    )).rejects.toThrow();
+    expect((await pool.query("SELECT approved_at FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0].approved_at.getTime()).toBe(prior.getTime());
   });
   it("payment reversal during network I/O remains UNKNOWN; recovery cannot falsely confirm",async()=>{
     const cmd=await makePending();

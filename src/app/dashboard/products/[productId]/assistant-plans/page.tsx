@@ -9,6 +9,7 @@ import { AssistantPlanEditor } from "./assistant-plan-editor";
 import { WhatsAppQRPolicyEditor } from "./whatsapp-qr-policy-editor";
 import { VendeLicenseQueueSupervisor } from "./vende-license-queue-supervisor";
 import { VendePaymentReadbackSupervisor } from "./vende-payment-readback-supervisor";
+import { VendeCommandApprovals } from "./vende-command-approvals";
 
 export default async function AssistantPlansPage({params}:{params:Promise<{productId:string}>}) {
   let context;
@@ -37,5 +38,6 @@ export default async function AssistantPlansPage({params}:{params:Promise<{produ
     <WhatsAppQRPolicyEditor productId={productId}/>
     {product.slug==="vendeatendeia"?<VendeLicenseQueueSupervisor/>:null}
     {product.slug==="vendeatendeia"?<VendePaymentReadbackSupervisor productId={productId}/>:null}
+    {product.slug==="vendeatendeia"?<VendeCommandApprovals productId={productId}/>:null}
   </main>;
 }
