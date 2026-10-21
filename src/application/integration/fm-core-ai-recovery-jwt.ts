@@ -98,7 +98,7 @@ export interface CoreAIRecoveryTarget {
 export async function sendGovernedCoreAIRecovery(
   target: CoreAIRecoveryTarget,
   actor: CoreAIRecoveryActor,
-  config: CoreAIRecoveryJWTConfig & { coreOrigin: string },
+  config: CoreAIRecoveryJWTConfig & { coreOrigin: string; recoveryServiceKey: string },
   options: { http?: typeof fetch; now?: Date } = {},
 ): Promise<void> {
   let origin: URL;
@@ -113,6 +113,11 @@ export async function sendGovernedCoreAIRecovery(
     origin.search || origin.hash ||
     ![target.requestId, target.tenantId, target.unitId, target.evidenceId]
       .every((value) => validId.test(value)) ||
+    typeof config.recoveryServiceKey !== "string" ||
+    Buffer.byteLength(config.recoveryServiceKey, "utf8") < 32 ||
+    config.recoveryServiceKey === config.privateKeyPem ||
+    config.recoveryServiceKey === config.issuer ||
+    config.recoveryServiceKey === config.audience ||
     !Number.isSafeInteger(target.requestsRevision) ||
     !Number.isSafeInteger(target.tokensRevision) ||
     target.requestsRevision < 1 || target.tokensRevision < 1
@@ -134,6 +139,7 @@ export async function sendGovernedCoreAIRecovery(
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
+          "X-FM-Recovery-Service-Key": config.recoveryServiceKey,
         },
         body, redirect: "manual", cache: "no-store",
         signal: AbortSignal.timeout(5000),
