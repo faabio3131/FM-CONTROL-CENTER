@@ -127,6 +127,13 @@
       "when": 1792556351534,
       "tag": "0017_vende_payment_readback",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792558201241,
+      "tag": "0018_vende_lifecycle_approval",
+      "breakpoints": true
     }
   ]
 }

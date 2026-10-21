@@ -139,3 +139,11 @@ O browser nunca fornece outcome, tenant, segredo ou ativação. Observe continua
 padrão no servidor. Preservar observationId após falha para impedir nova consulta por
 repetição acidental. Resultado recorded significa observação persistida, nunca invoice
 paga ou licença alterada. O painel não é autoridade financeira nem homologação externa.
+
+### B1.5 — aprovação original de comandos comerciais
+Persistir approved_at do StepUpProof original no intent C06. Dispatch não pode trocar
+essa data por now, created_at ou data de execução. Comando sem aprovação, no futuro ou
+com mais de 300s bloqueia antes de claim/rede; revalidar prova e ator antes da mutação.
+Migration aditiva mantém NULL legado não autorizante, sem backfill que invente aprovação.
+Readback de outcome unknown pode continuar após expiração, sem segunda mutação. Renovação
+de aprovação exige fluxo FM explícito ainda separado; nunca UPDATE automático do timestamp.

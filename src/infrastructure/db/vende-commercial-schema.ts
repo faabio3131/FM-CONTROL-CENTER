@@ -117,6 +117,9 @@ export const vendeLifecycleCommands = pgTable("fmcc_vende_lifecycle_command",{
   effectiveDate:date("effective_date",{mode:"string"}).notNull(),
   sourceRef:text("source_ref").notNull(),
   actorId:text("actor_id").notNull(),
+  // Original step-up timestamp, never refreshed by dispatch. Legacy NULL is
+  // intentionally non-authorizing; do not backfill it from created_at/now().
+  approvedAt:timestamp("approved_at",{withTimezone:true}),
   createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
   claimedAt:timestamp("claimed_at",{withTimezone:true}),
   deliveredAt:timestamp("delivered_at",{withTimezone:true}),
