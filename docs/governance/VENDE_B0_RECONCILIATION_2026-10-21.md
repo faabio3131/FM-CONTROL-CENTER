@@ -81,3 +81,17 @@ RSA >=2048 e payload sem segredo. Os testes agora exigem 401 tanto para JWT
 isolado quanto para chave técnica isolada, além de 204 com ambas, 409 no replay
 e ledger/audit único. Não relaxada nenhuma barreira do Core. Seis testes Node
 passaram e typecheck passou; executar novamente os quatro workflows finais.
+
+## Integração comprovada e correção de gatilho pós-merge
+PR #124 integrada à main em `2a041d282a0135c02a36daef53fcc6fb90100705`.
+HEAD certificado `840a7c8ae3680dadc9a78c41a7495f7a4f19bcdd`: Foundation
+`39537845519`, Billing PG `39537845531`, F21 `39537845567`, Cognitive
+`39537845532`, todos SUCCESS. Os seis contratos locais também passaram.
+As PRs #114/#118–#123 foram encerradas como substituídas, preservando seus
+corpos e referências de supersessão. Nenhum merge duplicado.
+
+A verificação pós-merge revelou um erro nesta descrição inicial: Cognitive
+ainda tinha push restrito à branch histórica, portanto só três workflows
+foram disparados na main. Esta correção adiciona main à lista, preservando
+a branch anterior e todos os testes. Não declarar quatro gates pós-merge
+antes da nova evidência. O gate externo do Preview permanece manual.

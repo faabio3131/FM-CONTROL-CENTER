@@ -110,3 +110,9 @@ O gate externo do Preview é manual; os quatro gates internos devem rodar em PR
 e main. A configuração Render deve ser revalidada antes do merge: auto-deploy OFF.
 B0 integra a baseline; os achados funcionais C06 restantes pertencem a B1 e
 continuam explícitos. Não habilitar executores reais nem declarar F3 concluída.
+
+### B0 — main e gatilhos de CI
+PR #124 já integrada em `2a041d282a0135c02a36daef53fcc6fb90100705`; não repetir.
+PRs #114/#118–#123 substituídas. Corrigir/validar Cognitive em push main;
+confirmar os quatro workflows pós-merge antes de encerrar B0. Cada aplicação
+continua com homologação externa adiada e executores reais OFF.

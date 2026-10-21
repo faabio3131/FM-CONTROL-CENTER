@@ -18,6 +18,7 @@ on:
       - '.github/workflows/fmcc-cognitive-governed-gate.yml'
   push:
     branches:
+      - main
       - 'feat/fmcc-cognitive-governed-intelligence'
 
 permissions:
