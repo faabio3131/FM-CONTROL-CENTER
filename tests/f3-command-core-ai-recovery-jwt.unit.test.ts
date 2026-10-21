@@ -23,6 +23,7 @@ const actor = {
   approved: true as const, stepUpAt: now,
 };
 const fixedJti = "command-admin-jti-1234567890";
+const recoveryServiceKey = "synthetic-command-core-transport-credential-1234";
 
 describe("Command → Core governed usage authority", () => {
   it("signs only a short-lived human scoped RS256 token", () => {
@@ -61,7 +62,7 @@ describe("Command → Core governed usage authority", () => {
       {
         requestId: "request-1", tenantId: "tenant-1", unitId: "unit-1",
         evidenceId: "evidence-1", requestsRevision: 3, tokensRevision: 3,
-      }, actor, { ...cfg, coreOrigin: "https://core.example.test" },
+      }, actor, { ...cfg, coreOrigin: "https://core.example.test", recoveryServiceKey },
       {
         now,
         http: (async (url, init) => {
@@ -73,6 +74,7 @@ describe("Command → Core governed usage authority", () => {
           expect(init?.redirect).toBe("manual");
           const headers = new Headers(init?.headers);
           expect(headers.get("Authorization")?.startsWith("Bearer ")).toBe(true);
+          expect(headers.get("X-FM-Recovery-Service-Key")).toBe(recoveryServiceKey);
           expect(JSON.parse(String(init?.body))).toEqual({
             request_id: "request-1", tenant_id: "tenant-1",
             unit_id: "unit-1", evidence_id: "evidence-1",
@@ -92,7 +94,7 @@ describe("Command → Core governed usage authority", () => {
       evidenceId: "evidence-2", requestsRevision: 2, tokensRevision: 2,
     };
     await expect(sendGovernedCoreAIRecovery(
-      intent, actor, { ...cfg, coreOrigin: "https://core.example.test" },
+      intent, actor, { ...cfg, coreOrigin: "https://core.example.test", recoveryServiceKey },
       { now, http: (async () => {
         attempts++;
         return new Response("unavailable", { status: 503 });
@@ -100,9 +102,20 @@ describe("Command → Core governed usage authority", () => {
     )).rejects.toThrow(CoreAIRecoveryAuthorityDenied);
     expect(attempts).toBe(1);
     await expect(sendGovernedCoreAIRecovery(
-      intent, actor, { ...cfg, coreOrigin: "http://insecure.example.test" },
+      intent, actor, { ...cfg, coreOrigin: "http://insecure.example.test", recoveryServiceKey },
       { now, http: (async () => { attempts++; return new Response(); }) as typeof fetch },
     )).rejects.toThrow(CoreAIRecoveryAuthorityDenied);
+    expect(attempts).toBe(1);
+    for (const recoveryServiceKey of ["short", cfg.issuer, privateKeyPem]) {
+      await expect(sendGovernedCoreAIRecovery(
+        intent, actor, {
+          ...cfg, coreOrigin: "https://core.example.test", recoveryServiceKey,
+        },
+        { now, http: (async () => {
+          attempts++; return new Response(null, { status: 204 });
+        }) as typeof fetch },
+      )).rejects.toThrow(CoreAIRecoveryAuthorityDenied);
+    }
     expect(attempts).toBe(1);
   });
 });
