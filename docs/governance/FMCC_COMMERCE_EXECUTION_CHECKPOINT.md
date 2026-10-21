@@ -360,3 +360,20 @@ Migration 0020 aditiva; nenhuma ativação, deploy, migration operacional ou pro
 Gates finais pendentes; detalhes em FMCC_VENDE_REACTIVATION_DELIVERY.md. Próximo escopo:
 reaprovação/supervisão comercial, demais transições e compensação. B1/F3 e produto global
 continuam IN_PROGRESS, sem declaração BUILD_COMPLETE_INTERNAL_GREEN.
+
+### B1.8 integrada / B1.9 reaprovação de reativação em validação (21/10/2026)
+PR #134 integrada em main: `0bd8e0ddfdc523a9491eb758a38dbe811e7a85d9`.
+HEAD de B1.8 `b474999484aa3d5cc86a0883fb066062dbfe0a42`: Foundation
+39552101236, Billing PG 39552101180, F21 39552101215 e Cognitive 39552101219
+SUCCESS. Pós-merge: Foundation 39592575782, Billing PG 39592575859,
+F21 39592575826 e Cognitive 39592576268 SUCCESS. Nenhuma migration de produção,
+credencial externa ou deploy intencional habilitado por esta entrega.
+
+B1.9 trata exclusivamente reaprovação humana de REACTIVATE_VERIFIED pendente,
+nunca tentada, após expiração da aprovação anterior. Reutiliza elegibilidade canônica
+financeira/contratual B1.8; a UI e API B1.6 passam a aceitar ação discriminada,
+sem refazer a fonte de verdade nem permitir cross-action. Testes de concurrency,
+isolamento, estados incertos, target já fixo, pagamento/revisão e auditoria. B1.9
+AINDA NÃO CERTIFICADO: CI no novo HEAD e auditoria ainda necessários.
+Segue pendente o restante do ciclo comercial, supervisão/worker, compensação
+financeira entre serviços e B2-B11; BUILD_COMPLETE_INTERNAL_GREEN NÃO concedido.
