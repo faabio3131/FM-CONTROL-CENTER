@@ -131,3 +131,11 @@ canônico é revalidado depois. Processing ou evidência incerta mais nova bloqu
 anterior, inclusive com skew de relógio. Replay não consulta nem refresca prova; quarentena
 após 30s nunca reenvia. Não alterar invoice/payment/licença a partir desta leitura.
 Configuração, limites, testes, rollback e pendências: docs/FMCC_VENDE_PAYMENT_READBACK.md.
+
+### B1.4 — supervisão de observações PSP
+A rota payment-readback é corporativa FM, scoped por produto/fatura. GET consulta somente
+dados locais; POST exige campos exatos, body limitado, step-up do mesmo ator e pré-auditoria.
+O browser nunca fornece outcome, tenant, segredo ou ativação. Observe continua OFF por
+padrão no servidor. Preservar observationId após falha para impedir nova consulta por
+repetição acidental. Resultado recorded significa observação persistida, nunca invoice
+paga ou licença alterada. O painel não é autoridade financeira nem homologação externa.

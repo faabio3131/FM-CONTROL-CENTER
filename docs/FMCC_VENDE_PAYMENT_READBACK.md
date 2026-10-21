@@ -6,8 +6,8 @@ contábil, reativação remota ou licença confirmada. Nenhuma chamada real nest
 ## Autoridade e configuração
 
 `VendePaymentReadbackService` recebe TenantContext FM owner/admin com commercial:write
-e StepUpProof do mesmo ator, com até cinco minutos. Composição HTTP futura deve produzir
-esses objetos a partir da sessão autenticada; não aceitar claims de ator enviados pelo cliente.
+e StepUpProof do mesmo ator, com até cinco minutos. A composição HTTP produz
+esses objetos a partir da sessão autenticada; não aceita claims de ator enviados pelo cliente.
 Não há rota pública que aceite observações ou payloads de webhook como prova.
 
 `bindPayer` registra uma associação imutável por fatura entre o pagamento já registrado,
@@ -55,9 +55,37 @@ Rollback: deixar flag OFF, preservar histórico/tabelas/needs_attention; não ap
 nem restringir o check enquanto houver linhas desse estado. Reverter código de produção
 exigiria manter os readers fail-closed. Nenhuma migration operacional autorizada.
 
-Pendências separadas: composição API/UI/scheduler, emissão comercial que registre o payer
+Pendências separadas: scheduler, emissão comercial que registre o payer
 binding automaticamente, ciclo completo de assinatura, compensação pagamento/suspensão,
 snapshot de termos e homologação externa após BUILD_COMPLETE_INTERNAL_GREEN.
+
+## B1.4 — supervisão corporativa por fatura
+
+O painel de planos do produto Vende contém a supervisão de pagamentos. GET e POST
+`/api/billing/products/{productId}/payment-readback` exigem sessão corporativa FM e
+permissão comercial; nenhum tenant/ator/URL/segredo/outcome é aceito do navegador.
+GET recebe somente invoiceId, consulta dados locais e retorna associação e até 20
+tentativas, com indicação de truncamento. Produto, fatura e conta são revalidados;
+conta revogada ou produto inativo resultam indisponibilidade, nunca prova positiva.
+O read model expõe colunas explícitas, sem segredo, hash interno ou payload do PSP.
+
+POST permite bind, observe ou quarantine. Corpo limitado a 4096 bytes, campos exatos,
+senha do mesmo ator e pré-auditoria obrigatória. A auditoria do resultado pertence à
+transação do serviço. Observe exige flag ON no servidor; o cliente não pode ativá-la.
+Bind e quarantine são operações locais governadas mesmo com flag OFF. Não existe
+endpoint para inserir prova de pagamento nem atualização de estado financeiro.
+
+O painel preserva observationId ao atualizar a mesma fatura e após resposta incerta;
+a ação de preparar nova observação é explícita. Usar ID já existente consulta somente
+o estado da operação. Uma falha de atualização do painel após sucesso é exibida como
+operação registrada, evitando instrução enganosa para repetir uma alteração.
+Senha é limpa após toda tentativa. Não há polling ou consulta automática ao provider.
+
+Validação adicional: testes de ingresso cobrem sessão, escopo, campos extra, payload
+grande, step-up, auditoria indisponível, flag, replay ID e sanitização; PostgreSQL
+descartável verifica projeção limitada, ausência de segredos e isolamento por produto.
+Rollback: reverter API/painel mantendo serviço, histórico e flag OFF; nenhuma migration
+adicional nem alteração operacional de configuração integra esta unidade.
 
 ## Referências de protocolo consultadas em 21/10/2026
 
