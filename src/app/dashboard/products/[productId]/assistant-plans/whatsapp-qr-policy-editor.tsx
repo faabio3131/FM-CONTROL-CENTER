@@ -39,6 +39,25 @@ export function WhatsAppQRPolicyEditor({productId}:{productId:string}){
     }catch(e){setFeedback(e instanceof Error?e.message:"Alteração recusada.");}
     finally{setBusy(false);}
   }
+  async function syncAssistant(){
+    if(!policy || policy.revision<1 || !password){
+      setFeedback("Salve uma política e confirme sua senha da FM.");return;
+    }
+    setBusy(true);setFeedback("");
+    try{
+      const response=await fetch(path+"/sync",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({password}),
+      });
+      const result=await response.json() as {status?:string;revision?:number;error?:string};
+      if(!response.ok || !["projected","already_projected"].includes(result.status??"") ||
+          result.revision!==policy.revision)
+        throw new Error("Sincronização não confirmada. Verifique a integração FM.");
+      setPassword("");
+      setFeedback("Assistant confirmou a revisão "+result.revision+" da política do QR Code.");
+    }catch(e){setFeedback(e instanceof Error?e.message:"Sincronização não confirmada.");}
+    finally{setBusy(false);}
+  }
   return <section className="card" aria-label="Validade do QR Code WhatsApp">
     <span className="eyebrow">Integrações · FM Tecnologia</span>
     <h2>Validade máxima do QR Code WhatsApp</h2>
@@ -58,6 +77,12 @@ export function WhatsAppQRPolicyEditor({productId}:{productId:string}){
     <button type="button" disabled={busy||!policy} onClick={()=>void save()}>
       {busy?"Salvando…":"Salvar política do QR Code"}
     </button>
+    <button type="button" disabled={busy||!policy||policy.revision<1}
+      onClick={()=>void syncAssistant()}>
+      Sincronizar revisão com o Assistant
+    </button>
+    <p>A sincronização é autenticada, auditada e desativada por padrão até liberação operacional da FM.
+      Uma falha não significa que a revisão foi aplicada remotamente.</p>
     <p role="status" aria-live="polite">{feedback}</p>
   </section>;
 }

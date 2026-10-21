@@ -86,3 +86,27 @@ O catálogo único de perfis de adaptadores fica em `src/application/integration
   interna em passe separado, fazer merge de WP 100% verde, validar main e avançar sem nova consulta.
 - Continuam fora da autorização genérica: deploy/cutover, banco/segredo/cobrança/envio real, gasto,
   homologação externa antecipada, política comercial nova e operação destrutiva.
+
+
+## C04 — Publicação do limite visual do QR FM→Assistant (20/10/2026)
+A autoridade é a revisão persistida da política QR corporativa VendeAtendeIA, editada apenas por owner/admin FM, com step-up. Uma sincronização manual autenticada, pré-auditada e desativada por padrão pela flag `FM_COMMAND_VENDE_QR_POLICY_SYNC_ENABLED` envia a revisão assinada sob HMAC de caminho separado para `/internal/v1/command/whatsapp-qr/policy`; somente origem HTTPS pré-configurada. Nunca aceitar URL, tenant, segundos, revisão ou ator do corpo enviado pelo cliente. O Assistant rejeita replay de nonce, versões antigas, assinaturas inválidas, escopos estrangeiros e revisões conflitantes. Falha de rede permanece `unconfirmed`, mesmo se o provedor HTTP tiver aplicado a mudança; uma nova solicitação humana pode retransmitir apenas a mesma revisão idempotente, sem efeitos financeiros. O período é cap de **exibição**, não promessa de validade real da Evolution. Nenhuma ativação externa/deploy/credencial autorizada.
+
+
+## F3 — Release gate for cross-repository licensed AI consumption (20/10/2026)
+`tests/f3_command_license_quota_journey.py` must execute the **actual Command license signer** and Assistant binding verifier with unique nonce both before and after tenant license suspension, then require Core signed-grant quota admission to fail for the subsequent request. It is forbidden to certify any stale binding-status as current entitlement. Foundation pins fully specified Assistant/Core commits and runs against disposable storage; a green Core or Assistant CI alone does not prove this cross-code contract. Maintain the history of held, uncertain reservations; never refund unknown provider usage. All production activations, real secrets and external provider homologation remain postponed until full construction. No claim that F3 is complete based solely on this gate.
+
+
+## F3 — Assinatura de security hold (20/10/2026)
+Existe um componente PURO `assistant-license-security-hold-signer.ts` que produz o contrato HMAC FM Command→Assistant para suspensão operacional, com ator humano, step-up recente (300s), planCode/revision, `expected_valid_until` obtido de fonte autorizada, nonce novo e command_request_id único. **Não há sender público nem ativação automática**: construir o fluxo administrativo exigirá prova independente do estado corrente da licença, RBAC FM, reautenticação, auditoria pré-envio, política de recuperação de resultado incerto e flag OFF por padrão. Não confundir suspensão de segurança com cancelamento financeiro, devolução, prorrata ou upgrade. O consumidor Assistant mantém trilha imutável e bloqueia acesso a quotas ao suspender. PR e CI trans-repo devem ser GREEN no SHA exato; sem review independente, não mergear.
+
+## B0 — Candidata unificada e execução autônoma (21/10/2026)
+A PR #124 é a candidata única de reconciliação do VendeAtendeIA. Incorpora os
+contratos/testes de #118–#121, a API de política de #122 e a evolução de #123.
+#114 é representada pela correção equivalente de #120; não aplicar duas vezes.
+A autorização humana desta sessão permite auditoria interna em passe separado,
+correção, merge com gates verdes e avanço automático. Não alegar revisão externa.
+Detalhes, evidência e rollback: `docs/governance/VENDE_B0_RECONCILIATION_2026-10-21.md`.
+O gate externo do Preview é manual; os quatro gates internos devem rodar em PR
+e main. A configuração Render deve ser revalidada antes do merge: auto-deploy OFF.
+B0 integra a baseline; os achados funcionais C06 restantes pertencem a B1 e
+continuam explícitos. Não habilitar executores reais nem declarar F3 concluída.

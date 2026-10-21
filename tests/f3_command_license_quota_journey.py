@@ -129,6 +129,23 @@ def test_command_binding_reserves_core_quota_and_revocation_fails_closed(tmp_pat
 
         with assistant_sessions.begin() as db:
             db.get(TenantLicenseORM, "tenant-a").status = "suspended"
+
+        # A historical plan bind audit cannot masquerade as current license
+        # authorization. Use a FRESH envelope from the real Command signer.
+        late = signed["postSuspensionStatus"]
+        late_data = json.loads(late["body"])
+        late_headers = late["headers"]
+        assert late_headers["X-FM-Command-Nonce"] != status_headers["X-FM-Command-Nonce"]
+        assert assistant.binding_status(
+            headers={
+                "key_id": late_headers["X-FM-Command-Key-ID"],
+                "timestamp": late_headers["X-FM-Command-Timestamp"],
+                "nonce": late_headers["X-FM-Command-Nonce"],
+                "signature": late_headers["X-FM-Command-Signature"],
+            },
+            raw_body=late["body"].encode("utf-8"),
+            **late_data,
+        ) == "not_confirmed"
         with pytest.raises((QuotaDenied, PlanLimitDenied)):
             guard.admit(request=request("ai-request-2"), at=datetime.now(UTC))
         final = quota.usage_snapshot(

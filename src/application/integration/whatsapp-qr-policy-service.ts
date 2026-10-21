@@ -42,6 +42,26 @@ export class WhatsAppQRPolicyService {
     };
   }
 
+  /** Return only a persisted, human-approved FM revision as S2S authority.
+   * Never sign an ephemeral 45s default (revision 0) as a published policy.
+   */
+  async readForProjection(context: TenantContext, productId: string) {
+    requireFMPlanAuthority(context,false);
+    await assertFMProduct(context,productId);
+    const [row]=await db.select().from(whatsappQRDisplayPolicies).where(and(
+      eq(whatsappQRDisplayPolicies.tenantId,context.tenantId),
+      eq(whatsappQRDisplayPolicies.productId,productId),
+    )).limit(1);
+    if (!row || row.revision < 1 || !row.updatedAt ||
+        !row.actorId || !Number.isFinite(row.updatedAt.getTime()))
+      throw new WhatsAppQRPolicyUnavailable("qr.approved_revision_unavailable");
+    return {
+      displaySeconds:parseWhatsAppQRDisplaySeconds(row.displaySeconds),
+      revision:row.revision, actorId:row.actorId,
+      approvedAt:row.updatedAt,
+    };
+  }
+
   async update(
     context: TenantContext, productId:string, rawSeconds:unknown,
     expectedRevision: unknown,

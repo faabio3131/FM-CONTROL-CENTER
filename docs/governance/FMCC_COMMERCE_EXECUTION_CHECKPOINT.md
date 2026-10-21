@@ -215,3 +215,42 @@ Execução de correção e merge de PR tecnicamente elegível com 100% dos gates
 
 ### C06 — Entrada corporativa de termos e intenção de suspensão
 `POST /api/billing/vende-contracts` foi construído com duas ações explicitamente enumeradas: `enroll_paid_term` e `request_delinquency_suspension`. Autentica sessão FM admin/owner, commercial:write, confirma senha do mesmo usuário, recusa corpos >8 KiB, campos estranhos, tenant/URL/provider status injetados, IDs inválidos, alterações sem fatura paga e comprovada e observação recente do gateway, e registra preaudit antes de qualquer transação. Retorno HTTP 202 informa contrato registrado ou comando `pending`, com `deliveryConfirmed:false`; não prova revogação efetiva. Tests com FakeServices somente verificam ingresso; testes PostgreSQL exercitam lógica canônica e corrida sem PSP real. Cálculo aprova data e feriados da FM, mas política/homologação PSP e controle do atual entitlement via Assistant continuam próximos WPs.
+
+
+## C04 — Sincronização interna governada do limite QR FM→Assistant (20/10/2026)
+- Base: `main` verificada; não alterar a PR #114 de guardas de pagamento em revisão. Branch isolada `feat/c04-command-assistant-signed-qr-policy-20261020`; Assistant contraparte ainda em Draft PR #1, sem merge/deploy.
+- Fonte canônica: `fmcc_whatsapp_qr_display_policy` escopada à FM e produto `vendeatendeia`. `readForProjection` só retorna revisão real persistida, ator e timestamp de alteração; revision 0 (fallback de 45s) nunca é assinatura publicada.
+- Servidor Command: assinatura HMAC com nonce novo, caminho `/internal/v1/command/whatsapp-qr/policy`, payload de produto/organização/ator/revisão/data/segundos. POST admin `/api/billing/products/[productId]/whatsapp-qr-policy/sync` exige sessão FM, commercial:write, mesmo ator validado por senha, corpo apenas com senha, preaudit antes da rede, HTTPS configurado e flag `FM_COMMAND_VENDE_QR_POLICY_SYNC_ENABLED=true`. O flag fica OFF em todos os ambientes reais nesta fase.
+- Assistant contraparte: schema aditivo `20261020_0017`, nonce único existente, revisão monotônica, rejeição cross-org e provas adulteradas, página QR usa limite persistido e mantém primeiro instante do QR ao receber revisão mais restritiva. QR do provedor pode ter TTL menor; não o inventar.
+- Retry: apenas gesto governado de *mesma revisão* é idempotente; sem reenvio automático depois de falha ambígua. Diferente de emissão de licença; não confundir os mecanismos.
+- Adicionados testes de payload, HMAC, nonce, duração, flag OFF, estados remotos e contrato assinado. **CI, revisão independente e integração real ainda precisam ser certificados no HEAD definitivo**; sem domínio, VPS, segredos, Docker ativo ou homologação externa.
+
+
+## F3 — Adversarial license+quota cross-runtime certification candidate (20/10/2026)
+- Isolated branch `feat/f3-internal-core-assistant-license-audio-gate-20261020`, PR #119, from latest main, no mutation of billing schema, gateway or subscription lifecycle.
+- Re-pin the Foundation cross-repo harness to Assistant `419bc942cc9dc02d9125288ec5200a76aaa52bc9` and Core `7154020f45da7b82f847b7644ebaeb73f0565b76` (functional commits individually 3/3 and 2/2 CI GREEN, respectively).
+- Test `f3_command_license_quota_journey.py`: corporate signed binding gets confirmed only while current license is valid, subsequent signed status with distinct nonce returns `not_confirmed` after suspension, and Core signed grant request cannot make new quota reservation; previous uncertain reservation remains held and isolated.
+- Core corrected transcription `router_factory` to accept and transmit the admitted fallback attempt count, and hardened provider usage exact token parsing (booleans/floats rejected). Synthetic audio test covers metering, no provider contact on revoke/oversize, uncertain fallback.
+- **CI on PR #119 and independent security review required before merge.** External provider receipts, automatic financial lifecycle/revoke and entire F3 remain OPEN internal work; this evidence is not proof of 100% construction or real-provider/WhatsApp/VPS homologation.
+
+
+## F3/F9 — Reconciliação da PR #114 contra main atual (20/10/2026)
+- PR #114 original tinha 4/4 CI verde no HEAD `cf694dddf5cde31cb691ec9fa79fa06027d72254`, mas apresentou `mergeable=false` por conflito documental com avanço de `main`. Os dois blocos de produção (revalidação SQL canônica após HTTP 200 e seleção elegível antes do limite) e os dois novos testes PostgreSQL foram portados **sem reconstruir** os contratos prévios de licenças.
+- Nova branch `feat/f3-reconcile-p114-reversal-guards-20261020` parte de `main`. Mantém registro histórico da PR #114; original não fechada nem mergeada, evitando perda de auditoria.
+- Após ACK HTTP positivo, a mesma claim deve manter nonce, conferir sob transação PostgreSQL invoice paid, provider received, revisão publicada e CAS do registro, bloqueando em qualquer reversão; nunca declarar entregue sobre estado financeiro perdido. Eventual vínculo já aplicado no Assistant NÃO é automaticamente revogado por esse bloqueio; revogação governada e reconciliação remota continuam pendentes.
+- Worker limitado só seleciona pendências atualmente elegíveis; revalidação de claim permanece transacional, e itens suspeitos ficam observáveis em fila para revisão, sem starve do lote.
+- GATE: nova PR e matrix Foundation/BillingPG/F21/Cognitive no SHA exato + revisão adversarial independente. Sem segredo, migration, deploy, provider ou mudança de assinatura real. F3 e C06 permanecem BUILD_IN_PROGRESS.
+
+
+## F3 — Emissor contratual de suspensão de segurança (20/10/2026)
+- Branch `feat/f3-command-security-hold-signer-20261020` usa signer HMAC de produção isolado em TypeScript, protocolo `/internal/v1/command/assistant-plans/security-hold` e prova cruzada com `SignedLicenseSecurityHold` Python em SQLite descartável; integra HEAD do Assistant com migration 0018 e HEAD do Core FinOps.
+- Payload assinado contém autoridade FM, tenant SaaS exato, ator, aprovação e step-up de 5min, plano/revisão, deadline esperado (CAS), identificador único e razão fixa `security_hold`. Não inventa dados de contrato vindos de usuário.
+- **Somente construção interna do protocolo.** Não há rota acionável para suspender cliente no Command; exige readback autenticado da licença corrente, auditoria, step-up FM e reconciliação de ACK incerto antes de qualquer ação. Não modificar billing, pagamento, desconto, cobrança, renovação nem ativar flag/provider/segredo. Testes no Head e revisão adversarial ainda são gates a verificar; F3/C06 não certificados globalmente.
+
+## 21/10/2026 — B0 unificado
+Candidata única PR #124 reúne #118–#121, guardas de #114 via #120 e API
+read-only ausente de #122. Mantém evolução #123/#124. Contratos pinados aos
+HEADs certificados Assistant/Core; quatro gates internos no pós-merge; teste
+externo Render exclusivamente manual. Inventário, auditoria, limitações e
+rollback em `VENDE_B0_RECONCILIATION_2026-10-21.md`. CI final pendente; nenhum
+merge ou encerramento de F3 presumido. Autonomia reafirmada pelo proprietário.
