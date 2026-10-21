@@ -1,5 +1,5 @@
 import { beforeEach,describe,expect,it,vi } from "vitest";
-const m=vi.hoisted(()=>({session:vi.fn(),authority:vi.fn(),step:vi.fn(),approve:vi.fn(),reactivate:vi.fn(),cancel:vi.fn(),limit:vi.fn()}));
+const m=vi.hoisted(()=>({session:vi.fn(),authority:vi.fn(),step:vi.fn(),approve:vi.fn(),reactivate:vi.fn(),cancel:vi.fn(),renew:vi.fn(),limit:vi.fn()}));
 vi.mock("next/headers",()=>({headers:async()=>new Headers()}));
 vi.mock("../src/application/security/resolve-tenant-context",()=>({resolveTenantContext:m.session}));
 vi.mock("../src/application/billing/assistant-plan-catalog-service",()=>({requireFMPlanAuthority:m.authority}));
@@ -7,6 +7,7 @@ vi.mock("../src/application/security/password-step-up",()=>({verifyPasswordStepU
 vi.mock("../src/application/billing/vende-c06-delivery",()=>({reapproveVendeDelinquency:m.approve}));
 vi.mock("../src/application/billing/vende-reactivation-delivery",()=>({reapproveVendeReactivation:m.reactivate}));
 vi.mock("../src/application/billing/vende-final-cancellation-delivery",()=>({reapproveVendeFinalCancellation:m.cancel}));
+vi.mock("../src/application/billing/vende-renewal-delivery",()=>({reapproveVendeRenewal:m.renew}));
 vi.mock("../src/infrastructure/db/client",()=>{
   const chain={from:()=>chain,where:()=>chain,orderBy:()=>chain,limit:m.limit};
   return {db:{select:()=>chain}};
@@ -18,7 +19,7 @@ const payload={commandId,expectedApprovedAt:null,password:"synthetic-test-passwo
 const request=(b:unknown)=>new Request(url,{method:"POST",body:JSON.stringify(b)});
 beforeEach(()=>{
   vi.resetAllMocks();m.session.mockResolvedValue({tenantId:"corporate",userId:"owner",role:"owner",correlationId:"approval-ci"});
-  m.step.mockResolvedValue({userId:"owner",verifiedAt:new Date()});m.approve.mockResolvedValue({state:"pending",dispatched:false});m.reactivate.mockResolvedValue({state:"pending",dispatched:false});m.cancel.mockResolvedValue({state:"pending",dispatched:false});
+  m.step.mockResolvedValue({userId:"owner",verifiedAt:new Date()});m.approve.mockResolvedValue({state:"pending",dispatched:false});m.reactivate.mockResolvedValue({state:"pending",dispatched:false});m.cancel.mockResolvedValue({state:"pending",dispatched:false});m.renew.mockResolvedValue({state:"pending",dispatched:false});
 });
 describe("Vende command reapproval ingress",()=>{
   it("rejects authority and outcome injection, invalid bodies and oversized input before password checks",async()=>{
@@ -81,6 +82,17 @@ describe("Vende command reapproval ingress",()=>{
     expect((await POST(request({...payload,action:"CANCEL_AT_PERIOD_END"}),params)).status).toBe(400);
     m.limit.mockResolvedValueOnce([{id:productId}]).mockResolvedValueOnce([]);
     expect((await GET(new Request(url+"?action=SCHEDULE_CANCEL"),params)).status).toBe(200);
+  });
+
+  it("B1.15 routes renewal reapproval with the FM actor and no dispatch",async()=>{
+    const result=await POST(request({...payload,action:"RENEW_VERIFIED"}),params);
+    expect(result.status).toBe(200);
+    expect((await result.json()).dispatched).toBe(false);
+    expect(m.renew).toHaveBeenCalledWith(expect.objectContaining({tenantId:"corporate"}),
+      expect.objectContaining({userId:"owner"}),{productId,commandId,expectedApprovedAt:null});
+    expect(m.cancel).not.toHaveBeenCalled();
+    m.limit.mockResolvedValueOnce([{id:productId}]).mockResolvedValueOnce([]);
+    expect((await GET(new Request(url+"?action=RENEW_VERIFIED"),params)).status).toBe(200);
   });
 
 });
