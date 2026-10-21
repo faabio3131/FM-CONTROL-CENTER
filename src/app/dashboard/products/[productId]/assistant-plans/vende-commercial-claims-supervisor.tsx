@@ -8,7 +8,7 @@ type Claim={
   approvedAt:string|null;claimedAt:string|null;deliveredAt:string|null;
 };
 type Snapshot={
-  totals:Record<State,number>;staleProcessing:number;expiredApprovals:number;
+  totals:Record<State,number>;staleProcessing:number;expiredApprovals:number;compensationReviewEvents:number;
   alert:"healthy"|"attention"|"critical";items:Claim[];truncated:boolean;
   runtimeEntitlementVerified:false;
 };
@@ -54,10 +54,12 @@ export function VendeCommercialClaimsSupervisor({productId}:{productId:string}){
       <article><strong>Entregues</strong><span>{data.totals.delivered}</span></article>
       <article><strong>Processamentos antigos</strong><span>{data.staleProcessing}</span></article>
       <article><strong>Aprovações vencidas</strong><span>{data.expiredApprovals}</span></article>
+      <article><strong>Alertas de compensação registrados</strong><span>{data.compensationReviewEvents}</span></article>
     </div>:null}
     {data?<p role="status">Situação: {data.alert==="critical"?"intervenção e reconciliação necessárias":
       data.alert==="attention"?"há aprovações pendentes de revisão":"sem alerta identificado"}.
       A vigência efetiva da licença deve ser comprovada diretamente no Assistant.</p>:null}
+    {data?.compensationReviewEvents?<p role="status">Alertas históricos de divergência entre estado remoto aplicado e confirmação financeira/contratual local. Não significam casos ainda abertos ou compensação executada. Exigem investigação corporativa.</p>:null}
     {data?.truncated?<p>Exibindo 50 comandos prioritários. Os totais acima consideram todos os registros do produto.</p>:null}
     {data&&!data.items.length?<p>Nenhum comando registrado para este produto.</p>:null}
     {data?.items.length?<div className="product-grid">{data.items.map(item=>
