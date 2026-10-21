@@ -95,3 +95,7 @@ ainda tinha push restrito à branch histórica, portanto só três workflows
 foram disparados na main. Esta correção adiciona main à lista, preservando
 a branch anterior e todos os testes. Não declarar quatro gates pós-merge
 antes da nova evidência. O gate externo do Preview permanece manual.
+
+### Reconciliação adicional da PR #125
+
+A PR #125 (HEAD `0d5f75bf26a848b0cde90e00092cfe1369c326aa`) também sobrepunha o contrato de recuperação integrado na #124. Preservamos os pins mais recentes de Assistant/Core e o lock atual (Rolldown 1.2.14), sem regressão para versões antigas da #125. Incorporamos a rejeição de reutilização de issuer/audience/PEM como chave de serviço, com teste negativo antes de qualquer rede. A recuperação do binding nativo no CI passa a corresponder ao lock 1.2.14. A #125 só pode ser encerrada como substituída após merge verde desta correção.
