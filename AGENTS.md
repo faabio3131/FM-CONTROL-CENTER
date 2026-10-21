@@ -174,3 +174,17 @@ America/Sao_Paulo completo, convertido sem offset UTC fixo; não reduzir validad
 Timeout/crash vira unknown: recuperar somente por leitura, nunca reconstruir target nem
 reenviar. Quarentena abrange reativação. Sem rota pública/scheduler novo ou ativação real;
 flag C06 permanece OFF. Detalhes: docs/FMCC_VENDE_REACTIVATION_DELIVERY.md.
+
+### B1.9 — reaprovação supervisionada de reativação nunca tentada (21/10/2026)
+O painel existente de aprovações comerciais aceita modo explícito REACTIVATE_VERIFIED;
+GET lista somente pending, sem claimedAt/deliveredAt, sem aprovação fresca, por tenant e
+produto Vende; POST exige senha/step-up do ator corporativo, ação em enum estrita,
+CAS do timestamp observado, auditoria na mesma transação e evidência settled_verified
+fresca vinculada à fatura paga. Reusar eligibility() do dispatcher B1.8, incluindo
+produto ativo, binding SaaS, plano, período e revisão, sem novo motor financeiro.
+Não reaprovar processamentos já reclamados, unknown, delivered, blocked ou targets
+persistidos. Reaprovação só altera ator/data do pending, não envia comandos, não modifica
+pagamento/quotas nem muda licença. Suspensões B1.6 continuam compatíveis com requests
+legados sem campo action; seleção de ação externa jamais prevalece sobre row.action.
+Auditoria, testes e rollback: docs/FMCC_VENDE_REACTIVATION_DELIVERY.md. Gates 4/4
+obrigatórios no HEAD e pós-merge; habilitação real continua OFF.

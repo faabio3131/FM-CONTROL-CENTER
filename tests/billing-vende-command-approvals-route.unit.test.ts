@@ -1,10 +1,11 @@
 import { beforeEach,describe,expect,it,vi } from "vitest";
-const m=vi.hoisted(()=>({session:vi.fn(),authority:vi.fn(),step:vi.fn(),approve:vi.fn(),limit:vi.fn()}));
+const m=vi.hoisted(()=>({session:vi.fn(),authority:vi.fn(),step:vi.fn(),approve:vi.fn(),reactivate:vi.fn(),limit:vi.fn()}));
 vi.mock("next/headers",()=>({headers:async()=>new Headers()}));
 vi.mock("../src/application/security/resolve-tenant-context",()=>({resolveTenantContext:m.session}));
 vi.mock("../src/application/billing/assistant-plan-catalog-service",()=>({requireFMPlanAuthority:m.authority}));
 vi.mock("../src/application/security/password-step-up",()=>({verifyPasswordStepUp:m.step}));
 vi.mock("../src/application/billing/vende-c06-delivery",()=>({reapproveVendeDelinquency:m.approve}));
+vi.mock("../src/application/billing/vende-reactivation-delivery",()=>({reapproveVendeReactivation:m.reactivate}));
 vi.mock("../src/infrastructure/db/client",()=>{
   const chain={from:()=>chain,where:()=>chain,orderBy:()=>chain,limit:m.limit};
   return {db:{select:()=>chain}};
@@ -16,7 +17,7 @@ const payload={commandId,expectedApprovedAt:null,password:"synthetic-test-passwo
 const request=(b:unknown)=>new Request(url,{method:"POST",body:JSON.stringify(b)});
 beforeEach(()=>{
   vi.resetAllMocks();m.session.mockResolvedValue({tenantId:"corporate",userId:"owner",role:"owner",correlationId:"approval-ci"});
-  m.step.mockResolvedValue({userId:"owner",verifiedAt:new Date()});m.approve.mockResolvedValue({state:"pending",dispatched:false});
+  m.step.mockResolvedValue({userId:"owner",verifiedAt:new Date()});m.approve.mockResolvedValue({state:"pending",dispatched:false});m.reactivate.mockResolvedValue({state:"pending",dispatched:false});
 });
 describe("Vende command reapproval ingress",()=>{
   it("rejects authority and outcome injection, invalid bodies and oversized input before password checks",async()=>{
@@ -50,4 +51,23 @@ describe("Vende command reapproval ingress",()=>{
     const body=await response.json();expect(body.items).toHaveLength(50);expect(body.truncated).toBe(true);
     expect(m.step).not.toHaveBeenCalled();expect(m.approve).not.toHaveBeenCalled();
   });
+  it("routes reactivation separately with exact action and trusted human approval",async()=>{
+    const reactivation={...payload,action:"REACTIVATE_VERIFIED"};
+    const response=await POST(request(reactivation),params);
+    expect(response.status).toBe(200);
+    expect((await response.json()).dispatched).toBe(false);
+    expect(m.reactivate).toHaveBeenCalledWith(expect.objectContaining({tenantId:"corporate"}),
+      expect.objectContaining({userId:"owner"}),{productId,commandId,expectedApprovedAt:null});
+    expect(m.approve).not.toHaveBeenCalled();
+    expect((await POST(request({...reactivation,action:"UNAUTHORIZED"}),params)).status).toBe(400);
+    expect((await POST(request({...reactivation,dispatched:true}),params)).status).toBe(400);
+  });
+  it("rejects unrecognized or duplicated GET actions before reading data",async()=>{
+    for(const suffix of ["?action=UNKNOWN","?action=REACTIVATE_VERIFIED&action=SUSPEND_DELINQUENCY","?tenantId=foreign"])
+      expect((await GET(new Request(url+suffix),params)).status).toBe(400);
+    expect(m.limit).not.toHaveBeenCalled();
+    m.limit.mockResolvedValueOnce([{id:productId}]).mockResolvedValueOnce([]);
+    expect((await GET(new Request(url+"?action=REACTIVATE_VERIFIED"),params)).status).toBe(200);
+  });
+
 });

@@ -4,6 +4,10 @@ import {and,eq} from "drizzle-orm";
 import {db} from "@/infrastructure/db/client";
 import {billingCustomerBindings,billingInvoices,billingProviderPayments,billingSubscriptions} from "@/infrastructure/db/billing-schema";
 import {productDefinitions} from "@/infrastructure/db/platform-schema";
+import {auditEvents} from "@/infrastructure/db/foundation-schema";
+import {requireFMPlanAuthority} from "./assistant-plan-catalog-service";
+import type {TenantContext} from "@/domain/security/tenant-context";
+import type {StepUpProof} from "@/application/security/password-step-up";
 import {vendeContractTerms,vendeLifecycleCommands} from "@/infrastructure/db/vende-commercial-schema";
 import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "@/domain/billing/vende-commercial-policy-v1";
 import {currentBoundVendePaymentEvidence} from "./vende-payment-evidence";
@@ -142,4 +146,61 @@ export async function reconcileUnknownVendeReactivation(commandId:string,config:
   if(!row.deliveryTarget)return "unknown";
   try{return await finish(commandId,"unknown",await readVendeCommercialSnapshot(base,row,config,http,now));}
   catch{return "unknown";}
+}
+
+/** B1.9 — corporate reapproval of an EXPIRED, never-attempted reactivation.
+ * This does not send an operation, re-open unknown claims, alter invoices,
+ * refresh payment evidence or change the SaaS license. */
+export async function reapproveVendeReactivation(
+  context:TenantContext,proof:StepUpProof,
+  input:{productId:string;commandId:string;expectedApprovedAt:string|null},
+  now:Date=new Date(),
+){
+  requireFMPlanAuthority(context,true);
+  if(!UUID.test(input.productId)||!UUID.test(input.commandId)||
+     proof.userId!==context.userId||!hasFreshVendeApproval(proof.verifiedAt,now)||
+     (input.expectedApprovedAt!==null&&
+       (typeof input.expectedApprovedAt!=="string"||
+        !Number.isFinite(Date.parse(input.expectedApprovedAt))||
+        new Date(input.expectedApprovedAt).toISOString()!==input.expectedApprovedAt)))
+    return denied();
+  return db.transaction(async tx=>{
+    const [row]=await tx.select().from(vendeLifecycleCommands).where(and(
+      eq(vendeLifecycleCommands.id,input.commandId),
+      eq(vendeLifecycleCommands.tenantId,context.tenantId),
+      eq(vendeLifecycleCommands.productId,input.productId),
+    )).for("update").limit(1);
+    if(!row||row.action!=="REACTIVATE_VERIFIED"||row.state!=="pending"||
+       row.claimedAt||row.deliveredAt||row.deliveryTarget||
+       (row.approvedAt?.toISOString()??null)!==input.expectedApprovedAt)
+      return denied();
+    // An existing valid/future approval cannot be silently refreshed.
+    if(row.approvedAt){
+      const age=now.getTime()-row.approvedAt.getTime();
+      if(!Number.isFinite(age)||age<=300_000)return denied();
+    }
+    // Reuse the EXACT paid-invoice/PSP evidence, contract, binding and
+    // current plan fences used by the one-shot dispatcher.
+    const eligible=await eligibility(tx,row,now);
+    if(!eligible)return denied();
+    await tx.insert(auditEvents).values({
+      tenantId:context.tenantId,actorId:context.userId,actorType:"user",
+      action:"vende.reactivation_intent.reapproved",
+      resourceType:"vende_lifecycle_command",resourceId:row.id,
+      result:"success",correlationId:context.correlationId,
+      metadata:{
+        previousActorId:row.actorId,
+        previousApprovedAt:row.approvedAt?.toISOString()??null,
+        approvedAt:proof.verifiedAt.toISOString(),
+        operationId:row.operationId,productId:row.productId,
+        revision:row.revision,sourceInvoiceId:row.sourceInvoiceId,
+        paymentRef:eligible.paymentRef,
+      },
+    });
+    await tx.update(vendeLifecycleCommands).set({
+      approvedAt:proof.verifiedAt,actorId:context.userId,
+    }).where(eq(vendeLifecycleCommands.id,row.id));
+    return {commandId:row.id,approvedAt:proof.verifiedAt.toISOString(),
+      state:"pending" as const,dispatched:false};
+  });
 }
