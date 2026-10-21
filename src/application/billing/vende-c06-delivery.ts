@@ -330,7 +330,7 @@ export async function quarantineAbandonedVendeClaims(
     const abandoned=await tx.select({id:vendeLifecycleCommands.id})
       .from(vendeLifecycleCommands).where(and(
         eq(vendeLifecycleCommands.tenantId,config.organizationId),
-        inArray(vendeLifecycleCommands.action,["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL"]),
+        inArray(vendeLifecycleCommands.action,["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","SCHEDULE_CANCEL","RENEW_VERIFIED"]),
         eq(vendeLifecycleCommands.state,"processing"),
         lt(vendeLifecycleCommands.claimedAt,expired),
       )).orderBy(vendeLifecycleCommands.claimedAt).limit(limit)
