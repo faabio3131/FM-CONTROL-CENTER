@@ -101,7 +101,7 @@ describe("B1.15 renewal one-shot + read-only reconciliation",()=>{
   it("requires a new human step-up; first ACK exact extends one month once and writes a historical snapshot",async()=>{
     const cmd=await makeRenewal();
     const before=await term(cmd.subscriptionId);
-    await expect(dispatchVendeRenewalOnce(cmd.id,config,async()=>{throw Error("network forbidden");} as typeof fetch)).rejects.toThrow();
+    await expect(dispatchVendeRenewalOnce(cmd.id,config,(async()=>{throw Error("network forbidden");}) as typeof fetch)).rejects.toThrow();
     expect(await term(cmd.subscriptionId)).toEqual(before);
     const pair=await Promise.allSettled([approved(cmd),approved(cmd)]);
     expect(pair.filter(x=>x.status==="fulfilled")).toHaveLength(1);
@@ -161,7 +161,7 @@ describe("B1.15 renewal one-shot + read-only reconciliation",()=>{
     expect((await term(mismatch.subscriptionId)).revision).toBe(1);
     const reversed=await makeRenewal();await approved(reversed);
     await pool.query("UPDATE fmcc_billing_provider_payment SET status='refunded' WHERE invoice_id=$1",[reversed.invoiceId]);
-    await expect(dispatchVendeRenewalOnce(reversed.id,config,async()=>{throw Error("no network");} as typeof fetch)).rejects.toThrow();
+    await expect(dispatchVendeRenewalOnce(reversed.id,config,(async()=>{throw Error("no network");}) as typeof fetch)).rejects.toThrow();
     expect((await term(reversed.subscriptionId)).revision).toBe(1);
     await expect(reapproveVendeRenewal({...context,tenantId:"other"},{userId:context.userId,verifiedAt:new Date()},
       {productId,commandId:reversed.id,expectedApprovedAt:null})).rejects.toThrow();
