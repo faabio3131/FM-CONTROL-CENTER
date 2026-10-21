@@ -52,6 +52,7 @@ def core_app():
             gateway_secret=b"synthetic-network-gateway-key-32-bytes-12345",
         ),
         ledger=QuotaReservations(sessions),
+        transport_key="synthetic-fm-command-core-recovery-key-123",
     ))
     return app
 
