@@ -166,6 +166,27 @@ export async function dispatchVendeDelinquencyOnce(
     }
     if(!["active","trial"].includes(remote.license_status))
       return transitionState(commandId,"processing","unknown",new Date(),false);
+    // Re-validate current finance state AFTER the remote status read and
+    // immediately BEFORE requesting a mutation. This narrows (but cannot
+    // eliminate) the cross-system payment/suspension race: a settlement
+    // arriving after this final DB check still requires governed compensation.
+    const stillUnpaid=await db.transaction(async tx=>{
+      const [claimed]=await tx.select().from(vendeLifecycleCommands).where(and(
+        eq(vendeLifecycleCommands.id,row.id),
+        eq(vendeLifecycleCommands.tenantId,row.tenantId),
+        eq(vendeLifecycleCommands.state,"processing"),
+      )).for("update").limit(1);
+      if(!claimed)return false;
+      const [term]=await tx.select().from(vendeContractTerms).where(and(
+        eq(vendeContractTerms.tenantId,row.tenantId),
+        eq(vendeContractTerms.subscriptionId,row.subscriptionId),
+      )).for("update").limit(1);
+      return !!term && term.lifecycleState==="suspension_pending" &&
+        term.revision===row.revision &&
+        await financialFence(tx,claimed,new Date());
+    });
+    if(!stillUnpaid)
+      return transitionState(commandId,"processing","unknown",new Date(),false);
     const signed=signAssistantCommercialTransition(config,{
       tenantId:row.externalTenantId,actorId:row.actorId,
       operationId:row.operationId,approvedAt:now,
