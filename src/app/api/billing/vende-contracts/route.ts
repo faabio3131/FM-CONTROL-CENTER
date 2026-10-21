@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/application/audit/record-audit-event";
 import { requireFMPlanAuthority } from "@/application/billing/assistant-plan-catalog-service";
 import { GovernedVendeC06Service } from "@/application/billing/vende-c06-governed-execution";
+import {requestVerifiedVendeRenewal} from "@/application/billing/vende-renewal-admission";
 import { verifyPasswordStepUp } from "@/application/security/password-step-up";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 
@@ -41,7 +42,7 @@ export async function POST(request:Request){
     const body=raw as Record<string,unknown>;
     const requested=body.action;
     if(!["enroll_paid_term","request_delinquency_suspension",
-          "schedule_cancellation","request_regularization"].includes(String(requested)))
+          "schedule_cancellation","request_regularization","request_verified_renewal"].includes(String(requested)))
       return respond({error:"vende.c06_payload_invalid"},400);
     const allowed=requested==="enroll_paid_term"
       ?["action","password","productId","subscriptionId","invoiceId","effectiveFrom",
@@ -52,6 +53,9 @@ export async function POST(request:Request){
       :requested==="request_regularization"
       ?["action","password","productId","subscriptionId","paidInvoiceId",
         "expectedRevision","sourceRef","operationId"]
+      :requested==="request_verified_renewal"
+      ?["action","password","productId","subscriptionId","paidInvoiceId",
+        "expectedRevision","planRevision","sourceRef","customerConsentRef","operationId"]
       :["action","password","productId","subscriptionId","invoiceId",
         "expectedRevision","sourceRef","operationId"];
     if(Object.keys(body).sort().join(",")!==allowed.sort().join(",") ||
@@ -63,13 +67,17 @@ export async function POST(request:Request){
          : typeof body.sourceRef!=="string") ||
        (requested==="enroll_paid_term"||requested==="request_delinquency_suspension"
          ? typeof body.invoiceId!=="string"
-         : requested==="request_regularization"
+         : requested==="request_regularization"||requested==="request_verified_renewal"
          ? typeof body.paidInvoiceId!=="string" : false))
       return respond({error:"vende.c06_payload_invalid"},400);
     if(requested==="enroll_paid_term" && (
       typeof body.effectiveFrom!=="string"||typeof body.paidThrough!=="string"||
       typeof body.dueDate!=="string"||typeof body.calendarRegion!=="string"||
       typeof body.autoRenew!=="boolean"))
+      return respond({error:"vende.c06_payload_invalid"},400);
+    if(requested==="request_verified_renewal"&&(
+       typeof body.customerConsentRef!=="string"||
+       !Number.isSafeInteger(body.planRevision) || (body.planRevision as number)<1))
       return respond({error:"vende.c06_payload_invalid"},400);
     if(requested!=="enroll_paid_term" &&
        (!Number.isSafeInteger(body.expectedRevision) ||
@@ -95,6 +103,16 @@ export async function POST(request:Request){
         productId:body.productId,subscriptionId:body.subscriptionId,
         expectedRevision:body.expectedRevision as number,
         operationId:body.operationId,customerConsentRef:body.customerConsentRef as string,
+      })
+      :requested==="request_verified_renewal"
+      ?await requestVerifiedVendeRenewal(context,proof,{
+        productId:body.productId,subscriptionId:body.subscriptionId,
+        paidInvoiceId:body.paidInvoiceId as string,
+        expectedRevision:body.expectedRevision as number,
+        planRevision:body.planRevision as number,
+        sourceRef:body.sourceRef as string,
+        customerConsentRef:body.customerConsentRef as string,
+        operationId:body.operationId,
       })
       :requested==="request_regularization"
       ?await service.requestRegularization(context,proof,{
