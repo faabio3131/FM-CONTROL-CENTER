@@ -14,6 +14,7 @@ import {
 
 import {dispatchVendeReactivationOnce,reconcileUnknownVendeReactivation,reapproveVendeReactivation} from "../src/application/billing/vende-reactivation-delivery";
 import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/billing/vende-commercial-policy-v1";
+import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercial-claims-supervisor";
 
 const database=process.env.DATABASE_URL??"";
 const tenant="fm-c06-delivery-"+randomUUID();
@@ -627,6 +628,29 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       )).rows[0];
       expect(audit.n).toBe(0);
     }
+  });
+
+  it("supervises ALL C06 claims with immutable read-only FM scope and bounded recent rows",async()=>{
+    const before=await readVendeClaimsMonitor(context,productId);
+    const uncertain=await makePending();
+    await pool.query("UPDATE fmcc_vende_lifecycle_command SET state='unknown',claimed_at=now() WHERE id=$1",[uncertain.id]);
+    const expired=await makePending();
+    await pool.query("UPDATE fmcc_vende_lifecycle_command SET approved_at=NULL WHERE id=$1",[expired.id]);
+    const processing=await makePending();
+    await pool.query("UPDATE fmcc_vende_lifecycle_command SET state='processing',claimed_at=$1 WHERE id=$2",
+      [new Date(Date.now()-20*60_000),processing.id]);
+    const after=await readVendeClaimsMonitor(context,productId);
+    expect(after.totals.unknown).toBe(before.totals.unknown+1);
+    expect(after.totals.pending).toBe(before.totals.pending+1);
+    expect(after.totals.processing).toBe(before.totals.processing+1);
+    expect(after.staleProcessing).toBeGreaterThanOrEqual(before.staleProcessing+1);
+    expect(after.expiredApprovals).toBeGreaterThanOrEqual(before.expiredApprovals+1);
+    expect(after.items.length).toBeLessThanOrEqual(50);
+    expect(after.runtimeEntitlementVerified).toBe(false);
+    expect(after.alert).toBe("critical");
+    expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[uncertain.id])).rows[0].state).toBe("unknown");
+    await expect(readVendeClaimsMonitor({...context,tenantId:"foreign-corporate"},productId)).rejects.toThrow();
+    await expect(readVendeClaimsMonitor(context,"invalid")).rejects.toThrow();
   });
 
 });

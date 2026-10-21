@@ -377,3 +377,19 @@ isolamento, estados incertos, target já fixo, pagamento/revisão e auditoria. B
 AINDA NÃO CERTIFICADO: CI no novo HEAD e auditoria ainda necessários.
 Segue pendente o restante do ciclo comercial, supervisão/worker, compensação
 financeira entre serviços e B2-B11; BUILD_COMPLETE_INTERNAL_GREEN NÃO concedido.
+
+### B1.9 integrada / B1.10 supervisão C06 em certificação (21/10/2026)
+PR #135 integrada em `174b92c922f9c53f73ab4cea73eff909ef15cc53`,
+após 4/4 gates no HEAD `e4e5450dc5cd12faa88b2ffb954982904c3aa526`:
+Foundation 39593694715, Billing PG 39593694558, F21 39593694504,
+Cognitive 39593694594 SUCCESS. Pós-merge: Foundation 39594259138,
+Billing PG 39594259108, F21 39594259120, Cognitive 39594259320 SUCCESS.
+Sem deploy/credenciais reais/migration operacional. B1.9 certificado internamente.
+
+B1.10 constrói visão somente leitura dos comandos C06: contadores integrais do
+banco canônico, itens limitados a 50 com truncamento, status desconhecido explícito,
+alerta de processing antigo e aprovação vencida; RBAC FM, isolamento tenant/produto,
+sem mutate, scheduler ou retry. API/painel e teste PostgreSQL/route no candidato;
+CI no HEAD ainda por certificar. Rollback em docs/FMCC_VENDE_C06_CLAIMS_MONITOR.md.
+Depois: tratar compensação distribuída e demais transições comerciais, sem refazer
+F0-F2/B0/B1.1–B1.9. F3/F9/B1 global continuam BUILD_IN_PROGRESS.
