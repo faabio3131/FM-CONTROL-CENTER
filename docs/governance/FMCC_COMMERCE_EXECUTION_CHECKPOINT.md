@@ -412,3 +412,19 @@ suspensão remota, replay de reconciliação e ausência de efeitos automáticos
 CI no novo HEAD ainda PENDENTE nesta anotação: não declarar B1.11 concluído.
 Reparação financeira/entitlement governada, reconciliação retroativa após delivered,
 demais transições e cronograma B2–B11 continuam em aberto. Sem homologação externa.
+
+### B1.11 integrada / B1.12 detecção financeira após delivered em certificação (21/10/2026)
+PR #137 integrada em `55b73983ccd56530ab6d9ddc54328caf67a22e95`.
+Gates do HEAD `7a1aecbc16f8081ff8cf329d49d5f1e41e99b6c3`:
+Foundation 39610895752, Billing PG 39610895941, F21 39610896465,
+Cognitive 39610895699 SUCCESS. Pós-merge: Foundation 39611621424,
+Billing PG 39611621380, F21 39611621417, Cognitive 39611621373 SUCCESS.
+B1.11 WP = GREEN_INTERNO. Sem deploy externo, migration operacional ou provider real.
+
+B1.12: readback PSP corporativo já existente passa a identificar evidência
+verificada de reversed pós-reativação delivered e settled pós-suspensão delivered,
+mantendo auditoria única B1.11 por comando, sem confirmação do entitlement atual
+nem operação compensatória automática. Checagem no mesmo TX da observação,
+sem lock invertido na claim. Testes PG simulam ambos os casos, replays e controles.
+CI nova unidade ainda a certificar. Demais transições contratuais/compensação
+governada permanecem em aberto, B1/F3/F9 global NÃO concluídos.

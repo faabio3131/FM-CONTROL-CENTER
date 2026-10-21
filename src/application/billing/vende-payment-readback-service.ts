@@ -8,6 +8,7 @@ import { vendePaymentReadbackAttempts,vendePaymentReadbackBindings } from "@/inf
 import type { TenantContext } from "@/domain/security/tenant-context";
 import type { StepUpProof } from "@/application/security/password-step-up";
 import { requireFMPlanAuthority } from "./assistant-plan-catalog-service";
+import { recordPostDeliveryVendePaymentRisk } from "./vende-compensation-risk";
 import { AsaasVendePaymentReadOnlyClient,type VendePaymentOutcome,type VendePaymentReadbackPort } from "@/infrastructure/billing/asaas-vende-payment-readonly-client";
 
 type Tx=Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -199,6 +200,14 @@ export class VendePaymentReadbackService {
       await tx.update(vendePaymentReadbackAttempts).set({state,reason,finishedAt:verifiedAt})
         .where(eq(vendePaymentReadbackAttempts.id,attempt.id));
       await audit(tx,context,"vende.payment_readback."+state,attempt.id);
+      // The readback observation is the ONLY canonical new PSP evidence.
+      // A later verified reversal/settlement may contradict a delivered
+      // lifecycle intent: record a single risk signal, never mutate SaaS.
+      if(reason==="verified_readback")
+        await recordPostDeliveryVendePaymentRisk(tx,{
+          tenantId:context.tenantId,invoiceId:input.invoiceId,
+          observationId:input.observationId,outcome,observedAt:verifiedAt,
+        });
       return {state,replayed:false};
     });
   }

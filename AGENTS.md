@@ -211,3 +211,17 @@ Não alterar billing, quotas, licença, gateway, política comercial, worker,
 deploy ou migrations. Reparação efetiva e varredura de reversões após
 `delivered` permanecem no cronograma. Fonte e rollback:
 `docs/FMCC_VENDE_COMPENSATION_RISK_B111.md`.
+
+### B1.12 — alerta de mudança financeira posterior a entrega confirmada (21/10/2026)
+O produtor existente de readback do PSP, depois de autenticar binding, gateway
+e observação, e validar snapshot após I/O, deve sinalizar risco se uma observação
+`reversed_verified` suceder uma reativação já delivered, ou
+`settled_verified` suceder suspensão já delivered da mesma fatura.
+Registrar um único `vende.compensation_review.required` por command via
+auditoria append-only no TX da observação; nunca alterar invoice, pagamento,
+subscription, status de licença nem reenviar comando. Não bloquear linha da
+claim sob o lock da fatura para não inverter ordem de locks do dispatcher.
+O indicador no Command é contagem histórica, não alerta aberto ou compensado;
+estado corrente do Assistant continua desconhecido sem readback S2S.
+O produtor fica OFF por padrão. CI 4/4 + pós-merge, sem deploy/homologação.
+Detalhes: `docs/FMCC_VENDE_POST_DELIVERY_RECONCILIATION_B112.md`.
