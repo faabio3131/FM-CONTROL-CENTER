@@ -22,7 +22,7 @@ export const VENDE_COMPENSATION_REVIEW_ACTION="vende.compensation_review.require
  * creating an unbounded number of risk tickets. Failure rolls back the claim
  * transition, leaving it NOT delivered. */
 export async function recordVendeCompensationRisk(
-  tx:Tx,row:Command,remote:RemoteObserved,reason:"reactivation_unconfirmed"|"suspension_finance_changed",
+  tx:Tx,row:Command,remote:RemoteObserved,reason:"reactivation_unconfirmed"|"suspension_unconfirmed",
   now:Date,
 ):Promise<boolean>{
   if(remote.operation_status!=="applied")return false;
