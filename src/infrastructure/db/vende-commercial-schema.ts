@@ -94,7 +94,7 @@ export const vendePaymentAttestations = pgTable("fmcc_vende_payment_attestation"
   foreignKey({name:"fmcc_vende_attestation_invoice_fk",
     columns:[t.tenantId,t.invoiceId],
     foreignColumns:[billingInvoices.tenantId,billingInvoices.id]}),
-  check("fmcc_vende_attestation_outcome_ck",sql`${t.outcome} in ('unpaid_verified','settled_verified','reversed_verified')`),
+  check("fmcc_vende_attestation_outcome_ck",sql`${t.outcome} in ('unpaid_verified','settled_verified','reversed_verified','needs_attention')`),
   index("fmcc_vende_attestation_fresh_idx").on(t.tenantId,t.invoiceId,t.verifiedAt),
 ]);
 

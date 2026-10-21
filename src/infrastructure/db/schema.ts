@@ -7,3 +7,4 @@ export * from "./assistant-plan-schema";
 
 export * from "./whatsapp-qr-policy-schema";
 export * from "./vende-commercial-schema";
+export * from "./vende-payment-readback-schema";
