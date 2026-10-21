@@ -19,4 +19,8 @@ const status = signAssistantPlanBindingStatus(config, {
   tenantId: "tenant-a", planCode: "PLAN_FULL", planRevision: 1,
   operationNonce: nonce,
 });
-process.stdout.write(JSON.stringify({ ...grant, status }));
+const postSuspensionStatus = signAssistantPlanBindingStatus(config, {
+  tenantId: "tenant-a", planCode: "PLAN_FULL", planRevision: 1,
+  operationNonce: nonce,
+});
+process.stdout.write(JSON.stringify({ ...grant, status, postSuspensionStatus }));

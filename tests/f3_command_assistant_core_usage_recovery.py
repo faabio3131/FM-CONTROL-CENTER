@@ -35,6 +35,7 @@ from f3_command_assistant_cross_runtime import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+TRANSPORT_KEY = "synthetic-command-recovery-service-key-32-bytes"
 TOKEN_SCRIPT = ROOT / "tests/f3-command-core-ai-recovery-token.mts"
 
 
@@ -114,6 +115,7 @@ def test_command_assistant_core_revocation_quota_and_recovery(
         core = FastAPI()
         core.include_router(governed_recovery_router(
             trust=policy, evidence=evidence, ledger=quota,
+            transport_key=TRANSPORT_KEY,
         ))
         http = TestClient(core)
         endpoint = "/internal/v1/command/ai/usage/reconcile"
@@ -124,6 +126,11 @@ def test_command_assistant_core_revocation_quota_and_recovery(
         }
         auth = {"Authorization": "Bearer " + signed["token"]}
         assert http.post(endpoint, json=request).status_code == 401
+        assert http.post(endpoint, json=request, headers=auth).status_code == 401
+        assert http.post(endpoint, json=request, headers={
+            "X-FM-Recovery-Service-Key": TRANSPORT_KEY,
+        }).status_code == 401
+        auth["X-FM-Recovery-Service-Key"] = TRANSPORT_KEY
         wrong = dict(request, tenant_id="attacker-tenant")
         assert http.post(endpoint, json=wrong, headers=auth).status_code == 409
         assert http.post(endpoint, json=request, headers=auth).status_code == 204

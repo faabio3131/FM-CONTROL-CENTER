@@ -52,6 +52,7 @@ def core_app():
             gateway_secret=b"synthetic-network-gateway-key-32-bytes-12345",
         ),
         ledger=QuotaReservations(sessions),
+        transport_key=os.environ["F3_NETWORK_RECOVERY_SERVICE_KEY"],
     ))
     return app
 

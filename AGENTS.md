@@ -60,3 +60,53 @@ O catálogo único de perfis de adaptadores fica em `src/application/integration
 
 ## Manifesto offline C08
 `inspectSaasCapabilityManifest` é parser de dados NÃO CONFIÁVEIS e somente valida compatibilidade técnica com o `Connector` real. Ele não autentica serviços, não escolhe HMAC/mTLS, não governa permissão, não executa comandos nem confirma E2E. Para integrá-lo à rede é obrigatório transporte autenticado e validação determinística de tenant/identidade nas duas pontas, além de testes de replay e recuperação.
+
+## C06 — Contratos, feriados FM e executor transacional interno (20/10/2026)
+- Ramo isolado `feat/c06-vende-terms-calendar-execution-v1-20261020` nasceu da `main` conferida e reusa **exatamente** a política humana V1 da PR #122 (códigos puros versionados), sem mexer em IRON ou Kordena. PR #122 continua aguardando revisão independente: reconciliar ancestralidade/conteúdo antes de qualquer merge e NÃO declarar políticas duplicadas como entregas independentes.
+- Migration aditiva `0015_vende_commercial_terms_calendar`: contrato Vende vigente/versionado com `effective_from`, `paid_through`, `due_date` civil date BR e fonte auditada; calendário FM com feriados/jurisdição e revisões imutáveis; log append-only de alteração de contrato; ledger de observações independentes do gateway; fila idempotente de comandos de licença. Nunca inferir vencimento de `invoice.created_at`.
+- `GovernedVendeC06Service` exige escopo FM corporate owner/admin commercial:write e `StepUpProof` do mesmo ator com idade <=5min, em chamadas *internas*, antes de persistir. `publishCalendar` exige fonte/revisão, região e cobertura exatas; `enrollPaidTerm` exige assinatura ativa, fatura realmente marcada paid e pagamento provider received no Command, com contrato revisado manualmente; `requestSuspension` compara revisão CAS, fatura unpaid, observação autenticada recente de conciliador, férias/feriados governados e data local D5 + 3 úteis COMPLETOS, além de destinatário SaaS canônico.
+- `requestSuspension` grava **suspension_pending**, auditoria e `outbox.pending` no mesmo TX; `pending` NUNCA equivale a licença suspensa na vertical, ACK confirmado ou revogação efetiva no Core. O worker remoto deve ser construído para entrega assinada não-replay e reconciliação read-only; não realizar POST cego. A tabela de observações *não possui* entrada HTTP pública: um reconciliador autorizado deverá preenchê-la de forma verificável depois de provider GET real, sem interpretar webhook isolado como prova.
+- Testes PostgreSQL descartáveis: escopo FM, step-up, calendário holiday, idempotência/revisão, pagamento não verificado, ata de aprovação, PSP attestation stale, corrida dupla concorrente, audit/outbox exatamente uma vez.
+- Aprovado **somente planejamento de software**: migration nunca aplicada no banco persistente de produção, nenhum deploy, gateway/IA/Evolution reais, cobranças, alteração financeira nem suspensão remota de clientes. Gates no HEAD final, CI de migração + PostgreSQL, revisão independente e integração cross-repo ainda exigidos. Reativação, upgrade/downgrade, cancelamento efetivo e worker com confirmação S2S permanecem fases de implementação interna distintas, não homologação externa.
+
+## VendeAtendeIA — cronograma vinculante de construção 100% interna (20/10/2026)
+
+- Para WPs do VendeAtendeIA, seguir o cronograma canônico
+  `faabio3131/-FM-Assistant-Base/docs/governance/CRONOGRAMA_MESTRE_CONSTRUCAO_100_INTERNA.md`,
+  preservando o plano FMCC F00–F22 para capacidades corporativas comuns.
+- A primeira unidade é B0: reconciliar diffs únicos e dependências das PRs #114 e #118–#124,
+  selecionar um candidato canônico, impedir duplicidade de autoridade e integrar somente conteúdo
+  completo com 4/4 gates, contratos cross-repo e CI pós-merge verdes.
+- As configurações de produto, plano, preço, limite, calendário, gateway, credencial e destino SaaS
+  devem ser data-driven e governadas; cadastrar novo cliente não pode exigir código ou deploy.
+- Construir agora ports, configuração, fakes, migrations e testes internos. Asaas/WhatsApp/Evolution,
+  provider de IA, Vault/TLS/DNS, credenciais e operações reais ficam em homologação externa somente
+  após `BUILD_COMPLETE_INTERNAL_GREEN`.
+- O executor está autorizado a corrigir, reconciliar branches/PRs, commit/push, executar auditoria
+  interna em passe separado, fazer merge de WP 100% verde, validar main e avançar sem nova consulta.
+- Continuam fora da autorização genérica: deploy/cutover, banco/segredo/cobrança/envio real, gasto,
+  homologação externa antecipada, política comercial nova e operação destrutiva.
+
+
+## C04 — Publicação do limite visual do QR FM→Assistant (20/10/2026)
+A autoridade é a revisão persistida da política QR corporativa VendeAtendeIA, editada apenas por owner/admin FM, com step-up. Uma sincronização manual autenticada, pré-auditada e desativada por padrão pela flag `FM_COMMAND_VENDE_QR_POLICY_SYNC_ENABLED` envia a revisão assinada sob HMAC de caminho separado para `/internal/v1/command/whatsapp-qr/policy`; somente origem HTTPS pré-configurada. Nunca aceitar URL, tenant, segundos, revisão ou ator do corpo enviado pelo cliente. O Assistant rejeita replay de nonce, versões antigas, assinaturas inválidas, escopos estrangeiros e revisões conflitantes. Falha de rede permanece `unconfirmed`, mesmo se o provedor HTTP tiver aplicado a mudança; uma nova solicitação humana pode retransmitir apenas a mesma revisão idempotente, sem efeitos financeiros. O período é cap de **exibição**, não promessa de validade real da Evolution. Nenhuma ativação externa/deploy/credencial autorizada.
+
+
+## F3 — Release gate for cross-repository licensed AI consumption (20/10/2026)
+`tests/f3_command_license_quota_journey.py` must execute the **actual Command license signer** and Assistant binding verifier with unique nonce both before and after tenant license suspension, then require Core signed-grant quota admission to fail for the subsequent request. It is forbidden to certify any stale binding-status as current entitlement. Foundation pins fully specified Assistant/Core commits and runs against disposable storage; a green Core or Assistant CI alone does not prove this cross-code contract. Maintain the history of held, uncertain reservations; never refund unknown provider usage. All production activations, real secrets and external provider homologation remain postponed until full construction. No claim that F3 is complete based solely on this gate.
+
+
+## F3 — Assinatura de security hold (20/10/2026)
+Existe um componente PURO `assistant-license-security-hold-signer.ts` que produz o contrato HMAC FM Command→Assistant para suspensão operacional, com ator humano, step-up recente (300s), planCode/revision, `expected_valid_until` obtido de fonte autorizada, nonce novo e command_request_id único. **Não há sender público nem ativação automática**: construir o fluxo administrativo exigirá prova independente do estado corrente da licença, RBAC FM, reautenticação, auditoria pré-envio, política de recuperação de resultado incerto e flag OFF por padrão. Não confundir suspensão de segurança com cancelamento financeiro, devolução, prorrata ou upgrade. O consumidor Assistant mantém trilha imutável e bloqueia acesso a quotas ao suspender. PR e CI trans-repo devem ser GREEN no SHA exato; sem review independente, não mergear.
+
+## B0 — Candidata unificada e execução autônoma (21/10/2026)
+A PR #124 é a candidata única de reconciliação do VendeAtendeIA. Incorpora os
+contratos/testes de #118–#121, a API de política de #122 e a evolução de #123.
+#114 é representada pela correção equivalente de #120; não aplicar duas vezes.
+A autorização humana desta sessão permite auditoria interna em passe separado,
+correção, merge com gates verdes e avanço automático. Não alegar revisão externa.
+Detalhes, evidência e rollback: `docs/governance/VENDE_B0_RECONCILIATION_2026-10-21.md`.
+O gate externo do Preview é manual; os quatro gates internos devem rodar em PR
+e main. A configuração Render deve ser revalidada antes do merge: auto-deploy OFF.
+B0 integra a baseline; os achados funcionais C06 restantes pertencem a B1 e
+continuam explícitos. Não habilitar executores reais nem declarar F3 concluída.

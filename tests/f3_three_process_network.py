@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tests/f3_network_test_server.py"
 NODE = ROOT / "tests/f3-command-core-ai-recovery-token.mts"
 KEY = b"synthetic-network-gateway-key-32-bytes-12345"
+TRANSPORT_KEY = "synthetic-command-network-service-key-32-bytes"
 
 
 def _port() -> int:
@@ -130,6 +131,7 @@ def test_command_assistant_core_separate_processes_postgres_recovery(tmp_path):
         **os.environ, "F3_NETWORK_TEMP": str(tmp_path),
         "F3_NETWORK_CORE_DB": pg_url,
         "F3_NETWORK_COMMAND_PUB": signed["public_key_pem"],
+        "F3_NETWORK_RECOVERY_SERVICE_KEY": TRANSPORT_KEY,
     }
     ps = []
     try:
@@ -163,6 +165,11 @@ def test_command_assistant_core_separate_processes_postgres_recovery(tmp_path):
             }
             assert http.post(route, json=request).status_code == 401
             headers = {"Authorization": "Bearer " + signed["token"]}
+            assert http.post(route, json=request, headers=headers).status_code == 401
+            assert http.post(route, json=request, headers={
+                "X-FM-Recovery-Service-Key": TRANSPORT_KEY,
+            }).status_code == 401
+            headers["X-FM-Recovery-Service-Key"] = TRANSPORT_KEY
             assert http.post(
                 route, json=dict(request, tenant_id="foreign"), headers=headers,
             ).status_code == 409

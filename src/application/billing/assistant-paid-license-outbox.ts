@@ -186,14 +186,53 @@ export async function dispatchVerifiedVendePaidLicense(
       eq(billingVendeLicenseOutbox.state,"processing")));
     throw new AssistantPlanDeliveryUnavailable();
   }
-  const [done]=await db.update(billingVendeLicenseOutbox).set({
-    state:"delivered",deliveredAt:new Date(),
-  }).where(and(
-    eq(billingVendeLicenseOutbox.id,outboxId),
-    eq(billingVendeLicenseOutbox.claimToken,token),
-    eq(billingVendeLicenseOutbox.state,"processing"),
-  )).returning({id:billingVendeLicenseOutbox.id});
-  if (!done) throw new AssistantPlanDeliveryUnavailable();
+  // A positive remote ACK is not proof that the commercial grant is STILL
+  // authorized. Reversal or plan retirement may occur during network I/O.
+  // Lock the canonical payment/plan rows before acknowledging the exact claim.
+  // If eligibility was lost, retain the nonce and BLOCK for governed review
+  // (the Assistant may already have applied the earlier signed request).
+  const outcome=await db.transaction(async tx => {
+    const [current]=await tx.select({
+      invoiceStatus:billingInvoices.status,
+      paymentStatus:billingProviderPayments.status,
+      planStatus:assistantPlanRevisions.status,
+    }).from(billingVendeLicenseOutbox)
+      .innerJoin(billingInvoices,and(
+        eq(billingInvoices.tenantId,billingVendeLicenseOutbox.tenantId),
+        eq(billingInvoices.id,billingVendeLicenseOutbox.invoiceId),
+      ))
+      .innerJoin(billingProviderPayments,and(
+        eq(billingProviderPayments.tenantId,billingInvoices.tenantId),
+        eq(billingProviderPayments.invoiceId,billingInvoices.id),
+        eq(billingProviderPayments.gatewayAccountId,billingInvoices.gatewayAccountId),
+      ))
+      .innerJoin(assistantPlanRevisions,and(
+        eq(assistantPlanRevisions.tenantId,billingVendeLicenseOutbox.tenantId),
+        eq(assistantPlanRevisions.productId,billingVendeLicenseOutbox.productId),
+        eq(assistantPlanRevisions.planCode,billingVendeLicenseOutbox.planCode),
+        eq(assistantPlanRevisions.revision,billingVendeLicenseOutbox.planRevision),
+      ))
+      .where(and(
+        eq(billingVendeLicenseOutbox.id,outboxId),
+        eq(billingVendeLicenseOutbox.tenantId,config.organizationId),
+        eq(billingVendeLicenseOutbox.claimToken,token),
+        eq(billingVendeLicenseOutbox.state,"processing"),
+      )).for("update").limit(1);
+    const eligible=current?.invoiceStatus==="paid" &&
+      current.paymentStatus==="received" && current.planStatus==="published";
+    const [updated]=await tx.update(billingVendeLicenseOutbox).set(eligible ? {
+      state:"delivered",deliveredAt:new Date(),
+    } : {
+      state:"blocked",
+    }).where(and(
+      eq(billingVendeLicenseOutbox.id,outboxId),
+      eq(billingVendeLicenseOutbox.tenantId,config.organizationId),
+      eq(billingVendeLicenseOutbox.claimToken,token),
+      eq(billingVendeLicenseOutbox.state,"processing"),
+    )).returning({id:billingVendeLicenseOutbox.id});
+    return updated && eligible ? "delivered" : "blocked";
+  });
+  if (outcome!=="delivered") throw new AssistantPlanDeliveryUnavailable();
   return "delivered";
 }
 
@@ -212,12 +251,33 @@ export async function drainVerifiedVendePaidLicenses(
       config.organizationId!==process.env.FM_COMMAND_PLATFORM_ORGANIZATION_ID) {
     throw new AssistantPlanDeliveryUnavailable();
   }
+  // Select only currently eligible intents so reversed/retired rows do
+  // not monopolize each bounded batch. The claim path still revalidates
+  // under row locks immediately before HTTP; no trust in this read snapshot.
   const rows=await db.select({id:billingVendeLicenseOutbox.id})
     .from(billingVendeLicenseOutbox)
+    .innerJoin(billingInvoices,and(
+      eq(billingInvoices.tenantId,billingVendeLicenseOutbox.tenantId),
+      eq(billingInvoices.id,billingVendeLicenseOutbox.invoiceId),
+    ))
+    .innerJoin(billingProviderPayments,and(
+      eq(billingProviderPayments.tenantId,billingInvoices.tenantId),
+      eq(billingProviderPayments.invoiceId,billingInvoices.id),
+      eq(billingProviderPayments.gatewayAccountId,billingInvoices.gatewayAccountId),
+    ))
+    .innerJoin(assistantPlanRevisions,and(
+      eq(assistantPlanRevisions.tenantId,billingVendeLicenseOutbox.tenantId),
+      eq(assistantPlanRevisions.productId,billingVendeLicenseOutbox.productId),
+      eq(assistantPlanRevisions.planCode,billingVendeLicenseOutbox.planCode),
+      eq(assistantPlanRevisions.revision,billingVendeLicenseOutbox.planRevision),
+    ))
     .where(and(
       eq(billingVendeLicenseOutbox.tenantId,config.organizationId),
       eq(billingVendeLicenseOutbox.state,"pending"),
       eq(billingVendeLicenseOutbox.attempts,0),
+      eq(billingInvoices.status,"paid"),
+      eq(billingProviderPayments.status,"received"),
+      eq(assistantPlanRevisions.status,"published"),
     )).orderBy(billingVendeLicenseOutbox.createdAt).limit(limit);
   let delivered=0,blocked=0;
   for (const row of rows) {

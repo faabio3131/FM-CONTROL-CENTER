@@ -57,6 +57,10 @@ export function signCoreAIRecoveryAuthorization(
     throw new CoreAIRecoveryAuthorityDenied();
   }
   try {
+    const key = createPrivateKey(config.privateKeyPem);
+    if (key.asymmetricKeyType !== "rsa" ||
+        (key.asymmetricKeyDetails?.modulusLength ?? 0) < 2048)
+      throw new CoreAIRecoveryAuthorityDenied();
     const claims = {
       iss: config.issuer,
       aud: config.audience,
@@ -75,7 +79,7 @@ export function signCoreAIRecoveryAuthorization(
     const input = b64(JSON.stringify({ alg: "RS256", typ: "JWT" }))
       + "." + b64(JSON.stringify(claims));
     const signature = sign("RSA-SHA256", Buffer.from(input, "ascii"), {
-      key: createPrivateKey(config.privateKeyPem),
+      key,
       padding: constants.RSA_PKCS1_PADDING,
     }).toString("base64url");
     return input + "." + signature;
@@ -98,7 +102,7 @@ export interface CoreAIRecoveryTarget {
 export async function sendGovernedCoreAIRecovery(
   target: CoreAIRecoveryTarget,
   actor: CoreAIRecoveryActor,
-  config: CoreAIRecoveryJWTConfig & { coreOrigin: string },
+  config: CoreAIRecoveryJWTConfig & { coreOrigin: string; recoveryServiceKey: string },
   options: { http?: typeof fetch; now?: Date } = {},
 ): Promise<void> {
   let origin: URL;
@@ -111,6 +115,8 @@ export async function sendGovernedCoreAIRecovery(
     origin.protocol !== "https:" || !origin.hostname ||
     origin.username || origin.password || origin.pathname !== "/" ||
     origin.search || origin.hash ||
+    typeof config.recoveryServiceKey !== "string" ||
+    !/^[\x21-\x7e]{32,512}$/.test(config.recoveryServiceKey) ||
     ![target.requestId, target.tenantId, target.unitId, target.evidenceId]
       .every((value) => validId.test(value)) ||
     !Number.isSafeInteger(target.requestsRevision) ||
@@ -134,6 +140,7 @@ export async function sendGovernedCoreAIRecovery(
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
+          "X-FM-Recovery-Service-Key": config.recoveryServiceKey,
         },
         body, redirect: "manual", cache: "no-store",
         signal: AbortSignal.timeout(5000),

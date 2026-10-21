@@ -8,7 +8,7 @@ try {
   const tables = await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fmcc_billing_%' ORDER BY tablename");
   assert.equal(tables.rowCount, 15, "Expected fifteen Billing tables including Vende paid-license outbox");
   const migrations = await client.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations");
-  assert.equal(migrations.rows[0].n, 15, "Expected migrations 0000-0014");
+  assert.equal(migrations.rows[0].n, 16, "Expected migrations 0000-0015");
   const idx = await client.query("SELECT indexname FROM pg_indexes WHERE tablename='fmcc_billing_provider_payment' AND indexname='fmcc_billing_provider_invoice_uq'");
   assert.equal(idx.rowCount, 1, "Missing one-payment-per-invoice index");
   for (const [tableName,indexName] of [
