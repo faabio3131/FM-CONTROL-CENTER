@@ -162,7 +162,14 @@ def test_command_assistant_core_separate_processes_postgres_recovery(tmp_path):
                 "requests_revision": 5, "tokens_revision": 5,
             }
             assert http.post(route, json=request).status_code == 401
-            headers = {"Authorization": "Bearer " + signed["token"]}
+            headers = {
+                "Authorization": "Bearer " + signed["token"],
+                "X-FM-Recovery-Service-Key": "synthetic-fm-command-core-recovery-key-123",
+            }
+            assert http.post(
+                route, json=request,
+                headers={"Authorization": headers["Authorization"]},
+            ).status_code == 401
             assert http.post(
                 route, json=dict(request, tenant_id="foreign"), headers=headers,
             ).status_code == 409
