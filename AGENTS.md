@@ -255,3 +255,15 @@ contrato, assinatura, quota ou entitlement antes do ACK S2S de B1.15.
 Proibir reutilização do invoice em outra transição C06; estado pending não é
 assinatura renovada. Sem migration nova, worker, PSP real ou deploy.
 Guia: docs/FMCC_VENDE_RENEWAL_ADMISSION_B114.md.
+
+### B1.15 — renovação paga com ACK S2S (21/10/2026)
+O target JSONB B1.14 é fonte única de plano, preço e período: não recriar
+datas ou paymentRefs no envio. Reaprovação FM humana somente pending
+nunca reclamado, step-up recente, CAS do timestamp e auditoria atômica.
+Revalidar contrato, invoice, PSP, tenant/binding e plano antes/depois do I/O.
+Readback S2S pré-POST exige prazo e plano anteriores exatos.
+Enviar envelope RENEW_VERIFIED assinado no máximo uma vez e registrar
+revisão, vigência e histórico BEFORE/AFTER somente com ACK S2S exato.
+Unknown nunca é reenviado; compensação é alerta, sem reversão automática.
+Dispatcher OFF por padrão; quatro gates PR e pós-merge. Sem deploy ou
+homologação externa. Runbook: docs/FMCC_VENDE_RENEWAL_DELIVERY_B115.md.
