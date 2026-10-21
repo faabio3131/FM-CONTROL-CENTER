@@ -11,6 +11,7 @@ import { VendeLicenseQueueSupervisor } from "./vende-license-queue-supervisor";
 import { VendePaymentReadbackSupervisor } from "./vende-payment-readback-supervisor";
 import { VendeCommandApprovals } from "./vende-command-approvals";
 import { VendeCommercialClaimsSupervisor } from "./vende-commercial-claims-supervisor";
+import { VendeCompensationReviews } from "./vende-compensation-reviews";
 import { VendeContractHistory } from "./vende-contract-history";
 
 export default async function AssistantPlansPage({params}:{params:Promise<{productId:string}>}) {
@@ -42,6 +43,7 @@ export default async function AssistantPlansPage({params}:{params:Promise<{produ
     {product.slug==="vendeatendeia"?<VendePaymentReadbackSupervisor productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeCommandApprovals productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeCommercialClaimsSupervisor productId={productId}/>:null}
+    {product.slug==="vendeatendeia"?<VendeCompensationReviews productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeContractHistory productId={productId}/>:null}
   </main>;
 }

@@ -16,6 +16,7 @@ import {dispatchVendeReactivationOnce,reconcileUnknownVendeReactivation,reapprov
 import {dispatchVendeFinalCancellationOnce,reconcileUnknownVendeFinalCancellation,reapproveVendeFinalCancellation} from "../src/application/billing/vende-final-cancellation-delivery";
 import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/billing/vende-commercial-policy-v1";
 import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercial-claims-supervisor";
+import {readVendeCompensationReviews,triageVendeCompensationRisk} from "../src/application/billing/vende-compensation-review";
 
 const database=process.env.DATABASE_URL??"";
 const tenant="fm-c06-delivery-"+randomUUID();
@@ -841,6 +842,73 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(await quarantineAbandonedVendeClaims(config)).toBeGreaterThanOrEqual(1);
     expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",
       [orphan.id])).rows[0].state).toBe("unknown");
+  });
+
+  it("P01 locks review decisions by version and audits one human reviewer per CAS without remote mutation",async()=>{
+    const cmd=await makePending();
+    await pool.query(
+      "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,metadata) VALUES ($1,'fm-test-finance','service','vende.compensation_review.required','vende_lifecycle_command',$2,'needs_human_review',$3,$4::jsonb)",
+      [tenant,cmd.id,cmd.operationId,JSON.stringify({
+        schema:"fm.vende.compensation-risk.v1",productId,subscriptionId:cmd.subscriptionId,
+        operationId:cmd.operationId,reason:"suspension_unconfirmed",
+        automaticCompensationAuthorized:false,
+      })],
+    );
+    const before=await readVendeCompensationReviews(context,productId);
+    const item=before.items.find(x=>x.commandId===cmd.id);
+    expect(item).toMatchObject({reviewVersion:0,reviewStep:"unreviewed",
+      state:"pending"});
+    expect(before.entitlementVerified).toBe(false);
+    expect(before.remoteRemediationCompleted).toBe(false);
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    const input={productId,commandId:cmd.id,expectedVersion:0,
+      decision:"investigating" as const,reasonCode:"investigation_open"};
+    const results=await Promise.allSettled([
+      triageVendeCompensationRisk(context,proof,input),
+      triageVendeCompensationRisk(context,proof,input),
+    ]);
+    expect(results.filter(x=>x.status==="fulfilled")).toHaveLength(1);
+    expect(results.filter(x=>x.status==="rejected")).toHaveLength(1);
+    const current=await readVendeCompensationReviews(context,productId);
+    const reviewed=current.items.find(x=>x.commandId===cmd.id);
+    expect(reviewed).toMatchObject({reviewVersion:1,
+      reviewStep:"investigating",reviewer:context.userId});
+    const next=await triageVendeCompensationRisk(context,proof,{
+      ...input,expectedVersion:1,decision:"escalated",
+      reasonCode:"remote_finance_mismatch",
+    });
+    expect(next).toMatchObject({reviewVersion:2,reviewStep:"escalated",
+      remediationDispatched:false,currentAssistantLicenseVerified:false});
+    const record=(await pool.query("SELECT metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.triaged' ORDER BY occurred_at",
+      [tenant,cmd.id])).rows;
+    expect(record).toHaveLength(2);
+    expect(record.map(x=>x.metadata.reviewVersion).sort()).toEqual([1,2]);
+    expect(record.every(x=>x.metadata.automaticCompensationAuthorized===false)).toBe(true);
+    expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",
+      [cmd.id])).rows[0].state).toBe("pending");
+    expect((await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",
+      [cmd.invoiceId])).rows[0].status).toBe("pending");
+  });
+
+  it("P01 prevents cross-tenant, no-risk and expiry review and never invents resolution",async()=>{
+    const cmd=await makePending();
+    const input={productId,commandId:cmd.id,expectedVersion:0,
+      decision:"investigating" as const,reasonCode:"investigation_open"};
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    await expect(triageVendeCompensationRisk(context,proof,input)).rejects.toThrow();
+    await pool.query(
+      "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,metadata) VALUES ($1,'fm-test','service','vende.compensation_review.required','vende_lifecycle_command',$2,'needs_human_review',$3,$4::jsonb)",
+      [tenant,cmd.id,cmd.operationId,JSON.stringify({productId,reason:"suspension_unconfirmed"})],
+    );
+    await expect(triageVendeCompensationRisk(
+      {...context,tenantId:"other-tenant"},proof,input)).rejects.toThrow();
+    await expect(triageVendeCompensationRisk(context,{
+      userId:context.userId,verifiedAt:new Date(Date.now()-301000),
+    },input)).rejects.toThrow();
+    await expect(triageVendeCompensationRisk(context,{...proof,userId:"intruder"},input)).rejects.toThrow();
+    await expect(readVendeCompensationReviews({...context,tenantId:"other-tenant"},productId)).rejects.toThrow();
+    const r=await readVendeCompensationReviews(context,productId);
+    expect(r.items.find(x=>x.commandId===cmd.id)?.reviewStep).toBe("unreviewed");
   });
 
 });

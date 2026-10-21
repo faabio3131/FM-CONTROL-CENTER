@@ -507,3 +507,19 @@ reversão PSP auditada como risco humano. Testes PG sintéticos, unidade,
 rotas e interface. B1.16 AINDA PENDENTE de 4/4 CI neste checkpoint.
 Continuam pendentes reparação financeira humana, outras frentes B1,
 B2–B11 e o selo BUILD_COMPLETE_INTERNAL_GREEN.
+
+### PROMPT 01/04 — reconciliação antirretrabalho e compensação humana (21/10/2026)
+BASELINE: PR #142 (upgrade/downgrade) squash integrada em
+`7e4aad81392e5410adf24cdbd4cfc3804ea7fc30`. CI PR HEAD
+`532bfc4ca5d965f1ac40b38eb42f5526234fc767` e pós-merge
+ambos 4/4 SUCCESS. B1.1–B1.16 = GREEN_INTERNO pelos respectivos gates.
+
+Este candidato do Prompt 01 adiciona investigação e escalonamento de risco
+financeiro sob senha FM com CAS concorrente e auditoria append-only,
+sem status de reparo e sem operação externa. Inclui API strict/no-store,
+painel FM, testes PostgreSQL e rota, documentação de evidências cross-repo.
+Ainda exige CI e revisão no SHA exato, merge elegível e pós-merge 4/4.
+NÃO confundir uma revisão humana documentada com licença reparada ou
+compensação financeira realizada. Requisitos P01 de sincronização
+Command→Assistant→Core, quotas de todos os providers/attempts, compensação
+com prova remota, matrizes cross-service ainda EM ABERTO. P01 não é GREEN.
