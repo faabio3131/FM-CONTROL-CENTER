@@ -33,7 +33,7 @@ const denied=():never=>{throw new VendeCommercialDeliveryDenied();};
  * readback is a separate pre-POST fence; never infer license state from
  * payment, billing subscription or Command claim status. */
 async function eligible(tx:Tx,row:Command,now:Date){
-  const reject=(step:number)=>{if(process.env.NODE_ENV==="test")console.warn("B115_DIAG_FENCE",step);return reject(1);};
+  const reject=(step:number)=>{if(process.env.NODE_ENV==="test")console.warn("B115_DIAG_FENCE",step);return null;};
   const t=row.deliveryTarget;
   if(row.action!=="RENEW_VERIFIED"||!row.sourceInvoiceId||!t||
      t.schema!=="fm.vende.renewal-target.v1"||!t.paidThrough||!t.nextDueDate||
