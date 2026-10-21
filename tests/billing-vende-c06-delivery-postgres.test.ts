@@ -39,9 +39,14 @@ async function makePending(){
     "INSERT INTO fmcc_vende_contract_terms(tenant_id,product_id,subscription_id,customer_id,revision,effective_from,paid_through,due_date,auto_renew,lifecycle_state,source_ref,actor_id) VALUES ($1,$2,$3,$4,1,'2026-09-01','2026-10-01','2026-10-02',true,'active','fm-reviewed-term','fm-owner')",
     [tenant,productId,subscriptionId,customerId],
   );
+  const paymentRef="provider-"+randomUUID();
+  await pool.query(
+    "INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES ($1,$2,$3,$4,'pending')",
+    [tenant,invoiceId,gatewayId,paymentRef],
+  );
   await pool.query(
     "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'unpaid_verified',$4,'signed-provider-readback')",
-    [tenant,invoiceId,"fresh-"+randomUUID(),new Date()],
+    [tenant,invoiceId,paymentRef,new Date()],
   );
   const operationId="hold-"+randomUUID();
   const out=await new GovernedVendeC06Service().requestSuspension(
@@ -320,6 +325,28 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(rows[0].outcome).toBe("settled_verified");
     const pending=(await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0];
     expect(pending.state).toBe("pending");
+  });
+
+  it("rejects missing, foreign-payment and foreign-gateway evidence before remote I/O",async()=>{
+    const otherGateway=(await pool.query(
+      "INSERT INTO fmcc_billing_gateway_account(tenant_id,provider,environment,label,secret_ref,status) VALUES ($1,'asaas','sandbox','other-evidence-account','secret://synthetic','enabled') RETURNING id",[tenant],
+    )).rows[0].id;
+    let calls=0;
+    for(const mismatch of ["missing","payment","gateway","latest","paidstatus"]){
+      const cmd=await makePending();
+      if(mismatch==="missing")await pool.query("DELETE FROM fmcc_billing_provider_payment WHERE invoice_id=$1",[cmd.invoiceId]);
+      if(mismatch==="payment")await pool.query("UPDATE fmcc_billing_provider_payment SET external_payment_id=$1 WHERE invoice_id=$2",["unrelated-"+randomUUID(),cmd.invoiceId]);
+      if(mismatch==="gateway")await pool.query("UPDATE fmcc_billing_provider_payment SET gateway_account_id=$1 WHERE invoice_id=$2",[otherGateway,cmd.invoiceId]);
+      if(mismatch==="latest")await pool.query(
+        "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'unpaid_verified',$4,'latest-unrelated-proof')",
+        [tenant,cmd.invoiceId,"unrelated-"+randomUUID(),new Date()],
+      );
+      if(mismatch==="paidstatus")await pool.query("UPDATE fmcc_billing_provider_payment SET status='received' WHERE invoice_id=$1",[cmd.invoiceId]);
+      await expect(dispatchVendeDelinquencyOnce(cmd.id,config,(async()=>{calls++;return json({});}) as typeof fetch)).rejects.toThrow();
+      const row=(await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id])).rows[0];
+      expect(row.state).toBe("pending");
+    }
+    expect(calls).toBe(0);
   });
 
   it("quarantines orphaned in-flight claims without re-sending a message",async()=>{

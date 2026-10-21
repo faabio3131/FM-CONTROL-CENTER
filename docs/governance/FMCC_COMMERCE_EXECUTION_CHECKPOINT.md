@@ -269,3 +269,10 @@ B0 encerrado em `9b27fb0663c16d3d1d8d05cbe4addea1c91c38ea`, 4/4 gates pós-merge
 Rollback B1.1: manter delivery OFF; reverter código se necessário sem remover histórico nem recriar índice único por pagamento, pois múltiplas observações legítimas passariam a conflitar. Migração somente em PostgreSQL descartável nesta fase. Nenhum deploy ou banco real autorizado.
 
 B1.1: primeira execução Billing PG `39540005986` detectou contador antigo fixado em 16 migrations, após aplicar corretamente a 17ª. Corrigido certificador para comparar quantidade, SHA-256 do SQL e timestamp ordenado de cada migration ao journal, além de presença do índice novo e ausência do legado. Falha preservada como evidência; novo HEAD exige nova execução verde.
+
+### B1.1 integrada / B1.2 em validação
+PR #127 integrada em `25b4f58a31ac9484624276aeb155a0942358505c`. HEAD `01f9ed223f6415a6d967333c4e3ed42302ecdc94`: quatro gates SUCCESS. Pós-merge: Foundation `39540656146`, Billing PG `39540656126`, F21 `39540656275`, Cognitive `39540656164`, todos SUCCESS.
+
+B1.2 centraliza leitura de evidência fresca e determinística com vínculo tenant/fatura/conta/pagamento, bloqueando suspensão e regularização se a última observação apontar para outro pagamento. Não usa observação antiga como fallback. Estado local recebido/confirmado/revertido/desconhecido não sustenta unpaid. Testes reais PostgreSQL com dados sintéticos cobrem vínculo incorreto, ausência, conta estrangeira, prova recente divergente sobre prova antiga válida e bloqueio antes de HTTP, além das jornadas positivas existentes. TypeScript e lint locais aprovados; gates SQL da unidade pendentes.
+
+Rollback: revert de código, mantendo migração 0016 e delivery OFF. Sem endpoint novo, migração adicional, segredo, deploy ou homologação externa. Ainda faltam produtor PSP autenticado, compensação do intervalo entre chamada remota e liquidação, snapshot contratual e lifecycle completo; B1/F3/F9 não encerrados.

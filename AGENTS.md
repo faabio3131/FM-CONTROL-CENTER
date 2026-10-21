@@ -119,3 +119,6 @@ continua com homologação externa adiada e executores reais OFF.
 
 ### B1 — evidências financeiras sucessivas
 B0 concluído com quatro gates pós-merge na main `9b27fb0663c16d3d1d8d05cbe4addea1c91c38ea`. Preservar histórico de observações do mesmo pagamento: cada leitura autenticada futura recebe source_ref próprio; repetir a mesma observação não pode inserir outra linha. Ordenar por verified_at, created_at e observation_sequence decrescentes em todos os fences. A sequência desempata observações, não prova autenticidade nem substitui vínculo canônico do PSP. Nenhuma rota pública de gravação ou executor real é habilitado por esta migração.
+
+### B1.2 — vínculo canônico da evidência de pagamento
+Toda decisão C06 que consome atestação deve usar `currentBoundVendePaymentEvidence`: tenant, fatura e conta do gateway identificam um único pagamento persistido; external_payment_ref da última observação deve coincidir exatamente. Não buscar prova positiva antiga se a última for inválida. Evidência unpaid com pagamento local recebido/confirmado/revertido ou estado desconhecido falha fechada. O produtor autenticado do PSP e a compensação de corrida remota continuam tarefas separadas; o leitor não autentica payload público.

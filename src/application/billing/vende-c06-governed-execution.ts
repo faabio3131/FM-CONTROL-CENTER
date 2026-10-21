@@ -3,7 +3,7 @@ import { db } from "@/infrastructure/db/client";
 import { billingCustomerBindings, billingInvoices, billingProviderPayments, billingSubscriptions } from "@/infrastructure/db/billing-schema";
 import {
   vendeBusinessCalendars, vendeContractTermAudit, vendeContractTerms,
-  vendeLifecycleCommands, vendePaymentAttestations,
+  vendeLifecycleCommands,
 } from "@/infrastructure/db/vende-commercial-schema";
 import { productDefinitions } from "@/infrastructure/db/platform-schema";
 import { requireFMPlanAuthority } from "@/application/billing/assistant-plan-catalog-service";
@@ -13,6 +13,8 @@ import {
   assessVendeDelinquency, fmLocalCivilDate, validateVendeBusinessCalendar,
   type FmApprovedBusinessCalendar,
 } from "@/domain/billing/vende-commercial-policy-v1";
+
+import { currentBoundVendePaymentEvidence } from "./vende-payment-evidence";
 
 /** Internal Command transaction coordinator. Never calls external HTTP.
  * Successful commit means QUEUED, not a license change/remote ACK.
@@ -289,15 +291,8 @@ export class GovernedVendeC06Service {
         eq(billingProviderPayments.status,"received"),
       )).limit(1);
       if(!payment)throw new VendeC06Denied("vende.c06_regularization_payment_invalid");
-      const [attestation]=await tx.select().from(vendePaymentAttestations).where(and(
-        eq(vendePaymentAttestations.tenantId,context.tenantId),
-        eq(vendePaymentAttestations.invoiceId,invoice.id),
-      )).orderBy(desc(vendePaymentAttestations.verifiedAt),
-        desc(vendePaymentAttestations.createdAt),
-        desc(vendePaymentAttestations.observationSequence)).limit(1);
-      if(!attestation || attestation.outcome!=="settled_verified" ||
-         attestation.verifiedAt.getTime()>now.getTime()+15_000 ||
-         now.getTime()-attestation.verifiedAt.getTime()>15*60_000)
+      const attestation=await currentBoundVendePaymentEvidence(tx,invoice,now);
+      if(!attestation || attestation.outcome!=="settled_verified")
         throw new VendeC06Denied("vende.c06_settlement_attestation_stale");
       const [subscription]=await tx.select().from(billingSubscriptions).where(and(
         eq(billingSubscriptions.tenantId,context.tenantId),
@@ -384,15 +379,8 @@ export class GovernedVendeC06Service {
       if(!invoice||invoice.status!=="pending")
         throw new VendeC06Denied("vende.c06_invoice_no_longer_overdue");
       // The last independent provider observation takes precedence.
-      const [attestation]=await tx.select().from(vendePaymentAttestations).where(and(
-        eq(vendePaymentAttestations.tenantId,context.tenantId),
-        eq(vendePaymentAttestations.invoiceId,input.invoiceId),
-      )).orderBy(desc(vendePaymentAttestations.verifiedAt),
-        desc(vendePaymentAttestations.createdAt),
-        desc(vendePaymentAttestations.observationSequence)).limit(1);
-      if(!attestation || attestation.outcome!=="unpaid_verified" ||
-         attestation.verifiedAt.getTime()>now.getTime()+15_000 ||
-         now.getTime()-attestation.verifiedAt.getTime()>15*60_000)
+      const attestation=await currentBoundVendePaymentEvidence(tx,invoice,now);
+      if(!attestation || attestation.outcome!=="unpaid_verified")
         throw new VendeC06Denied("vende.c06_unpaid_evidence_missing_or_stale");
       const [calendar]=await tx.select().from(vendeBusinessCalendars).where(and(
         eq(vendeBusinessCalendars.tenantId,context.tenantId),
