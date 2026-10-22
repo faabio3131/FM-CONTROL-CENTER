@@ -1118,9 +1118,15 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       expect((await pool.query(
         "SELECT count(*)::int n FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2",
         [tenant,cmd.subscriptionId])).rows[0].n).toBe(1);
-      const queued=await queueReviewedVendeCorrection(
-        secondContext,secondProof,queuedInput,config,http,
-      );
+      const parallel=await Promise.allSettled([
+        queueReviewedVendeCorrection(secondContext,secondProof,queuedInput,config,http),
+        queueReviewedVendeCorrection(secondContext,secondProof,queuedInput,config,http),
+      ]);
+      expect(parallel.filter(x=>x.status==="fulfilled")).toHaveLength(1);
+      expect(parallel.filter(x=>x.status==="rejected")).toHaveLength(1);
+      const queued=(parallel.find(x=>x.status==="fulfilled") as PromiseFulfilledResult<{
+        intentId:string;state:string;remoteEntitlementConfirmed:boolean;
+      }>).value;
       expect(queued).toMatchObject({
         intentId:first.intentId,state:"reactivation_pending",
         remoteEntitlementConfirmed:false,financialRefundExecuted:false,
