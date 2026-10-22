@@ -1044,11 +1044,11 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     const external=(await pool.query(
       "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
       [tenant])).rows[0].external_tenant_id as string;
+    const signedExpiry=Math.floor(Date.now()/1000)+86400;
     const http=(async()=>json({
       tenant_id:external,operation_status:"applied",
       applied_action:"SUSPEND_DELINQUENCY",license_status:"suspended",
-      plan_code:"BASE",plan_revision:1,
-      valid_until:Math.floor(Date.now()/1000)+86400,
+      plan_code:"BASE",plan_revision:1,valid_until:signedExpiry,
     })) as typeof fetch;
     const observation=await observeVendeCompensationEvidence(context,proof,{
       productId,commandId:cmd.id,expectedReviewVersion:2,
@@ -1107,6 +1107,17 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       await expect(queueReviewedVendeCorrection(
         context,proof,queuedInput,config,http,
       )).rejects.toThrow(); // original preparer may not queue
+      const unsafeRemote=(async()=>json({
+        tenant_id:external,operation_status:"applied",
+        applied_action:"SUSPEND_DELINQUENCY",license_status:"active",
+        plan_code:"BASE",plan_revision:1,valid_until:signedExpiry,
+      })) as typeof fetch;
+      await expect(queueReviewedVendeCorrection(
+        secondContext,secondProof,queuedInput,config,unsafeRemote,
+      )).rejects.toThrow();
+      expect((await pool.query(
+        "SELECT count(*)::int n FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2",
+        [tenant,cmd.subscriptionId])).rows[0].n).toBe(1);
       const queued=await queueReviewedVendeCorrection(
         secondContext,secondProof,queuedInput,config,http,
       );
