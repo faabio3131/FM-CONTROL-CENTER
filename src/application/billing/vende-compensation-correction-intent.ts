@@ -10,7 +10,10 @@ import {billingInvoices} from "@/infrastructure/db/billing-schema";
 import {vendeContractTerms,vendeLifecycleCommands} from "@/infrastructure/db/vende-commercial-schema";
 import {currentBoundVendePaymentEvidence} from "./vende-payment-evidence";
 import {requireFMPlanAuthority} from "./assistant-plan-catalog-service";
-import {hasFreshVendeApproval} from "./vende-c06-delivery";
+import {hasFreshVendeApproval,requireVendeCommercialDelivery,
+  readVendeCommercialSnapshot} from "./vende-c06-delivery";
+import {GovernedVendeC06Service} from "./vende-c06-governed-execution";
+import type {PlanProjectionConfig} from "./assistant-plan-outbox-dispatcher";
 import {fmLocalCivilDate} from "@/domain/billing/vende-commercial-policy-v1";
 import {VENDE_COMPENSATION_REVIEW_ACTION} from "./vende-compensation-risk";
 import type {TenantContext} from "@/domain/security/tenant-context";
@@ -202,4 +205,125 @@ export async function secondReviewVendeCorrectionIntent(
       approvedForDispatch:false as const,remediationDispatched:false as const,
       caseResolved:false as const};
   });
+}
+
+/** P01 correction *admission*, not delivery: a separate explicit FM action.
+ * Disabled by default. Fresh remotely signed status is READ ONLY.
+ * Canonical C06 regularization writes the new contract revision + outbox in
+ * one DB transaction, and is responsible for duplicate-operation fencing.
+ *
+ * Never call Assistant transition here, never issue a refund, and never
+ * interpret queued as applied. Worker dispatch remains independently OFF.
+ */
+export async function queueReviewedVendeCorrection(
+  context:TenantContext,proof:StepUpProof,
+  input:Input&{intentId:string},
+  config:PlanProjectionConfig,http:typeof fetch=fetch,now:Date=new Date(),
+){
+  if(process.env.FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED!=="true")
+    return denied();
+  check(context,proof,input,now);
+  if(!UUID.test(input.intentId)||config.organizationId!==context.tenantId)
+    return denied();
+  const base=requireVendeCommercialDelivery(config);
+
+  async function approvedSnapshot(at:Date) {
+    return db.transaction(async tx=>{
+      const candidate=await lockCase(tx,context,input,at);
+      const prepared=await lastPrepared(tx,context,input);
+      if(!prepared||prepared.id!==input.intentId||
+         !timeRecent(prepared.occurredAt,at)||
+         prepared.metadata.schema!=="fm.vende.compensation-intent.v1"||
+         prepared.metadata.approvedForDispatch!==false||
+         prepared.metadata.remediationDispatched!==false||
+         prepared.metadata.preparedBy===context.userId)
+        return denied();
+      for(const [key,value] of Object.entries(candidate))
+        if(prepared.metadata[key]!==value)return denied();
+
+      const [reviewed]=await tx.select({
+        actorId:auditEvents.actorId,metadata:auditEvents.metadata,
+        occurredAt:auditEvents.occurredAt,
+      }).from(auditEvents).where(and(
+        eq(auditEvents.tenantId,context.tenantId),
+        eq(auditEvents.action,REVIEWED),
+        eq(auditEvents.resourceType,"vende_lifecycle_command"),
+        eq(auditEvents.resourceId,input.commandId),
+        sql`${auditEvents.metadata} ->> 'intentId' = ${input.intentId}`,
+      )).orderBy(desc(auditEvents.occurredAt),desc(auditEvents.id)).limit(1);
+      // The second reviewer must explicitly authorize the *queueing* as
+      // their own fresh step-up operation; a historical review is NOT a token.
+      if(!reviewed||!timeRecent(reviewed.occurredAt,at)||
+         reviewed.actorId!==context.userId||
+         reviewed.actorId===prepared.actorId||
+         reviewed.metadata.schema!=="fm.vende.compensation-second-review.v1"||
+         reviewed.metadata.productId!==input.productId||
+         reviewed.metadata.observationId!==candidate.observationId||
+         reviewed.metadata.reviewVersion!==candidate.reviewVersion||
+         reviewed.metadata.preparerId!==prepared.actorId||
+         reviewed.metadata.reviewerId!==reviewed.actorId||
+         reviewed.metadata.approvedForDispatch!==false||
+         reviewed.metadata.remediationDispatched!==false||
+         reviewed.metadata.caseResolved!==false)
+        return denied();
+
+      const [original]=await tx.select().from(vendeLifecycleCommands).where(and(
+        eq(vendeLifecycleCommands.tenantId,context.tenantId),
+        eq(vendeLifecycleCommands.productId,input.productId),
+        eq(vendeLifecycleCommands.id,input.commandId),
+      )).limit(1);
+      if(!original||original.operationId!==candidate.operationId||
+         original.revision!==candidate.termsRevision||
+         original.sourceInvoiceId!==candidate.invoiceId||
+         original.state!=="delivered")
+        return denied();
+      return {candidate,original};
+    });
+  }
+
+  // Do not hold SQL row locks while waiting for the remote HTTPS read.
+  const initial=await approvedSnapshot(now);
+  const remote=await readVendeCommercialSnapshot(
+    base,initial.original,config,http,now,
+  );
+  if(remote.operation_status!=="applied"||
+     remote.applied_action!=="SUSPEND_DELINQUENCY"||
+     remote.license_status!=="suspended"||
+     remote.plan_code!==String(initial.original.deliveryTarget?.planCode??remote.plan_code))
+    return denied();
+
+  // Recheck every financial, contractual and reviewer fence AFTER remote I/O.
+  // The canonical C06 admission below again checks fresh PSP proof and
+  // current contract revision under its own transaction + advisory lock.
+  const after=new Date();
+  if(!hasFreshVendeApproval(proof.verifiedAt,after))return denied();
+  const current=await approvedSnapshot(after);
+  if(current.original.operationId!==initial.original.operationId||
+     current.original.revision!==initial.original.revision||
+     current.original.state!==initial.original.state||
+     current.candidate.observationId!==initial.candidate.observationId)
+    return denied();
+
+  // Idempotency key is derived from the immutable preparation ID; two
+  // concurrent admissions cannot manufacture different commercial commands.
+  const operationId="p01.correction."+input.intentId;
+  const sourceRef="p01.correction."+input.intentId;
+  const queued=await new GovernedVendeC06Service().requestRegularization(
+    context,proof,{
+      productId:input.productId,
+      subscriptionId:current.original.subscriptionId,
+      paidInvoiceId:current.candidate.invoiceId,
+      expectedRevision:current.candidate.termsRevision,
+      operationId,sourceRef,
+    },after,
+  );
+  return {
+    intentId:input.intentId,operationId,
+    state:queued.state,
+    revision:queued.revision,
+    remoteEntitlementConfirmed:false as const,
+    financialRefundExecuted:false as const,
+    caseResolved:false as const,
+    automaticDispatchExecuted:false as const,
+  };
 }
