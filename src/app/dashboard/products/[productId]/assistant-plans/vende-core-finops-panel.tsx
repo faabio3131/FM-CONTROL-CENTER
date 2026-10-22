@@ -4,12 +4,32 @@ import type {CoreFinopsReport} from "@/application/billing/vende-core-finops-rea
 
 export function VendeCoreFinopsPanel({productId}:{productId:string}){
   const [tenant,setTenant]=useState("");
+  const [availableTenants,setAvailableTenants]=useState<string[]>([]);
+  const [tenantListTruncated,setTenantListTruncated]=useState(false);
   const [unit,setUnit]=useState("");
   const [startDate,setStartDate]=useState("");
   const [endDate,setEndDate]=useState("");
   const [report,setReport]=useState<CoreFinopsReport|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  async function loadBoundTenants(){
+    setBusy(true);setError("");
+    try{
+      const r=await fetch(
+        `/api/billing/products/${encodeURIComponent(productId)}/vende-core-finops/bindings`,
+        {cache:"no-store"},
+      );
+      if(!r.ok)throw Error("tenant_bindings_unavailable");
+      const result=await r.json() as {items:string[];truncated:boolean};
+      if(!Array.isArray(result.items)||result.items.length>50||
+         !result.items.every(x=>typeof x==="string"&&/^[A-Za-z0-9_.-]{1,128}$/.test(x)))
+        throw Error("tenant_bindings_invalid");
+      setAvailableTenants(result.items);
+      setTenantListTruncated(result.truncated===true);
+    }catch{
+      setError("Lista de clientes indisponível. Informe um tenant vinculado à FM.");
+    }finally{setBusy(false);}
+  }
   async function consult(){
     setBusy(true);setError("");setReport(null);
     try{
@@ -41,7 +61,11 @@ export function VendeCoreFinopsPanel({productId}:{productId:string}){
     <div className="form-grid">
       <label>Identificador do tenant no VendeAtendeIA
         <input type="text" value={tenant} maxLength={128} disabled={busy}
+          list="vende-finops-tenant-options"
           onChange={e=>{setTenant(e.target.value);setReport(null);}}/>
+        <datalist id="vende-finops-tenant-options">
+          {availableTenants.map(id=><option key={id} value={id}/>)}
+        </datalist>
       </label>
       <label>Identificador da unidade no VendeAtendeIA
         <input type="text" value={unit} maxLength={128} disabled={busy}
@@ -56,6 +80,11 @@ export function VendeCoreFinopsPanel({productId}:{productId:string}){
           onChange={e=>{setEndDate(e.target.value);setReport(null);}}/>
       </label>
     </div>
+    <button type="button" className="button" disabled={busy}
+      onClick={()=>void loadBoundTenants()}>
+      Listar clientes vinculados ao VendeAtendeIA
+    </button>
+    {tenantListTruncated?<p>Exibidos apenas os primeiros 50 tenants. Outros IDs podem ser informados manualmente.</p>:null}
     <button type="button" className="button" disabled={busy||!tenant||!unit||!startDate||!endDate}
       onClick={()=>void consult()}>Consultar ledger interno do Core</button>
     {busy?<p role="status">Consultando dados autenticados...</p>:null}
