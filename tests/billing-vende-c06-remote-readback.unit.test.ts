@@ -30,7 +30,7 @@ describe("P01 C06 commercial readback must fail closed on forged status",()=>{
     {...valid,license_status:0},
     {...valid,plan_code:""},
     {...valid,plan_code:"../internal"},
-    {...valid,plan_code:"A".repeat(121)},
+    {...valid,plan_code:"A".repeat(129)},
     {...valid,plan_code:null},
     {...valid,plan_revision:true},
     {...valid,plan_revision:1.5},
