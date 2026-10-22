@@ -106,9 +106,9 @@ def test_command_binding_reserves_core_quota_and_revocation_fails_closed(tmp_pat
                 secret=QUOTA_SECRET, fetch=authenticated_fresh_read,
             ),
         )
-        def request(identifier):
+        def request(identifier, *, tenant_id="tenant-a", unit_id="unit-a"):
             return SolicitacaoIA(
-                tenant_id="tenant-a", unidade_id="unit-a",
+                tenant_id=tenant_id, unidade_id=unit_id,
                 request_id=identifier, correlation_id=identifier,
                 capability=CapabilityIA.ATENDIMENTO_INTERPRETACAO,
                 conteudo=TextRequestContent(
@@ -146,6 +146,25 @@ def test_command_binding_reserves_core_quota_and_revocation_fails_closed(tmp_pat
             capability="ai.total_tokens", at=datetime.now(UTC),
         )
         assert both.reserved_units == 360
+        requests_total = quota.usage_snapshot(
+            tenant_id="tenant-a", unit_id="__tenant__",
+            capability="ai.requests", at=datetime.now(UTC),
+        )
+        assert requests_total.reserved_units == 2  # text + audio, same plan
+
+        # Neither a foreign tenant nor an unlicensed unit may borrow a
+        # previously signed FM license, grant or token reservation.
+        for foreign_request in (
+            request("foreign-tenant-request", tenant_id="tenant-b"),
+            request("foreign-unit-request", unit_id="unit-foreign"),
+        ):
+            with pytest.raises((QuotaDenied, PlanLimitDenied)):
+                guard.admit(request=foreign_request, at=datetime.now(UTC))
+        unchanged = quota.usage_snapshot(
+            tenant_id="tenant-a", unit_id="__tenant__",
+            capability="ai.requests", at=datetime.now(UTC),
+        )
+        assert unchanged.reserved_units == 2
         with pytest.raises(QuotaDenied):
             guard.admit(request=audio, at=datetime.now(UTC))
 
