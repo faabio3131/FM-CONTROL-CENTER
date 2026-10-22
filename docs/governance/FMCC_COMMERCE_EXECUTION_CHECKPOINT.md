@@ -539,3 +539,20 @@ e exige data de corte paga para cancelamento/downgrade, mantendo
 essas transições pending sem tentar executá-las precocemente.
 CI deste WP ainda pendente, não certificar antes dos gates 4/4 e pós-merge.
 Prompt_01_GREEN_INTERNO AINDA NÃO CONCEDIDO.
+
+### P01 — estorno pós-renovação e readback de compensação em certificação (21/10/2026)
+PR #144 integrada `499fefeec39160e215dc5c366cf7632d80d601a7`.
+HEAD `f9d0f82adf08a2bb5e5e58e3ca8e5e6ef66d9ccb`: Foundation
+39697440219, Billing PG 39697440275, Cognitive 39697440250,
+F21 39697440243 SUCCESS. Pós-merge: Foundation 39698052728,
+Billing PG 39698052576, Cognitive 39698052606, F21 39698052704
+SUCCESS; quotas texto+áudio e supervisão devidas GREEN_INTERNO.
+
+Este candidato cobre estorno tardio depois de RENEW_VERIFIED delivered,
+sem mutação de licença, e evidência S2S de compensação com reautenticação
+FM e versão CAS de revisão, leitura de status remoto e observação
+PSP categoricamente verificada, auditadas com prova histórica. Só pode
+marcar `caseResolved=false` e `remediationDispatched=false`.
+Novos testes PG/route, nenhum PSP real ou segredo. CI pendente.
+PROMPT_01_GREEN_INTERNO NÃO concedido; compensação efetiva e gates
+transversais finais ainda em aberto.
