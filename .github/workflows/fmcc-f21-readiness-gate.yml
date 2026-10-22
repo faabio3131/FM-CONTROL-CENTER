@@ -69,4 +69,4 @@ jobs:
       - name: PostgreSQL backup and isolated restore smoke
         run: bash scripts/postgres-backup-restore-smoke.sh
       - name: Runtime dependency audit
-        run: npm audit --omit=dev --audit-level=high
+        run: bash scripts/runtime-dependency-audit.sh
