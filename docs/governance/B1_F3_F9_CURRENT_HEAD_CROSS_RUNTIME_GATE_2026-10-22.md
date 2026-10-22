@@ -15,7 +15,7 @@ Certify a new Command Foundation integration against the **current green candida
 4. Preserve all existing Foundation steps (lint, types, tests, schema check, disposable PostgreSQL migrations, secret scan, build, browser E2E, runtime smoke, Docker build and dependency audit). No gate weakening.
 
 ## Acceptance
-- Four Command PR workflows executed and green on the final HEAD, including the full Foundation and isolated PostgreSQL.
+- All **applicable** Command PR workflows executed and green on the final HEAD: Foundation, Cognitive and F21 for workflow/docs-only changes. Billing PostgreSQL is a path-filtered workflow; if not triggered, record NOT_APPLICABLE on this PR (not GREEN). Foundation itself still performs PostgreSQL migrations/tests on an isolated disposable database. The main push after merge must complete all workflows actually triggered.
 - Assistant and Core target SHAs independently green in their own branch workflows.
 - Review the diff, confirm zero new secrets/migrations/provider calls/deploy, and verify no STOP.
 - Merge to Command main only after its prior merge CI is green and this PR is eligible; then verify all four post-merge Command workflows.
