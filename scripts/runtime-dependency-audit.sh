@@ -14,6 +14,13 @@ for attempt in 1 2 3; do
   fi
 
   cat "$log_file"
+  # A vulnerability and a transient transport error may coexist in npm output.
+  # Never retry a confirmed finding and accidentally accept a later clean response.
+  if grep -Eiq '(^|[[:space:]])[1-9][0-9]*[[:space:]]+(high|critical)[[:space:]]+severity|(^|[[:space:]])(high|critical)[[:space:]]+severity[[:space:]]+vulnerabilit' "$log_file"; then
+    rm -f "$log_file"
+    echo "Runtime dependency audit FAILED: confirmed high/critical advisory." >&2
+    exit 1
+  fi
   if ! grep -Eiq 'audit network timeout|audit endpoint returned an error|EAI_AGAIN|ETIMEDOUT|ECONNRESET|ENOTFOUND|ECONNREFUSED|FETCH_ERROR|504 Gateway Time-out|502 Bad Gateway|503 Service Unavailable' "$log_file"; then
     rm -f "$log_file"
     echo "Runtime dependency audit FAILED: non-transient failure; no retry." >&2
