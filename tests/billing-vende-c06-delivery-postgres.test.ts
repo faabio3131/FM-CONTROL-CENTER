@@ -1012,7 +1012,10 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       await pool.query(
         "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,occurred_at,metadata) VALUES ($1,'fm-test','service','vende.compensation_review.remote_observed','vende_lifecycle_command',$2,'human_reconciliation_required',$3,$4,$5::jsonb)",
         [tenant,cmd.id,cmd.operationId,new Date(Date.now()+n*1000),
-          JSON.stringify({productId,reviewVersion:n,invoiceState:"pending",
+          JSON.stringify({productId,operationId:cmd.operationId,
+            schema:"fm.vende.compensation-observation.v1",
+            remediated:false,refundExecuted:false,entitlementMutated:false,
+            reviewVersion:n,invoiceState:"pending",
             verifiedFinanceOutcome:"unpaid_verified",secret:"PRIVATE_PAYMENT_REFERENCE"})],
       );
     }
