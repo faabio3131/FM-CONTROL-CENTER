@@ -18,7 +18,7 @@ import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/bill
 import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercial-claims-supervisor";
 import {readVendeCompensationReviews,triageVendeCompensationRisk} from "../src/application/billing/vende-compensation-review";
 import {observeVendeCompensationEvidence} from "../src/application/billing/vende-compensation-evidence-review";
-import {prepareVendeCorrectionIntent,secondReviewVendeCorrectionIntent} from "../src/application/billing/vende-compensation-correction-intent";
+import {prepareVendeCorrectionIntent,secondReviewVendeCorrectionIntent,queueReviewedVendeCorrection} from "../src/application/billing/vende-compensation-correction-intent";
 
 const database=process.env.DATABASE_URL??"";
 const tenant="fm-c06-delivery-"+randomUUID();
@@ -1096,6 +1096,47 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       [cmd.subscriptionId])).rows[0].lifecycle_state).toBe("suspended");
     expect((await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",
       [cmd.invoiceId])).rows[0].status).toBe("paid");
+
+    // A completed independent review does NOT itself activate reactivation.
+    const queuedInput={...common,intentId:first.intentId};
+    await expect(queueReviewedVendeCorrection(
+      secondContext,secondProof,queuedInput,config,http,
+    )).rejects.toThrow();
+    process.env.FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED="true";
+    try{
+      await expect(queueReviewedVendeCorrection(
+        context,proof,queuedInput,config,http,
+      )).rejects.toThrow(); // original preparer may not queue
+      const queued=await queueReviewedVendeCorrection(
+        secondContext,secondProof,queuedInput,config,http,
+      );
+      expect(queued).toMatchObject({
+        intentId:first.intentId,state:"reactivation_pending",
+        remoteEntitlementConfirmed:false,financialRefundExecuted:false,
+        caseResolved:false,automaticDispatchExecuted:false,
+      });
+      const operations=(await pool.query(
+        "SELECT operation_id,state,action,source_invoice_id FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2 ORDER BY revision",
+        [tenant,cmd.subscriptionId])).rows;
+      expect(operations).toHaveLength(2);
+      expect(operations[1]).toMatchObject({
+        operation_id:"p01.correction."+first.intentId,
+        state:"pending",action:"REACTIVATE_VERIFIED",
+        source_invoice_id:cmd.invoiceId,
+      });
+      expect((await pool.query(
+        "SELECT lifecycle_state,revision FROM fmcc_vende_contract_terms WHERE tenant_id=$1 AND subscription_id=$2",
+        [tenant,cmd.subscriptionId])).rows[0]).toMatchObject({
+          lifecycle_state:"reactivation_pending",revision:3,
+        });
+      // Repeated identical authorizations cannot create another queued command.
+      await expect(queueReviewedVendeCorrection(
+        secondContext,secondProof,queuedInput,config,http,
+      )).rejects.toThrow();
+      expect((await pool.query(
+        "SELECT count(*)::int n FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2",
+        [tenant,cmd.subscriptionId])).rows[0].n).toBe(2);
+    }finally{delete process.env.FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED;}
   });
 
   it("P01 refuses correction intents for stale, unauthorized or unobserved cases",async()=>{
