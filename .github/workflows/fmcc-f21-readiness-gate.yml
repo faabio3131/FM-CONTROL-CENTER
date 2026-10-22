@@ -68,5 +68,7 @@ jobs:
         run: npm run security:secrets
       - name: PostgreSQL backup and isolated restore smoke
         run: bash scripts/postgres-backup-restore-smoke.sh
+      - name: Verify audit retry and fail-closed semantics
+        run: bash tests/runtime-dependency-audit.sh
       - name: Runtime dependency audit
-        run: npm audit --omit=dev --audit-level=high
+        run: bash scripts/runtime-dependency-audit.sh
