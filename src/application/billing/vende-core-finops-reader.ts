@@ -184,8 +184,20 @@ export async function readVendeCoreFinops(
     });
     if(response.status!==200||!response.ok)return denied();
     if(Number(response.headers.get("Content-Length")??0)>METADATA_LIMIT)return denied();
-    const data=await response.text();
-    if(Buffer.byteLength(data,"utf8")>METADATA_LIMIT)return denied();
+    if(!response.body)return denied();
+    const reader=response.body.getReader();
+    const chunks:Uint8Array[]=[];
+    let bytes=0;
+    try{
+      for(;;){
+        const next=await reader.read();
+        if(next.done)break;
+        bytes+=next.value.byteLength;
+        if(bytes>METADATA_LIMIT){await reader.cancel();return denied();}
+        chunks.push(next.value);
+      }
+    }finally{reader.releaseLock();}
+    const data=Buffer.concat(chunks).toString("utf8");
     return parseCoreFinopsReport(JSON.parse(data) as unknown,{
       tenantId:input.externalTenantId,unitId:input.unitId,
       from:input.startDate,to:input.endDate,
