@@ -21,6 +21,21 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
   const [decision,setDecision]=useState<"investigating"|"escalated">("investigating");
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [observation,setObservation]=useState("");
+  async function refreshEvidence(){
+    setBusy(true);setError("");setObservation("");
+    try{
+      const r=await fetch(`/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-evidence`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({commandId:item.commandId,expectedReviewVersion:item.reviewVersion,password}),
+      });
+      if(!r.ok)throw Error("unavailable");
+      const result=await r.json() as {state:string;remediationDispatched:false};
+      setObservation(`Observação autenticada: ${result.state}. Nenhuma compensação executada.`);
+      setPassword("");
+    }catch{setPassword("");setError("A verificação de evidências não foi concluída. Nenhuma mudança foi realizada.");}
+    finally{setBusy(false);}
+  }
   async function submit(){
     setBusy(true);setError("");
     try{
@@ -62,6 +77,11 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
         !/^[a-z][a-z0-9_]{3,47}$/.test(reasonCode)} onClick={()=>void submit()}>
       Registrar decisão sem alterar a licença
     </button>
+    {item.reviewVersion>0?<button type="button" className="button"
+      disabled={busy||!password.trim()} onClick={()=>void refreshEvidence()}>
+      Consultar evidências atuais sem alterar licença
+    </button>:null}
+    {observation?<p role="status">{observation}</p>:null}
     {error?<p role="alert">{error}</p>:null}
   </article>;
 }
@@ -82,9 +102,9 @@ export function VendeCompensationReviews({productId}:{productId:string}){
   return <section className="card" aria-label="Revisões financeiras supervisionadas">
     <span className="eyebrow">FM Tecnologia · controle humano</span>
     <h2>Revisões de compensação comercial</h2>
-    <p>Investigações e escalonamentos são auditados, mas não executam estornos,
-      suspensões ou reativações. A situação atual da licença ainda exige
-      consulta autenticada ao Assistant e comprovação financeira independente.</p>
+    <p>Investigações e escalonamentos são auditados. Após abrir uma investigação, a FM
+      pode consultar uma evidência autenticada do estado remoto e do registro financeiro
+      vigente. Isso não executa estorno, suspensão, reativação ou reparação automática.</p>
     <button className="button" type="button" disabled={busy} onClick={()=>void refresh()}>
       Consultar divergências
     </button>
