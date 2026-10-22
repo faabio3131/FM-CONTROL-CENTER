@@ -40,7 +40,7 @@ async function evidence(f:Fixture){
   return db.transaction(tx=>currentBoundVendePaymentEvidence(tx,{tenantId:tenant,id:f.invoiceId,gatewayAccountId:gatewayId},at));
 }
 
-async function deliveredCommand(f:Fixture,action:"SUSPEND_DELINQUENCY"|"REACTIVATE_VERIFIED"){
+async function deliveredCommand(f:Fixture,action:"SUSPEND_DELINQUENCY"|"REACTIVATE_VERIFIED"|"RENEW_VERIFIED"){
   const invoice=(await pool.query("SELECT subscription_id FROM fmcc_billing_invoice WHERE id=$1",[f.invoiceId])).rows[0];
   const id=(await pool.query(
     "INSERT INTO fmcc_vende_lifecycle_command (tenant_id,product_id,subscription_id,customer_id,source_invoice_id,operation_id,expected_revision,revision,action,state,external_tenant_id,effective_date,source_ref,actor_id,claimed_at,delivered_at) VALUES ($1,$2,$3,$4,$5,$6,1,2,$7,'delivered',$8,'2026-10-21','synthetic-delivered-fixture',$9,$10,$10) RETURNING id",
@@ -197,6 +197,7 @@ describe("Vende PSP producer — real disposable SQL, synthetic HTTP only",()=>{
   it.each([
     ["REACTIVATE_VERIFIED","REFUNDED","reactivation_payment_reversed_after_delivery"],
     ["SUSPEND_DELINQUENCY","RECEIVED","delinquency_paid_after_delivery"],
+    ["RENEW_VERIFIED","REFUNDED","renewal_payment_reversed_after_delivery"],
   ] as const)("B1.12 flags post-delivery %s after provider %s once without touching finance/entitlements",async(action,status,reason)=>{
     const f=await fixture();
     const id=await deliveredCommand(f,action);
@@ -227,6 +228,7 @@ describe("Vende PSP producer — real disposable SQL, synthetic HTTP only",()=>{
     for(const [action,status] of [
       ["REACTIVATE_VERIFIED","PENDING"],["SUSPEND_DELINQUENCY","REFUNDED"],
       ["REACTIVATE_VERIFIED","CONFIRMED"],
+      ["RENEW_VERIFIED","RECEIVED"],
     ] as const){
       const f=await fixture(),id=await deliveredCommand(f,action);
       const svc=service((async()=>json(payload(f,status))) as typeof fetch);
