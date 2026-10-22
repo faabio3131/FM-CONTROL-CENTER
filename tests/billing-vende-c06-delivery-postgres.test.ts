@@ -992,9 +992,12 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       productId,commandId:cmd.id,expectedVersion:0,
       decision:"investigating",reasonCode:"investigation_open",
     });
+    const remoteTenant=(await pool.query(
+      "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
+      [tenant])).rows[0].external_tenant_id as string;
     const http=(async()=>{
       await pool.query("UPDATE fmcc_vende_lifecycle_command SET state='unknown' WHERE id=$1",[cmd.id]);
-      return json({tenant_id:"remote-fixture",operation_status:"applied",
+      return json({tenant_id:remoteTenant,operation_status:"applied",
         applied_action:"SUSPEND_DELINQUENCY",license_status:"suspended",
         plan_code:"BASE",plan_revision:1,valid_until:1893456000});
     }) as typeof fetch;
