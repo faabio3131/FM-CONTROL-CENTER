@@ -18,6 +18,20 @@ import type {StepUpProof} from "@/application/security/password-step-up";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTION="vende.compensation_review.triaged" as const;
+const KNOWN_RISK_REASONS=new Set([
+  "reactivation_unconfirmed","suspension_unconfirmed",
+  "renewal_unconfirmed","upgrade_unconfirmed","downgrade_unconfirmed",
+  "reactivation_payment_reversed_after_delivery",
+  "delinquency_paid_after_delivery",
+  "renewal_payment_reversed_after_delivery",
+  "plan_change_payment_reversed_after_delivery",
+]);
+/** Audit metadata may originate from external evidence; never present an
+ * arbitrary string as a trusted incident category in the FM dashboard. */
+export function knownVendeRiskReason(value:unknown):string{
+  return typeof value==="string"&&KNOWN_RISK_REASONS.has(value)?value:"unspecified";
+}
+
 export type VendeReviewStep="investigating"|"escalated";
 export class VendeCompensationReviewDenied extends Error{
   constructor(){super("vende.compensation_review_unavailable");}
@@ -103,8 +117,7 @@ export async function readVendeCompensationReviews(
         return [{
           riskId:risk.id,commandId:command.id,
           action:command.action,state:command.state,
-          reason:typeof risk.metadata.reason==="string"?
-            risk.metadata.reason.slice(0,80):"unspecified",
+          reason:knownVendeRiskReason(risk.metadata.reason),
           occurredAt:risk.occurredAt,reviewVersion:latest?.version??0,
           reviewStep:latest?.decision??"unreviewed",
           reviewer:latest?.actorId??null,
