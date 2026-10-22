@@ -79,7 +79,7 @@ export async function readFMFinopsAlertPolicy(
     const data=JSON.parse(raw) as FMFinopsAlertPolicy;
     if(!data||data.tenant_id!==scope.externalTenantId||data.unit_id!==scope.unitId||
       typeof data.configured!=="boolean"||typeof data.enabled!=="boolean"||
-      (data.configured&&(!Number.isSafeInteger(data.revision)||Number(data.revision)<1||
+      (data.configured&&(typeof data.revision!=="number"||!Number.isSafeInteger(data.revision)||data.revision<1||
       typeof data.maximum_known_cost!=="string"||!COST.test(data.maximum_known_cost)||
       typeof data.currency!=="string"||!/^[A-Z]{3}$/.test(data.currency)))||
       (!data.configured&&(data.revision!==null||data.maximum_known_cost!==null||
