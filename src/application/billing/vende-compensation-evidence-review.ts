@@ -111,9 +111,11 @@ export async function observeVendeCompensationEvidence(
       const finance=await currentBoundVendePaymentEvidence(tx,invoice,after);
       if(finance&&finance.outcome!=="needs_attention")financeState=finance.outcome;
     }
-    const result=remote.operation_status==="applied"&&financeState==="reversed_verified"
+    const sameAppliedAction=remote.operation_status==="applied"&&
+      remote.applied_action===locked.action;
+    const result=sameAppliedAction&&financeState==="reversed_verified"
       ?"remote_applied_finance_reversed"
-      :remote.operation_status==="applied"&&financeState==="settled_verified"
+      :sameAppliedAction&&financeState==="settled_verified"
         ?"remote_applied_finance_settled"
         :remote.operation_status==="not_applied"
           ?"remote_operation_not_applied"
