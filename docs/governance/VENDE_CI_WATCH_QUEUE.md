@@ -5,7 +5,7 @@ Este arquivo é uma fila declarativa de conferência; **não** é um scheduler a
 | Repo | PR | HEAD | Run IDs / gates | Estado verificado | Poll attempt | Dependência / próxima ação |
 | --- | --- | --- | --- | --- | --- | --- |
 | FM-CONTROL-CENTER | #146 | `e6cb0abbc2bc921848531d1689a87358daeb6d47` | Foundation 39710241038; Billing PostgreSQL 39710241048; F21 39710241070 | GREEN 3/3 registrados em 21/10/2026; revisão independente ainda não comprovada | 1 | Conferir revisão independente e gates aplicáveis (inclusive Cognitive se exigido) antes de merge; pós-merge obrigatório |
-| FM-CONTROL-CENTER | #147 | `8cd87069049835dfdd203bfaa946cabd75d014f6` | Foundation/F21, IDs ainda não registrados | PENDING (não verificado) | 0 | Conferir CI HEAD, revisão aplicável, reconciliação com #146 e merge seguro |
+| FM-CONTROL-CENTER | #147 | `cf094c750286702c196044557e1799b0d65da924` | Foundation 39712083224; F21 39712083237; Cognitive 39712083312 | IN_PROGRESS, conferido nesta retomada | 1 | Conferir CI HEAD, revisão aplicável, reconciliação com #146 e merge seguro |
 
 ## Protocolo de retorno
 
