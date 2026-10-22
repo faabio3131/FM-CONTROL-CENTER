@@ -18,6 +18,7 @@ import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/bill
 import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercial-claims-supervisor";
 import {readVendeCompensationReviews,triageVendeCompensationRisk} from "../src/application/billing/vende-compensation-review";
 import {observeVendeCompensationEvidence} from "../src/application/billing/vende-compensation-evidence-review";
+import {readVendeCompensationObservationHistory} from "../src/application/billing/vende-compensation-observation-history";
 
 const database=process.env.DATABASE_URL??"";
 const tenant="fm-c06-delivery-"+randomUUID();
@@ -958,6 +959,26 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(result).toMatchObject({state:"human_reconciliation_required",
       financeState:"unpaid_verified",invoiceState:"pending",
       remoteObserved:true,remediationDispatched:false,caseResolved:false});
+    const history=await readVendeCompensationObservationHistory(
+      context,productId,cmd.id,
+    );
+    expect(history).toMatchObject({
+      historicalOnly:true,currentLicenseVerified:false,
+      currentFinanceVerified:false,remediationConfirmed:false,caseResolved:false,
+      truncated:false,
+    });
+    expect(history.items).toHaveLength(1);
+    expect(history.items[0]).toMatchObject({
+      state:"human_reconciliation_required",reviewVersion:1,
+      financeState:"unpaid_verified",invoiceState:"pending",
+      historicalOnly:true,currentLicenseVerified:false,remediationConfirmed:false,
+    });
+    await expect(readVendeCompensationObservationHistory(
+      {...context,tenantId:"foreign"},productId,cmd.id,
+    )).rejects.toThrow();
+    await expect(readVendeCompensationObservationHistory(
+      context,productId,"11111111-1111-4111-8111-111111111111",
+    )).rejects.toThrow();
     const [record]=(await pool.query(
       "SELECT metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.remote_observed'",
       [tenant,cmd.id])).rows;
