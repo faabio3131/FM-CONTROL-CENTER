@@ -119,7 +119,7 @@ export async function observeVendeCompensationEvidence(
     // financial/entitlement divergence, not a healthy settled operation.
     // Classification is evidence only: never mutate a license or payment here.
     const result=sameAppliedAction&&locked.action==="SUSPEND_DELINQUENCY"&&
-      financeState==="settled_verified"
+      remote.license_status==="suspended"&&financeState==="settled_verified"
       ?"remote_suspended_after_finance_settled"
       :sameAppliedAction&&financeState==="reversed_verified"
         ?"remote_applied_finance_reversed"
