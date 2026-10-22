@@ -54,7 +54,7 @@ export function validateFinopsPeriod(start:string,end:string,now:Date):void{
         now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()))denied();
 }
 export function commandCoreFinopsConfig(
-  env:NodeJS.ProcessEnv=process.env,
+  env:Record<string,string|undefined>=process.env,
 ):Config{
   if(env.FM_COMMAND_CORE_FINOPS_ENABLED!=="true")return denied();
   const secret=env.FM_COMMAND_CORE_FINOPS_SECRET??"";
