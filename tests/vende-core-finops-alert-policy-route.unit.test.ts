@@ -71,7 +71,7 @@ describe("FM governed FinOps alert policy endpoint",()=>{
       {...body,sourceInvoiceId:"fake"},
       {...body,refund:true},
       {...body,enabled:"true"},
-      {...body,expectedRevision:TrueValue()},
+      {...body,expectedRevision:true},
       {...body,expectedRevision:1.25},
       {...body,unitId:"../foreign"},
       {...body,password:"x".repeat(130)},
@@ -106,4 +106,3 @@ describe("FM governed FinOps alert policy endpoint",()=>{
   });
 });
 
-function TrueValue(){return true;}
