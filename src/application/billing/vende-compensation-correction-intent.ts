@@ -11,6 +11,7 @@ import {vendeContractTerms,vendeLifecycleCommands} from "@/infrastructure/db/ven
 import {currentBoundVendePaymentEvidence} from "./vende-payment-evidence";
 import {requireFMPlanAuthority} from "./assistant-plan-catalog-service";
 import {hasFreshVendeApproval} from "./vende-c06-delivery";
+import {fmLocalCivilDate} from "@/domain/billing/vende-commercial-policy-v1";
 import {VENDE_COMPENSATION_REVIEW_ACTION} from "./vende-compensation-risk";
 import type {TenantContext} from "@/domain/security/tenant-context";
 import type {StepUpProof} from "@/application/security/password-step-up";
@@ -29,9 +30,6 @@ type Candidate={
   invoiceId:string;commandId:string;operationId:string;
   proposedAction:"REACTIVATE_VIA_EXISTING_REGULARIZATION";
 };
-function stringField(meta:Record<string,unknown>,key:string){
-  return typeof meta[key]==="string"?meta[key]:null;
-}
 function currentNow(now:Date){
   if(!Number.isFinite(now.getTime()))denied();
 }
@@ -106,7 +104,7 @@ async function lockCase(tx:Tx,context:TenantContext,input:Input,now:Date):Promis
     eq(vendeContractTerms.subscriptionId,command.subscriptionId),
     eq(vendeContractTerms.customerId,command.customerId),
   )).for("update").limit(1);
-  const today=new Date(now).toLocaleDateString("en-CA",{timeZone:"America/Sao_Paulo"});
+  const today=fmLocalCivilDate(now);
   if(!terms||terms.lifecycleState!=="suspended"||
     terms.revision!==command.revision||terms.paidThrough<today)return denied();
   return {
