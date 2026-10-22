@@ -105,4 +105,3 @@ describe("FM governed FinOps alert policy endpoint",()=>{
     expect((await POST(badPost,params)).status).toBe(400);
   });
 });
-
