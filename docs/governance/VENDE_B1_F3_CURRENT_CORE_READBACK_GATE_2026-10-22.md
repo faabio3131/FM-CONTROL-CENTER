@@ -21,3 +21,11 @@
 Foundation required at exact SHA: all original lint/types/schema/migrations/PostgreSQL/tests, newly pinned Python contract, package/build/Playwright/Docker/audit; other Command Billing PostgreSQL/F21/Cognitive unchanged and still obligatory. Review diff, CI and branch protection before any merge. **Any failure needs repair at root cause then full impacted rerun**. Core/Assistant main branches remain untouched, no new product/repo, and no provider, WhatsApp, gateway, secret, migration to real DB, deploy or external test was performed.
 
 This WP certifies a specific **integration dependency and test harness**, not whole F3, not P01 closed, not B1 complete and not `BUILD_COMPLETE_INTERNAL_GREEN`.
+
+## Gate adicional de montagem real (22/10/2026)
+
+Auditoria de capacidade constatou que o Core PR #3 fornecia o router HMAC, mas `create_app()` não o registrava. PR Core #4 corrigiu a lacuna com FM-only runtime flag OFF, chave segregada, authority Assistant fresh, ledger canônico e testes HTTP reais. Merge Core na branch candidata PR #1: `c03ec3162d0fc55f061ce71cd5df2591c37ad919`.
+
+Command Foundation deve agora fixar exatamente este commit e executar tanto `tests/test_ai_command_quota_readback.py` quanto `tests/test_ai_command_quota_runtime_mount.py` no mesmo checkout que exercita seus contratos Command↔Assistant. Sem isso a UI P01 poderia alegar integração de prova que o Core runtime não disponibilizava.
+
+Core PR #1 Draft permanece em construção; nenhum deploy/configuração/secret real foi ativado. O objetivo deste WP é eliminar a divergência de versões entre Command e Core, não declarar F3 ou SaaS homologado. CI 3/3 Foundation/F21/Cognitive aplicáveis no HEAD e main pós-merge se acessível. Billing PG não precisa ser disparado sem mudança de billing.
