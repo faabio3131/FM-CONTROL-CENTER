@@ -28,7 +28,7 @@ from fm_assistant.plan_policy_manifest import (
 from core.ai_control_plane import ControlPlaneBase
 from core.ai_plan_usage_guard import PlanUsageGuard
 from core.ai_quota_store import QuotaDenied, QuotaReservations
-from core.ai_router import CapabilityIA, SolicitacaoIA
+from core.ai_router import CapabilityIA, ConteudoAudioIA, SolicitacaoIA
 from core.ai_service_contracts import TextMessage, TextRequestContent
 from core.ai_signed_plan_authority import SignedAssistantPlanAuthority
 
@@ -92,7 +92,7 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
         for metric in ("ai.requests","ai.total_tokens"):
             db.add(PlanLimitORM(
                 plan_code="BASE",revision=1,resource=metric,scope="tenant",
-                limit_units=100,window_seconds=86400,
+                limit_units=5 if metric=="ai.requests" else 500,window_seconds=86400,
             ))
     service=SignedCommercialLicenseTransition(
         sessions=sessions,key_id="fm-test-key",
@@ -102,8 +102,11 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
     ControlPlaneBase.metadata.create_all(core_engine)
     core_sessions=sessionmaker(bind=core_engine,expire_on_commit=False)
     quota=QuotaReservations(core_sessions)
+    source_online=True
     shared_secret=b"synthetic-signed-transition-core-plan-key-123456789"
     def fetch_fresh(tenant_id,unit_id,capability,challenge):
+        if not source_online:
+            raise OSError("synthetic-Assistant-policy-transport-unavailable")
         manifest=LicensedQuotaManifestService(sessions).resolve(
             tenant_id=tenant_id,unit_id=unit_id,now=datetime.now(UTC),
         )
@@ -158,11 +161,36 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
         resume=signed("REACTIVATE_VERIFIED",int(expiry.timestamp()),extended)
         assert service.apply(**resume)=="active"
         guard.admit(request=request("after-reactivation"),at=datetime.now(UTC))
+        # Text and audio share the same tenant quota after reactivation.
+        # Reinstating the license does not reset earlier reservations.
+        audio_request=SolicitacaoIA(
+            tenant_id="tenant-cross",unidade_id="unit-cross",
+            request_id="audio-after-reactivation",
+            correlation_id="audio-after-reactivation",
+            capability=CapabilityIA.ATENDIMENTO_TRANSCRICAO,
+            conteudo=ConteudoAudioIA(
+                audio=b"synthetic-audio",mime_type="audio/wav",
+                instrucao="Transcreva com quota FM",
+            ),
+        )
+        guard.admit(request=audio_request,at=datetime.now(UTC))
+        with pytest.raises((QuotaDenied,PlanLimitDenied)):
+            guard.admit(request=request("other-unit",unit_id="unlicensed-unit"),
+                        at=datetime.now(UTC))
+        source_online=False
+        with pytest.raises(QuotaDenied):
+            guard.admit(request=request("no-provider-transport"),at=datetime.now(UTC))
+        source_online=True
         usage=quota.usage_snapshot(
             tenant_id="tenant-cross",unit_id="__tenant__",
             capability="ai.total_tokens",at=datetime.now(UTC),
         )
-        assert usage.reserved_units==80  # 40 before + 40 after reactivation
+        assert usage.reserved_units==120  # 40 before + 40 text + 40 audio
+        requests=quota.usage_snapshot(
+            tenant_id="tenant-cross",unit_id="__tenant__",
+            capability="ai.requests",at=datetime.now(UTC),
+        )
+        assert requests.reserved_units==3
         with sessions() as db:
             row=db.get(TenantLicenseORM,"tenant-cross")
             assert row.status=="active" and row.tenant_id=="tenant-cross"
