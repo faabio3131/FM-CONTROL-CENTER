@@ -4,7 +4,7 @@
  * Disabled until the FM operator configures trusted Core S2S transport.
  */
 import {createHmac,randomBytes} from "node:crypto";
-import {and,eq} from "drizzle-orm";
+import {and,asc,eq} from "drizzle-orm";
 import {db} from "@/infrastructure/db/client";
 import {billingCustomerBindings} from "@/infrastructure/db/billing-schema";
 import {productDefinitions} from "@/infrastructure/db/platform-schema";
@@ -191,4 +191,30 @@ export async function readVendeCoreFinops(
       from:input.startDate,to:input.endDate,
     });
   }catch{return denied();}
+}
+
+
+/** Bounded selector for FM corporate operators, not a tenant discovery API.
+ * Unit identifiers still come from the Assistant's licensed runtime; this
+ * list only supplies FM-owned product/customer external-tenant bindings.
+ */
+export async function listVendeFinopsBoundTenants(
+  context:TenantContext,productId:string,
+):Promise<{items:string[];truncated:boolean}>{
+  requireFMPlanAuthority(context,false);
+  if(!UUID.test(productId))return denied();
+  const [product]=await db.select({id:productDefinitions.id})
+    .from(productDefinitions).where(and(
+      eq(productDefinitions.tenantId,context.tenantId),
+      eq(productDefinitions.id,productId),
+      eq(productDefinitions.slug,"vendeatendeia"),
+      eq(productDefinitions.status,"active"),
+    )).limit(1);
+  if(!product)return denied();
+  const records=await db.select({externalTenantId:billingCustomerBindings.externalTenantId})
+    .from(billingCustomerBindings).where(and(
+      eq(billingCustomerBindings.tenantId,context.tenantId),
+      eq(billingCustomerBindings.productId,productId),
+    )).orderBy(asc(billingCustomerBindings.externalTenantId)).limit(51);
+  return {items:records.slice(0,50).map(x=>x.externalTenantId),truncated:records.length>50};
 }
