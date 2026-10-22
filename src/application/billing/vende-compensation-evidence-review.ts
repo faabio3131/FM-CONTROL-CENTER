@@ -115,13 +115,21 @@ export async function observeVendeCompensationEvidence(
     }
     const sameAppliedAction=remote.operation_status==="applied"&&
       remote.applied_action===locked.action;
-    const result=sameAppliedAction&&financeState==="reversed_verified"
-      ?"remote_applied_finance_reversed"
-      :sameAppliedAction&&financeState==="settled_verified"
-        ?"remote_applied_finance_settled"
-        :remote.operation_status==="not_applied"
-          ?"remote_operation_not_applied"
-          :"human_reconciliation_required";
+    // When a delinquency suspension is still applied but the linked
+    // financial settlement is verified, this is a divergence requiring
+    // explicit reconciliation, never a healthy settled/suspended result.
+    // This label is an immutable observation, not permission to mutate a
+    // license, payment or the already-delivered C06 command.
+    const result=sameAppliedAction&&locked.action==="SUSPEND_DELINQUENCY"&&
+      remote.license_status==="suspended"&&financeState==="settled_verified"
+      ?"remote_suspended_after_finance_settled"
+      :sameAppliedAction&&financeState==="reversed_verified"
+        ?"remote_applied_finance_reversed"
+        :sameAppliedAction&&financeState==="settled_verified"
+          ?"remote_applied_finance_settled"
+          :remote.operation_status==="not_applied"
+            ?"remote_operation_not_applied"
+            :"human_reconciliation_required";
     await tx.insert(auditEvents).values({
       tenantId:context.tenantId,actorId:context.userId,actorType:"user",
       action:ACTION,resourceType:"vende_lifecycle_command",
