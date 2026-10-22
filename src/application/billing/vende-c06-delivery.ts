@@ -91,6 +91,31 @@ type RemoteStatus={
   applied_action:string|null;license_status:string;
   plan_code:string;plan_revision:number;valid_until:number;
 };
+/** Assistant's readback is untrusted data, even when the status request was signed. */
+export function verifyVendeRemoteStatus(candidate:unknown,tenantId:string):RemoteStatus{
+  if(!candidate||typeof candidate!=="object"||Array.isArray(candidate))
+    throw new VendeCommercialDeliveryDenied();
+  const value=candidate as Partial<RemoteStatus>;
+  const actions=[
+    "SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","RENEW_VERIFIED",
+    "APPLY_UPGRADE","APPLY_DOWNGRADE","CANCEL_AT_PERIOD_END",
+  ];
+  if(
+    typeof tenantId!=="string"||!tenantId||
+    value.tenant_id!==tenantId||
+    !["applied","not_applied"].includes(value.operation_status??"")||
+    !["active","trial","suspended","cancelled"].includes(value.license_status??"")||
+    typeof value.plan_code!=="string"||
+    !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(value.plan_code)||
+    typeof value.plan_revision!=="number"||
+    !Number.isSafeInteger(value.plan_revision)||value.plan_revision<1||
+    typeof value.valid_until!=="number"||
+    !Number.isSafeInteger(value.valid_until)||value.valid_until<=0||
+    (value.operation_status==="applied"&&!actions.includes(value.applied_action??""))||
+    (value.operation_status==="not_applied"&&value.applied_action!==null)
+  )throw new VendeCommercialDeliveryDenied();
+  return value as RemoteStatus;
+}
 function origin(config:PlanProjectionConfig){
   try{
     const u=new URL(config.assistantOrigin);
@@ -179,16 +204,7 @@ async function signedRemoteSnapshot(
   const result=await postSigned(url,ASSISTANT_COMMERCIAL_STATUS_PATH,envelope,http);
   if(!result.ok)throw new VendeCommercialDeliveryDenied();
   const candidate:unknown=await result.json();
-  if(!candidate||typeof candidate!=="object")throw new VendeCommercialDeliveryDenied();
-  const snapshot=candidate as Partial<RemoteStatus>;
-  if(snapshot.tenant_id!==row.externalTenantId ||
-     !["applied","not_applied"].includes(snapshot.operation_status??"") ||
-     !["active","trial","suspended","cancelled"].includes(snapshot.license_status??"") ||
-     typeof snapshot.plan_code!=="string" || typeof snapshot.plan_revision!=="number" ||
-     !Number.isSafeInteger(snapshot.plan_revision) ||
-     !Number.isSafeInteger(snapshot.valid_until))
-    throw new VendeCommercialDeliveryDenied();
-  return snapshot as RemoteStatus;
+  return verifyVendeRemoteStatus(candidate,row.externalTenantId);
 }
 /** One-shot attempt. A failure after claim stays unknown; signed readback
  * can resolve without replay. Nobody may infer delivery from HTTP status.
