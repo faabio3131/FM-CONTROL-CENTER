@@ -1,5 +1,7 @@
 "use client";
 import {useState} from "react";
+import {describeVendeCompensationObservation,type VendeEvidenceView}
+  from "@/domain/billing/vende-compensation-observation-view";
 type ReviewStep="unreviewed"|"investigating"|"escalated";
 type Case={
   riskId:string;commandId:string;action:string;state:string;reason:string;
@@ -21,17 +23,18 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
   const [decision,setDecision]=useState<"investigating"|"escalated">("investigating");
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
-  const [observation,setObservation]=useState("");
+  const [observation,setObservation]=useState<VendeEvidenceView|null>(null);
   async function refreshEvidence(){
-    setBusy(true);setError("");setObservation("");
+    setBusy(true);setError("");setObservation(null);
     try{
       const r=await fetch(`/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-evidence`,{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({commandId:item.commandId,expectedReviewVersion:item.reviewVersion,password}),
       });
       if(!r.ok)throw Error("unavailable");
-      const result=await r.json() as {state:string;remediationDispatched:false};
-      setObservation(`Observação autenticada: ${result.state}. Nenhuma compensação executada.`);
+      const view=describeVendeCompensationObservation(await r.json() as unknown);
+      if(!view)throw Error("invalid_observation");
+      setObservation(view);
       setPassword("");
     }catch{setPassword("");setError("A verificação de evidências não foi concluída. Nenhuma mudança foi realizada.");}
     finally{setBusy(false);}
@@ -81,7 +84,12 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
       disabled={busy||!password.trim()} onClick={()=>void refreshEvidence()}>
       Consultar evidências atuais sem alterar licença
     </button>:null}
-    {observation?<p role="status">{observation}</p>:null}
+    {observation?<div role="status" aria-live="polite">
+      <strong>{observation.heading}</strong>
+      <p>Financeiro: {observation.financeLabel}. Fatura: {observation.invoiceLabel}.</p>
+      <p>{observation.notice}</p>
+      {observation.level==="critical"?<p>Prioridade: revisão financeira urgente.</p>:null}
+    </div>:null}
     {error?<p role="alert">{error}</p>:null}
   </article>;
 }
