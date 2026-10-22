@@ -13,6 +13,7 @@ import { VendeCommandApprovals } from "./vende-command-approvals";
 import { VendeCommercialClaimsSupervisor } from "./vende-commercial-claims-supervisor";
 import { VendeCompensationReviews } from "./vende-compensation-reviews";
 import { VendeContractHistory } from "./vende-contract-history";
+import { VendeCoreFinopsPanel } from "./vende-core-finops-panel";
 
 export default async function AssistantPlansPage({params}:{params:Promise<{productId:string}>}) {
   let context;
@@ -45,5 +46,6 @@ export default async function AssistantPlansPage({params}:{params:Promise<{produ
     {product.slug==="vendeatendeia"?<VendeCommercialClaimsSupervisor productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeCompensationReviews productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeContractHistory productId={productId}/>:null}
+    {product.slug==="vendeatendeia"?<VendeCoreFinopsPanel productId={productId}/>:null}
   </main>;
 }
