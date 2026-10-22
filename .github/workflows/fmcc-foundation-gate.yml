@@ -72,7 +72,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/FM-Core-Base-
-          ref: f09a552feb7e1115b9a91312f8de72e46d27f260
+          ref: 836acc0a73047f27ee54374c2b9f78ee1185c171
           path: core-source
           persist-credentials: false
       - name: Set up Python for Command to Assistant contract
@@ -97,7 +97,7 @@ jobs:
           tests/f3_command_core_quota_readback_e2e.py -q -rs
       - name: Prove pinned Core signed readback API and no-reservation semantics
         working-directory: core-source
-        run: python -m pytest tests/test_ai_command_quota_readback.py tests/test_ai_command_quota_runtime_mount.py tests/test_ai_command_finops_api.py tests/service/test_ai_finops_bucket_integrity.py tests/service/test_ai_usage_ledger.py tests/service/test_ai_admin_read_api.py -q -rs
+        run: python -m pytest tests/test_ai_command_quota_readback.py tests/test_ai_command_quota_runtime_mount.py tests/test_ai_command_finops_api.py tests/service/test_ai_finops_bucket_integrity.py tests/service/test_ai_usage_ledger.py tests/service/test_ai_admin_read_api.py tests/service/test_ai_finops_alert_policy.py tests/service/test_ai_provider_usage_match.py -q -rs
       - name: Assistant F3 customer quota integrity regression
         working-directory: assistant-source
         run: python -m pytest tests/saas/test_plan_consumption_view.py tests/saas/test_f3_command_assistant_core_usage_contract.py -q -rs
