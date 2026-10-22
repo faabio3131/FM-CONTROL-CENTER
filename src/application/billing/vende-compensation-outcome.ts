@@ -10,6 +10,7 @@ import {productDefinitions} from "@/infrastructure/db/platform-schema";
 import {billingInvoices} from "@/infrastructure/db/billing-schema";
 import {vendeContractTerms,vendeLifecycleCommands} from "@/infrastructure/db/vende-commercial-schema";
 import {currentBoundVendePaymentEvidence} from "./vende-payment-evidence";
+import {fmLocalCivilDate} from "@/domain/billing/vende-commercial-policy-v1";
 import {requireFMPlanAuthority} from "./assistant-plan-catalog-service";
 import {readVendeCommercialSnapshot,requireVendeCommercialDelivery}
   from "./vende-c06-delivery";
@@ -30,7 +31,6 @@ function state(row:Command):"queued"|"processing"|"needs_reconciliation"|"delive
   return "needs_reconciliation";
 }
 const flags={
-  internalFMCostOnly:true as const,
   providerRefundExecuted:false as const,
   coreQuotaVerified:false as const,
   caseResolved:false as const,
@@ -129,8 +129,7 @@ export async function readVendeCorrectionOutcome(
       eq(vendeContractTerms.customerId,current.customerId),
     )).for("update").limit(1);
     return !!term&&term.revision===current.revision&&
-      term.lifecycleState==="active"&&term.paidThrough>=
-        new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+      term.lifecycleState==="active"&&term.paidThrough>=fmLocalCivilDate(new Date());
   });
   return {
     intentId:input.intentId,operationId:command.operationId,
