@@ -29,7 +29,7 @@ export async function readVendeCompensationObservationHistory(
         eq(productDefinitions.status,"active"),
       )).limit(1);
     if(!product)return denied();
-    const [command]=await tx.select({id:vendeLifecycleCommands.id})
+    const [command]=await tx.select({id:vendeLifecycleCommands.id,operationId:vendeLifecycleCommands.operationId})
       .from(vendeLifecycleCommands).where(and(
         eq(vendeLifecycleCommands.tenantId,context.tenantId),
         eq(vendeLifecycleCommands.productId,productId),
@@ -54,6 +54,7 @@ export async function readVendeCompensationObservationHistory(
       eq(auditEvents.resourceType,"vende_lifecycle_command"),
       eq(auditEvents.resourceId,commandId),
       sql`${auditEvents.metadata} ->> 'productId' = ${productId}`,
+      sql`${auditEvents.metadata} ->> 'operationId' = ${command.operationId}`,
     )).orderBy(desc(auditEvents.occurredAt),desc(auditEvents.id)).limit(11);
     return {
       items:rows.slice(0,10).map(projectVendeHistoricalObservation),
