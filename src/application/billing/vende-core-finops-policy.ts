@@ -23,7 +23,7 @@ export type FMFinopsAlertPolicy={
 type Scope={productId:string;externalTenantId:string;unitId:string};
 type Change={expectedRevision:number;enabled:boolean;currency:string;maximumKnownCost:string};
 
-export function commandCoreFinopsAlertPolicyConfig(env:NodeJS.ProcessEnv=process.env){
+export function commandCoreFinopsAlertPolicyConfig(env:Record<string,string|undefined>=process.env){
   if(env.FM_COMMAND_CORE_ALERT_POLICY_ENABLED!=="true")return denied();
   let url:URL;
   try{url=new URL(env.FM_COMMAND_CORE_ALERT_POLICY_ORIGIN??"");}catch{return denied();}
@@ -36,7 +36,7 @@ export function commandCoreFinopsAlertPolicyConfig(env:NodeJS.ProcessEnv=process
   if(url.protocol!=="https:"||!url.hostname||url.username||url.password||
       url.pathname!=="/"||url.search||url.hash||url.port&&url.port!=="443"||
       readerKey.length<32||transport.length<32||readerKey===transport||
-      !privateKeyPem.startsWith("-----BEGIN PRIVATE KEY-----")||
+      privateKeyPem.length<100||
       !SCOPE.test(issuer)||!SCOPE.test(audience)||!SCOPE.test(corporateOrganizationId))
     return denied();
   return {origin:url.origin,readerKey,transport,privateKeyPem,issuer,
@@ -97,7 +97,7 @@ export async function updateFMFinopsAlertPolicy(
   scope:Scope,change:Change,http:typeof fetch=fetch,now:Date=new Date(),
 ):Promise<{status:"accepted";expectedNextRevision:number}>{
   await checkScope(context,scope,true);
-  const config=configuration();
+  const config=commandCoreFinopsAlertPolicyConfig();
   if(proof.userId!==context.userId||!SCOPE.test(sessionId)||!Number.isFinite(now.getTime())||
     now.getTime()-proof.verifiedAt.getTime()>300000||
     now.getTime()-proof.verifiedAt.getTime() < -15000||
