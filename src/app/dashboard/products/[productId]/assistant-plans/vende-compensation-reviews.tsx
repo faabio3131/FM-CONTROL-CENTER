@@ -1,6 +1,8 @@
 "use client";
 import {useState} from "react";
 import Link from "next/link";
+import {describeVendeCompensationObservation,type VendeEvidenceView}
+  from "@/domain/billing/vende-compensation-observation-view";
 type ReviewStep="unreviewed"|"investigating"|"escalated";
 type Case={
   riskId:string;commandId:string;action:string;state:string;reason:string;
@@ -12,6 +14,16 @@ type ReviewResponse={
   entitlementVerified:false;automaticCompensationAuthorized:false;
   remoteRemediationCompleted:false;
 };
+type HistoricalObservation={
+  state:string;financeState:string;invoiceState:string;reviewVersion:number|null;
+  observedAt:string;historicalOnly:true;currentLicenseVerified:false;
+  remediationConfirmed:false;
+};
+type HistoryResponse={
+  items:HistoricalObservation[];truncated:boolean;historicalOnly:true;
+  currentLicenseVerified:false;currentFinanceVerified:false;
+  remediationConfirmed:false;caseResolved:false;
+};
 const stepName:Record<ReviewStep,string>={
   unreviewed:"Aguardando revisão",investigating:"Investigação em andamento",
   escalated:"Escalado para reparação supervisionada",
@@ -22,20 +34,37 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
   const [decision,setDecision]=useState<"investigating"|"escalated">("investigating");
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
-  const [observation,setObservation]=useState("");
+  const [observation,setObservation]=useState<VendeEvidenceView|null>(null);
+  const [history,setHistory]=useState<HistoryResponse|null>(null);
   async function refreshEvidence(){
-    setBusy(true);setError("");setObservation("");
+    setBusy(true);setError("");setObservation(null);
     try{
       const r=await fetch(`/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-evidence`,{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({commandId:item.commandId,expectedReviewVersion:item.reviewVersion,password}),
       });
       if(!r.ok)throw Error("unavailable");
-      const result=await r.json() as {state:string;remediationDispatched:false};
-      setObservation(`Observação autenticada: ${result.state}. Nenhuma compensação executada.`);
+      const view=describeVendeCompensationObservation(await r.json() as unknown);
+      if(!view)throw Error("invalid_observation");
+      setObservation(view);
       setPassword("");
     }catch{setPassword("");setError("A verificação de evidências não foi concluída. Nenhuma mudança foi realizada.");}
     finally{setBusy(false);}
+  }
+  async function loadHistory(){
+    setBusy(true);setError("");
+    try{
+      const r=await fetch(`/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-evidence/${encodeURIComponent(item.commandId)}/history`,{cache:"no-store"});
+      if(!r.ok)throw Error("history_unavailable");
+      const result=await r.json() as HistoryResponse;
+      if(result.historicalOnly!==true||result.currentLicenseVerified!==false||
+         result.currentFinanceVerified!==false||result.remediationConfirmed!==false||
+         result.caseResolved!==false||!Array.isArray(result.items))
+        throw Error("history_invalid");
+      setHistory(result);
+    }catch{
+      setHistory(null);setError("Histórico indisponível. Nenhuma mudança foi realizada.");
+    }finally{setBusy(false);}
   }
   async function submit(){
     setBusy(true);setError("");
@@ -82,7 +111,34 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
       disabled={busy||!password.trim()} onClick={()=>void refreshEvidence()}>
       Consultar evidências atuais sem alterar licença
     </button>:null}
-    {observation?<p role="status">{observation}</p>:null}
+    <button className="button" type="button" disabled={busy}
+      onClick={()=>void loadHistory()}>
+      Consultar histórico de evidências registradas
+    </button>
+    {history?<section aria-label="Histórico das observações financeiras">
+      <p><strong>Somente histórico auditado.</strong> Estes registros não comprovam a licença,
+        o pagamento atual nem autorizam reparação. O caso não foi encerrado.</p>
+      {history.items.length===0?<p>Não há observações registradas para esta divergência.</p>:null}
+      {history.items.map((entry,index)=>{
+        const view=describeVendeCompensationObservation({
+          ...entry,remoteObserved:true,remediationDispatched:false,
+          automaticCompensationAuthorized:false,caseResolved:false,
+        });
+        return <p key={index}>
+          <strong>{view?.heading??"Observação histórica sem classificação reconhecida"}</strong>
+          {" · "}{new Date(entry.observedAt).toLocaleString("pt-BR")}
+          {view?` · ${view.financeLabel} · ${view.invoiceLabel}`:""}
+          {entry.reviewVersion?` · Revisão ${entry.reviewVersion}`:""}
+        </p>;
+      })}
+      {history.truncated?<p>Exibidos apenas os dez registros históricos mais recentes.</p>:null}
+    </section>:null}
+    {observation?<div role="status" aria-live="polite">
+      <strong>{observation.heading}</strong>
+      <p>Financeiro: {observation.financeLabel}. Fatura: {observation.invoiceLabel}.</p>
+      <p>{observation.notice}</p>
+      {observation.level==="critical"?<p>Prioridade: revisão financeira urgente.</p>:null}
+    </div>:null}
     {error?<p role="alert">{error}</p>:null}
   </article>;
 }
