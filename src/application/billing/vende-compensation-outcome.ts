@@ -48,9 +48,13 @@ async function linkedCommand(tx:Tx,context:TenantContext,input:Scope){
       sql`${auditEvents.metadata} ->> 'productId' = ${input.productId}`,
     )).limit(1);
   if(!prepared||prepared.metadata.schema!=="fm.vende.compensation-intent.v1"||
+     prepared.metadata.approvedForDispatch!==false||
+     prepared.metadata.remediationDispatched!==false||
      typeof prepared.metadata.commandId!=="string"||
      !UUID.test(prepared.metadata.commandId))return denied();
-  const [review]=await tx.select({id:auditEvents.id}).from(auditEvents)
+  const [review]=await tx.select({
+    id:auditEvents.id,result:auditEvents.result,metadata:auditEvents.metadata,
+  }).from(auditEvents)
     .where(and(eq(auditEvents.tenantId,context.tenantId),
       eq(auditEvents.action,REVIEWED),
       eq(auditEvents.resourceType,"vende_lifecycle_command"),
@@ -58,7 +62,14 @@ async function linkedCommand(tx:Tx,context:TenantContext,input:Scope){
       sql`${auditEvents.metadata} ->> 'intentId' = ${input.intentId}`,
       sql`${auditEvents.metadata} ->> 'productId' = ${input.productId}`,
     )).limit(1);
-  if(!review)return denied();
+  if(!review||review.result!=="reviewed_no_dispatch"||
+     review.metadata.schema!=="fm.vende.compensation-second-review.v1"||
+     review.metadata.productId!==input.productId||
+     review.metadata.observationId!==prepared.metadata.observationId||
+     review.metadata.reviewVersion!==prepared.metadata.reviewVersion||
+     review.metadata.approvedForDispatch!==false||
+     review.metadata.remediationDispatched!==false||
+     review.metadata.caseResolved!==false)return denied();
   const [original]=await tx.select().from(vendeLifecycleCommands)
     .where(and(eq(vendeLifecycleCommands.tenantId,context.tenantId),
       eq(vendeLifecycleCommands.productId,input.productId),
@@ -75,6 +86,7 @@ async function linkedCommand(tx:Tx,context:TenantContext,input:Scope){
      correction.customerId!==original.customerId||
      correction.externalTenantId!==original.externalTenantId||
      correction.sourceInvoiceId!==original.sourceInvoiceId||
+     correction.sourceRef!=="p01.correction."+input.intentId||
      correction.expectedRevision!==original.revision||
      correction.revision!==original.revision+1||
      prepared.metadata.operationId!==original.operationId||
