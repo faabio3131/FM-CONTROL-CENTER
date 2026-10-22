@@ -34,7 +34,7 @@ export function describeVendeCompensationObservation(raw:unknown):VendeEvidenceV
      typeof data.invoiceState!=="string")return null;
   const financeLabel=FINANCE[data.financeState];
   const invoiceLabel=INVOICE[data.invoiceState];
-  if(!financeLabel||!invoiceLabel)return null;
+  if(typeof financeLabel!=="string"||typeof invoiceLabel!=="string")return null;
   let level:VendeEvidenceView["level"]="review";
   let heading:string;
   switch(data.state){
