@@ -17,6 +17,7 @@ import {dispatchVendeFinalCancellationOnce,reconcileUnknownVendeFinalCancellatio
 import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/billing/vende-commercial-policy-v1";
 import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercial-claims-supervisor";
 import {readVendeCompensationReviews,triageVendeCompensationRisk} from "../src/application/billing/vende-compensation-review";
+import {observeVendeCompensationEvidence} from "../src/application/billing/vende-compensation-evidence-review";
 
 const database=process.env.DATABASE_URL??"";
 const tenant="fm-c06-delivery-"+randomUUID();
@@ -925,6 +926,85 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       "SELECT state,claimed_at FROM fmcc_vende_lifecycle_command WHERE id IN ($1,$2) ORDER BY id",
       [due.id,future.id])).rows;
     expect(rows.every(x=>x.state==="pending"&&x.claimed_at===null)).toBe(true);
+  });
+
+  it("P01 reads Assistant evidence under FM authority without executing compensation",async()=>{
+    const cmd=await makePending();
+    await pool.query(
+      "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,metadata) VALUES ($1,'fm-check','service','vende.compensation_review.required','vende_lifecycle_command',$2,'needs_human_review',$3,$4::jsonb)",
+      [tenant,cmd.id,cmd.operationId,JSON.stringify({productId,reason:"suspension_unconfirmed"})],
+    );
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    await triageVendeCompensationRisk(context,proof,{
+      productId,commandId:cmd.id,expectedVersion:0,
+      decision:"investigating",reasonCode:"investigation_open",
+    });
+    const external=(await pool.query(
+      "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
+      [tenant])).rows[0].external_tenant_id as string;
+    let reads=0;
+    const http=(async(url:RequestInfo|URL,opts?:RequestInit)=>{
+      reads++;expect(new URL(String(url)).pathname).toMatch(/commercial-status$/);
+      expect(opts?.method).toBe("POST");
+      return json({tenant_id:external,operation_status:"applied",
+        applied_action:"SUSPEND_DELINQUENCY",license_status:"suspended",
+        plan_code:"BASE",plan_revision:1,
+        valid_until:Math.floor(Date.now()/1000)+86400});
+    }) as typeof fetch;
+    const result=await observeVendeCompensationEvidence(context,proof,{
+      productId,commandId:cmd.id,expectedReviewVersion:1,
+    },config,http);
+    expect(reads).toBe(1);
+    expect(result).toMatchObject({state:"human_reconciliation_required",
+      financeState:"unpaid_verified",invoiceState:"pending",
+      remoteObserved:true,remediationDispatched:false,caseResolved:false});
+    const [record]=(await pool.query(
+      "SELECT metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.remote_observed'",
+      [tenant,cmd.id])).rows;
+    expect(record.metadata).toMatchObject({
+      reviewVersion:1,remoteOperationStatus:"applied",
+      remoteLicenseStatus:"suspended",verifiedFinanceOutcome:"unpaid_verified",
+      remediated:false,refundExecuted:false,entitlementMutated:false,
+    });
+    expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",
+      [cmd.id])).rows[0].state).toBe("pending");
+    expect((await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",
+      [cmd.invoiceId])).rows[0].status).toBe("pending");
+    await expect(observeVendeCompensationEvidence(
+      {...context,tenantId:"foreign"},proof,
+      {productId,commandId:cmd.id,expectedReviewVersion:1},
+      config,http)).rejects.toThrow();
+    expect(reads).toBe(1);
+    await expect(observeVendeCompensationEvidence(context,proof,{
+      productId,commandId:cmd.id,expectedReviewVersion:9,
+    },config,http)).rejects.toThrow();
+    expect(reads).toBe(1);
+  });
+
+  it("P01 refuses to audit stale Assistant readback after claim is changed",async()=>{
+    const cmd=await makePending();
+    await pool.query(
+      "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,metadata) VALUES ($1,'fm-check','service','vende.compensation_review.required','vende_lifecycle_command',$2,'needs_human_review',$3,$4::jsonb)",
+      [tenant,cmd.id,cmd.operationId,JSON.stringify({productId,reason:"suspension_unconfirmed"})],
+    );
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    await triageVendeCompensationRisk(context,proof,{
+      productId,commandId:cmd.id,expectedVersion:0,
+      decision:"investigating",reasonCode:"investigation_open",
+    });
+    const http=(async()=>{
+      await pool.query("UPDATE fmcc_vende_lifecycle_command SET state='unknown' WHERE id=$1",[cmd.id]);
+      return json({tenant_id:"remote-fixture",operation_status:"applied",
+        applied_action:"SUSPEND_DELINQUENCY",license_status:"suspended",
+        plan_code:"BASE",plan_revision:1,valid_until:1893456000});
+    }) as typeof fetch;
+    await expect(observeVendeCompensationEvidence(context,proof,{
+      productId,commandId:cmd.id,expectedReviewVersion:1,
+    },config,http)).rejects.toThrow();
+    const rows=(await pool.query(
+      "SELECT count(*)::int n FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.remote_observed'",
+      [tenant,cmd.id])).rows;
+    expect(rows[0].n).toBe(0);
   });
 
 });
