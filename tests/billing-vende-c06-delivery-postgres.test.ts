@@ -1024,6 +1024,37 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     });
   });
 
+  it("P01 does not claim remote suspension when the status is active",async()=>{
+    const cmd=await makePending();
+    await pool.query(
+      "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,metadata) VALUES ($1,'fm-check','service','vende.compensation_review.required','vende_lifecycle_command',$2,'needs_human_review',$3,$4::jsonb)",
+      [tenant,cmd.id,cmd.operationId,JSON.stringify({productId,reason:"delinquency_paid_after_delivery"})],
+    );
+    const paymentRef=(await pool.query(
+      "SELECT external_payment_id FROM fmcc_billing_provider_payment WHERE invoice_id=$1",
+      [cmd.invoiceId])).rows[0].external_payment_id as string;
+    await pool.query(
+      "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',$4,'synthetic-active-settled')",
+      [tenant,cmd.invoiceId,paymentRef,new Date()],
+    );
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    await triageVendeCompensationRisk(context,proof,{
+      productId,commandId:cmd.id,expectedVersion:0,
+      decision:"investigating",reasonCode:"investigation_open",
+    });
+    const external=(await pool.query(
+      "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
+      [tenant])).rows[0].external_tenant_id as string;
+    const http=(async()=>json({tenant_id:external,operation_status:"applied",
+      applied_action:"SUSPEND_DELINQUENCY",license_status:"active",
+      plan_code:"BASE",plan_revision:1,valid_until:1893456000})) as typeof fetch;
+    const result=await observeVendeCompensationEvidence(context,proof,{
+      productId,commandId:cmd.id,expectedReviewVersion:1,
+    },config,http);
+    expect(result.state).not.toBe("remote_suspended_after_finance_settled");
+    expect(result.caseResolved).toBe(false);
+  });
+
   it("P01 refuses to audit stale Assistant readback after claim is changed",async()=>{
     const cmd=await makePending();
     await pool.query(
