@@ -28,6 +28,38 @@ describe("FM-administered plans: all features, consumption only",()=>{
   it.each([0,-1,1.23,NaN,Infinity])("rejects price %s",amountMinor=>{
     expect(()=>parseConsumptionPlanDraft({...good,amountMinor})).toThrow("plans.price_invalid");
   });
+  it("limits all Core-signed metrics to interoperable signed-grant bounds",()=>{
+    const coreMetrics=["ai.requests","ai.total_tokens","ai.input_tokens",
+      "ai.output_tokens","ai.cached_tokens"] as const;
+    for(const resource of coreMetrics){
+      const allowances=good.allowances.map(a=>
+        a.resource===resource?{...a,limitUnits:2_000_000_001}:a,
+      );
+      if(!allowances.some(a=>a.resource===resource))
+        allowances.push({resource,scope:"tenant",limitUnits:2_000_000_001,
+          windowSeconds:2_592_000});
+      expect(()=>parseConsumptionPlanDraft({...good,allowances}))
+        .toThrow("plans.core_quota_limit_invalid");
+      const badWindow=good.allowances.map(a=>
+        a.resource===resource?{...a,windowSeconds:31_536_001}:a,
+      );
+      if(!badWindow.some(a=>a.resource===resource))
+        badWindow.push({resource,scope:"tenant",limitUnits:100,
+          windowSeconds:31_536_001});
+      expect(()=>parseConsumptionPlanDraft({...good,allowances:badWindow}))
+        .toThrow("plans.core_quota_window_invalid");
+    }
+  });
+  it("allows Core boundary values and larger non-Core storage allowances",()=>{
+    const a=parseConsumptionPlanDraft({...good,allowances:[
+      {...good.allowances[0],limitUnits:2_000_000_000,windowSeconds:31_536_000},
+      {...good.allowances[1],limitUnits:2_000_000_000,windowSeconds:31_536_000},
+      {resource:"storage.bytes",scope:"tenant",limitUnits:5_000_000_000,
+        windowSeconds:366*86400},
+    ]});
+    expect(a.allowances).toHaveLength(3);
+    expect(a.allowances[2].limitUnits).toBe(5_000_000_000);
+  });
   it("rejects invalid windows, limits and forbidden override fields",()=>{
     expect(()=>parseConsumptionPlanDraft({...good,allowances:[
       {...good.allowances[0],limitUnits:0},good.allowances[1],

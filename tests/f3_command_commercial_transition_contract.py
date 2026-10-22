@@ -19,8 +19,18 @@ from fm_assistant.commercial_license_transition import (
 )
 from fm_assistant.db import (
     Base, CommercialLicenseTransitionAuditORM,
-    PlanLimitORM, PlanVersionORM, TenantLicenseORM, TenantORM,
+    PlanLimitORM, PlanVersionORM, TenantLicenseORM, TenantORM, UnitORM,
 )
+from fm_assistant.plan_limits import PlanLimitDenied
+from fm_assistant.plan_policy_manifest import (
+    LicensedQuotaManifestService, issue_core_plan_grant,
+)
+from core.ai_control_plane import ControlPlaneBase
+from core.ai_plan_usage_guard import PlanUsageGuard
+from core.ai_quota_store import QuotaDenied, QuotaReservations
+from core.ai_router import CapabilityIA, ConteudoAudioIA, SolicitacaoIA
+from core.ai_service_contracts import TextMessage, TextRequestContent
+from core.ai_signed_plan_authority import SignedAssistantPlanAuthority
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/"tests"/"f3-command-commercial-transition-envelope.mts"
@@ -65,6 +75,10 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
             tenant_id="tenant-cross",slug="tenant-cross",display_name="Cross",
             status="active",created_at=now,updated_at=now,
         ))
+        db.add(UnitORM(
+            tenant_id="tenant-cross",unit_id="unit-cross",display_name="Unit",
+            status="active",created_at=now,updated_at=now,
+        ))
         db.add(TenantLicenseORM(
             tenant_id="tenant-cross",plan_code="BASE",plan_revision=1,
             status="active",trial_started_at=None,trial_ends_at=None,
@@ -78,13 +92,52 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
         for metric in ("ai.requests","ai.total_tokens"):
             db.add(PlanLimitORM(
                 plan_code="BASE",revision=1,resource=metric,scope="tenant",
-                limit_units=100,window_seconds=86400,
+                limit_units=5 if metric=="ai.requests" else 500,window_seconds=86400,
             ))
     service=SignedCommercialLicenseTransition(
         sessions=sessions,key_id="fm-test-key",
         signing_key=KEY,trusted_organization="fm-company",
     )
+    core_engine=create_engine(f"sqlite:///{tmp_path / 'signed-core-quota.db'}")
+    ControlPlaneBase.metadata.create_all(core_engine)
+    core_sessions=sessionmaker(bind=core_engine,expire_on_commit=False)
+    quota=QuotaReservations(core_sessions)
+    source_online=True
+    shared_secret=b"synthetic-signed-transition-core-plan-key-123456789"
+    def fetch_fresh(tenant_id,unit_id,capability,challenge):
+        if not source_online:
+            raise OSError("synthetic-Assistant-policy-transport-unavailable")
+        manifest=LicensedQuotaManifestService(sessions).resolve(
+            tenant_id=tenant_id,unit_id=unit_id,now=datetime.now(UTC),
+        )
+        return issue_core_plan_grant(
+            manifest=manifest,capability=capability,input_bound=20,
+            output_bound=20,secret=shared_secret,now=datetime.now(UTC),
+            challenge=challenge,
+        )
+    guard=PlanUsageGuard(
+        quota=quota,
+        authority=SignedAssistantPlanAuthority(
+            secret=shared_secret,fetch=fetch_fresh,
+        ),
+    )
+    def request(request_id,unit_id="unit-cross"):
+        return SolicitacaoIA(
+            tenant_id="tenant-cross",unidade_id=unit_id,
+            request_id=request_id,correlation_id=request_id,
+            capability=CapabilityIA.ATENDIMENTO_INTERPRETACAO,
+            conteudo=TextRequestContent(
+                system_prompt="FM",
+                messages=(TextMessage(role="user",content="Oi"),),
+            ),
+        )
     try:
+        guard.admit(request=request("before-suspension"),at=datetime.now(UTC))
+        with pytest.raises((QuotaDenied,PlanLimitDenied)):
+            guard.admit(
+                request=request("unauthorized-unit",unit_id="unknown-unit"),
+                at=datetime.now(UTC),
+            )
         unknown=signed("STATUS",int(expiry.timestamp()),int(expiry.timestamp()))
         assert service.read_status(**unknown)["operation_status"]=="not_applied"
         suspend=signed("SUSPEND_DELINQUENCY",int(expiry.timestamp()),
@@ -96,6 +149,10 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
         assert state["license_status"]=="suspended"
         assert state["applied_action"]=="SUSPEND_DELINQUENCY"
         assert state["tenant_id"]=="tenant-cross"
+        # Suspended Assistant license must deny fresh Core tokens, even if
+        # a previous signed policy and an unused tenant quota still exist.
+        with pytest.raises((QuotaDenied,PlanLimitDenied)):
+            guard.admit(request=request("during-suspension"),at=datetime.now(UTC))
         with pytest.raises(CommercialLicenseTransitionDenied):
             service.read_status(**proof)  # read nonce cannot replay
         with pytest.raises(CommercialLicenseTransitionDenied):
@@ -103,6 +160,53 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
         extended=int((now+timedelta(days=31)).timestamp())
         resume=signed("REACTIVATE_VERIFIED",int(expiry.timestamp()),extended)
         assert service.apply(**resume)=="active"
+        guard.admit(request=request("after-reactivation"),at=datetime.now(UTC))
+        # Text and audio share the same tenant quota after reactivation.
+        # Reinstating the license does not reset earlier reservations.
+        audio_request=SolicitacaoIA(
+            tenant_id="tenant-cross",unidade_id="unit-cross",
+            request_id="audio-after-reactivation",
+            correlation_id="audio-after-reactivation",
+            capability=CapabilityIA.ATENDIMENTO_TRANSCRICAO,
+            conteudo=ConteudoAudioIA(
+                audio=b"synthetic-audio",mime_type="audio/wav",
+                instrucao="Transcreva com quota FM",
+            ),
+        )
+        guard.admit(request=audio_request,at=datetime.now(UTC))
+        with pytest.raises((QuotaDenied,PlanLimitDenied)):
+            guard.admit(request=request("other-unit",unit_id="unlicensed-unit"),
+                        at=datetime.now(UTC))
+        source_online=False
+        with pytest.raises(QuotaDenied):
+            guard.admit(request=request("no-provider-transport"),at=datetime.now(UTC))
+        source_online=True
+        usage=quota.usage_snapshot(
+            tenant_id="tenant-cross",unit_id="__tenant__",
+            capability="ai.total_tokens",at=datetime.now(UTC),
+        )
+        assert usage.reserved_units==120  # 40 before + 40 text + 40 audio
+        requests=quota.usage_snapshot(
+            tenant_id="tenant-cross",unit_id="__tenant__",
+            capability="ai.requests",at=datetime.now(UTC),
+        )
+        assert requests.reserved_units==3
+        # The canonical Assistant license is still the source of truth.
+        # A newer expiry/revocation must block Core admission immediately,
+        # even though there is unused quota from the prior signed grant.
+        with sessions.begin() as db:
+            db.get(TenantLicenseORM,"tenant-cross").period_ends_at=now-timedelta(minutes=1)
+        with pytest.raises((QuotaDenied,PlanLimitDenied)):
+            guard.admit(request=request("after-license-expiry"),at=datetime.now(UTC))
+        after_expiry=quota.usage_snapshot(
+            tenant_id="tenant-cross",unit_id="__tenant__",
+            capability="ai.total_tokens",at=datetime.now(UTC),
+        )
+        assert after_expiry.reserved_units==120
+        with sessions.begin() as db:
+            db.get(TenantLicenseORM,"tenant-cross").period_ends_at=datetime.fromtimestamp(
+                extended,tz=UTC,
+            )
         with sessions() as db:
             row=db.get(TenantLicenseORM,"tenant-cross")
             assert row.status=="active" and row.tenant_id=="tenant-cross"
@@ -116,4 +220,5 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
         with pytest.raises(CommercialLicenseTransitionDenied):
             service.apply(**resume)
     finally:
+        core_engine.dispose()
         engine.dispose()
