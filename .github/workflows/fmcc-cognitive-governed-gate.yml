@@ -100,4 +100,4 @@ jobs:
         run: git diff --check ${{ github.event.pull_request.base.sha || github.event.before }}..HEAD
 
       - name: Runtime dependency audit
-        run: npm audit --omit=dev --audit-level=high
+        run: bash scripts/runtime-dependency-audit.sh
