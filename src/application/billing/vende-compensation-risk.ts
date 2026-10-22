@@ -75,7 +75,7 @@ export async function recordPostDeliveryVendePaymentRisk(
     eq(vendeLifecycleCommands.tenantId,input.tenantId),
     eq(vendeLifecycleCommands.sourceInvoiceId,input.invoiceId),
     eq(vendeLifecycleCommands.state,"delivered"),
-    inArray(vendeLifecycleCommands.action,["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","APPLY_UPGRADE","APPLY_DOWNGRADE"]),
+    inArray(vendeLifecycleCommands.action,["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED","RENEW_VERIFIED","APPLY_UPGRADE","APPLY_DOWNGRADE"]),
   ));
   let flagged=0;
   for(const row of commands){
@@ -83,6 +83,8 @@ export async function recordPostDeliveryVendePaymentRisk(
       ?"reactivation_payment_reversed_after_delivery"
       :row.action==="SUSPEND_DELINQUENCY" && input.outcome==="settled_verified"
         ?"delinquency_paid_after_delivery"
+        :row.action==="RENEW_VERIFIED" && input.outcome==="reversed_verified"
+          ?"renewal_payment_reversed_after_delivery"
         :["APPLY_UPGRADE","APPLY_DOWNGRADE"].includes(row.action)&&input.outcome==="reversed_verified"
           ?"plan_change_payment_reversed_after_delivery":null;
     if(!reason)continue;
