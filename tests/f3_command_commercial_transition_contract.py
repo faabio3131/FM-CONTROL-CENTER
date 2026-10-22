@@ -191,6 +191,22 @@ def test_command_assistant_commercial_suspend_and_reactivate_roundtrip(tmp_path)
             capability="ai.requests",at=datetime.now(UTC),
         )
         assert requests.reserved_units==3
+        # The canonical Assistant license is still the source of truth.
+        # A newer expiry/revocation must block Core admission immediately,
+        # even though there is unused quota from the prior signed grant.
+        with sessions.begin() as db:
+            db.get(TenantLicenseORM,"tenant-cross").period_ends_at=now-timedelta(minutes=1)
+        with pytest.raises((QuotaDenied,PlanLimitDenied)):
+            guard.admit(request=request("after-license-expiry"),at=datetime.now(UTC))
+        after_expiry=quota.usage_snapshot(
+            tenant_id="tenant-cross",unit_id="__tenant__",
+            capability="ai.total_tokens",at=datetime.now(UTC),
+        )
+        assert after_expiry.reserved_units==120
+        with sessions.begin() as db:
+            db.get(TenantLicenseORM,"tenant-cross").period_ends_at=datetime.fromtimestamp(
+                extended,tz=UTC,
+            )
         with sessions() as db:
             row=db.get(TenantLicenseORM,"tenant-cross")
             assert row.status=="active" and row.tenant_id=="tenant-cross"
