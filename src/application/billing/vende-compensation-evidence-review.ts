@@ -109,7 +109,9 @@ export async function observeVendeCompensationEvidence(
       invoiceState=invoice.status==="paid"?"paid":
         invoice.status==="pending"?"pending":"other";
       const finance=await currentBoundVendePaymentEvidence(tx,invoice,after);
-      if(finance&&finance.outcome!=="needs_attention")financeState=finance.outcome;
+      if(finance&&(finance.outcome==="settled_verified"||
+         finance.outcome==="reversed_verified"||finance.outcome==="unpaid_verified"))
+        financeState=finance.outcome;
     }
     const sameAppliedAction=remote.operation_status==="applied"&&
       remote.applied_action===locked.action;
