@@ -18,6 +18,7 @@ import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/bill
 import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercial-claims-supervisor";
 import {readVendeCompensationReviews,triageVendeCompensationRisk} from "../src/application/billing/vende-compensation-review";
 import {observeVendeCompensationEvidence} from "../src/application/billing/vende-compensation-evidence-review";
+import {readVendeCompensationObservationHistory} from "../src/application/billing/vende-compensation-observation-history";
 import {prepareVendeCorrectionIntent,secondReviewVendeCorrectionIntent,queueReviewedVendeCorrection} from "../src/application/billing/vende-compensation-correction-intent";
 import {readVendeCorrectionOutcome} from "../src/application/billing/vende-compensation-outcome";
 
@@ -960,6 +961,26 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(result).toMatchObject({state:"human_reconciliation_required",
       financeState:"unpaid_verified",invoiceState:"pending",
       remoteObserved:true,remediationDispatched:false,caseResolved:false});
+    const history=await readVendeCompensationObservationHistory(
+      context,productId,cmd.id,
+    );
+    expect(history).toMatchObject({
+      historicalOnly:true,currentLicenseVerified:false,
+      currentFinanceVerified:false,remediationConfirmed:false,caseResolved:false,
+      truncated:false,
+    });
+    expect(history.items).toHaveLength(1);
+    expect(history.items[0]).toMatchObject({
+      state:"human_reconciliation_required",reviewVersion:1,
+      financeState:"unpaid_verified",invoiceState:"pending",
+      historicalOnly:true,currentLicenseVerified:false,remediationConfirmed:false,
+    });
+    await expect(readVendeCompensationObservationHistory(
+      {...context,tenantId:"foreign"},productId,cmd.id,
+    )).rejects.toThrow();
+    await expect(readVendeCompensationObservationHistory(
+      context,productId,"11111111-1111-4111-8111-111111111111",
+    )).rejects.toThrow();
     const [record]=(await pool.query(
       "SELECT metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.remote_observed'",
       [tenant,cmd.id])).rows;
@@ -1055,6 +1076,38 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     },config,http);
     expect(result.state).not.toBe("remote_suspended_after_finance_settled");
     expect(result.caseResolved).toBe(false);
+  });
+
+  it("P01 history is bounded, tenant-scoped and never exposes raw audit secrets",async()=>{
+    const cmd=await makePending();
+    await pool.query(
+      "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,metadata) VALUES ($1,'fm-test','service','vende.compensation_review.required','vende_lifecycle_command',$2,'needs_human_review',$3,$4::jsonb)",
+      [tenant,cmd.id,cmd.operationId,JSON.stringify({productId,reason:"suspension_unconfirmed"})],
+    );
+    for(let n=1;n<=12;n++){
+      await pool.query(
+        "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,occurred_at,metadata) VALUES ($1,'fm-test','service','vende.compensation_review.remote_observed','vende_lifecycle_command',$2,'human_reconciliation_required',$3,$4,$5::jsonb)",
+        [tenant,cmd.id,cmd.operationId,new Date(Date.now()+n*1000),
+          JSON.stringify({productId,operationId:cmd.operationId,
+            schema:"fm.vende.compensation-observation.v1",
+            remediated:false,refundExecuted:false,entitlementMutated:false,
+            reviewVersion:n,invoiceState:"pending",
+            verifiedFinanceOutcome:"unpaid_verified",secret:"PRIVATE_PAYMENT_REFERENCE"})],
+      );
+    }
+    const result=await readVendeCompensationObservationHistory(context,productId,cmd.id);
+    expect(result.truncated).toBe(true);
+    expect(result.items).toHaveLength(10);
+    expect(result.items.map(x=>x.reviewVersion)).toEqual([12,11,10,9,8,7,6,5,4,3]);
+    expect(JSON.stringify(result)).not.toContain("PRIVATE_PAYMENT_REFERENCE");
+    expect(result.currentLicenseVerified).toBe(false);
+    await expect(readVendeCompensationObservationHistory(
+      {...context,tenantId:"different-tenant"},productId,cmd.id,
+    )).rejects.toThrow();
+    const [count]=(await pool.query(
+      "SELECT count(*)::int n FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.remote_observed'",
+      [tenant,cmd.id])).rows;
+    expect(count.n).toBe(12);
   });
 
   it("P01 refuses to audit stale Assistant readback after claim is changed",async()=>{
