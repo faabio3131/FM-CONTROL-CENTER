@@ -194,7 +194,7 @@ export async function readFMFinopsAlertInbox(
        data.unit_id!==scope.unitId||
        data.provider_invoice_verified!==false||
        typeof data.policy_enabled!=="boolean"||
-       !(data.policy_revision===null||number(data.policy_revision)&&data.policy_revision>0)||
+       !(data.policy_revision===null||(typeof data.policy_revision==="number"&&Number.isSafeInteger(data.policy_revision)&&data.policy_revision>0))||
        typeof data.has_more!=="boolean"||
        !(data.next_cursor===null||typeof data.next_cursor==="string"&&SCOPE.test(data.next_cursor))||
        data.has_more!==(data.next_cursor!==null)||
