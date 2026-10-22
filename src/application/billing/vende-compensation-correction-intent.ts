@@ -31,6 +31,7 @@ type Input={productId:string;commandId:string;expectedReviewVersion:number};
 type Candidate={
   observationId:string;reviewVersion:number;termsRevision:number;
   invoiceId:string;commandId:string;operationId:string;
+  remotePlanCode:string;remotePlanRevision:number;remoteValidUntil:number;
   proposedAction:"REACTIVATE_VIA_EXISTING_REGULARIZATION";
 };
 function currentNow(now:Date){
@@ -88,6 +89,13 @@ async function lockCase(tx:Tx,context:TenantContext,input:Input,now:Date):Promis
      observed.metadata.remoteLicenseStatus!=="suspended"||
      observed.metadata.verifiedFinanceOutcome!=="settled_verified"||
      observed.metadata.invoiceState!=="paid"||
+     typeof observed.metadata.remotePlanCode!=="string"||
+     !/^[A-Za-z0-9_.:-]{1,80}$/.test(observed.metadata.remotePlanCode)||
+     typeof observed.metadata.remotePlanRevision!=="number"||
+     !Number.isSafeInteger(observed.metadata.remotePlanRevision)||
+     observed.metadata.remotePlanRevision<1||
+     typeof observed.metadata.remoteValidUntil!=="number"||
+     !Number.isSafeInteger(observed.metadata.remoteValidUntil)||
      observed.metadata.remediated!==false||
      observed.metadata.refundExecuted!==false||
      observed.metadata.entitlementMutated!==false)return denied();
@@ -114,6 +122,9 @@ async function lockCase(tx:Tx,context:TenantContext,input:Input,now:Date):Promis
     observationId:observed.id,reviewVersion:input.expectedReviewVersion,
     termsRevision:terms.revision,invoiceId:invoice.id,
     commandId:command.id,operationId:command.operationId,
+    remotePlanCode:observed.metadata.remotePlanCode as string,
+    remotePlanRevision:observed.metadata.remotePlanRevision as number,
+    remoteValidUntil:observed.metadata.remoteValidUntil as number,
     proposedAction:"REACTIVATE_VIA_EXISTING_REGULARIZATION",
   };
 }
@@ -289,7 +300,9 @@ export async function queueReviewedVendeCorrection(
   if(remote.operation_status!=="applied"||
      remote.applied_action!=="SUSPEND_DELINQUENCY"||
      remote.license_status!=="suspended"||
-     remote.plan_code!==String(initial.original.deliveryTarget?.planCode??remote.plan_code))
+     remote.plan_code!==initial.candidate.remotePlanCode||
+     remote.plan_revision!==initial.candidate.remotePlanRevision||
+     remote.valid_until!==initial.candidate.remoteValidUntil)
     return denied();
 
   // Recheck every financial, contractual and reviewer fence AFTER remote I/O.
