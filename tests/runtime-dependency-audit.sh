@@ -15,6 +15,7 @@ echo "$n" > "$TEST_AUDIT_CALLS"
 case "$TEST_AUDIT_MODE" in
   clean) echo "found 0 vulnerabilities" ;;
   vulnerable) echo "1 high severity vulnerability"; exit 1 ;;
+  mixed) echo "1 high severity vulnerability"; echo "npm error audit endpoint returned an error"; exit 1 ;;
   recover) if (( n == 1 )); then echo "npm error audit endpoint returned an error"; exit 1; fi
     echo "found 0 vulnerabilities" ;;
   offline) echo "npm error audit endpoint returned an error"; exit 1 ;;
@@ -40,6 +41,7 @@ run_case(){
 
 run_case clean 0 1
 run_case vulnerable 1 1
+run_case mixed 1 1
 run_case recover 0 2
 run_case offline 1 3
 echo "Runtime dependency audit retry/fail-closed tests PASS"
