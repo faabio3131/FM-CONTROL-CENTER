@@ -7,7 +7,7 @@ const valid={
   FM_COMMAND_CORE_ALERT_POLICY_ORIGIN:"https://core.fm.example/",
   FM_COMMAND_CORE_ALERT_POLICY_READER_KEY:"read-".repeat(9),
   FM_COMMAND_CORE_ALERT_POLICY_TRANSPORT_KEY:"write-".repeat(9),
-  FM_COMMAND_CORE_ALERT_POLICY_PRIVATE_KEY_PEM:"-----BEGIN PRIVATE KEY-----\nsynthetic-test-only",
+  FM_COMMAND_CORE_ALERT_POLICY_PRIVATE_KEY_PEM:"synthetic-config-only-"+"x".repeat(100),
   FM_COMMAND_CORE_ALERT_POLICY_ISSUER:"fm-command",
   FM_COMMAND_CORE_ALERT_POLICY_AUDIENCE:"fm-core-recovery",
   FM_COMMAND_PLATFORM_ORGANIZATION_ID:"fm-corporate",
