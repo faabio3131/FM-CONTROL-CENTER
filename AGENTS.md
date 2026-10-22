@@ -324,3 +324,17 @@ data local `effectiveDate`. Itens futuros podem aparecer como pending,
 porém NÃO são pendências de reaprovação vencida. Não reautorizar sozinho,
 não alterar prazo ou tentar remediar indevidamente. Testes PostgreSQL
 sintéticos verificam ausência de count antes da data e inclusão depois.
+
+### Prompt 01 — coleta autenticada de evidência de compensação (21/10/2026)
+O conciliador PSP deve registrar alertas também quando uma renovação
+já entregue sofre estorno verificado posterior, sempre uma vez por comando.
+O revisor FM owner/admin só pode obter snapshot comercial do Assistant
+após triagem humana investigando/escalated, senha de step-up pessoal,
+correlation scoped, versão CAS e flag C06 explicitamente habilitada.
+Consulta S2S operation-scoped somente READ, sem transição, estorno,
+reembolso, reconciliação de quota, novo pagamento ou reenvio. Rechecar
+claim, escopo, revisão e finanças após I/O antes de guardar audit
+append-only com metadados categóricos e sem segredos. Nunca publicar
+`caseResolved` true nem declarar remediação realizada por readback.
+Configuração real ficará para homologação pós BUILD_COMPLETE.
+Documento: docs/governance/VENDE_P01_COMPENSATION_EVIDENCE_2026-10-21.md.
