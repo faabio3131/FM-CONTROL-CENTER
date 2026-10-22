@@ -28,6 +28,16 @@ export class ConsumptionPlanInvalid extends Error {
   }
 }
 
+// These five consumption metrics are signed by Assistant and enforced by
+// the Core's transacted PlanQuotaPolicy. A published FM plan cannot declare
+// values that the Core would reject after successful commercial delivery.
+const CORE_METRICS: ReadonlySet<string> = new Set([
+  "ai.requests", "ai.total_tokens", "ai.input_tokens",
+  "ai.output_tokens", "ai.cached_tokens",
+]);
+const CORE_MAX_LIMIT_UNITS = 2_000_000_000;
+const CORE_MAX_WINDOW_SECONDS = 31_536_000;
+
 const METRICS: ReadonlySet<string> = new Set([
   "ai.requests", "ai.total_tokens", "ai.input_tokens",
   "ai.output_tokens", "ai.cached_tokens", "ai.cost_usd_microunits",
@@ -76,6 +86,14 @@ export function parseConsumptionPlanDraft(value: unknown): ConsumptionPlanDraft 
     if (typeof item.windowSeconds !== "number" || !Number.isSafeInteger(item.windowSeconds) ||
         item.windowSeconds < 60 || item.windowSeconds > 366 * 86400)
       throw new ConsumptionPlanInvalid("window_invalid");
+    // Fail before publication or billing. Assistant/Core signed plan grants
+    // have narrower numeric bounds than unrelated commercial allowances.
+    if (CORE_METRICS.has(item.resource)) {
+      if (item.limitUnits > CORE_MAX_LIMIT_UNITS)
+        throw new ConsumptionPlanInvalid("core_quota_limit_invalid");
+      if (item.windowSeconds > CORE_MAX_WINDOW_SECONDS)
+        throw new ConsumptionPlanInvalid("core_quota_window_invalid");
+    }
     const key = item.resource; // one quota scope per resource in Assistant license v1
     if (seen.has(key)) throw new ConsumptionPlanInvalid("duplicate_allowance");
     seen.add(key);
