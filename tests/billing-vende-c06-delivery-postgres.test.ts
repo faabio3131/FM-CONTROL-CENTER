@@ -1201,6 +1201,20 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       expect((await readVendeCorrectionOutcome(secondContext,{
         productId,intentId:first.intentId,
       },config,disputed)).state).toBe("needs_reconciliation");
+      // Even a previously confirmed remote ACK is not enough after the
+      // payment source records a newer independent reversal.
+      await pool.query(
+        "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'reversed_verified',now(),$4)",
+        [tenant,cmd.invoiceId,paymentRef,"synthetic-new-financial-reversal"],
+      );
+      const reversed=await readVendeCorrectionOutcome(secondContext,{
+        productId,intentId:first.intentId,
+      },config,remoteLifecycle);
+      expect(reversed).toMatchObject({
+        state:"needs_reconciliation",remoteEntitlementConfirmed:false,
+        financialSettlementCurrentlyVerified:false,coreQuotaVerified:false,
+        caseResolved:false,
+      });
     }finally{delete process.env.FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED;}
   });
 
