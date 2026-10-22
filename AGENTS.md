@@ -350,3 +350,11 @@ Continuação do Prompt Mestre 01/04. Branch candidata `feat/vende-p01-correctio
 - Uma admissão bem-sucedida cria somente `reactivation_pending` e `REACTIVATE_VERIFIED.pending` transacionais, com ID de operação determinístico baseado no `intentId`. O dispatcher C06 já existente é o único executor remoto autorizado; ele é OFF por padrão e usa status assinado, one-shot, readback e quarentena de incerteza.
 - A rota FM de status de correção apenas lê o estado remoto assinadamente e revalida o PSP após a rede. Mesmo `assistant_active_payment_verified` **não** prova quota/entitlement efetivos no Core nem encerra o caso; `coreQuotaVerified=false`, `caseResolved=false`. Nenhum reembolso ou nova cobrança nasce dessa recuperação.
 - Gates no **HEAD exato**, testes PostgreSQL descartáveis incluindo dupla aprovação, concorrência de reativação, reversão financeira posterior, check de status remoto, lint/typecheck/build/E2E, revisão independente humana e CI pós-merge obrigatórios. CI que não executou todos os passos não é GREEN. Nenhum deploy, migração operacional, segredo real ou homologação externa antes do software 100% construído.
+
+### F3/P01 — Reconciliação de licença e quotas do Core (22/10/2026)
+
+Preservar o trabalho da PR #150 em candidata atualizada baseada na main pós-merge #152; não recriar Core, Assistant, quotas, C06 ou billing. Documento de fonte de verdade: docs/governance/VENDE_F3_P01_LICENSE_CORE_RECONCILIATION_2026-10-22.md.
+
+A autoridade da licença é o Assistant, a autoridade contratual é o Command e o ledger transacional de tokens/requests pertence ao Core. Após uma reativação assinada do Command, testar que o Core volta a conceder novas reservas apenas com grants frescos do Assistant, mantém as reservas anteriores e bloqueia novas reservas na suspensão, expiração da licença, falta de rede/assinatura, outro tenant ou unidade inválida. Texto e áudio compartilham o limite. Os cinco limites de IA devem respeitar o contrato do Core, com todas as funções disponíveis em cada plano.
+
+Não elevar coreQuotaVerified para true no P01 baseado só em status do Assistant ou em testes sintéticos. Exige readback corporativo autenticado do Core e revalidação do estado atual. Merge apenas com todos os gates exatos certificados, auditoria interna aceita pelo proprietário, e branch protection respeitada. Pós-merge: main e CI.
