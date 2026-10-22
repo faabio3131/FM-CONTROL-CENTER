@@ -23,7 +23,7 @@ export type FMFinopsAlertPolicy={
 type Scope={productId:string;externalTenantId:string;unitId:string};
 type Change={expectedRevision:number;enabled:boolean;currency:string;maximumKnownCost:string};
 
-function configuration(env:NodeJS.ProcessEnv=process.env){
+export function commandCoreFinopsAlertPolicyConfig(env:NodeJS.ProcessEnv=process.env){
   if(env.FM_COMMAND_CORE_ALERT_POLICY_ENABLED!=="true")return denied();
   let url:URL;
   try{url=new URL(env.FM_COMMAND_CORE_ALERT_POLICY_ORIGIN??"");}catch{return denied();}
@@ -65,7 +65,7 @@ export async function readFMFinopsAlertPolicy(
   context:TenantContext,scope:Scope,http:typeof fetch=fetch,
 ):Promise<FMFinopsAlertPolicy>{
   await checkScope(context,scope,false);
-  const config=configuration();
+  const config=commandCoreFinopsAlertPolicyConfig();
   try{
     const query=new URLSearchParams({tenant_id:scope.externalTenantId,unit_id:scope.unitId});
     const res=await http(config.origin+READ+"?"+query,{
@@ -74,7 +74,9 @@ export async function readFMFinopsAlertPolicy(
     });
     if(res.status!==200||!res.ok||Number(res.headers.get("Content-Length")??0)>2048)
       return denied();
-    const data=await res.json() as FMFinopsAlertPolicy;
+    const raw=await res.text();
+    if(raw.length>2048)return denied();
+    const data=JSON.parse(raw) as FMFinopsAlertPolicy;
     if(!data||data.tenant_id!==scope.externalTenantId||data.unit_id!==scope.unitId||
       typeof data.configured!=="boolean"||typeof data.enabled!=="boolean"||
       (data.configured&&(!Number.isSafeInteger(data.revision)||Number(data.revision)<1||
