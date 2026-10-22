@@ -358,3 +358,13 @@ Preservar o trabalho da PR #150 em candidata atualizada baseada na main pós-mer
 A autoridade da licença é o Assistant, a autoridade contratual é o Command e o ledger transacional de tokens/requests pertence ao Core. Após uma reativação assinada do Command, testar que o Core volta a conceder novas reservas apenas com grants frescos do Assistant, mantém as reservas anteriores e bloqueia novas reservas na suspensão, expiração da licença, falta de rede/assinatura, outro tenant ou unidade inválida. Texto e áudio compartilham o limite. Os cinco limites de IA devem respeitar o contrato do Core, com todas as funções disponíveis em cada plano.
 
 Não elevar coreQuotaVerified para true no P01 baseado só em status do Assistant ou em testes sintéticos. Exige readback corporativo autenticado do Core e revalidação do estado atual. Merge apenas com todos os gates exatos certificados, auditoria interna aceita pelo proprietário, e branch protection respeitada. Pós-merge: main e CI.
+
+### F3/P01 — readback efetivo de quotas no FM Core (22/10/2026)
+
+A PR #153 integra os testes Command→Assistant→Core de suspensão, reativação, expiração e quotas compartilhadas. Esta PR conecta o fluxo de recuperação P01 ao Core por um endpoint corporativo HMAC S2S somente leitura (ver docs/governance/VENDE_P01_CORE_QUOTA_READBACK_2026-10-22.md e FM Core PR #3).
+
+Somente após `assistant_active_payment_verified`, verificar no Core, para tenant canônico do comando C06 e unidade/capacidade explicitamente selecionadas, assinatura S2S independente, grant Assistant fresco, revisão do plano, limites e contadores do ledger Core. Revalidar Assistant e PSP após a chamada à rede. Não carregar segredos no browser, não usar dados de outro tenant nem confundir observação parcial por unidade com liberação de todo SaaS.
+
+Não projetar política ou reservar consumo como efeito de consulta. A API e integração ficam OFF por padrão por FM_COMMAND_CORE_QUOTA_READBACK_ENABLED=false. Resultado positivo diz apenas `core_unit_policy_verified`, `caseResolved=false`, `allUnitsVerified=false` e `futureAiAdmissionGuaranteed=false`. O status global P01 mantém coreQuotaVerified=false quando não houver prova explicitamente consultada; nenhum fechamento automático.
+
+Gates: HEAD exato, Foundation, PostgreSQL, F21, Cognitive no Command, Core 2/2 no branch original, revisão interna separada permitida pelo proprietário e CI pós-merge. A branch Core PR #1 permanece Draft; não usar essa evidência para afirmar ambiente externo homologado ou produto 100% pronto.
