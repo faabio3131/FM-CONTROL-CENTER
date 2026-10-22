@@ -35,10 +35,14 @@ export function projectVendeHistoricalObservation(
     ?version:null;
   // Audit occurrence time is canonical: metadata timestamps are untrusted.
   const observedAt=row.occurredAt.toISOString();
-  // The signed observation recorded only non-authoritative history.
-  const state=choose(STATES,row.result,"unclassified" as State);
-  const financeState=choose(FINANCE,meta.verifiedFinanceOutcome,"unavailable");
-  const invoiceState=choose(INVOICE,meta.invoiceState,"not_applicable");
+  // Only the canonical append-only event shape can be classified.
+  // Unknown/legacy/forged metadata cannot assert even a historical payment.
+  const canonical=meta.schema==="fm.vende.compensation-observation.v1" &&
+    meta.remediated===false && meta.refundExecuted===false &&
+    meta.entitlementMutated===false;
+  const state=canonical?choose(STATES,row.result,"unclassified" as State):"unclassified";
+  const financeState=canonical?choose(FINANCE,meta.verifiedFinanceOutcome,"unavailable"):"unavailable";
+  const invoiceState=canonical?choose(INVOICE,meta.invoiceState,"not_applicable"):"not_applicable";
   return {
     state,financeState,invoiceState,reviewVersion,observedAt,
     historicalOnly:true,currentLicenseVerified:false,remediationConfirmed:false,
