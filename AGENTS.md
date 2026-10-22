@@ -404,3 +404,20 @@ O proprietário prefere entregas conclusivas a relatórios frequentes. Mensagens
 **EXECUTAR → TESTAR → CORRIGIR → VALIDAR → INTEGRAR → AVANÇAR.**
 
 Autonomia é agir até o limite real das ferramentas e aprovações presentes, sem dispensar controles. Objetivo final: VendeAtendeIA 100% construído, integrado e certificado **internamente**, com segurança, qualidade, rastreabilidade e fronteira de homologação externa respeitada.
+
+
+### 11. Pipeline não bloqueante — CI em paralelo com trabalho independente
+
+**Regra executiva:** CI iniciada não significa espera ociosa nem término da interação. Assim que um commit dispara testes assíncronos, registrar no checkpoint uma entrada pendente com repositório, PR, HEAD exato, nomes e IDs dos workflows, gates obrigatórios, URL e próximo ponto de verificação. Enquanto os workflows executam, selecionar e realizar trabalho independente do grafo de dependências, preferencialmente em outro componente ou branch isolada.
+
+Manter uma **fila explícita de retorno** (CI Watch Queue), por exemplo:
+`{repo, pr, headSha, requiredChecks, runIds, status: PENDING|GREEN|RED|BLOCKED_EXTERNAL, nextCheck, dependentWork}`.
+A fila e seus estados precisam ser persistidos em checkpoint versionado ou no mecanismo real do executor; não fingir que uma lista em memória sobreviverá ao encerramento de uma conversa.
+
+A cada marco de conclusão de uma subtarefa independente, consultar novamente os workflows pendentes. Se forem GREEN, confirmar revisão e demais gates, revalidar o HEAD/base e efetuar merge elegível; verificar `main` e CI pós-merge. Se forem RED, examinar logs, corrigir e disparar nova rodada no novo SHA. Se estiverem PENDING, continuar uma tarefa independente. Se BLOCKED_EXTERNAL, registrar e não tratar como aprovado.
+
+**Contador de conferência:** usar contador de iterações/marcos, não apenas um cronômetro imaginário. Incrementar `pollAttempt` ao consultar; gravar `lastCheckedAt`, `headSha`, `runId`, `status`, `pollAttempt` e `nextCheckReason`. Não fazer polling agressivo nem segurar transações/locks enquanto aguarda. Um agendador real só pode ser considerado ativo se estiver configurado e confirmado; `AGENTS.md` sozinho não cria timer, worker nem execução após o encerramento da interação.
+
+**Isolamento:** não iniciar trabalho dependente de PR não integrada; usar branches baseadas na `main` atual para unidades realmente independentes; não criar PRs concorrentes que alterem a mesma autoridade/arquivo sem reconciliação. Preservar a regra canônica de uma PR regular por unidade e merge antes da etapa dependente seguinte. Não promover mudanças antes dos gates obrigatórios.
+
+**Fronteira operacional:** se não houver mais trabalho independente e os gates permanecerem pendentes, registrar a pendência de forma factual. Não alegar continuidade em segundo plano sem serviço de execução realmente ativo. O propósito é maximizar trabalho útil durante cada interação, sem violar segurança, testes ou revisão independente.
