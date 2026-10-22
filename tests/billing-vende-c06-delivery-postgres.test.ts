@@ -18,6 +18,8 @@ import {fmLocalCivilDate,fmPaidThroughExclusiveInstant} from "../src/domain/bill
 import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercial-claims-supervisor";
 import {readVendeCompensationReviews,triageVendeCompensationRisk} from "../src/application/billing/vende-compensation-review";
 import {observeVendeCompensationEvidence} from "../src/application/billing/vende-compensation-evidence-review";
+import {prepareVendeCorrectionIntent,secondReviewVendeCorrectionIntent,queueReviewedVendeCorrection} from "../src/application/billing/vende-compensation-correction-intent";
+import {readVendeCorrectionOutcome} from "../src/application/billing/vende-compensation-outcome";
 
 const database=process.env.DATABASE_URL??"";
 const tenant="fm-c06-delivery-"+randomUUID();
@@ -1008,6 +1010,228 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       "SELECT count(*)::int n FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action='vende.compensation_review.remote_observed'",
       [tenant,cmd.id])).rows;
     expect(rows[0].n).toBe(0);
+  });
+
+  it("P01 requires two independent humans for a paid-after-suspension correction intent, without dispatch",async()=>{
+    const cmd=await makePending();
+    const paidThrough=fmLocalCivilDate(new Date(Date.now()+30*86400_000));
+    await pool.query("UPDATE fmcc_vende_lifecycle_command SET state='delivered',delivered_at=now() WHERE id=$1",[cmd.id]);
+    await pool.query("UPDATE fmcc_vende_contract_terms SET lifecycle_state='suspended',paid_through=$1 WHERE subscription_id=$2",[paidThrough,cmd.subscriptionId]);
+    await pool.query("UPDATE fmcc_billing_invoice SET status='paid' WHERE id=$1",[cmd.invoiceId]);
+    await pool.query("UPDATE fmcc_billing_provider_payment SET status='received' WHERE invoice_id=$1",[cmd.invoiceId]);
+    const paymentRef=(await pool.query(
+      "SELECT external_payment_id FROM fmcc_billing_provider_payment WHERE invoice_id=$1",
+      [cmd.invoiceId])).rows[0].external_payment_id as string;
+    await pool.query(
+      "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'settled_verified',now(),$4)",
+      [tenant,cmd.invoiceId,paymentRef,"synthetic-post-suspension-settlement"],
+    );
+    await pool.query(
+      "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,metadata) VALUES ($1,'fm-detection','service','vende.compensation_review.required','vende_lifecycle_command',$2,'needs_human_review',$3,$4::jsonb)",
+      [tenant,cmd.id,cmd.operationId,JSON.stringify({
+        schema:"fm.vende.compensation-risk.v1",productId,
+        operationId:cmd.operationId,reason:"delinquency_paid_after_delivery",
+      })],
+    );
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    await triageVendeCompensationRisk(context,proof,{
+      productId,commandId:cmd.id,expectedVersion:0,
+      decision:"investigating",reasonCode:"investigation_open",
+    });
+    await triageVendeCompensationRisk(context,proof,{
+      productId,commandId:cmd.id,expectedVersion:1,
+      decision:"escalated",reasonCode:"payment_suspension_mismatch",
+    });
+    const external=(await pool.query(
+      "SELECT external_tenant_id FROM fmcc_billing_customer_binding WHERE tenant_id=$1",
+      [tenant])).rows[0].external_tenant_id as string;
+    const signedExpiry=Math.floor(Date.now()/1000)+86400;
+    const http=(async()=>json({
+      tenant_id:external,operation_status:"applied",
+      applied_action:"SUSPEND_DELINQUENCY",license_status:"suspended",
+      plan_code:"BASE",plan_revision:1,valid_until:signedExpiry,
+    })) as typeof fetch;
+    const observation=await observeVendeCompensationEvidence(context,proof,{
+      productId,commandId:cmd.id,expectedReviewVersion:2,
+    },config,http);
+    expect(observation).toMatchObject({
+      remoteObserved:true,financeState:"settled_verified",
+      remediationDispatched:false,caseResolved:false,
+    });
+    const common={productId,commandId:cmd.id,expectedReviewVersion:2};
+    const first=await prepareVendeCorrectionIntent(context,proof,common);
+    expect(first).toMatchObject({
+      review:"awaiting_independent_human_review",
+      proposedAction:"REACTIVATE_VIA_EXISTING_REGULARIZATION",
+      approvedForDispatch:false,remediationDispatched:false,
+      caseResolved:false,
+    });
+    await expect(prepareVendeCorrectionIntent(context,proof,common)).rejects.toThrow();
+    await expect(secondReviewVendeCorrectionIntent(context,proof,{
+      ...common,intentId:first.intentId,
+    })).rejects.toThrow();
+    const secondContext={...context,userId:"independent-fm-reviewer",role:"admin" as const};
+    const secondProof={userId:secondContext.userId,verifiedAt:new Date()};
+    const concurrent=await Promise.allSettled([
+      secondReviewVendeCorrectionIntent(secondContext,secondProof,{...common,intentId:first.intentId}),
+      secondReviewVendeCorrectionIntent(secondContext,secondProof,{...common,intentId:first.intentId}),
+    ]);
+    expect(concurrent.filter(x=>x.status==="fulfilled")).toHaveLength(1);
+    expect(concurrent.filter(x=>x.status==="rejected")).toHaveLength(1);
+    expect((concurrent.find(x=>x.status==="fulfilled") as PromiseFulfilledResult<{
+      approvedForDispatch:false;remediationDispatched:false;
+    }>).value).toMatchObject({
+      review:"reviewed_no_dispatch",
+      approvedForDispatch:false,remediationDispatched:false,
+    });
+    const audit=(await pool.query(
+      "SELECT action,metadata FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action LIKE 'vende.compensation_correction.%' ORDER BY occurred_at",
+      [tenant,cmd.id])).rows;
+    expect(audit).toHaveLength(2);
+    expect(audit.every(x=>x.metadata.approvedForDispatch===false &&
+      x.metadata.remediationDispatched===false)).toBe(true);
+    expect((await pool.query("SELECT state FROM fmcc_vende_lifecycle_command WHERE id=$1",[cmd.id]))
+      .rows[0].state).toBe("delivered");
+    expect((await pool.query(
+      "SELECT lifecycle_state FROM fmcc_vende_contract_terms WHERE subscription_id=$1",
+      [cmd.subscriptionId])).rows[0].lifecycle_state).toBe("suspended");
+    expect((await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",
+      [cmd.invoiceId])).rows[0].status).toBe("paid");
+
+    // A completed independent review does NOT itself activate reactivation.
+    const queuedInput={...common,intentId:first.intentId};
+    await expect(queueReviewedVendeCorrection(
+      secondContext,secondProof,queuedInput,config,http,
+    )).rejects.toThrow();
+    process.env.FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED="true";
+    try{
+      await expect(queueReviewedVendeCorrection(
+        context,proof,queuedInput,config,http,
+      )).rejects.toThrow(); // original preparer may not queue
+      const unsafeRemote=(async()=>json({
+        tenant_id:external,operation_status:"applied",
+        applied_action:"SUSPEND_DELINQUENCY",license_status:"active",
+        plan_code:"BASE",plan_revision:1,valid_until:signedExpiry,
+      })) as typeof fetch;
+      await expect(queueReviewedVendeCorrection(
+        secondContext,secondProof,queuedInput,config,unsafeRemote,
+      )).rejects.toThrow();
+      expect((await pool.query(
+        "SELECT count(*)::int n FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2",
+        [tenant,cmd.subscriptionId])).rows[0].n).toBe(1);
+      const parallel=await Promise.allSettled([
+        queueReviewedVendeCorrection(secondContext,secondProof,queuedInput,config,http),
+        queueReviewedVendeCorrection(secondContext,secondProof,queuedInput,config,http),
+      ]);
+      expect(parallel.filter(x=>x.status==="fulfilled")).toHaveLength(1);
+      expect(parallel.filter(x=>x.status==="rejected")).toHaveLength(1);
+      const queued=(parallel.find(x=>x.status==="fulfilled") as PromiseFulfilledResult<{
+        intentId:string;state:string;remoteEntitlementConfirmed:boolean;
+      }>).value;
+      expect(queued).toMatchObject({
+        intentId:first.intentId,state:"reactivation_pending",
+        remoteEntitlementConfirmed:false,financialRefundExecuted:false,
+        caseResolved:false,automaticDispatchExecuted:false,
+      });
+      const operations=(await pool.query(
+        "SELECT operation_id,state,action,source_invoice_id FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2 ORDER BY revision",
+        [tenant,cmd.subscriptionId])).rows;
+      expect(operations).toHaveLength(2);
+      expect(operations[1]).toMatchObject({
+        operation_id:"p01.correction."+first.intentId,
+        state:"pending",action:"REACTIVATE_VERIFIED",
+        source_invoice_id:cmd.invoiceId,
+      });
+      expect((await pool.query(
+        "SELECT lifecycle_state,revision FROM fmcc_vende_contract_terms WHERE tenant_id=$1 AND subscription_id=$2",
+        [tenant,cmd.subscriptionId])).rows[0]).toMatchObject({
+          lifecycle_state:"reactivation_pending",revision:3,
+        });
+      // Repeated identical authorizations cannot create another queued command.
+      await expect(queueReviewedVendeCorrection(
+        secondContext,secondProof,queuedInput,config,http,
+      )).rejects.toThrow();
+      expect((await pool.query(
+        "SELECT count(*)::int n FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2",
+        [tenant,cmd.subscriptionId])).rows[0].n).toBe(2);
+      const pendingStatus=await readVendeCorrectionOutcome(secondContext,{
+        productId,intentId:first.intentId,
+      },config,http);
+      expect(pendingStatus).toMatchObject({
+        state:"queued",remoteEntitlementConfirmed:false,
+        financialSettlementCurrentlyVerified:false,caseResolved:false,
+      });
+      // Canonical C06 one-shot dispatcher proves the target and remote ACK.
+      const correctionId=(await pool.query(
+        "SELECT id FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND operation_id=$2",
+        [tenant,"p01.correction."+first.intentId])).rows[0].id as string;
+      const targetUntil=fmPaidThroughExclusiveInstant(paidThrough).getTime()/1000;
+      let applied=false;
+      const remoteLifecycle=(async(url:RequestInfo|URL)=>{
+        const path=new URL(String(url)).pathname;
+        if(path.endsWith("/commercial-transition")){
+          applied=true;
+          return json({status:"active"});
+        }
+        if(path.endsWith("/commercial-status"))return json({
+          tenant_id:external,operation_status:applied?"applied":"not_applied",
+          applied_action:applied?"REACTIVATE_VERIFIED":null,
+          license_status:applied?"active":"suspended",
+          plan_code:"BASE",plan_revision:1,
+          valid_until:applied?targetUntil:signedExpiry,
+        });
+        throw Error("unexpected_provider_endpoint");
+      }) as typeof fetch;
+      expect(await dispatchVendeReactivationOnce(correctionId,config,remoteLifecycle))
+        .toBe("delivered");
+      const verified=await readVendeCorrectionOutcome(secondContext,{
+        productId,intentId:first.intentId,
+      },config,remoteLifecycle);
+      expect(verified).toMatchObject({
+        state:"assistant_active_payment_verified",
+        remoteEntitlementConfirmed:true,
+        financialSettlementCurrentlyVerified:true,
+        coreQuotaVerified:false,caseResolved:false,
+      });
+      const disputed=(async()=>json({
+        tenant_id:external,operation_status:"not_applied",
+        applied_action:null,license_status:"suspended",
+        plan_code:"BASE",plan_revision:1,valid_until:signedExpiry,
+      })) as typeof fetch;
+      expect((await readVendeCorrectionOutcome(secondContext,{
+        productId,intentId:first.intentId,
+      },config,disputed)).state).toBe("needs_reconciliation");
+      // Even a previously confirmed remote ACK is not enough after the
+      // payment source records a newer independent reversal.
+      await pool.query(
+        "INSERT INTO fmcc_vende_payment_attestation(tenant_id,invoice_id,external_payment_ref,outcome,verified_at,source_ref) VALUES ($1,$2,$3,'reversed_verified',now(),$4)",
+        [tenant,cmd.invoiceId,paymentRef,"synthetic-new-financial-reversal"],
+      );
+      const reversed=await readVendeCorrectionOutcome(secondContext,{
+        productId,intentId:first.intentId,
+      },config,remoteLifecycle);
+      expect(reversed).toMatchObject({
+        state:"needs_reconciliation",remoteEntitlementConfirmed:false,
+        financialSettlementCurrentlyVerified:false,coreQuotaVerified:false,
+        caseResolved:false,
+      });
+    }finally{delete process.env.FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED;}
+  });
+
+  it("P01 refuses correction intents for stale, unauthorized or unobserved cases",async()=>{
+    const cmd=await makePending();
+    const proof={userId:context.userId,verifiedAt:new Date()};
+    const input={productId,commandId:cmd.id,expectedReviewVersion:1};
+    await expect(prepareVendeCorrectionIntent(context,proof,input)).rejects.toThrow();
+    await expect(prepareVendeCorrectionIntent({...context,tenantId:"other"},proof,input))
+      .rejects.toThrow();
+    await expect(prepareVendeCorrectionIntent(context,{
+      userId:context.userId,verifiedAt:new Date(Date.now()-310_000),
+    },input)).rejects.toThrow();
+    const rows=await pool.query(
+      "SELECT count(*)::int total FROM fmcc_audit_event WHERE tenant_id=$1 AND resource_id=$2 AND action LIKE 'vende.compensation_correction.%'",
+      [tenant,cmd.id]);
+    expect(rows.rows[0].total).toBe(0);
   });
 
 });

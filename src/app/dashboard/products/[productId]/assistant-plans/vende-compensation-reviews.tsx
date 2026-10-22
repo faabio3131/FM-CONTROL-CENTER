@@ -1,5 +1,6 @@
 "use client";
 import {useState} from "react";
+import Link from "next/link";
 type ReviewStep="unreviewed"|"investigating"|"escalated";
 type Case={
   riskId:string;commandId:string;action:string;state:string;reason:string;
@@ -105,6 +106,9 @@ export function VendeCompensationReviews({productId}:{productId:string}){
     <p>Investigações e escalonamentos são auditados. Após abrir uma investigação, a FM
       pode consultar uma evidência autenticada do estado remoto e do registro financeiro
       vigente. Isso não executa estorno, suspensão, reativação ou reparação automática.</p>
+    <p><Link className="button" href={`/dashboard/products/${productId}/compensation-intents`}>
+      Revisão corretiva com dois operadores (sem executar reparo)
+    </Link></p>
     <button className="button" type="button" disabled={busy} onClick={()=>void refresh()}>
       Consultar divergências
     </button>
