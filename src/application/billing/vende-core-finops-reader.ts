@@ -113,7 +113,23 @@ export function parseCoreFinopsReport(
     known+=b.known_cost_events as number;
     unknown+=b.unknown_cost_events as number;
     if(!Number.isSafeInteger(known)||!Number.isSafeInteger(unknown))return denied();
-    buckets.push(b as CoreFinopsBucket);
+    // Project an exact safe allowlist, never expose arbitrary Core/provider
+    // response fields through a corporate UI, even with valid S2S transport.
+    buckets.push({
+      day:b.day as string,provider:b.provider as string,
+      model:b.model as string,capability:b.capability as string,
+      outcome:b.outcome as string,currency:b.currency as string,
+      attempts:b.attempts as number,fallback_attempts:b.fallback_attempts as number,
+      input_tokens_observed:b.input_tokens_observed as number,
+      output_tokens_observed:b.output_tokens_observed as number,
+      cached_tokens_observed:b.cached_tokens_observed as number,
+      token_counters_complete:false,latency_ms_total:b.latency_ms_total as number,
+      latency_ms_max:b.latency_ms_max as number,
+      known_cost_events:b.known_cost_events as number,
+      unknown_cost_events:b.unknown_cost_events as number,
+      known_cost_subtotal:b.known_cost_subtotal as string,
+      actual_provider_spend_verified:false,
+    });
   }
   const coverage=buckets.length===0?"no_observations":
     unknown>0?"partial_unknown_costs":"priced_internal_observations";
