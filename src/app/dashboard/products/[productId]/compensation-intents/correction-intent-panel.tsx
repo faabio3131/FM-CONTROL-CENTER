@@ -18,6 +18,15 @@ type Outcome={
   financialSettlementCurrentlyVerified:boolean;
   coreQuotaVerified:false;caseResolved:false;
 };
+type UnitQuotaProof={
+  intentId:string;unitId:string;capability:string;
+  state:"core_unit_policy_verified";licenseFreshlyVerified:true;
+  coreQuotaVerified:true;
+  quotaMetrics:{metric:string;scope:string;limitUnits:number;
+    reservedUnits:number;consumedUnits:number;remainingUnits:number}[];
+  caseResolved:false;reservationCreated:false;providerCalled:false;
+  allUnitsVerified:false;futureAiAdmissionGuaranteed:false;
+};
 export function VendeCorrectionIntentPanel({productId}:{productId:string}){
   const [commandId,setCommandId]=useState("");
   const [reviewVersion,setReviewVersion]=useState("1");
@@ -27,11 +36,15 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
   const [message,setMessage]=useState("");
   const [result,setResult]=useState<Result|null>(null);
   const [outcome,setOutcome]=useState<Outcome|null>(null);
+  const [unitId,setUnitId]=useState("");
+  const [capability,setCapability]=useState<"atendimento_interpretacao"|
+    "atendimento_transcricao">("atendimento_interpretacao");
+  const [coreProof,setCoreProof]=useState<UnitQuotaProof|null>(null);
   const version=Number(reviewVersion);
   const valid=UUID.test(commandId)&&Number.isSafeInteger(version)&&version>0;
   async function perform(action:"prepare"|"second_review"|"queue"){
     if(!valid||!password.trim()||(action!=="prepare"&&!UUID.test(intentId)))return;
-    setBusy(true);setMessage("");setResult(null);setOutcome(null);
+    setBusy(true);setMessage("");setResult(null);setOutcome(null);setCoreProof(null);
     try{
       const response=await fetch(
         `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents`,
@@ -66,7 +79,7 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
   }
   async function refreshOutcome(){
     if(!UUID.test(intentId))return;
-    setBusy(true);setMessage("");setOutcome(null);
+    setBusy(true);setMessage("");setOutcome(null);setCoreProof(null);
     try{
       const r=await fetch(
         `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents/${encodeURIComponent(intentId)}/status`,
@@ -82,6 +95,32 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
       setOutcome(data);
     }catch{
       setMessage("Confirmação indisponível. Não foi comprovada a reativação; não reenviar o comando.");
+    }finally{setBusy(false);}
+  }
+  async function verifyCoreQuota(){
+    if(!UUID.test(intentId)||!/^[A-Za-z0-9_.-]{1,128}$/.test(unitId)||
+       outcome?.state!=="assistant_active_payment_verified")return;
+    setBusy(true);setMessage("");setCoreProof(null);
+    try{
+      const response=await fetch(
+        `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents/${encodeURIComponent(intentId)}/core-quota`,
+        {method:"POST",cache:"no-store",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({unitId,capability})},
+      );
+      if(!response.ok)throw Error("core_evidence_unavailable");
+      const verified=await response.json() as UnitQuotaProof;
+      if(verified.intentId!==intentId||verified.unitId!==unitId||
+         verified.capability!==capability||verified.coreQuotaVerified!==true||
+         verified.licenseFreshlyVerified!==true||
+         verified.state!=="core_unit_policy_verified"||
+         verified.caseResolved!==false||verified.reservationCreated!==false||
+         verified.providerCalled!==false||verified.allUnitsVerified!==false||
+         verified.futureAiAdmissionGuaranteed!==false||
+         !Array.isArray(verified.quotaMetrics))
+        throw Error("core_evidence_invalid");
+      setCoreProof(verified);
+    }catch{
+      setMessage("Não foi possível certificar a quota atual desta unidade no Core. Nenhum consumo foi realizado.");
     }finally{setBusy(false);}
   }
   return <section className="card" aria-label="Intenções de correção financeiras governadas">
@@ -142,6 +181,40 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
         Pagamento verificado agora: {outcome.financialSettlementCurrentlyVerified?"Sim":"Não"}.
         Core/quotas verificados: Não. Caso encerrado: Não.</p>
     </div>:null}
+    <fieldset disabled={busy}>
+      <legend>Verificação adicional por unidade no FM Core</legend>
+      <p>Apenas depois de confirmar Assistant e pagamento. A prova é
+        restrita à unidade/capacidade informada, não a todos os clientes.
+        Nenhum token é consumido e o caso permanece aberto.</p>
+      <label>ID da unidade licenciada
+        <input value={unitId} maxLength={128}
+          onChange={e=>{setUnitId(e.target.value);setCoreProof(null);}}/>
+      </label>
+      <label>Capacidade de IA
+        <select value={capability}
+          onChange={e=>{setCapability(e.target.value as typeof capability);
+            setCoreProof(null);}}>
+          <option value="atendimento_interpretacao">Atendimento · texto</option>
+          <option value="atendimento_transcricao">Transcrição · áudio</option>
+        </select>
+      </label>
+      <button className="button" type="button" disabled={!UUID.test(intentId)||
+        !/^[A-Za-z0-9_.-]{1,128}$/.test(unitId)||
+        outcome?.state!=="assistant_active_payment_verified"}
+        onClick={()=>void verifyCoreQuota()}>
+        Conferir licença e quotas diretamente no Core
+      </button>
+    </fieldset>
+    {coreProof?<section role="status" aria-label="Quotas verificadas nesta unidade">
+      <strong>Política de quota autenticada no Core para {coreProof.unitId}</strong>
+      {coreProof.quotaMetrics.map(m=><p key={m.metric}>
+        {m.metric} ({m.scope}): {m.reservedUnits} reservado(s),
+        {" "}{m.consumedUnits} consumido(s),
+        {" "}{m.remainingUnits} restante(s) de {m.limitUnits}
+      </p>)}
+      <p>Sem reserva nova, sem chamada à IA e sem encerramento do caso.
+        A próxima solicitação poderá exigir nova verificação de licença e saldo.</p>
+    </section>:null}
     {busy?<p role="status">Validando evidência e estado transacional…</p>:null}
     {message?<p role="status">{message}</p>:null}
     {result?<div role="status">
