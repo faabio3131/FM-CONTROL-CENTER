@@ -80,6 +80,13 @@ describe("VendeAtendeIA F9 canonical customer-to-Core transport",()=>{
     expect(m.bindings).not.toHaveBeenCalled();
     expect(http).not.toHaveBeenCalled();
   });
+  it("rejects oversized streamed Core responses before decoding payload",async()=>{
+    const excessive=(async()=>new Response("x".repeat(126_000),{
+      status:200,headers:{"Content-Type":"application/json"},
+    })) as typeof fetch;
+    await expect(readVendeCoreFinops(context,input,config,excessive,now))
+      .rejects.toThrow("vende.finops.unavailable");
+  });
   it("never converts a Core 503, malformed totals or transport outage into zero",async()=>{
     for(const fake of [
       (async()=>Response.json({error:"provider-secret"},{status:503})) as typeof fetch,
