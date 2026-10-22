@@ -115,13 +115,19 @@ export async function observeVendeCompensationEvidence(
     }
     const sameAppliedAction=remote.operation_status==="applied"&&
       remote.applied_action===locked.action;
-    const result=sameAppliedAction&&financeState==="reversed_verified"
-      ?"remote_applied_finance_reversed"
-      :sameAppliedAction&&financeState==="settled_verified"
-        ?"remote_applied_finance_settled"
-        :remote.operation_status==="not_applied"
-          ?"remote_operation_not_applied"
-          :"human_reconciliation_required";
+    // A verified settlement after a delivered delinquency suspension is a
+    // financial/entitlement divergence, not a healthy settled operation.
+    // Classification is evidence only: never mutate a license or payment here.
+    const result=sameAppliedAction&&locked.action==="SUSPEND_DELINQUENCY"&&
+      financeState==="settled_verified"
+      ?"remote_suspended_after_finance_settled"
+      :sameAppliedAction&&financeState==="reversed_verified"
+        ?"remote_applied_finance_reversed"
+        :sameAppliedAction&&financeState==="settled_verified"
+          ?"remote_applied_finance_settled"
+          :remote.operation_status==="not_applied"
+            ?"remote_operation_not_applied"
+            :"human_reconciliation_required";
     await tx.insert(auditEvents).values({
       tenantId:context.tenantId,actorId:context.userId,actorType:"user",
       action:ACTION,resourceType:"vende_lifecycle_command",
