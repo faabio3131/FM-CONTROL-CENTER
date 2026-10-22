@@ -106,7 +106,7 @@ export function verifyVendeRemoteStatus(candidate:unknown,tenantId:string):Remot
     !["applied","not_applied"].includes(value.operation_status??"")||
     !["active","trial","suspended","cancelled"].includes(value.license_status??"")||
     typeof value.plan_code!=="string"||
-    !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(value.plan_code)||
+    !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value.plan_code)||
     typeof value.plan_revision!=="number"||
     !Number.isSafeInteger(value.plan_revision)||value.plan_revision<1||
     typeof value.valid_until!=="number"||
