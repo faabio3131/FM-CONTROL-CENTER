@@ -47,8 +47,11 @@ jobs:
         run: |
           npm ci --include=optional
           # npm occasionally omits the optional native Linux binding in CI.
-          # Repair with the EXACT lockfile Rolldown version, never a floating tag.
-          node -e "require.resolve('@rolldown/binding-linux-x64-gnu')" || npm install --no-save --ignore-scripts --no-package-lock @rolldown/binding-linux-x64-gnu@1.2.14
+          # Repair with the EXACT Rolldown version in this commit's lockfile.
+          if ! node -e "require.resolve('@rolldown/binding-linux-x64-gnu')"; then
+            ROLLDOWN_VERSION="$(node -p "require('./package-lock.json').packages['node_modules/rolldown'].version")"
+            npm install --no-save --ignore-scripts --no-package-lock "@rolldown/binding-linux-x64-gnu@${ROLLDOWN_VERSION}"
+          fi
       - name: Lint
         run: npm run lint
       - name: Typecheck
