@@ -19,6 +19,7 @@ import {readVendeClaimsMonitor} from "../src/application/billing/vende-commercia
 import {readVendeCompensationReviews,triageVendeCompensationRisk} from "../src/application/billing/vende-compensation-review";
 import {observeVendeCompensationEvidence} from "../src/application/billing/vende-compensation-evidence-review";
 import {prepareVendeCorrectionIntent,secondReviewVendeCorrectionIntent,queueReviewedVendeCorrection} from "../src/application/billing/vende-compensation-correction-intent";
+import {readVendeCorrectionOutcome} from "../src/application/billing/vende-compensation-outcome";
 
 const database=process.env.DATABASE_URL??"";
 const tenant="fm-c06-delivery-"+randomUUID();
@@ -1153,6 +1154,53 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       expect((await pool.query(
         "SELECT count(*)::int n FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND subscription_id=$2",
         [tenant,cmd.subscriptionId])).rows[0].n).toBe(2);
+      const pendingStatus=await readVendeCorrectionOutcome(secondContext,{
+        productId,intentId:first.intentId,
+      },config,http);
+      expect(pendingStatus).toMatchObject({
+        state:"queued",remoteEntitlementConfirmed:false,
+        financialSettlementCurrentlyVerified:false,caseResolved:false,
+      });
+      // Canonical C06 one-shot dispatcher proves the target and remote ACK.
+      const correctionId=(await pool.query(
+        "SELECT id FROM fmcc_vende_lifecycle_command WHERE tenant_id=$1 AND operation_id=$2",
+        [tenant,"p01.correction."+first.intentId])).rows[0].id as string;
+      const targetUntil=fmPaidThroughExclusiveInstant(paidThrough).getTime()/1000;
+      let applied=false;
+      const remoteLifecycle=(async(url:RequestInfo|URL)=>{
+        const path=new URL(String(url)).pathname;
+        if(path.endsWith("/commercial-transition")){
+          applied=true;
+          return json({status:"active"});
+        }
+        if(path.endsWith("/commercial-status"))return json({
+          tenant_id:external,operation_status:applied?"applied":"not_applied",
+          applied_action:applied?"REACTIVATE_VERIFIED":null,
+          license_status:applied?"active":"suspended",
+          plan_code:"BASE",plan_revision:1,
+          valid_until:applied?targetUntil:signedExpiry,
+        });
+        throw Error("unexpected_provider_endpoint");
+      }) as typeof fetch;
+      expect(await dispatchVendeReactivationOnce(correctionId,config,remoteLifecycle))
+        .toBe("delivered");
+      const verified=await readVendeCorrectionOutcome(secondContext,{
+        productId,intentId:first.intentId,
+      },config,remoteLifecycle);
+      expect(verified).toMatchObject({
+        state:"assistant_active_payment_verified",
+        remoteEntitlementConfirmed:true,
+        financialSettlementCurrentlyVerified:true,
+        coreQuotaVerified:false,caseResolved:false,
+      });
+      const disputed=(async()=>json({
+        tenant_id:external,operation_status:"not_applied",
+        applied_action:null,license_status:"suspended",
+        plan_code:"BASE",plan_revision:1,valid_until:signedExpiry,
+      })) as typeof fetch;
+      expect((await readVendeCorrectionOutcome(secondContext,{
+        productId,intentId:first.intentId,
+      },config,disputed)).state).toBe("needs_reconciliation");
     }finally{delete process.env.FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED;}
   });
 
