@@ -27,7 +27,7 @@ Todos os eventos preservam `approvedForDispatch=false`, `remediationDispatched=f
 
 ## Limites — P01 permanece aberto
 
-O executor transacional corretivo e a confirmação real pós-correção **não** foram implementados aqui. A futura etapa precisa escolher reativação segura pelo caminho canônico existente, criar transação/outbox com ID único, consultar status remoto atual via S2S autenticado, revalidar PSP, resolver estados ambíguos por leitura (nunca duplicar POST) e comprovar resultado no Assistant antes de encerrar um caso. Evidências de mais de dois minutos ou uma operação financeira posterior invalidam uma intenção; segunda revisão nunca é passe livre para execução.
+A admissão C06 do comando corretivo e a confirmação interna por leitura assinada foram implementadas como fluxos opt-in e testes sintéticos; **não** há homologação real nem fechamento do caso, e a etapa de Core/quotas ainda falta. A futura etapa precisa escolher reativação segura pelo caminho canônico existente, criar transação/outbox com ID único, consultar status remoto atual via S2S autenticado, revalidar PSP, resolver estados ambíguos por leitura (nunca duplicar POST) e comprovar resultado no Assistant antes de encerrar um caso. Evidências de mais de dois minutos ou uma operação financeira posterior invalidam uma intenção; segunda revisão nunca é passe livre para execução.
 
 ## Rollback
 
@@ -47,3 +47,17 @@ A ação `queue` é **separada** de `prepare` e `second_review`. A segunda revis
 A suíte PostgreSQL verifica flags OFF, identidade distinta dos operadores, leitura externa adversarial, exclusão de duplicatas, exatamente uma transição C06 e uma operação de outbox, além de confirmar que o PSP e o pagamento não são modificados.
 
 **Status real:** construção e CI sintética apenas. Mesmo após admission `reactivation_pending`, P01 permanece aberto até haver confirmação assinada da licença ativa, rechecagem financeira e registro governado do encerramento. A revisão independente e a CI pós-merge continuam obrigatórias.
+
+## Confirmação read-only após o processamento C06
+
+A página FM e a API `GET /api/billing/products/{productId}/vende-compensation-intents/{intentId}/status` permitem consultar a operação corretiva sem disparar novas transições. O leitor restringe o escopo ao produto/tenant, valida a intenção e a segunda revisão e resolve o comando canônico por `operationId=p01.correction.<intentId>`.
+
+- `pending` → **queued**, `processing` → **processing**, `unknown/blocked` → **needs_reconciliation**; esses estados não usam status HTTP bruto como prova de licença.
+- `delivered` exige nova leitura assinada do Assistant pelo ID da operação *corretiva*, com `applied_action=REACTIVATE_VERIFIED`, `license_status=active`, plano/revisão/validade iguais ao `delivery_target` persistido.
+- Após a rede, o Command revalida dentro do PostgreSQL o mesmo comando, fatura paga, última atestação de PSP autenticada `settled_verified` ainda fresca, versão e estado `active` do contrato com vigência local da FM.
+- Só então a tela apresenta **assistant_active_payment_verified**, que confirma as duas evidências **no momento daquela consulta**. Ainda retorna `coreQuotaVerified=false` e `caseResolved=false`. Não inventa liberação efetiva de IA nem encerra incidente sem o mecanismo governado posterior.
+- Status `no-store`, erros saneados, somente FM corporativa, sem side effects, replay mutável, acesso cruzado ou exposição de segredos do provedor.
+
+O teste PostgreSQL integra a admissão C06, a entrega assinada sintética pelo dispatcher existente, o ACK, a confirmação de estado e pagamento e a rejeição de prova remota contraditória. Nenhuma chamada a ambiente externo real foi feita.
+
+**Próxima dependência P01:** reconciliação e estado de licença/quota FM Core atualizados, seguido de encerramento versionado por aprovador humano; nenhum desses passos foi declarado executado pelo novo endpoint.
