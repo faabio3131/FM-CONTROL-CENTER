@@ -10,6 +10,14 @@ type Result={
   remoteEntitlementConfirmed?:false;financialRefundExecuted?:false;
   automaticDispatchExecuted?:false;
 };
+type Outcome={
+  intentId:string;operationId:string;
+  state:"queued"|"processing"|"needs_reconciliation"|
+    "delivered_unverified"|"assistant_active_payment_verified";
+  remoteEntitlementConfirmed:boolean;
+  financialSettlementCurrentlyVerified:boolean;
+  coreQuotaVerified:false;caseResolved:false;
+};
 export function VendeCorrectionIntentPanel({productId}:{productId:string}){
   const [commandId,setCommandId]=useState("");
   const [reviewVersion,setReviewVersion]=useState("1");
@@ -18,11 +26,12 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
   const [result,setResult]=useState<Result|null>(null);
+  const [outcome,setOutcome]=useState<Outcome|null>(null);
   const version=Number(reviewVersion);
   const valid=UUID.test(commandId)&&Number.isSafeInteger(version)&&version>0;
   async function perform(action:"prepare"|"second_review"|"queue"){
     if(!valid||!password.trim()||(action!=="prepare"&&!UUID.test(intentId)))return;
-    setBusy(true);setMessage("");setResult(null);
+    setBusy(true);setMessage("");setResult(null);setOutcome(null);
     try{
       const response=await fetch(
         `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents`,
@@ -54,6 +63,26 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
     }catch{
       setMessage("Evidência, permissão, revisão ou validade não confirmada. Nenhuma correção foi realizada.");
     }finally{setPassword("");setBusy(false);}
+  }
+  async function refreshOutcome(){
+    if(!UUID.test(intentId))return;
+    setBusy(true);setMessage("");setOutcome(null);
+    try{
+      const r=await fetch(
+        `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents/${encodeURIComponent(intentId)}/status`,
+        {cache:"no-store"},
+      );
+      if(!r.ok)throw Error("status_unavailable");
+      const data=await r.json() as Outcome;
+      if(data.intentId!==intentId||data.caseResolved!==false||
+         data.coreQuotaVerified!==false||
+         typeof data.remoteEntitlementConfirmed!=="boolean"||
+         typeof data.financialSettlementCurrentlyVerified!=="boolean")
+        throw Error("invalid_status");
+      setOutcome(data);
+    }catch{
+      setMessage("Confirmação indisponível. Não foi comprovada a reativação; não reenviar o comando.");
+    }finally{setBusy(false);}
   }
   return <section className="card" aria-label="Intenções de correção financeiras governadas">
     <span className="eyebrow">FM Tecnologia · dupla revisão de divergências</span>
@@ -97,6 +126,22 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
         Solicitar entrada na fila corretiva (FM, recurso OFF por padrão)
       </button>
     </div>
+    <button className="button" type="button" disabled={busy||!UUID.test(intentId)}
+      onClick={()=>void refreshOutcome()}>
+      Conferir confirmação remota e pagamento (somente leitura)
+    </button>
+    {outcome?<div role="status">
+      <strong>{outcome.state==="assistant_active_payment_verified"
+        ?"Assistant ativo e pagamento verificados novamente"
+        :outcome.state==="queued"
+          ?"Reativação na fila, ainda sem ACK"
+          :outcome.state==="processing"
+            ?"Processamento em andamento, sem ACK confirmado"
+            :"Estado exige reconciliação; não repetir o envio"}</strong>
+      <p>Licença no Assistant verificada agora: {outcome.remoteEntitlementConfirmed?"Sim":"Não"}.
+        Pagamento verificado agora: {outcome.financialSettlementCurrentlyVerified?"Sim":"Não"}.
+        Core/quotas verificados: Não. Caso encerrado: Não.</p>
+    </div>:null}
     {busy?<p role="status">Validando evidência e estado transacional…</p>:null}
     {message?<p role="status">{message}</p>:null}
     {result?<div role="status">
