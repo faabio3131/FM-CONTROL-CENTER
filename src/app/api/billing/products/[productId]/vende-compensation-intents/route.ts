@@ -4,7 +4,9 @@ import {resolveTenantContext} from "@/application/security/resolve-tenant-contex
 import {verifyPasswordStepUp} from "@/application/security/password-step-up";
 import {
   prepareVendeCorrectionIntent,secondReviewVendeCorrectionIntent,
+  queueReviewedVendeCorrection,
 } from "@/application/billing/vende-compensation-correction-intent";
+import {planProjectionConfigFromEnvironment} from "@/application/billing/assistant-plan-outbox-dispatcher";
 
 type Params={params:Promise<{productId:string}>};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,7 +33,7 @@ export async function POST(request:Request,{params}:Params){
     if(!value||typeof value!=="object"||Array.isArray(value))
       return response({error:"correction.invalid"},400);
     const data=value as Record<string,unknown>;
-    if(!["prepare","second_review"].includes(String(data.action))||
+    if(!["prepare","second_review","queue"].includes(String(data.action))||
        typeof data.commandId!=="string"||!UUID.test(data.commandId)||
        typeof data.expectedReviewVersion!=="number"||
        !Number.isSafeInteger(data.expectedReviewVersion)||data.expectedReviewVersion<1||
@@ -40,7 +42,7 @@ export async function POST(request:Request,{params}:Params){
     const keys=Object.keys(data).sort().join(",");
     if(data.action==="prepare"&&keys!=="action,commandId,expectedReviewVersion,password")
       return response({error:"correction.invalid"},400);
-    if(data.action==="second_review"&&(keys!=="action,commandId,expectedReviewVersion,intentId,password"||
+    if((data.action==="second_review"||data.action==="queue")&&(keys!=="action,commandId,expectedReviewVersion,intentId,password"||
        typeof data.intentId!=="string"||!UUID.test(data.intentId)))
       return response({error:"correction.invalid"},400);
     const h=await headers();
@@ -52,9 +54,13 @@ export async function POST(request:Request,{params}:Params){
     };
     const result=data.action==="prepare"
       ?await prepareVendeCorrectionIntent(context,proof,common)
-      :await secondReviewVendeCorrectionIntent(context,proof,{
-        ...common,intentId:data.intentId as string,
-      });
+      :data.action==="second_review"
+        ?await secondReviewVendeCorrectionIntent(context,proof,{
+          ...common,intentId:data.intentId as string,
+        })
+        :await queueReviewedVendeCorrection(context,proof,{
+          ...common,intentId:data.intentId as string,
+        },planProjectionConfigFromEnvironment());
     return response(result,200);
   }catch{
     return response({error:"correction.authority_or_evidence_denied"},403);
