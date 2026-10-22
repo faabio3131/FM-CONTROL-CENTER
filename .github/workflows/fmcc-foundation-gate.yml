@@ -72,7 +72,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/FM-Core-Base-
-          ref: 6434dd81c056f5f3162f11aa6f624c625ceb4702
+          ref: 5c685158755d19cf7f29b9e639efca1841c4cded
           path: core-source
           persist-credentials: false
       - name: Set up Python for Command to Assistant contract
@@ -93,7 +93,10 @@ jobs:
           tests/f3_command_license_quota_journey.py
           tests/f3_command_commercial_transition_contract.py
           tests/f3_command_qr_policy_contract.py
-          tests/f3_command_license_security_hold_contract.py -q -rs
+          tests/f3_command_license_security_hold_contract.py
+          tests/f3_command_core_quota_readback_e2e.py -q -rs
+      - name: Prove pinned Core signed readback API and no-reservation semantics
+        run: python -m pytest core-source/tests/test_ai_command_quota_readback.py -q -rs
       - name: Isolate tested Assistant checkout outside Next.js workspace
         run: |
           mkdir -p "$RUNNER_TEMP/f3-cross-runtime"
