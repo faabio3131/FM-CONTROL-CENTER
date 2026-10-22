@@ -130,3 +130,87 @@ export async function updateFMFinopsAlertPolicy(
     return {status:"accepted",expectedNextRevision:change.expectedRevision+1};
   }catch{return denied();}
 }
+
+
+/** FM corporate readback of Core's paginated per-request FinOps alerts.
+ * Financial numbers remain observed/estimated; vendor invoice is NOT verified.
+ */
+export type FMFinopsAlertInbox={
+  tenant_id:string;unit_id:string;policy_revision:number|null;
+  policy_enabled:boolean;has_more:boolean;next_cursor:string|null;
+  provider_invoice_verified:false;
+  items:Array<{
+    request_id:string;status:"needs_attention"|"reconciled";
+    reasons:string[];known_cost_subtotal:string;currency:string|null;
+    unknown_attempts:number;observed_attempts:number;
+    all_recorded_costs_known:boolean;provider_invoice_verified:false;
+  }>;
+};
+type AlertFilter=Scope&{
+  startDate:string;endDate:string;afterRequestId?:string;
+};
+function checkedDate(v:string):number{
+  if(typeof v!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v))return denied();
+  const ms=Date.parse(v+"T00:00:00.000Z");
+  if(!Number.isFinite(ms)||new Date(ms).toISOString().slice(0,10)!==v)return denied();
+  return ms;
+}
+export async function readFMFinopsAlertInbox(
+  context:TenantContext,scope:AlertFilter,http:typeof fetch=fetch,
+):Promise<FMFinopsAlertInbox>{
+  await checkScope(context,scope,false);
+  const start=checkedDate(scope.startDate);
+  const end=checkedDate(scope.endDate);
+  if(end<start||end-start>=31*86400_000||
+     (scope.afterRequestId!==undefined&&!SCOPE.test(scope.afterRequestId)))return denied();
+  const config=commandCoreFinopsAlertPolicyConfig();
+  const query=new URLSearchParams({
+    tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+    start_date:scope.startDate,end_date:scope.endDate,limit:"50",
+  });
+  if(scope.afterRequestId)query.set("after_request_id",scope.afterRequestId);
+  try{
+    const res=await http(config.origin+"/v1/admin/ai/usage/alerts?"+query,{
+      headers:{"X-Core-Admin-Key":config.readerKey},
+      redirect:"error",cache:"no-store",signal:AbortSignal.timeout(5000),
+    });
+    if(res.status!==200||!res.ok||Number(res.headers.get("Content-Length")??0)>65536||
+       !res.body)return denied();
+    const reader=res.body.getReader();
+    const parts:Uint8Array[]=[];let size=0;
+    try{
+      for(;;){
+        const next=await reader.read();if(next.done)break;
+        size+=next.value.byteLength;
+        if(size>65536){await reader.cancel();return denied();}
+        parts.push(next.value);
+      }
+    }finally{reader.releaseLock();}
+    const data=JSON.parse(Buffer.concat(parts).toString("utf8")) as FMFinopsAlertInbox;
+    const number=(x:unknown)=>typeof x==="number"&&Number.isSafeInteger(x)&&x>=0;
+    const reasons=["usage_evidence_unavailable","provider_cost_unverified",
+      "known_subtotal_above_limit"];
+    if(!data||data.tenant_id!==scope.externalTenantId||
+       data.unit_id!==scope.unitId||
+       data.provider_invoice_verified!==false||
+       typeof data.policy_enabled!=="boolean"||
+       !(data.policy_revision===null||number(data.policy_revision)&&data.policy_revision>0)||
+       typeof data.has_more!=="boolean"||
+       !(data.next_cursor===null||typeof data.next_cursor==="string"&&SCOPE.test(data.next_cursor))||
+       data.has_more!==(data.next_cursor!==null)||
+       !Array.isArray(data.items)||data.items.length>50||
+       data.has_more&&data.items.length!==50||
+       data.has_more&&data.items.at(-1)?.request_id!==data.next_cursor||
+       data.items.some(item=>!item||!SCOPE.test(item.request_id)||
+         !["needs_attention","reconciled"].includes(item.status)||
+         !Array.isArray(item.reasons)||item.reasons.some(r=>!reasons.includes(r))||
+         typeof item.known_cost_subtotal!=="string"||
+         !COST.test(item.known_cost_subtotal)||
+         !(item.currency===null||typeof item.currency==="string"&&/^[A-Z]{3}$/.test(item.currency))||
+         !number(item.unknown_attempts)||!number(item.observed_attempts)||
+         item.unknown_attempts>item.observed_attempts||
+         typeof item.all_recorded_costs_known!=="boolean"||
+         item.provider_invoice_verified!==false))return denied();
+    return data;
+  }catch{return denied();}
+}
