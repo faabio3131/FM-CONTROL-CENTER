@@ -32,7 +32,7 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
       if(!r.ok)throw Error("unavailable");
       const result=await r.json() as {state:string;remediationDispatched:false};
       setObservation(`Observação autenticada: ${result.state}. Nenhuma compensação executada.`);
-      setPassword("");onDone();
+      setPassword("");
     }catch{setPassword("");setError("A verificação de evidências não foi concluída. Nenhuma mudança foi realizada.");}
     finally{setBusy(false);}
   }
