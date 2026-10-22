@@ -368,3 +368,8 @@ Somente após `assistant_active_payment_verified`, verificar no Core, para tenan
 Não projetar política ou reservar consumo como efeito de consulta. A API e integração ficam OFF por padrão por FM_COMMAND_CORE_QUOTA_READBACK_ENABLED=false. Resultado positivo diz apenas `core_unit_policy_verified`, `caseResolved=false`, `allUnitsVerified=false` e `futureAiAdmissionGuaranteed=false`. O status global P01 mantém coreQuotaVerified=false quando não houver prova explicitamente consultada; nenhum fechamento automático.
 
 Gates: HEAD exato, Foundation, PostgreSQL, F21, Cognitive no Command, Core 2/2 no branch original, revisão interna separada permitida pelo proprietário e CI pós-merge. A branch Core PR #1 permanece Draft; não usar essa evidência para afirmar ambiente externo homologado ou produto 100% pronto.
+
+
+### F9 — FinOps IA FM no Command (22/10/2026)
+
+A candidata F9 reconciliada da PR #151 deve preservar o billing, a licença e os gates P01/F3 atuais de main. Custo de IA é despesa da FM Tecnologia, não cobrança ao cliente. A API e o painel de leitura de uso técnico têm assinatura S2S exclusiva e ficam OFF por padrão; custo desconhecido não é zero, subtotal não é fatura do fornecedor e moedas nunca são agregadas sem regra cambial. Assinatura/cliente/tenant são vinculados ao produto canônico e a seleção de clientes não autoriza acesso de outro produto. Evidência: docs/governance/VENDE_F9_CORE_FINOPS_COMMAND_INTEGRATION_2026-10-22.md. Core PR #2 integrada somente na branch candidata `feat/ai-service-v1`; Core PR #1 continua Draft. CI 4/4 no SHA exato antes de merge. Nenhuma credencial real, deploy ou homologação externa.
