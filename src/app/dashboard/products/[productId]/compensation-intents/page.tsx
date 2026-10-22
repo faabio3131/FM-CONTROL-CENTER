@@ -6,7 +6,7 @@ import {ProductRegistryService,ProductNotFoundError}
 import {PostgresProductRepository} from "@/infrastructure/products/postgres-product-repository";
 import {AuthenticationRequiredError,TenantScopeRequiredError}
   from "@/domain/security/tenant-context";
-import {CorrectionIntentPanel} from "./view";
+import {VendeCorrectionIntentPanel} from "./correction-intent-panel";
 
 export default async function CompensationIntentsPage({
   params,
@@ -39,6 +39,6 @@ export default async function CompensationIntentsPage({
         <h1>Reparação supervisionada — intenção auditável</h1>
       </div>
     </header>
-    <CorrectionIntentPanel productId={productId}/>
+    <VendeCorrectionIntentPanel productId={productId}/>
   </main>;
 }
