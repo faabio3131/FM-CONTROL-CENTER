@@ -1,6 +1,6 @@
 # VENDEATENDEIA — P01: pré-autorização humana dupla de intenção corretiva
 
-**Natureza:** construção interna em branch isolada, sem integração externa e **SEM EXECUTAR REPARO**. Essa é a etapa preparatória governada para eventual execução corretiva. Nunca confundir "revisão humana" com autorização de dispatch ou com resolução da divergência.
+**Natureza:** construção interna em branch isolada, sem integração externa real. Preparar/revisar não executam reparação; a admissão de uma operação corretiva pelo serviço C06 canônico é opt-in e OFF por padrão, conforme extensão abaixo. Essa é a etapa preparatória governada para eventual execução corretiva. Nunca confundir "revisão humana" com autorização de dispatch ou com resolução da divergência.
 
 ## Escopo da primeira ação corretiva candidata
 
@@ -32,3 +32,18 @@ O executor transacional corretivo e a confirmação real pós-correção **não*
 ## Rollback
 
 Reverter a branch ou desligar o acesso ao novo endpoint. Nenhuma migration foi introduzida e os eventos de auditoria, se gerados, são imutáveis. O controle existente de billing, assinatura e entrega permanece intacto.
+
+## Continuação do mesmo WP — admissão corretiva transacional, controlada e OFF
+
+A ação `queue` é **separada** de `prepare` e `second_review`. A segunda revisão continua sendo **`reviewed_no_dispatch`**. O segundo operador deve realizar um novo POST com senha corporativa/step-up atualizada, `intentId` canônico e a mesma versão de revisão para autorizar expressamente a admissão corretiva. Qualquer alteração de dados de evidência, revisão, plano ou estado remoto invalida a admissão.
+
+- **Controle adicional:** `FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED` deve estar explicitamente `true`, com `FM_COMMAND_VENDE_C06_DELIVERY_ENABLED=true` e identidade S2S já configurada. **Padrão: OFF.** Nenhum desses parâmetros deve ser alterado em produção nesta fase.
+- **Preflight:** revalida a prova financeira canônica, fatura, contrato, operação e dupla revisão; consulta por HTTPS/S2S o status **atual** da operação de suspensão do Assistant; confirma `applied + SUSPEND_DELINQUENCY + suspended` e identidade exata de plano, versão e validade. Não aceita um ACK antigo como prova atual.
+- **Pós-I/O:** repete sob lock as verificações de evidência, fatura, contrato, revisão e duplicidade. O serviço canônico `GovernedVendeC06Service.requestRegularization` verifica novamente PSP/associação financeira e faz a transição atômica **suspended → reactivation_pending**, cria a auditoria contratual e a operação `REACTIVATE_VERIFIED` com estado `pending`.
+- **Idempotência:** `operationId` e `sourceRef` são derivados deterministicamente de `p01.correction.<intentId>`, atravessando a auditoria existente e a restrição de chave única da outbox. Concorrência e tentativas repetidas não criam novos comandos. Não altera o ID original do cliente, tenant ou subscription.
+- **Execução:** nenhum POST mutável para Assistant é realizado por `queue`. O worker comercial já existente é responsável por um único envio assinado, acompanhado de readback e conciliação, quando futuramente estiver ativado. Uma resposta `reactivation_pending` **não comprova reativação**, custo, receita, pagamento novo ou reparação do caso.
+- **Proibição:** não executa estornos, refund, reembolso, alteração de preços, migração, webhook, cobrança, plano comercial ou novo contrato. Não ativa automaticamente licença ou Core. Nenhuma ação da API `queue` é acessível ao cliente SaaS.
+
+A suíte PostgreSQL verifica flags OFF, identidade distinta dos operadores, leitura externa adversarial, exclusão de duplicatas, exatamente uma transição C06 e uma operação de outbox, além de confirmar que o PSP e o pagamento não são modificados.
+
+**Status real:** construção e CI sintética apenas. Mesmo após admission `reactivation_pending`, P01 permanece aberto até haver confirmação assinada da licença ativa, rechecagem financeira e registro governado do encerramento. A revisão independente e a CI pós-merge continuam obrigatórias.
