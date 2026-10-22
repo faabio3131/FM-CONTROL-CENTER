@@ -30,6 +30,16 @@ describe("FM F9 read-only Core FinOps bridge",()=>{
     expect(signCommandCoreFinops(key,body)).toBe(createHmac("sha256",key)
       .update("POST\n"+CORE_FINOPS_REPORT_PATH+"\n"+body).digest("hex"));
   });
+  it("shares the exact Core Python HMAC contract golden vector",()=>{
+    const key="synthetic-finops-contract-key-32-bytes-123";
+    const body='{"schema":"fm.core.finops.read.v1","tenant_id":"tenant-a",'+
+      '"unit_id":"unit-a","start_date":"2026-10-21",'+
+      '"end_date":"2026-10-22","issued_at":1792627200,'+
+      '"nonce":"abcdefghijklmnopqrstuvwxABCDEFGH"}';
+    expect(signCommandCoreFinops(key,body)).toBe(
+      "b3e81412631dcb6de6ea42e8d866e58db84598d70b651db7c68b36bca2270e30",
+    );
+  });
   it("rejects enabled status with missing credentials or unsafe URLs",()=>{
     expect(()=>commandCoreFinopsConfig({FM_COMMAND_CORE_FINOPS_ENABLED:"false"})).toThrow();
     for(const origin of ["http://core.test/","https://operator:secret@core.test/",
