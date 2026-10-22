@@ -7,6 +7,8 @@ describe("P01 historical compensation evidence is non-authoritative",()=>{
     const x=projectVendeHistoricalObservation({
       result:"remote_applied_finance_reversed",
       metadata:{
+        schema:"fm.vende.compensation-observation.v1",
+        remediated:false,refundExecuted:false,entitlementMutated:false,
         reviewVersion:2,invoiceState:"paid",
         verifiedFinanceOutcome:"reversed_verified",
         observedAt:"2020-01-01T00:00:00Z",paymentSecret:"must-never-leak",
@@ -33,6 +35,20 @@ describe("P01 historical compensation evidence is non-authoritative",()=>{
     expect(x).toMatchObject({
       state:"unclassified",reviewVersion:null,
       financeState:"unavailable",invoiceState:"not_applicable",
+      remediationConfirmed:false,
+    });
+  });
+  it("never promotes legacy or inconsistent audit claims into verified history",()=>{
+    const suspect=projectVendeHistoricalObservation({
+      result:"remote_applied_finance_settled",
+      metadata:{
+        schema:"fm.vende.compensation-observation.v1",
+        remediated:true,refundExecuted:false,entitlementMutated:false,
+        reviewVersion:1,verifiedFinanceOutcome:"settled_verified",invoiceState:"paid",
+      },occurredAt:at,
+    });
+    expect(suspect).toMatchObject({
+      state:"unclassified",financeState:"unavailable",invoiceState:"not_applicable",
       remediationConfirmed:false,
     });
   });
