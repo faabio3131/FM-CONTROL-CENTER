@@ -338,3 +338,15 @@ append-only com metadados categóricos e sem segredos. Nunca publicar
 `caseResolved` true nem declarar remediação realizada por readback.
 Configuração real ficará para homologação pós BUILD_COMPLETE.
 Documento: docs/governance/VENDE_P01_COMPENSATION_EVIDENCE_2026-10-21.md.
+
+
+## VendeAtendeIA P01 — compensação corretiva supervisionada (22/10/2026)
+
+Continuação do Prompt Mestre 01/04. Branch candidata `feat/vende-p01-correction-approval-fence-20261022`, PR #152. Preservar o pipeline C06 original e **não duplicar** billing, pagamento, reativação, assinatura, licença ou outbox. Contrato e evidências: `docs/governance/VENDE_P01_TWO_PERSON_CORRECTION_INTENT_2026-10-22.md`.
+
+- Após risco financeiro canônico, exigir triagem escalada, observação financeira de fonte autenticada e status remoto de leitura assinada; nem eventos de risco nem ações humanas isoladas são autorização de refund ou alteração de licença.
+- A preparação e segunda revisão são auditadas sem mutação contratual; dois atores corporativos distintos precisam reautenticar. Replays, versão divergente, estados expirados e concorrência são negados.
+- A etapa separada `queue` exige **nova decisão expressa e step-up do segundo revisor**, `FM_COMMAND_VENDE_CORRECTION_EXECUTION_ENABLED=true` (sempre **OFF por padrão**) e o transporte C06 autenticado existente. Revalidar status remoto atual, plano/revisão/validade, fatura, PSP, cliente/assinatura e contrato antes de chamar `GovernedVendeC06Service.requestRegularization`.
+- Uma admissão bem-sucedida cria somente `reactivation_pending` e `REACTIVATE_VERIFIED.pending` transacionais, com ID de operação determinístico baseado no `intentId`. O dispatcher C06 já existente é o único executor remoto autorizado; ele é OFF por padrão e usa status assinado, one-shot, readback e quarentena de incerteza.
+- A rota FM de status de correção apenas lê o estado remoto assinadamente e revalida o PSP após a rede. Mesmo `assistant_active_payment_verified` **não** prova quota/entitlement efetivos no Core nem encerra o caso; `coreQuotaVerified=false`, `caseResolved=false`. Nenhum reembolso ou nova cobrança nasce dessa recuperação.
+- Gates no **HEAD exato**, testes PostgreSQL descartáveis incluindo dupla aprovação, concorrência de reativação, reversão financeira posterior, check de status remoto, lint/typecheck/build/E2E, revisão independente humana e CI pós-merge obrigatórios. CI que não executou todos os passos não é GREEN. Nenhum deploy, migração operacional, segredo real ou homologação externa antes do software 100% construído.
