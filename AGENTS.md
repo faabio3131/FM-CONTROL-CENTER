@@ -304,3 +304,23 @@ A reparação real exige outra etapa, provas financeiras e estado remoto
 independentes, decisão explícita e testes E2E. Nenhum deploy ou homologação
 externa. Matriz: docs/governance/VENDE_P01_RECONCILIATION_EVIDENCE_2026-10-21.md.
 P01 continua IN_PROGRESS até terminar todas as lacunas dos três repositórios.
+
+### P01 — teste cruzado de quotas de texto/áudio com revogação (21/10/2026)
+Reutilizar o harness existente `tests/f3_command_license_quota_journey.py`,
+que executa o signer real Node do Command, o receptor de licença SQLAlchemy
+do Assistant e `PlanUsageGuard`/ledger de quota do Core sobre bancos
+descartáveis. Ampliado para admitir texto + áudio sob quota agregada de
+tenant, exigir replay-denial, suspensão de ambas as capacidades e manter
+reservas históricas após revogação sem reembolso inventado. Não construir
+outro guard, não afirmar chamadas de provider ou custo monetário quando o
+teste cobre apenas reservas de tokens. CI do Foundation + cross service
+exigido, documentação no P01 reconciliation evidence. P01 geral IN_PROGRESS.
+
+### P01 — supervisão de aprovações comerciais vencidas (21/10/2026)
+A contagem operacional de reaprovações vencidas deve incluir RENEW_VERIFIED,
+APPLY_UPGRADE e as ações previamente cobertas, mas CANCEL_AT_PERIOD_END
+(SCHEDULE_CANCEL) e APPLY_DOWNGRADE entram somente após fim integral da
+data local `effectiveDate`. Itens futuros podem aparecer como pending,
+porém NÃO são pendências de reaprovação vencida. Não reautorizar sozinho,
+não alterar prazo ou tentar remediar indevidamente. Testes PostgreSQL
+sintéticos verificam ausência de count antes da data e inclusão depois.

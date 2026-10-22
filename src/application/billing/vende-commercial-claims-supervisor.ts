@@ -9,6 +9,7 @@ import {auditEvents} from "@/infrastructure/db/foundation-schema";
 import {VENDE_COMPENSATION_REVIEW_ACTION} from "./vende-compensation-risk";
 import {vendeLifecycleCommands} from "@/infrastructure/db/vende-commercial-schema";
 import {requireFMPlanAuthority} from "./assistant-plan-catalog-service";
+import {fmLocalCivilDate} from "@/domain/billing/vende-commercial-policy-v1";
 import type {TenantContext} from "@/domain/security/tenant-context";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -51,7 +52,14 @@ export async function readVendeClaimsMonitor(
       lt(vendeLifecycleCommands.claimedAt,staleBefore)));
   const [expired]=await db.select({total:sql<number>`count(*)::int`})
     .from(vendeLifecycleCommands).where(and(scoped,
-      inArray(vendeLifecycleCommands.action,["SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED"]),
+      or(
+        inArray(vendeLifecycleCommands.action,[
+          "SUSPEND_DELINQUENCY","REACTIVATE_VERIFIED",
+          "RENEW_VERIFIED","APPLY_UPGRADE",
+        ]),
+        and(inArray(vendeLifecycleCommands.action,["SCHEDULE_CANCEL","APPLY_DOWNGRADE"]),
+          lt(vendeLifecycleCommands.effectiveDate,fmLocalCivilDate(now))),
+      ),
       eq(vendeLifecycleCommands.state,"pending"),
       isNull(vendeLifecycleCommands.claimedAt),
       isNull(vendeLifecycleCommands.deliveredAt),

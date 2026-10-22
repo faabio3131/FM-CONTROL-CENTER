@@ -911,4 +911,20 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
     expect(r.items.find(x=>x.commandId===cmd.id)?.reviewStep).toBe("unreviewed");
   });
 
+  it("P01 monitors expired approvals only when cancellation/downgrade become due",async()=>{
+    const before=await readVendeClaimsMonitor(context,productId);
+    const future=await makeCancellation(fmLocalCivilDate(new Date(Date.now()+4*86400_000)));
+    const afterFuture=await readVendeClaimsMonitor(context,productId);
+    expect(afterFuture.expiredApprovals).toBe(before.expiredApprovals);
+    const due=await makeCancellation();
+    const afterDue=await readVendeClaimsMonitor(context,productId);
+    expect(afterDue.expiredApprovals).toBeGreaterThanOrEqual(before.expiredApprovals+1);
+    // The bounded 50-row presentation can omit these commands; the full
+    // SQL counts and source rows, not card presence, define this gate.
+    const rows=(await pool.query(
+      "SELECT state,claimed_at FROM fmcc_vende_lifecycle_command WHERE id IN ($1,$2) ORDER BY id",
+      [due.id,future.id])).rows;
+    expect(rows.every(x=>x.state==="pending"&&x.claimed_at===null)).toBe(true);
+  });
+
 });
