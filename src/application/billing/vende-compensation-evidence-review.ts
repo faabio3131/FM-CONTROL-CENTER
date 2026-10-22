@@ -2,7 +2,7 @@
  * Separate from remediation. This cannot write to Assistant/PSP or change
  * a contract, and cannot resolve/escalate a case by inference.
  */
-import {and,eq,desc} from "drizzle-orm";
+import {and,eq} from "drizzle-orm";
 import {db} from "@/infrastructure/db/client";
 import {billingInvoices} from "@/infrastructure/db/billing-schema";
 import {auditEvents} from "@/infrastructure/db/foundation-schema";
@@ -41,13 +41,20 @@ async function currentCase(tx:Tx,context:TenantContext,productId:string,commandI
     eq(auditEvents.resourceId,commandId),
   )).limit(1);
   if(!risk)return denied();
-  const [latest]=await tx.select({metadata:auditEvents.metadata})
+  const reviewRows=await tx.select({metadata:auditEvents.metadata})
     .from(auditEvents).where(and(
       eq(auditEvents.tenantId,context.tenantId),
       eq(auditEvents.action,TRIAGE),
       eq(auditEvents.resourceType,"vende_lifecycle_command"),
       eq(auditEvents.resourceId,commandId),
-    )).orderBy(desc(auditEvents.occurredAt),desc(auditEvents.id)).limit(1);
+    ));
+  let latest:typeof reviewRows[number]|undefined;
+  for(const audit of reviewRows){
+    const version=audit.metadata.reviewVersion;
+    if(typeof version!=="number"||!Number.isSafeInteger(version)||version<1)
+      return denied();
+    if(!latest||version>(latest.metadata.reviewVersion as number))latest=audit;
+  }
   return {row,risk,latest};
 }
 /** Evidence reading must happen outside a database lock, but after a
