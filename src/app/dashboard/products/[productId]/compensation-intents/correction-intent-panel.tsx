@@ -103,7 +103,7 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
     setBusy(true);setMessage("");setCoreProof(null);
     try{
       const response=await fetch(
-        \`/api/billing/products/\${encodeURIComponent(productId)}/vende-compensation-intents/\${encodeURIComponent(intentId)}/core-quota\`,
+        `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents/${encodeURIComponent(intentId)}/core-quota`,
         {method:"POST",cache:"no-store",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({unitId,capability})},
       );
