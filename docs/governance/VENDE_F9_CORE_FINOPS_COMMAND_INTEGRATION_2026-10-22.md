@@ -43,3 +43,14 @@ The bridge signs the exact Core read contract; it validates all balances/attempt
 ## Rollback
 
 Set `FM_COMMAND_CORE_FINOPS_ENABLED=false` (default) or omit any Core origin/key; the panel remains visible with an unavailable message, but no network request is made. Revert isolated code and routes without data migrations, license mutations or loss of accounting history.
+
+
+## Cliente selecionado no Command
+
+A rota corporativa `GET /api/billing/products/{productId}/vende-core-finops/bindings` lê no máximo 51 `fmcc_billing_customer_binding` do produto ativo VendeAtendeIA, ordenados por external tenant ID, e publica apenas os primeiros 50 com `truncated`. O painel pode sugerir IDs que **já pertencem** à FM neste produto; não concede direito de uso de outra unidade nem consulta automaticamente provedores. A consulta principal **revalida o binding** no servidor antes de assinar qualquer chamada do Core.
+
+## Teste de atribuição PostgreSQL
+
+`tests/vende-core-finops-postgres.test.ts` cria produto VendeAtendeIA, produto distinto, cliente e vínculo externo em banco isolado; prova o lookup governado e que tenant inexistente, produto diferente e produto sem vínculo são rejeitados antes de enviar uma requisição. A chamada sintética inspeciona o HMAC e o `tenant_id` exato, sem credencial real. Os dois contratos de assinatura Node e Python também compartilham um golden vector SHA256, garantindo compatibilidade de bytes entre as implementações sem exigir servidores externos.
+
+A lista não substitui a necessidade de uma futura API autorizada do Assistant para listar unidades e conferir sua licença. Sem ela, o operador FM ainda fornece o ID da unidade confiável; a autorização para consumir quota permanece governada no Assistant/Core.
