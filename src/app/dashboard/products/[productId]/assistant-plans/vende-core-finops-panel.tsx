@@ -78,8 +78,14 @@ export function VendeCoreFinopsPanel({productId}:{productId:string}){
           <p>{bucket.attempts} tentativa(s), sendo {bucket.fallback_attempts} fallback(s).</p>
           <p>Tokens observados: {bucket.input_tokens_observed} entrada;
             {" "}{bucket.output_tokens_observed} saída; {bucket.cached_tokens_observed} cache.</p>
-          <p>Subtotal calculado: <strong>{bucket.currency} {bucket.known_cost_subtotal}</strong></p>
-          <p>{bucket.unknown_cost_events} tentativa(s) com custo não determinado.</p>
+          <p>Subtotal de custos calculáveis: <strong>
+            {bucket.known_cost_events>0
+              ?bucket.currency+" "+bucket.known_cost_subtotal
+              :"Não disponível (nenhuma tentativa precificada)"}
+          </strong></p>
+          <p>{bucket.unknown_cost_events} tentativa(s) com custo não determinado.
+            {bucket.unknown_cost_events>0?" O subtotal não representa o custo total.":""}
+          </p>
         </article>
       )}</div>
       <p>Os custos exibidos são internos e estimados a partir dos registros disponíveis.
