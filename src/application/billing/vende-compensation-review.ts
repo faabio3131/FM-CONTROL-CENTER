@@ -54,6 +54,47 @@ function normalizedReview(meta:Record<string,unknown>){
      (decision!=="investigating"&&decision!=="escalated"))return null;
   return {version,decision:decision as VendeReviewStep};
 }
+type FollowupStatus=
+  "initial_review_required"|"refresh_current_evidence"|
+  "correction_preparation_required"|"independent_review_required"|
+  "queue_authorization_required"|"correction_queued"|
+  "correction_processing"|"manual_reconciliation_required"|
+  "remote_readback_required"|"other_risk_investigation";
+export function projectVendeCompensationFollowup(input:{
+  action:string;reason:string;reviewStep:string;
+  intentId:string|null;independentReviewComplete:boolean;
+  correctionState:string|null;
+}):{
+  nextAction:FollowupStatus;intentId:string|null;
+  currentEntitlementVerified:false;financialRepairExecuted:false;
+  caseResolved:false;automaticRemediationAuthorized:false;
+}{
+  let nextAction:FollowupStatus;
+  if(input.intentId&&input.correctionState){
+    if(input.correctionState==="pending")nextAction="correction_queued";
+    else if(input.correctionState==="processing")nextAction="correction_processing";
+    else if(input.correctionState==="delivered")nextAction="remote_readback_required";
+    else nextAction="manual_reconciliation_required";
+  }else if(input.intentId){
+    nextAction=input.independentReviewComplete
+      ?"queue_authorization_required":"independent_review_required";
+  }else if(input.reviewStep==="unreviewed"){
+    nextAction="initial_review_required";
+  }else if(input.reviewStep==="investigating"){
+    nextAction="refresh_current_evidence";
+  }else if(input.reviewStep==="escalated"&&
+           input.action==="SUSPEND_DELINQUENCY"&&
+           input.reason==="delinquency_paid_after_delivery"){
+    nextAction="correction_preparation_required";
+  }else{
+    nextAction="other_risk_investigation";
+  }
+  return {
+    nextAction,intentId:input.intentId,
+    currentEntitlementVerified:false,financialRepairExecuted:false,
+    caseResolved:false,automaticRemediationAuthorized:false,
+  };
+}
 /** Read-only, historical case list. Result is intentionally NOT an assertion
  * of remote license validity, an open-incidents total or completed repair. */
 export async function readVendeCompensationReviews(
@@ -104,6 +145,60 @@ export async function readVendeCompensationReviews(
       if(review&&(!previous||review.version>previous.version))
         reviews.set(row.resourceId,{...review,actorId:row.actorId,occurredAt:row.occurredAt});
     }
+    // One latest preparation/review per command, never an unbounded
+    // audit scan. The original risk and exact FM product are always scoped.
+    const preparedRows=ids.length?await tx.selectDistinctOn(
+      [auditEvents.resourceId],{
+        id:auditEvents.id,resourceId:auditEvents.resourceId,
+        metadata:auditEvents.metadata,
+      },
+    ).from(auditEvents).where(and(
+      eq(auditEvents.tenantId,context.tenantId),
+      eq(auditEvents.action,"vende.compensation_correction.prepared"),
+      eq(auditEvents.resourceType,"vende_lifecycle_command"),
+      inArray(auditEvents.resourceId,ids),
+      sql`${auditEvents.metadata} ->> 'productId' = ${productId}`,
+    )).orderBy(
+      auditEvents.resourceId,desc(auditEvents.occurredAt),desc(auditEvents.id),
+    ).limit(50):[];
+    const prepared=new Map(preparedRows.filter(row=>
+      row.resourceId&&UUID.test(row.id)&&
+      row.metadata.schema==="fm.vende.compensation-intent.v1"&&
+      row.metadata.commandId===row.resourceId&&
+      row.metadata.approvedForDispatch===false,
+    ).map(row=>[row.resourceId as string,row.id]));
+    const reviewOfIntentRows=ids.length?await tx.selectDistinctOn(
+      [auditEvents.resourceId],{
+        resourceId:auditEvents.resourceId,metadata:auditEvents.metadata,
+      },
+    ).from(auditEvents).where(and(
+      eq(auditEvents.tenantId,context.tenantId),
+      eq(auditEvents.action,"vende.compensation_correction.second_reviewed"),
+      eq(auditEvents.resourceType,"vende_lifecycle_command"),
+      inArray(auditEvents.resourceId,ids),
+      sql`${auditEvents.metadata} ->> 'productId' = ${productId}`,
+    )).orderBy(
+      auditEvents.resourceId,desc(auditEvents.occurredAt),desc(auditEvents.id),
+    ).limit(50):[];
+    const reviewed=new Map(reviewOfIntentRows.filter(row=>
+      row.resourceId&&
+      row.metadata.schema==="fm.vende.compensation-second-review.v1"&&
+      row.metadata.approvedForDispatch===false&&
+      row.metadata.caseResolved===false&&
+      typeof row.metadata.intentId==="string"&&UUID.test(row.metadata.intentId),
+    ).map(row=>[row.resourceId as string,row.metadata.intentId as string]));
+    const intentIds=[...prepared.values()];
+    const correctionRows=intentIds.length?await tx.select({
+      operationId:vendeLifecycleCommands.operationId,
+      state:vendeLifecycleCommands.state,
+    }).from(vendeLifecycleCommands).where(and(
+      eq(vendeLifecycleCommands.tenantId,context.tenantId),
+      eq(vendeLifecycleCommands.productId,productId),
+      eq(vendeLifecycleCommands.action,"REACTIVATE_VERIFIED"),
+      inArray(vendeLifecycleCommands.operationId,
+        intentIds.map(id=>"p01.correction."+id)),
+    )).limit(50):[];
+    const corrections=new Map(correctionRows.map(row=>[row.operationId,row.state]));
     return {
       historicalTotal:Number(count?.total??0),
       truncated:riskRows.length>50,
@@ -121,6 +216,18 @@ export async function readVendeCompensationReviews(
           reviewStep:latest?.decision??"unreviewed",
           reviewer:latest?.actorId??null,
           reviewedAt:latest?.occurredAt??null,
+          followup:projectVendeCompensationFollowup({
+            action:command.action,
+            reason:knownVendeRiskReason(risk.metadata.reason),
+            reviewStep:latest?.decision??"unreviewed",
+            intentId:prepared.get(command.id)??null,
+            independentReviewComplete:
+              !!prepared.get(command.id)&&
+              reviewed.get(command.id)===prepared.get(command.id),
+            correctionState:corrections.get(
+              "p01.correction."+(prepared.get(command.id)??""),
+            )??null,
+          }),
         }];
       }),
       entitlementVerified:false as const,
