@@ -4,6 +4,8 @@ import type {ProviderComparison,SourceAttempt}
   from "@/application/billing/vende-core-provider-exports";
 
 const MONEY=/^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,18})?$/;
+type FeedProgress={pages:number;created:number;alreadyRecorded:number;
+  unreported:number;scanned:number;lastPage:number};
 export function VendeProviderExportWorkspace({productId}:{productId:string}){
   const [tenant,setTenant]=useState("");
   const [unit,setUnit]=useState("");
@@ -23,6 +25,8 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
   const [feedStart,setFeedStart]=useState("");
   const [feedEnd,setFeedEnd]=useState("");
   const [feedNextPage,setFeedNextPage]=useState<number|null>(null);
+  const [feedProgress,setFeedProgress]=useState<FeedProgress|null>(null);
+  const resetFeed=()=>{setFeedNextPage(null);setFeedProgress(null);};
   const [busy,setBusy]=useState(false);
   const [status,setStatus]=useState("");
   const [error,setError]=useState("");
@@ -30,7 +34,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     encodeURIComponent(productId)+"/vende-core-finops/provider-exports";
   const clear=()=>{
     setAttempts([]);setSelected(null);setComparison(null);
-    setStatus("");setError("");setPassword("");setFeedNextPage(null);
+    setStatus("");setError("");setPassword("");resetFeed();
   };
   function scopeUrl(id?:string){
     return endpoint+"?"+new URLSearchParams({
@@ -70,11 +74,16 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     finally{setBusy(false);}
   }
   async function syncFeed(page=0){
+    if(page!==0&&page!==feedNextPage){
+      setError("Continuação inválida: reinicie a consulta com a primeira página.");
+      return;
+    }
     if(!tenant||!unit||!account||!feedProvider||!feedStart||!feedEnd||!password){
       setError("Preencha tenant, unidade, provedor, conta, período e senha.");
       return;
     }
-    setBusy(true);setError("");setStatus("");setFeedNextPage(null);
+    setBusy(true);setError("");setStatus("");
+    if(page===0)resetFeed();
     try{
       const res=await fetch(endpoint.replace("/provider-exports","/provider-feed-sync"),{
         method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",
@@ -99,10 +108,20 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
         !(data.nextPage===null||validInt(data.nextPage)&&
           data.nextPage===page+1))throw Error("untrusted");
       setFeedNextPage(data.nextPage);
+      setFeedProgress(prev=>{
+        const prior=page===0?null:prev;
+        return {pages:(prior?.pages??0)+1,created:(prior?.created??0)+data.created,
+          alreadyRecorded:(prior?.alreadyRecorded??0)+data.alreadyRecorded,
+          unreported:(prior?.unreported??0)+data.unreported,
+          scanned:(prior?.scanned??0)+data.scanned,lastPage:page};
+      });
       setStatus("Coleta concluída nesta página: "+data.created+" nova(s), "+
         data.alreadyRecorded+" já existentes, "+data.unreported+
         " ainda sem observação. Fatura e quotas não verificadas.");
     }catch{
+      // An uncertain POST may have committed records in Core. Never offer
+      // an automatic continuation/retry after an unconfirmed response.
+      setFeedNextPage(null);
       setError("Coleta não confirmada. Consulte o Core antes de repetir; fonte pode estar indisponível.");
     }finally{setPassword("");setBusy(false);}
   }
@@ -181,19 +200,19 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
         <label>Provedor cadastrado no Core
           <input value={feedProvider} maxLength={128} disabled={busy}
             placeholder="Identificador do provedor"
-            onChange={e=>{setFeedProvider(e.target.value);setFeedNextPage(null);}}/>
+            onChange={e=>{setFeedProvider(e.target.value);resetFeed();}}/>
         </label>
         <label>Conta do fornecedor
           <input value={account} maxLength={128} disabled={busy}
-            onChange={e=>{setAccount(e.target.value);setFeedNextPage(null);}}/>
+            onChange={e=>{setAccount(e.target.value);resetFeed();}}/>
         </label>
         <label>Início do período
           <input type="date" value={feedStart} disabled={busy}
-            onChange={e=>{setFeedStart(e.target.value);setFeedNextPage(null);}}/>
+            onChange={e=>{setFeedStart(e.target.value);resetFeed();}}/>
         </label>
         <label>Fim do período
           <input type="date" value={feedEnd} disabled={busy}
-            onChange={e=>{setFeedEnd(e.target.value);setFeedNextPage(null);}}/>
+            onChange={e=>{setFeedEnd(e.target.value);resetFeed();}}/>
         </label>
         <label>Senha corporativa (step-up)
           <input type="password" autoComplete="off" value={password}
@@ -205,6 +224,16 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
         disabled={busy||!tenant||!unit||!account||!feedProvider||
           !feedStart||!feedEnd||!password}
         onClick={()=>void syncFeed(0)}>Coletar lote do fornecedor configurado</button>
+      {feedProgress?<p role="status">
+        Totais dos {feedProgress.pages} lote(s) confirmados:{" "}
+        {feedProgress.scanned} tentativa(s) examinadas,
+        {" "}{feedProgress.created} novas,
+        {" "}{feedProgress.alreadyRecorded} já registradas e
+        {" "}{feedProgress.unreported} sem observação.
+        {feedNextPage===null?" Não há continuação confirmada no navegador.":
+          " Há outra página; exige nova reautenticação."}
+        Estes totais não equivalem a uma fatura do fornecedor.
+      </p>:null}
       {feedNextPage!==null?<button className="button" type="button"
         disabled={busy||!password}
         onClick={()=>void syncFeed(feedNextPage)}>
