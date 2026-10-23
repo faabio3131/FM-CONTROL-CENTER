@@ -42,7 +42,7 @@ function validatedScope(input:SourceScope){
 async function readLimited(res:Response,size=16384):Promise<unknown>{
   const announced=res.headers.get("Content-Length");
   if(res.status!==200||!res.ok||!res.body||
-    (announced!==null&&(!/^\\d+$/.test(announced)||Number(announced)>size)))
+    (announced!==null&&(!/^\d+$/.test(announced)||Number(announced)>size)))
     return denied();
   const reader=res.body.getReader(),parts:Uint8Array[]=[];
   let received=0;
