@@ -258,6 +258,7 @@ export async function syncProviderExportFeed(
     !count(data.unreported)||!count(data.scanned)||
     data.scanned>input.limit||
     data.created+data.already_recorded+data.unreported!==data.scanned||
+    (data.scanned===0&&data.next_page!==null)||
     !(data.next_page===null||Number.isSafeInteger(data.next_page)&&
       typeof data.next_page==="number"&&data.next_page===input.page+1&&
       data.next_page<=20000)||
