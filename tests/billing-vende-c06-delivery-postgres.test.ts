@@ -848,6 +848,45 @@ describe("C06 commercial dispatcher: one-shot, signed snapshot and no false ACK"
       [orphan.id])).rows[0].state).toBe("unknown");
   });
 
+  it("P01 traverses over fifty divergences without gaps, including identical timestamps",async()=>{
+    const cmd=await makePending();
+    const baseline=new Date("2026-10-23T03:00:00.123Z");
+    // Simulate DB microseconds that cannot be represented by JavaScript Date.
+    await pool.query(
+      "INSERT INTO fmcc_audit_event(tenant_id,actor_id,actor_type,action,resource_type,resource_id,result,correlation_id,metadata,occurred_at) "+
+      "SELECT $1,'fm-finance','service','vende.compensation_review.required',"+
+      "'vende_lifecycle_command',$2,'needs_human_review',$3,$4::jsonb,"+
+      "$5::timestamptz + (n % 3) * interval '0.0001 seconds' "+
+      "FROM generate_series(1,57) AS n",
+      [tenant,cmd.id,cmd.operationId,JSON.stringify({
+        productId,schema:"fm.vende.compensation-risk.v1",
+        reason:"suspension_unconfirmed",
+      }),baseline],
+    );
+    const expected=(await pool.query(
+      "SELECT id FROM fmcc_audit_event WHERE tenant_id=$1 AND action='vende.compensation_review.required' "+
+      "AND metadata ->> 'productId' = $2",[tenant,productId])).rows
+      .map(row=>row.id as string);
+    let after:string|undefined;const collected:string[]=[];
+    for(let page=0;page<10;page++){
+      const result=await readVendeCompensationReviews(context,productId,after);
+      expect(result.historicalTotal).toBe(expected.length);
+      expect(result.items.length).toBeLessThanOrEqual(50);
+      collected.push(...result.items.map(item=>item.riskId));
+      expect(result.truncated).toBe(result.nextCursor!==null);
+      if(!result.nextCursor)break;
+      expect(result.items).toHaveLength(50);
+      after=result.nextCursor;
+      if(page===9)throw Error("pagination_did_not_terminate");
+    }
+    expect(new Set(collected).size).toBe(collected.length);
+    expect(collected.slice().sort()).toEqual(expected.slice().sort());
+    await expect(readVendeCompensationReviews(
+      context,productId,"not-a-cursor")).rejects.toThrow();
+    await expect(readVendeCompensationReviews(
+      {...context,tenantId:"foreign"},productId,after)).rejects.toThrow();
+  });
+
   it("P01 locks review decisions by version and audits one human reviewer per CAS without remote mutation",async()=>{
     const cmd=await makePending();
     await pool.query(

@@ -1,6 +1,7 @@
 import {describe,expect,it,vi} from "vitest";
 vi.mock("../src/infrastructure/db/client",()=>({db:{}}));
-import {evaluateVendeFollowupApproval,projectVendeCompensationFollowup}
+import {encodeVendeCompensationCursor,evaluateVendeFollowupApproval,
+  parseVendeCompensationCursor,projectVendeCompensationFollowup}
   from "../src/application/billing/vende-compensation-review";
 const base={
   action:"SUSPEND_DELINQUENCY",
@@ -131,5 +132,32 @@ describe("F9 current two-person compensation approval projection",()=>{
     expect(verify({reviewed:undefined})).toEqual({
       currentPreparation:true,currentIndependentReview:false,
     });
+  });
+});
+
+describe("F9 bounded compensation keyset cursor",()=>{
+  const key={id:"11111111-1111-4111-8111-111111111111",
+    occurredAt:new Date("2026-10-23T01:02:03.004Z")};
+  it("preserves the exact ordered timestamp and immutable event UUID",()=>{
+    const token=encodeVendeCompensationCursor(key);
+    expect(token).toMatch(/^[A-Za-z0-9_-]{40,128}$/);
+    expect(parseVendeCompensationCursor(token)).toEqual(key);
+  });
+  it("denies malformed, noncanonical, oversized and injected cursors",()=>{
+    const token=encodeVendeCompensationCursor(key);
+    const hostile=[
+      "","bad","%xx",token+"=",token+"?tenantId=foreign",
+      "A".repeat(129),
+      Buffer.from(JSON.stringify(["2026-10-23T01:02:03.004Z",
+        "x' OR true--"])).toString("base64url"),
+      Buffer.from(JSON.stringify(["not-a-date",key.id])).toString("base64url"),
+      Buffer.from(JSON.stringify([key.occurredAt.toISOString(),key.id,"extra"]))
+        .toString("base64url"),
+    ];
+    for(const bad of hostile)
+      expect(()=>parseVendeCompensationCursor(bad)).toThrow();
+    expect(()=>encodeVendeCompensationCursor({
+      ...key,id:"not-uuid",
+    })).toThrow();
   });
 });

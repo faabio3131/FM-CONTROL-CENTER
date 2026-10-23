@@ -5,7 +5,7 @@
  * Each human step is CAS serialized on the lifecycle command row, recorded in
  * the audit ledger and cannot trigger any external provider mutation.
  */
-import {and,desc,eq,inArray,sql} from "drizzle-orm";
+import {and,desc,eq,inArray,or,sql} from "drizzle-orm";
 import {db} from "@/infrastructure/db/client";
 import {productDefinitions} from "@/infrastructure/db/platform-schema";
 import {auditEvents} from "@/infrastructure/db/foundation-schema";
@@ -18,6 +18,34 @@ import type {StepUpProof} from "@/application/security/password-step-up";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTION="vende.compensation_review.triaged" as const;
+const PAGE_SIZE=50;
+const ISO_UTC=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+/** A keyset cursor is a bounded timestamp+UUID pair, not client authority.
+ * UUID breaks timestamp ties; every page re-checks FM scope server-side. */
+export function parseVendeCompensationCursor(value:string):{
+  occurredAt:Date;id:string;
+}{
+  if(typeof value!=="string"||value.length<1||value.length>128||
+    !/^[A-Za-z0-9_-]+$/.test(value))throw new VendeCompensationReviewDenied();
+  try{
+    const plain=Buffer.from(value,"base64url").toString("utf8");
+    const decoded:unknown=JSON.parse(plain);
+    if(!Array.isArray(decoded)||decoded.length!==2||
+      typeof decoded[0]!=="string"||!ISO_UTC.test(decoded[0])||
+      typeof decoded[1]!=="string"||!UUID.test(decoded[1])||
+      !Number.isFinite(Date.parse(decoded[0]))||
+      new Date(decoded[0]).toISOString()!==decoded[0]||
+      Buffer.from(JSON.stringify(decoded),"utf8").toString("base64url")!==value)
+      throw Error("cursor_invalid");
+    return {occurredAt:new Date(decoded[0]),id:decoded[1]};
+  }catch{throw new VendeCompensationReviewDenied();}
+}
+export function encodeVendeCompensationCursor(value:{occurredAt:Date;id:string}):string{
+  if(!UUID.test(value.id)||!Number.isFinite(value.occurredAt.getTime()))
+    throw new VendeCompensationReviewDenied();
+  return Buffer.from(JSON.stringify([value.occurredAt.toISOString(),value.id]),"utf8")
+    .toString("base64url");
+}
 const KNOWN_RISK_REASONS:ReadonlySet<string>=new Set([
   "reactivation_unconfirmed","suspension_unconfirmed",
   "renewal_unconfirmed","upgrade_unconfirmed","downgrade_unconfirmed",
@@ -145,9 +173,10 @@ export function projectVendeCompensationFollowup(input:{
 /** Read-only, historical case list. Result is intentionally NOT an assertion
  * of remote license validity, an open-incidents total or completed repair. */
 export async function readVendeCompensationReviews(
-  context:TenantContext,productId:string,
+  context:TenantContext,productId:string,after?:string,
 ){
   requireFMPlanAuthority(context,false);
+  const cursor=after===undefined?null:parseVendeCompensationCursor(after);
   return db.transaction(async tx=>{
     await verifyProduct(tx,context,productId);
     const scope=and(
@@ -158,11 +187,19 @@ export async function readVendeCompensationReviews(
     );
     const [count]=await tx.select({total:sql<number>`count(*)::int`})
       .from(auditEvents).where(scope);
+    // PostgreSQL retains microseconds; JS Date has milliseconds. Compare
+    // and order at identical precision or rows around a page boundary vanish.
+    const orderTime=sql`date_trunc('milliseconds',${auditEvents.occurredAt})`;
     const riskRows=await tx.select({
       id:auditEvents.id,resourceId:auditEvents.resourceId,
       occurredAt:auditEvents.occurredAt,metadata:auditEvents.metadata,
-    }).from(auditEvents).where(scope)
-      .orderBy(desc(auditEvents.occurredAt),desc(auditEvents.id)).limit(51);
+    }).from(auditEvents).where(and(scope,cursor?or(
+      sql`${orderTime} < ${cursor.occurredAt.toISOString()}::timestamptz`,
+      and(sql`${orderTime} = ${cursor.occurredAt.toISOString()}::timestamptz`,
+        sql`${auditEvents.id} < ${cursor.id}::uuid`),
+    ):undefined))
+      .orderBy(desc(orderTime),desc(auditEvents.id))
+      .limit(PAGE_SIZE+1);
     const ids=[...new Set(riskRows.slice(0,50).map(row=>row.resourceId)
       .filter((id):id is string=>typeof id==="string"&&UUID.test(id)))];
     const commands=ids.length?await tx.select({
@@ -265,9 +302,11 @@ export async function readVendeCompensationReviews(
         intentIds.map(id=>"p01.correction."+id)),
     )).limit(50):[];
     const corrections=new Map(correctionRows.map(row=>[row.operationId,row.state]));
+    const hasMore=riskRows.length>PAGE_SIZE;
     return {
       historicalTotal:Number(count?.total??0),
-      truncated:riskRows.length>50,
+      truncated:hasMore,
+      nextCursor:hasMore?encodeVendeCompensationCursor(riskRows[PAGE_SIZE-1]):null,
       items:riskRows.slice(0,50).flatMap(risk=>{
         const command=risk.resourceId?byCommand.get(risk.resourceId):null;
         if(!command)return [];
