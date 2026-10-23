@@ -96,6 +96,40 @@ export function projectQuotaObservation(
   };
 }
 
+type StoredObservation={
+  tenantId:string;actorId:string;actorType:string;action:string;
+  resourceType:string;resourceId:string|null;metadata:Record<string,unknown>;
+};
+export function matchesVendeQuotaObservationReplay(
+  previous:StoredObservation,context:TenantContext,input:VerifyInput,
+):boolean{
+  const m=previous.metadata;
+  return previous.tenantId===context.tenantId&&
+    previous.actorId===context.userId&&previous.actorType==="user"&&
+    previous.action===ACTION&&previous.resourceType==="vende_compensation_intent"&&
+    previous.resourceId===input.intentId&&m.schema===SCHEMA&&
+    m.productId===input.productId&&m.intentId===input.intentId&&
+    m.unitId===input.unitId&&m.capability===input.capability&&
+    m.historicalOnly===true&&m.caseResolved===false&&
+    m.noQuotaReservation===true&&m.providerRefundExecuted===false;
+}
+type CorrectionSnapshot=Awaited<ReturnType<typeof requireBoundIntent>>;
+export function unchangedVendeCorrectionSnapshot(
+  before:CorrectionSnapshot,after:CorrectionSnapshot,
+):boolean{
+  const b=before.deliveryTarget,a=after.deliveryTarget;
+  return before.id===after.id&&before.state==="delivered"&&
+    after.state==="delivered"&&before.revision===after.revision&&
+    b?.schema==="fm.vende.reactivation-target.v1"&&
+    a?.schema===b.schema&&a.planCode===b.planCode&&
+    a.planRevision===b.planRevision&&a.validUntil===b.validUntil;
+}
+const replayResult=(input:VerifyInput)=>({
+  observationId:input.observationId,status:"previously_recorded" as const,
+  unitId:input.unitId,capability:input.capability,
+  historicalOnly:true as const,caseResolved:false as const,
+  allUnitsVerified:false as const,providerRefundExecuted:false as const,
+});
 export async function recordVendeCorrectionQuotaObservation(
   context:TenantContext,proof:StepUpProof,input:VerifyInput,
   assistantConfig:PlanProjectionConfig,
@@ -109,16 +143,38 @@ export async function recordVendeCorrectionQuotaObservation(
      now.getTime()-proof.verifiedAt.getTime()>300000||
      now.getTime()-proof.verifiedAt.getTime()< -15000||
      assistantConfig.organizationId!==context.tenantId)return denied();
-  // All authoritative sources are re-read server-side; browser proofs are ignored.
+  // A retried request after an uncertain HTTP response must not require a
+  // second live provider observation, which could already have expired.
+  const before=await db.transaction(async tx=>{
+    const correction=await requireBoundIntent(tx,context,input,false);
+    const [existing]=await tx.select({
+      tenantId:auditEvents.tenantId,actorId:auditEvents.actorId,
+      actorType:auditEvents.actorType,action:auditEvents.action,
+      resourceType:auditEvents.resourceType,resourceId:auditEvents.resourceId,
+      metadata:auditEvents.metadata,
+    }).from(auditEvents).where(eq(auditEvents.id,input.observationId)).limit(1);
+    if(existing&&!matchesVendeQuotaObservationReplay(existing,context,input))
+      return denied();
+    return {correction,existing:!!existing};
+  });
+  if(before.existing)return replayResult(input);
+  if(before.correction.state!=="delivered"||
+     before.correction.deliveryTarget?.schema!=="fm.vende.reactivation-target.v1")
+    return denied();
+
+  // First-time evidence is always re-verified server-side. Never trust the UI.
   const evidence=await readVendeCoreQuotaEvidence(
     context,{productId:input.productId,intentId:input.intentId,
       unitId:input.unitId,capability:input.capability},assistantConfig,
   );
-  const metadata=projectQuotaObservation(evidence,input,new Date());
+  const after=new Date();
+  if(!Number.isFinite(after.getTime())||
+     after.getTime()-proof.verifiedAt.getTime()>300000||
+     after.getTime()-proof.verifiedAt.getTime()< -15000)return denied();
+  const metadata=projectQuotaObservation(evidence,input,after);
   return db.transaction(async tx=>{
     const current=await requireBoundIntent(tx,context,input,true);
-    if(current.state!=="delivered"||
-       current.deliveryTarget?.schema!=="fm.vende.reactivation-target.v1")
+    if(!unchangedVendeCorrectionSnapshot(before.correction,current))
       return denied();
     const [created]=await tx.insert(auditEvents).values({
       id:input.observationId,tenantId:context.tenantId,
@@ -131,18 +187,13 @@ export async function recordVendeCorrectionQuotaObservation(
       .returning({id:auditEvents.id});
     if(!created){
       const [previous]=await tx.select({
-        action:auditEvents.action,tenantId:auditEvents.tenantId,
-        actorId:auditEvents.actorId,resourceId:auditEvents.resourceId,
+        tenantId:auditEvents.tenantId,actorId:auditEvents.actorId,
+        actorType:auditEvents.actorType,action:auditEvents.action,
+        resourceType:auditEvents.resourceType,resourceId:auditEvents.resourceId,
         metadata:auditEvents.metadata,
       }).from(auditEvents).where(eq(auditEvents.id,input.observationId)).limit(1);
-      if(!previous||previous.action!==ACTION||
-         previous.tenantId!==context.tenantId||
-         previous.actorId!==context.userId||
-         previous.resourceId!==input.intentId||
-         previous.metadata.schema!==SCHEMA||
-         previous.metadata.productId!==input.productId||
-         previous.metadata.unitId!==input.unitId||
-         previous.metadata.capability!==input.capability)return denied();
+      if(!previous||!matchesVendeQuotaObservationReplay(previous,context,input))
+        return denied();
     }
     return {
       observationId:input.observationId,
