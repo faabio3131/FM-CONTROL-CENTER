@@ -93,9 +93,11 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
       const validInt=(v:unknown)=>typeof v==="number"&&Number.isSafeInteger(v)&&v>=0;
       if(!validInt(data.created)||!validInt(data.alreadyRecorded)||
         !validInt(data.unreported)||!validInt(data.scanned)||
-        data.scanned>25||data.providerInvoiceVerified!==false||
-        data.quotaRecoveryAuthorized!==false||
-        !(data.nextPage===null||validInt(data.nextPage)))throw Error("untrusted");
+        data.scanned>25||
+        data.created+data.alreadyRecorded+data.unreported!==data.scanned||
+        data.providerInvoiceVerified!==false||data.quotaRecoveryAuthorized!==false||
+        !(data.nextPage===null||validInt(data.nextPage)&&
+          data.nextPage===page+1))throw Error("untrusted");
       setFeedNextPage(data.nextPage);
       setStatus("Coleta concluída nesta página: "+data.created+" nova(s), "+
         data.alreadyRecorded+" já existentes, "+data.unreported+
