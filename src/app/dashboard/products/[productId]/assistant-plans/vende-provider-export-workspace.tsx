@@ -19,6 +19,10 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
   const [outputTokens,setOutputTokens]=useState("");
   const [cost,setCost]=useState("");
   const [password,setPassword]=useState("");
+  const [feedProvider,setFeedProvider]=useState("");
+  const [feedStart,setFeedStart]=useState("");
+  const [feedEnd,setFeedEnd]=useState("");
+  const [feedNextPage,setFeedNextPage]=useState<number|null>(null);
   const [busy,setBusy]=useState(false);
   const [status,setStatus]=useState("");
   const [error,setError]=useState("");
@@ -26,7 +30,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     encodeURIComponent(productId)+"/vende-core-finops/provider-exports";
   const clear=()=>{
     setAttempts([]);setSelected(null);setComparison(null);
-    setStatus("");setError("");setPassword("");
+    setStatus("");setError("");setPassword("");setFeedNextPage(null);
   };
   function scopeUrl(id?:string){
     return endpoint+"?"+new URLSearchParams({
@@ -64,6 +68,41 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
       setComparison(found);
     }catch{setError("A comparação do Core não foi confirmada.");}
     finally{setBusy(false);}
+  }
+  async function syncFeed(page=0){
+    if(!tenant||!unit||!account||!feedProvider||!feedStart||!feedEnd||!password){
+      setError("Preencha tenant, unidade, provedor, conta, período e senha.");
+      return;
+    }
+    setBusy(true);setError("");setStatus("");setFeedNextPage(null);
+    try{
+      const res=await fetch(endpoint.replace("/provider-exports","/provider-feed-sync"),{
+        method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",
+        body:JSON.stringify({
+          externalTenantId:tenant,unitId:unit,provider:feedProvider,
+          accountRef:account,startDate:feedStart,endDate:feedEnd,
+          page,limit:25,password,
+        }),
+      });
+      if(!res.ok)throw Error("unavailable");
+      const data=await res.json() as {
+        created:number;alreadyRecorded:number;unreported:number;
+        scanned:number;nextPage:number|null;
+        providerInvoiceVerified:boolean;quotaRecoveryAuthorized:boolean;
+      };
+      const validInt=(v:unknown)=>typeof v==="number"&&Number.isSafeInteger(v)&&v>=0;
+      if(!validInt(data.created)||!validInt(data.alreadyRecorded)||
+        !validInt(data.unreported)||!validInt(data.scanned)||
+        data.scanned>25||data.providerInvoiceVerified!==false||
+        data.quotaRecoveryAuthorized!==false||
+        !(data.nextPage===null||validInt(data.nextPage)))throw Error("untrusted");
+      setFeedNextPage(data.nextPage);
+      setStatus("Coleta concluída nesta página: "+data.created+" nova(s), "+
+        data.alreadyRecorded+" já existentes, "+data.unreported+
+        " ainda sem observação. Fatura e quotas não verificadas.");
+    }catch{
+      setError("Coleta não confirmada. Consulte o Core antes de repetir; fonte pode estar indisponível.");
+    }finally{setPassword("");setBusy(false);}
   }
   async function submit(){
     if(!selected?.attempt_id||!password||!account||!sourceRef||!observed){
@@ -131,6 +170,45 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     </div>
     <button className="button" type="button" disabled={busy||!tenant||!unit||!requestId}
       onClick={()=>void load()}>Buscar tentativas no Core</button>
+    <section aria-label="Coleta configurada de relatórios de fornecedor">
+      <h3>Coleta de evidências do fornecedor configurado</h3>
+      <p>A origem e credencial são selecionadas exclusivamente no Core pela FM.
+        Esta operação é observacional: não valida fatura, cobrança ou quotas.
+        O Core informa tentativas ainda sem extrato e não inventa custo zero.</p>
+      <div className="form-grid">
+        <label>Provedor cadastrado no Core
+          <input value={feedProvider} maxLength={128} disabled={busy}
+            placeholder="Identificador do provedor"
+            onChange={e=>{setFeedProvider(e.target.value);setFeedNextPage(null);}}/>
+        </label>
+        <label>Conta do fornecedor
+          <input value={account} maxLength={128} disabled={busy}
+            onChange={e=>{setAccount(e.target.value);setFeedNextPage(null);}}/>
+        </label>
+        <label>Início do período
+          <input type="date" value={feedStart} disabled={busy}
+            onChange={e=>{setFeedStart(e.target.value);setFeedNextPage(null);}}/>
+        </label>
+        <label>Fim do período
+          <input type="date" value={feedEnd} disabled={busy}
+            onChange={e=>{setFeedEnd(e.target.value);setFeedNextPage(null);}}/>
+        </label>
+        <label>Senha corporativa (step-up)
+          <input type="password" autoComplete="off" value={password}
+            disabled={busy} maxLength={128}
+            onChange={e=>setPassword(e.target.value)}/>
+        </label>
+      </div>
+      <button className="button" type="button"
+        disabled={busy||!tenant||!unit||!account||!feedProvider||
+          !feedStart||!feedEnd||!password}
+        onClick={()=>void syncFeed(0)}>Coletar lote do fornecedor configurado</button>
+      {feedNextPage!==null?<button className="button" type="button"
+        disabled={busy||!password}
+        onClick={()=>void syncFeed(feedNextPage)}>
+        Continuar próxima página ({feedNextPage})
+      </button>:null}
+    </section>
     {attempts.length>0?<div>
       <h3>Tentativas registradas</h3>
       <div className="form-grid">
@@ -186,11 +264,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
           <input inputMode="decimal" value={cost} disabled={busy}
             onChange={e=>setCost(e.target.value)} maxLength={36}/>
         </label>
-        <label>Senha corporativa para confirmar
-          <input type="password" autoComplete="off" value={password}
-            disabled={busy} maxLength={128}
-            onChange={e=>setPassword(e.target.value)}/>
-        </label>
+
       </div>
       <button type="button" className="button"
         disabled={busy||!password||!account||!sourceRef||!observed}

@@ -163,3 +163,85 @@ export async function importProviderExport(context:TenantContext,proof:StepUpPro
     return denied();
   return data.status as "created"|"already_recorded";
 }
+
+export type ProviderFeedSyncRequest={
+  provider:string;accountRef:string;startDate:string;endDate:string;
+  page:number;limit:number;
+};
+export type ProviderFeedSyncOutcome={
+  created:number;alreadyRecorded:number;unreported:number;scanned:number;
+  nextPage:number|null;providerInvoiceVerified:false;quotaRecoveryAuthorized:false;
+};
+const CALENDAR=/^\d{4}-\d{2}-\d{2}$/;
+const FEED_ID=/^[A-Za-z0-9_.:-]{1,128}$/;
+export function validateProviderFeedSyncRequest(input:ProviderFeedSyncRequest):void{
+  if(!input||typeof input!=="object"||Array.isArray(input)||
+    !FEED_ID.test(input.provider)||!FEED_ID.test(input.accountRef)||
+    !CALENDAR.test(input.startDate)||!CALENDAR.test(input.endDate)||
+    !Number.isSafeInteger(input.page)||input.page<0||input.page>20000||
+    !Number.isSafeInteger(input.limit)||input.limit<1||input.limit>50)
+    return denied();
+  const from=new Date(input.startDate+"T00:00:00.000Z");
+  const to=new Date(input.endDate+"T00:00:00.000Z");
+  if(!Number.isFinite(from.getTime())||!Number.isFinite(to.getTime())||
+    from.toISOString().slice(0,10)!==input.startDate||
+    to.toISOString().slice(0,10)!==input.endDate||
+    to.getTime()<from.getTime()||
+    to.getTime()-from.getTime()>92*86_400_000)return denied();
+}
+/** Operator-triggered supplier feed. Core chooses endpoint and secret exclusively. */
+export async function syncProviderExportFeed(
+  context:TenantContext,proof:StepUpProof,sessionId:string,
+  scope:Pick<SourceScope,"productId"|"externalTenantId"|"unitId">,
+  input:ProviderFeedSyncRequest,http:typeof fetch=fetch,now:Date=new Date(),
+):Promise<ProviderFeedSyncOutcome>{
+  await checkScope(context,{...scope,requestId:"feed-sync"},true);
+  validateProviderFeedSyncRequest(input);
+  if(proof.userId!==context.userId||!SCOPE.test(sessionId)||
+    !Number.isFinite(now.getTime())||
+    now.getTime()-proof.verifiedAt.getTime()>300000||
+    now.getTime()-proof.verifiedAt.getTime()< -15000)return denied();
+  const cfg=commandCoreFinopsAlertPolicyConfig();
+  const authorization=signCoreAIRecoveryAuthorization({
+    userId:context.userId,sessionId,organizationId:context.tenantId,
+    role:"platform_admin",approved:true,stepUpAt:proof.verifiedAt,
+  },{
+    privateKeyPem:cfg.privateKeyPem,issuer:cfg.issuer,
+    audience:cfg.audience,corporateOrganizationId:cfg.corporateOrganizationId,
+  },{now});
+  const body=JSON.stringify({
+    tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+    provider:input.provider,account_ref:input.accountRef,
+    start_date:input.startDate,end_date:input.endDate,
+    page:input.page,limit:input.limit,
+  });
+  const res=await http(
+    cfg.origin+"/internal/v1/command/ai/finops/provider-export/sync",{
+      method:"POST",cache:"no-store",redirect:"error",
+      headers:{"Authorization":"Bearer "+authorization,
+        "X-FM-Recovery-Service-Key":cfg.transport,
+        "Content-Type":"application/json"},
+      body,signal:AbortSignal.timeout(15000),
+    },
+  );
+  const raw=await readLimited(res,2048);
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))return denied();
+  const data=raw as Record<string,unknown>;
+  const count=(value:unknown):value is number=>Number.isSafeInteger(value)&&
+    typeof value==="number"&&value>=0&&value<=50;
+  if(!count(data.created)||!count(data.already_recorded)||
+    !count(data.unreported)||!count(data.scanned)||
+    data.scanned>input.limit||
+    data.created+data.already_recorded+data.unreported>data.scanned||
+    !(data.next_page===null||Number.isSafeInteger(data.next_page)&&
+      typeof data.next_page==="number"&&data.next_page>=0&&
+      data.next_page<=20000)||
+    data.provider_invoice_verified!==false||
+    data.quota_recovery_authorized!==false)return denied();
+  return {
+    created:data.created,alreadyRecorded:data.already_recorded,
+    unreported:data.unreported,scanned:data.scanned,
+    nextPage:data.next_page as number|null,
+    providerInvoiceVerified:false,quotaRecoveryAuthorized:false,
+  };
+}
