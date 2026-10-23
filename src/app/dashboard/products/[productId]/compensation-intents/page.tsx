@@ -9,8 +9,8 @@ import {AuthenticationRequiredError,TenantScopeRequiredError}
 import {VendeCorrectionIntentPanel} from "./correction-intent-panel";
 
 export default async function CompensationIntentsPage({
-  params,
-}:{params:Promise<{productId:string}>}){
+  params,searchParams,
+}:{params:Promise<{productId:string}>;searchParams:Promise<{intentId?:string}>}){
   let context;
   try{context=await resolveTenantContext(await headers());}
   catch(error){
@@ -32,6 +32,10 @@ export default async function CompensationIntentsPage({
     throw error;
   }
   if(product.slug!=="vendeatendeia")notFound();
+  const requested= (await searchParams).intentId;
+  const initialIntentId=typeof requested==="string"&&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requested)
+    ?requested:"";
   return <main className="dashboard-shell">
     <header className="dashboard-header">
       <div>
@@ -39,6 +43,6 @@ export default async function CompensationIntentsPage({
         <h1>Reparação supervisionada — intenção auditável</h1>
       </div>
     </header>
-    <VendeCorrectionIntentPanel productId={productId}/>
+    <VendeCorrectionIntentPanel productId={productId} initialIntentId={initialIntentId}/>
   </main>;
 }
