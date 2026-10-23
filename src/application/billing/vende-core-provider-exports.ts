@@ -7,6 +7,17 @@ import {checkScope,commandCoreFinopsAlertPolicyConfig}
 
 const SCOPE=/^[A-Za-z0-9_.-]{1,128}$/;
 const MONEY=/^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,18})?$/;
+const ISO_OBSERVED=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+/** External source timestamps must be UTC, real dates and not future evidence. */
+export function validProviderObservationTime(value:unknown,now:Date):boolean{
+  if(typeof value!=="string"||value.length>40||
+     !ISO_OBSERVED.test(value)||!Number.isFinite(now.getTime()))return false;
+  const ts=Date.parse(value);
+  if(!Number.isFinite(ts)||ts<Date.UTC(2020,0,1)||
+     ts>now.getTime()+5*60_000)return false;
+  const normalized=new Date(ts).toISOString();
+  return normalized.startsWith(value.slice(0,19));
+}
 const denied=():never=>{throw Error("vende.finops.provider_export_unavailable");};
 
 export type SourceScope={
@@ -85,7 +96,7 @@ export async function readProviderAttempts(context:TenantContext,scope:SourceSco
       !(a.output_tokens===null||Number.isSafeInteger(a.output_tokens)&&
         (a.output_tokens as number)>=0)||
       !(a.cost_known_subtotal_usd===null||
-        typeof a.cost_known_subtotal_usd==="string"&&a.cost_known_subtotal_usd.length<=80))
+        typeof a.cost_known_subtotal_usd==="string"&&MONEY.test(a.cost_known_subtotal_usd)))
       return denied();
   }
   return data.items as SourceAttempt[];
@@ -117,7 +128,7 @@ export async function readProviderComparison(context:TenantContext,scope:SourceS
     !["input_tokens_reported","output_tokens_reported"].every(k=>
       d[k]===null||Number.isSafeInteger(d[k])&&(d[k] as number)>=0)||
     !["report_cost_usd","internal_cost_usd"].every(k=>
-      d[k]===null||typeof d[k]==="string"&&(d[k] as string).length<=80))
+      d[k]===null||typeof d[k]==="string"&&MONEY.test(d[k] as string)))
     return denied();
   return d as ProviderComparison;
 }
@@ -134,8 +145,7 @@ export async function importProviderExport(context:TenantContext,proof:StepUpPro
     !safe(source.model,200)||!safe(source.accountRef)||
     !safe(source.sourceRef)||
     !["openai_compatible","gemini"].includes(source.adapter)||
-    !safe(source.observedAt,40)||
-    !Number.isFinite(Date.parse(source.observedAt))||
+    !validProviderObservationTime(source.observedAt,now)||
     !source.usage||typeof source.usage!=="object"||
     Array.isArray(source.usage)||Object.keys(source.usage).length>12||
     Object.entries(source.usage).some(([k,v])=>!safe(k,64)||
@@ -185,7 +195,9 @@ export type ProviderFeedSyncOutcome={
 };
 const CALENDAR=/^\d{4}-\d{2}-\d{2}$/;
 const FEED_ID=/^[A-Za-z0-9_.:-]{1,128}$/;
-export function validateProviderFeedSyncRequest(input:ProviderFeedSyncRequest):void{
+export function validateProviderFeedSyncRequest(
+  input:ProviderFeedSyncRequest,now:Date=new Date(),
+):void{
   if(!input||typeof input!=="object"||Array.isArray(input)||
     !FEED_ID.test(input.provider)||!FEED_ID.test(input.accountRef)||
     !CALENDAR.test(input.startDate)||!CALENDAR.test(input.endDate)||
@@ -195,6 +207,8 @@ export function validateProviderFeedSyncRequest(input:ProviderFeedSyncRequest):v
   const from=new Date(input.startDate+"T00:00:00.000Z");
   const to=new Date(input.endDate+"T00:00:00.000Z");
   if(!Number.isFinite(from.getTime())||!Number.isFinite(to.getTime())||
+    !Number.isFinite(now.getTime())||
+    to.getTime()>Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate())||
     from.toISOString().slice(0,10)!==input.startDate||
     to.toISOString().slice(0,10)!==input.endDate||
     to.getTime()<from.getTime()||
@@ -207,7 +221,7 @@ export async function syncProviderExportFeed(
   input:ProviderFeedSyncRequest,http:typeof fetch=fetch,now:Date=new Date(),
 ):Promise<ProviderFeedSyncOutcome>{
   await checkScope(context,scope,true);
-  validateProviderFeedSyncRequest(input);
+  validateProviderFeedSyncRequest(input,now);
   if(proof.userId!==context.userId||!SCOPE.test(sessionId)||
     !Number.isFinite(now.getTime())||
     now.getTime()-proof.verifiedAt.getTime()>300000||
