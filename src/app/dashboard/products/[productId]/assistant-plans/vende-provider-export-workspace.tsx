@@ -106,7 +106,8 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
         data.created+data.alreadyRecorded+data.unreported!==data.scanned||
         data.providerInvoiceVerified!==false||data.quotaRecoveryAuthorized!==false||
         !(data.nextPage===null||validInt(data.nextPage)&&
-          data.nextPage===page+1))throw Error("untrusted");
+          data.nextPage===page+1&&data.nextPage<=20000&&
+          data.scanned>0))throw Error("untrusted");
       setFeedNextPage(data.nextPage);
       setFeedProgress(prev=>{
         const prior=page===0?null:prev;
