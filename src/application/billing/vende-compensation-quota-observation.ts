@@ -113,7 +113,12 @@ export function matchesVendeQuotaObservationReplay(
     m.historicalOnly===true&&m.caseResolved===false&&
     m.noQuotaReservation===true&&m.providerRefundExecuted===false;
 }
-type CorrectionSnapshot=Awaited<ReturnType<typeof requireBoundIntent>>;
+type CorrectionSnapshot={
+  id:string;state:string;revision:number;
+  deliveryTarget:{
+    schema:string;planCode:string;planRevision:number;validUntil:number;
+  }|null;
+};
 export function unchangedVendeCorrectionSnapshot(
   before:CorrectionSnapshot,after:CorrectionSnapshot,
 ):boolean{
