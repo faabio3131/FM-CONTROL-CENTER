@@ -7,7 +7,9 @@ vi.mock("@/application/billing/vende-core-finops-policy",()=>({
 vi.mock("@/application/integration/fm-core-ai-recovery-jwt",()=>({
   signCoreAIRecoveryAuthorization:mocks.sign,
 }));
-import {validateProviderFeedSyncRequest,syncProviderExportFeed}
+import {validateProviderFeedSyncRequest,syncProviderExportFeed,
+  validProviderObservationTime,readProviderAttempts,
+  readProviderComparison,importProviderExport}
   from "@/application/billing/vende-core-provider-exports";
 
 const input={
@@ -16,8 +18,9 @@ const input={
 };
 describe("F3 governed provider report sync admission",()=>{
   it("permits bounded collection by configured source",()=>{
-    expect(()=>validateProviderFeedSyncRequest(input)).not.toThrow();
-    expect(()=>validateProviderFeedSyncRequest({...input,page:20000,limit:50}))
+    const now=new Date("2026-10-23T12:00:00Z");
+    expect(()=>validateProviderFeedSyncRequest(input,now)).not.toThrow();
+    expect(()=>validateProviderFeedSyncRequest({...input,page:20000,limit:50},now))
       .not.toThrow();
   });
   it.each([
@@ -33,7 +36,8 @@ describe("F3 governed provider report sync admission",()=>{
     {limit:51},
     {limit:NaN},
   ])("rejects malformed or unbounded scope %j",change=>{
-    expect(()=>validateProviderFeedSyncRequest({...input,...change}))
+    expect(()=>validateProviderFeedSyncRequest({...input,...change},
+      new Date("2026-10-23T12:00:00Z")))
       .toThrow("vende.finops.provider_export_unavailable");
   });
 });
@@ -135,5 +139,81 @@ describe("F9 Command to configured Core provider feed: signed and bounded",()=>{
     await expect(syncProviderExportFeed(
       context,proof,"session-fm",scope,input,http,now,
     )).rejects.toThrow("vende.finops.provider_export_unavailable");
+  });
+});
+
+describe("F9 supplier evidence ingress hardening",()=>{
+  it("rejects future-only supplier feed dates even with valid chronology",()=>{
+    const fixed=new Date("2026-10-23T12:00:00Z");
+    expect(()=>validateProviderFeedSyncRequest({
+      ...input,startDate:"2026-10-24",endDate:"2026-10-24",
+    },fixed)).toThrow("vende.finops.provider_export_unavailable");
+    expect(()=>validateProviderFeedSyncRequest({
+      ...input,startDate:"2026-10-22",endDate:"2026-10-24",
+    },fixed)).toThrow("vende.finops.provider_export_unavailable");
+  });
+  it("accepts authentic UTC observations but not future/rolled dates",()=>{
+    expect(validProviderObservationTime(
+      "2026-10-23T12:00:00.000Z",now)).toBe(true);
+    expect(validProviderObservationTime(
+      "2026-10-23T12:04:59Z",now)).toBe(true);
+    for(const invalid of [
+      "2026-10-23T12:05:01Z","2026-11-23T12:00:00Z",
+      "2026-02-31T12:00:00Z","2026-10-23T24:00:00Z",
+      "2026-10-23T12:00:00+03:00","2026-10-23T12:00:00",
+      "2026-10-23","2020-01-00T00:00:00Z","not-a-date",
+    ])expect(validProviderObservationTime(invalid,now)).toBe(false);
+  });
+  const attempt={event_id:"event-1",attempt_id:"attempt-1",
+    provider:"openai",model:"chat-example",outcome:"completed",
+    fallback:false,input_tokens:100,output_tokens:30,
+    cost_known_subtotal_usd:"0.00125",cost_known:true};
+  const source={attemptId:"attempt-1",provider:"openai",model:"chat-example",
+    adapter:"openai_compatible" as const,accountRef:"fm-provider-account",
+    sourceRef:"report-1",observedAt:"2026-10-23T12:00:00.000Z",
+    usage:{prompt_tokens:100,completion_tokens:30},costUsd:"0.00125"};
+  it("rejects nondecimal attempt costs supplied by a compromised Core response",async()=>{
+    const good={tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+      request_id:"req-1",provider_invoice_verified:false,items:[attempt]};
+    const ctx={...scope,requestId:"req-1"};
+    expect(await readProviderAttempts(context,ctx,
+      httpMock(Response.json(good)))).toHaveLength(1);
+    for(const invalid of ["Infinity","NaN","USD 0.01","-1","1e100"]){
+      const http=httpMock(Response.json({...good,items:[
+        {...attempt,cost_known_subtotal_usd:invalid},
+      ]}));
+      await expect(readProviderAttempts(context,ctx,http))
+        .rejects.toThrow("vende.finops.provider_export_unavailable");
+    }
+  });
+  it("refuses forged amounts in comparison without confusing unknown with zero",async()=>{
+    const base={tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+      request_id:"req-1",attempt_id:"attempt-1",
+      status:"needs_attention",provider:"openai",source_ref:"report-1",
+      input_tokens_reported:100,output_tokens_reported:30,
+      report_cost_usd:"0.00125",internal_cost_usd:"0.00125",
+      usage_matches:true,cost_matches:true,needs_attention:false,
+      provider_invoice_verified:false,provider_signature_verified:false,
+      quota_recovery_authorized:false};
+    const ctx={...scope,requestId:"req-1"};
+    expect((await readProviderComparison(context,ctx,"attempt-1",
+      httpMock(Response.json(base)))).cost_matches).toBe(true);
+    for(const k of ["report_cost_usd","internal_cost_usd"]){
+      await expect(readProviderComparison(context,ctx,"attempt-1",
+        httpMock(Response.json({...base,[k]:"not a decimal"}))))
+        .rejects.toThrow("vende.finops.provider_export_unavailable");
+    }
+  });
+  it("denies future or non-UTC imported observations before remote writes",async()=>{
+    for(const invalid of [
+      "2026-10-23T13:00:00Z","2026-02-31T12:00:00Z",
+      "2026-10-23T12:00:00-03:00",
+    ]){
+      const http=vi.fn() as unknown as typeof fetch;
+      await expect(importProviderExport(context,proof,"session-fm",
+        {...scope,requestId:"req-1"},{...source,observedAt:invalid},
+        http,now)).rejects.toThrow("vende.finops.provider_export_unavailable");
+      expect(http).not.toHaveBeenCalled();
+    }
   });
 });
