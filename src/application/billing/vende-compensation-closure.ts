@@ -261,6 +261,27 @@ export async function closeVendeCommercialCompensationCase(
     };
   });
 }
+/** Pure projection: a valid previous closure remains visible if a later
+ * financial/Assistant check fails, but CURRENT closure is always revoked. */
+export function projectVendeCommercialClosureStatus(
+  scope:Scope,
+  status:Awaited<ReturnType<typeof readVendeCorrectionOutcome>>,
+  row:{id:string;metadata:Record<string,unknown>}|undefined,
+  revision:number|undefined,
+){
+  const recorded=!!row&&revision!==undefined&&
+    matchesClosure(row.metadata,scope,status.operationId,revision);
+  const currentlyClosed=recorded&&
+    status.state==="assistant_active_payment_verified"&&
+    status.remoteEntitlementConfirmed===true&&
+    status.financialSettlementCurrentlyVerified===true;
+  return {...status,commercialCaseClosed:currentlyClosed,caseResolved:currentlyClosed,
+    closureRecorded:recorded,historicalOnly:recorded&&!currentlyClosed,
+    allUnitsVerified:false as const,
+    closureId:recorded?row.id:null,
+    closureUnitId:recorded?row.metadata.unitId as string:null,
+    correctionRevision:revision??null};
+}
 export async function readVendeCommercialClosureStatus(
   context:TenantContext,scope:Scope,config:PlanProjectionConfig,
 ){
@@ -285,16 +306,5 @@ export async function readVendeCommercialClosureStatus(
       eq(vendeLifecycleCommands.operationId,status.operationId),
       eq(vendeLifecycleCommands.state,"delivered"),
     )).limit(1);
-  const recorded=!!row&&!!correction&&
-    matchesClosure(row.metadata,scope,status.operationId,correction.revision);
-  const currentlyClosed=recorded&&
-    status.state==="assistant_active_payment_verified"&&
-    status.remoteEntitlementConfirmed===true&&
-    status.financialSettlementCurrentlyVerified===true;
-  return {...status,commercialCaseClosed:currentlyClosed,caseResolved:currentlyClosed,
-    closureRecorded:recorded,historicalOnly:recorded&&!currentlyClosed,
-    allUnitsVerified:false as const,
-    closureId:recorded?row.id:null,
-    closureUnitId:recorded?row.metadata.unitId as string:null,
-    correctionRevision:correction?.revision??null};
+  return projectVendeCommercialClosureStatus(scope,status,row,correction?.revision);
 }
