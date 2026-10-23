@@ -21,18 +21,22 @@ export async function GET(request:Request,{params}:Params){
   const {productId}=await params;
   const query=new URL(request.url).searchParams;
   const keys=[...query.keys()].sort();
-  if(!UUID.test(productId)||keys.join(",")!=="externalTenantId,unitId"||
+  const selected=keys.join(",");
+  if(!UUID.test(productId)||
+     !["externalTenantId,unitId","afterEventId,externalTenantId,unitId"].includes(selected)||
      [...query].some(([key])=>query.getAll(key).length!==1))
     return response({error:"finops.outbox.invalid"},400);
   const externalTenantId=query.get("externalTenantId")??"";
   const unitId=query.get("unitId")??"";
-  if(!SCOPE.test(externalTenantId)||!SCOPE.test(unitId))
+  const afterEventId=query.get("afterEventId")??undefined;
+  if(!SCOPE.test(externalTenantId)||!SCOPE.test(unitId)||
+     (afterEventId!==undefined&&!FINGERPRINT.test(afterEventId)))
     return response({error:"finops.outbox.invalid"},400);
   try{
     const context=await resolveTenantContext(await headers());
     return response(await readFMFinopsOperationalOutbox(context,{
       productId,externalTenantId,unitId,
-    }),200);
+    },fetch,afterEventId),200);
   }catch{return response({error:"finops.outbox.unavailable"},403);}
 }
 

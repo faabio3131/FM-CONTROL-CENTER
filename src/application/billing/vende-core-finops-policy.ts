@@ -223,6 +223,7 @@ export type FMFinopsOperationalOutbox={
   tenant_id:string;unit_id:string;
   status:"pending_review"|"no_queued_alerts";
   provider_invoice_verified:false;automated_dispatch_enabled:false;
+  next_cursor:string|null;
   items:Array<{
     event_id:string;request_id:string;policy_revision:number;reasons:string[];
     known_cost_subtotal:string;currency:string|null;
@@ -257,12 +258,15 @@ async function readCoreBounded(res:Response,max:number):Promise<unknown>{
 }
 export async function readFMFinopsOperationalOutbox(
   context:TenantContext,scope:Scope,http:typeof fetch=fetch,
+  afterEventId?:string,
 ):Promise<FMFinopsOperationalOutbox>{
   await checkScope(context,scope,false);
+  if(afterEventId!==undefined&&!FINGERPRINT.test(afterEventId))return denied();
   const config=commandCoreFinopsAlertPolicyConfig();
   try{
     const query=new URLSearchParams({
       tenant_id:scope.externalTenantId,unit_id:scope.unitId,limit:"50",
+      ...(afterEventId?{after_event_id:afterEventId}:{}),
     });
     const res=await http(config.origin+"/v1/admin/ai/usage/alerts/outbox?"+query,{
       headers:{"X-Core-Admin-Key":config.readerKey},cache:"no-store",
@@ -276,6 +280,12 @@ export async function readFMFinopsOperationalOutbox(
       !["pending_review","no_queued_alerts"].includes(data.status)||
       data.provider_invoice_verified!==false||
       data.automated_dispatch_enabled!==false||
+      !(data.next_cursor===null||
+        typeof data.next_cursor==="string"&&FINGERPRINT.test(data.next_cursor))||
+      (data.next_cursor!==null&&(
+        !Array.isArray(data.items)||data.items.length!==50||
+        data.next_cursor!==data.items.at(-1)?.event_id
+      ))||
       !Array.isArray(data.items)||data.items.length>50||
       (data.status==="no_queued_alerts")!==(data.items.length===0)||
       data.items.some(item=>!item||!FINGERPRINT.test(item.event_id)||
@@ -291,6 +301,7 @@ export async function readFMFinopsOperationalOutbox(
     return {
       tenant_id:scope.externalTenantId,unit_id:scope.unitId,status:data.status,
       provider_invoice_verified:false,automated_dispatch_enabled:false,
+      next_cursor:data.next_cursor,
       items:data.items.map(item=>({
         event_id:item.event_id,request_id:item.request_id,
         policy_revision:item.policy_revision,reasons:item.reasons,
@@ -326,13 +337,13 @@ export async function operateFMFinopsAlertOutbox(
     });
   }else{
     if(!FINGERPRINT.test(operation.eventId))return denied();
-    // The Core review endpoint is FM-global. Narrow it to the precise
-    // customer/unit binding before an admin can mutate an alert by hash.
-    const visible=await readFMFinopsOperationalOutbox(context,scope,http);
-    if(!visible.items.some(item=>item.event_id===operation.eventId))
-      return denied();
+    // Core now enforces the canonical tenant/unit scope on the mutation.
+    // Do not pre-read only page one: older alerts must remain reviewable.
     url="/internal/v1/command/ai/finops/alert-review";
-    body=JSON.stringify({event_id:operation.eventId});
+    body=JSON.stringify({
+      event_id:operation.eventId,
+      tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+    });
   }
   const token=signCoreAIRecoveryAuthorization({
     userId:context.userId,sessionId,organizationId:context.tenantId,

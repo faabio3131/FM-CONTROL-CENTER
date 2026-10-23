@@ -54,8 +54,23 @@ describe("FM persistent FinOps alert operations",()=>{
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(mocks.read).toHaveBeenCalledWith(
-      expect.objectContaining({tenantId:"fm"}),scope,
+      expect.objectContaining({tenantId:"fm"}),scope,expect.any(Function),undefined,
     );
+  });
+  it("accepts only scoped 64-hex pagination cursor in GET",async()=>{
+    const afterEventId="a".repeat(64);
+    const r=await GET(new Request(
+      url+"?externalTenantId=tenant-a&unitId=unit-a&afterEventId="+afterEventId,
+    ),params);
+    expect(r.status).toBe(200);
+    expect(mocks.read).toHaveBeenCalledWith(
+      expect.objectContaining({tenantId:"fm"}),scope,
+      expect.any(Function),afterEventId,
+    );
+    const rejected=await GET(new Request(
+      url+"?externalTenantId=tenant-a&unitId=unit-a&afterEventId=../other",
+    ),params);
+    expect(rejected.status).toBe(400);
   });
   it("requires live human FM session and step-up to scan",async()=>{
     const res=await POST(post(scan),params);

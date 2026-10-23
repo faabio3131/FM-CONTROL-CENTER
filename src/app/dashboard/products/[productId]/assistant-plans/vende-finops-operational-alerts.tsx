@@ -12,26 +12,34 @@ export function VendeFinopsOperationalAlerts({productId}:{productId:string}){
   const [password,setPassword]=useState("");
   const [items,setItems]=useState<Item[]>([]);
   const [nextCursor,setNextCursor]=useState<string|null>(null);
+  const [inboxCursor,setInboxCursor]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
   const [status,setStatus]=useState("");
   const [error,setError]=useState("");
   const endpoint="/api/billing/products/"+encodeURIComponent(productId)+
     "/vende-core-finops/alert-operations";
-  const reset=()=>{setItems([]);setNextCursor(null);setStatus("");setError("");setPassword("");};
-  async function refresh(){
+  const reset=()=>{setItems([]);setNextCursor(null);setInboxCursor(null);
+    setStatus("");setError("");setPassword("");};
+  async function refresh(afterEventId?:string){
     setBusy(true);setError("");setStatus("");
     try{
-      const q=new URLSearchParams({externalTenantId:tenant,unitId:unit});
+      const q=new URLSearchParams({
+        externalTenantId:tenant,unitId:unit,
+        ...(afterEventId?{afterEventId}:{}),
+      });
       const res=await fetch(endpoint+"?"+q,{cache:"no-store"});
       if(!res.ok)throw Error("unavailable");
       const data=await res.json() as FMFinopsOperationalOutbox;
       if(data.provider_invoice_verified!==false||
          data.automated_dispatch_enabled!==false||
+         !(data.next_cursor===null||
+           typeof data.next_cursor==="string"&&/^[0-9a-f]{64}$/.test(data.next_cursor))||
          !Array.isArray(data.items)||data.items.length>50)throw Error("untrusted");
       setItems(data.items);
-      setStatus(data.items.length+" alertas aguardando revisão. A lista exibe até 50 registros.");
+      setInboxCursor(data.next_cursor);
+      setStatus(data.items.length+" alertas nesta página. A fila é percorrida por cursor; cada página mostra até 50 registros.");
     }catch{
-      setItems([]);
+      setItems([]);setInboxCursor(null);
       setError("Fila não confirmada pelo Core. Nenhum alerta será presumido.");
     }finally{setBusy(false);}
   }
@@ -52,7 +60,7 @@ export function VendeFinopsOperationalAlerts({productId}:{productId:string}){
         status:string;kind:string;created?:number;scanned?:number;nextCursor?:string|null;
       };
       if(reply.status!=="accepted"||reply.kind!==kind)throw Error("invalid_ack");
-      setItems([]);
+      setItems([]);setInboxCursor(null);
       setNextCursor(kind==="scan"?reply.nextCursor??null:null);
       setStatus(kind==="scan"?
         "Varredura interna confirmada: "+reply.created+" novos alertas em "+
@@ -93,6 +101,10 @@ export function VendeFinopsOperationalAlerts({productId}:{productId:string}){
     </div>
     <button className="button" type="button" disabled={busy||!tenant||!unit}
       onClick={()=>void refresh()}>Consultar fila persistente</button>
+    {inboxCursor?<button className="button" type="button"
+      disabled={busy} onClick={()=>void refresh(inboxCursor)}>
+      Consultar próxima página da fila
+    </button>:null}
     <button className="button" type="button"
       disabled={busy||!tenant||!unit||!password||!start||!end}
       onClick={()=>void action("scan")}>Processar janela com reautenticação</button>

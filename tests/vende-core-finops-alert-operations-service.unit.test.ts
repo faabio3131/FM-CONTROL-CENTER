@@ -37,6 +37,7 @@ function pending(){
   return {
     tenant_id:"tenant-a",unit_id:"unit-a",status:"pending_review",
     provider_invoice_verified:false,automated_dispatch_enabled:false,
+    next_cursor:null,
     items:[{
       event_id:eventId,request_id:"req-a",policy_revision:1,
       reasons:["provider_cost_unverified"],
@@ -101,27 +102,46 @@ describe("F3 Command operational alerts use authoritative Core and FM identity",
     expect(mocks.authority).toHaveBeenCalledWith(context,true);
     expect(mocks.sign).toHaveBeenCalledOnce();
   });
-  it("reviews only event IDs present in the selected tenant/unit pending queue",async()=>{
+  it("reviews a scoped alert on any page using Core canonical authorization",async()=>{
     const http=httpMock((url,options)=>{
-      if(url.includes("/usage/alerts/outbox"))return Response.json(pending());
       expect(url).toContain("/finops/alert-review");
-      expect(JSON.parse(String(options.body))).toEqual({event_id:eventId});
+      expect(JSON.parse(String(options.body))).toEqual({
+        event_id:eventId,tenant_id:"tenant-a",unit_id:"unit-a",
+      });
       return new Response(null,{status:204});
     });
     expect(await operateFMFinopsAlertOutbox(context,proof,"session-a",scope,{
       kind:"review",eventId,
     },http,time)).toEqual({status:"accepted",kind:"review"});
   });
-  it("denies cross-tenant hash review before sending a mutation",async()=>{
-    const http=httpMock((url)=>{
-      expect(url).toContain("/usage/alerts/outbox");
-      return Response.json(pending());
+  it("propagates Core's scope-denial of a foreign alert, no optimistic success",async()=>{
+    const http=httpMock((url,options)=>{
+      expect(url).toContain("/finops/alert-review");
+      expect(JSON.parse(String(options.body))).toMatchObject({
+        event_id:"b".repeat(64),tenant_id:"tenant-a",unit_id:"unit-a",
+      });
+      return Response.json({detail:"scope_denied"},{status:409});
     });
     await expect(operateFMFinopsAlertOutbox(context,proof,"session-a",scope,{
       kind:"review",eventId:"b".repeat(64),
     },http,time)).rejects.toThrow("vende.finops.alert_policy_unavailable");
     expect(http).toHaveBeenCalledTimes(1);
-    expect(mocks.sign).not.toHaveBeenCalled();
+  });
+  it("browses a later page with strict validated source cursor",async()=>{
+    const http=httpMock((url)=>{
+      expect(url).toContain("after_event_id="+"c".repeat(64));
+      return Response.json({...pending(),next_cursor:null});
+    });
+    const response=await readFMFinopsOperationalOutbox(
+      context,scope,http,"c".repeat(64),
+    );
+    expect(response.items[0].event_id).toBe(eventId);
+    expect(response.next_cursor).toBeNull();
+    const notCalled=vi.fn() as unknown as typeof fetch;
+    await expect(readFMFinopsOperationalOutbox(
+      context,scope,notCalled,"../foreign",
+    )).rejects.toThrow();
+    expect(notCalled).not.toHaveBeenCalled();
   });
   it("blocks missing binding, expired reauth and invalid cursor before sending",async()=>{
     const http=vi.fn() as unknown as typeof fetch;
@@ -145,6 +165,8 @@ describe("F3 Command operational alerts use authoritative Core and FM identity",
       {...pending(),provider_invoice_verified:true},
       {...pending(),tenant_id:"foreign"},
       {...pending(),items:[{...pending().items[0],event_id:"forged"}]},
+      {...pending(),next_cursor:"bad"},
+      {...pending(),next_cursor:"d".repeat(64)},
     ]){
       const http=httpMock(()=>Response.json(response));
       await expect(readFMFinopsOperationalOutbox(context,scope,http))
