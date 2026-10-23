@@ -62,6 +62,25 @@ export function assertVendeCommercialClosureEvidence(
       return denied();
   }
 }
+/** Closure authority remains bound to the original second reviewer, not
+ * any FM operator with a valid password. An old audit entry is not a token. */
+export function validVendeClosureReview(input:{
+  operatorId:string;preparedBy:string;reviewerId:string;
+  productId:string;intentId:string;reviewVersion:unknown;
+  observationId:unknown;metadata:Record<string,unknown>;
+}):boolean{
+  const m=input.metadata;
+  return input.operatorId===input.reviewerId&&
+    input.reviewerId!==input.preparedBy&&
+    m.schema==="fm.vende.compensation-second-review.v1"&&
+    m.productId===input.productId&&m.intentId===input.intentId&&
+    m.reviewVersion===input.reviewVersion&&
+    m.observationId===input.observationId&&
+    m.preparerId===input.preparedBy&&m.reviewerId===input.reviewerId&&
+    m.caseResolved===false&&m.approvedForDispatch===false&&
+    m.remediationDispatched===false&&m.entitlementMutated===false&&
+    m.refundExecuted===false;
+}
 function matchesClosure(metadata:Record<string,unknown>,input:Scope,
   operationId:string,revision:number){
   return metadata.schema===SCHEMA&&metadata.productId===input.productId&&
@@ -132,13 +151,14 @@ export async function closeVendeCommercialCompensationCase(
       sql`${auditEvents.metadata} ->> 'productId' = ${session.productId}`,
     )).limit(1);
     if(!review||review.result!=="reviewed_no_dispatch"||
-       review.metadata.schema!=="fm.vende.compensation-second-review.v1"||
-       review.metadata.reviewVersion!==prepared.metadata.reviewVersion||
-       review.metadata.observationId!==prepared.metadata.observationId||
-       review.metadata.caseResolved!==false||
-       review.metadata.approvedForDispatch!==false||
-       review.actorId===prepared.actorId||
-       context.userId===prepared.actorId)return denied();
+       !validVendeClosureReview({
+         operatorId:context.userId,preparedBy:prepared.actorId,
+         reviewerId:review.actorId,productId:session.productId,
+         intentId:session.intentId,
+         reviewVersion:prepared.metadata.reviewVersion,
+         observationId:prepared.metadata.observationId,
+         metadata:review.metadata,
+       }))return denied();
     const [original]=await tx.select().from(vendeLifecycleCommands)
       .where(and(eq(vendeLifecycleCommands.id,prepared.metadata.commandId),
         eq(vendeLifecycleCommands.tenantId,context.tenantId),
