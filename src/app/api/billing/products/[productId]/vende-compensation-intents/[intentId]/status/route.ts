@@ -1,7 +1,7 @@
 import {headers} from "next/headers";
 import {NextResponse} from "next/server";
 import {resolveTenantContext} from "@/application/security/resolve-tenant-context";
-import {readVendeCorrectionOutcome} from "@/application/billing/vende-compensation-outcome";
+import {readVendeCommercialClosureStatus} from "@/application/billing/vende-compensation-closure";
 import {planProjectionConfigFromEnvironment} from "@/application/billing/assistant-plan-outbox-dispatcher";
 type Params={params:Promise<{productId:string;intentId:string}>};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -15,7 +15,7 @@ export async function GET(request:Request,{params}:Params){
     if(!UUID.test(productId)||!UUID.test(intentId))
       return reply({error:"correction.outcome.invalid"},400);
     const context=await resolveTenantContext(await headers());
-    return reply(await readVendeCorrectionOutcome(context,{productId,intentId},
+    return reply(await readVendeCommercialClosureStatus(context,{productId,intentId},
       planProjectionConfigFromEnvironment()),200);
   }catch{
     return reply({error:"correction.outcome.unavailable"},403);
