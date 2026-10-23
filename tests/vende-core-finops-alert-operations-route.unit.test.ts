@@ -70,6 +70,15 @@ describe("FM persistent FinOps alert operations",()=>{
       {kind:"scan",startDate:"2026-10-01",endDate:"2026-10-22"},
     );
   });
+  it("passes an explicitly authorized scan cursor for the next page",async()=>{
+    const res=await POST(post({...scan,afterRequestId:"req-previous"}),params);
+    expect(res.status).toBe(200);
+    expect(mocks.operate).toHaveBeenCalledWith(
+      expect.anything(),expect.anything(),"trusted-session",scope,
+      {kind:"scan",startDate:"2026-10-01",endDate:"2026-10-22",
+       afterRequestId:"req-previous"},
+    );
+  });
   it("allows only bounded fingerprint review, not arbitrary billing actions",async()=>{
     mocks.operate.mockResolvedValueOnce({status:"accepted",kind:"review"});
     expect((await POST(post(review),params)).status).toBe(200);
@@ -81,6 +90,7 @@ describe("FM persistent FinOps alert operations",()=>{
   it("rejects spoofed scopes, unexpected fields, invalid IDs and body types",async()=>{
     for(const wrong of [
       {...scan,tenantId:"foreign"}, {...scan,action:"release_quota"},
+      {...scan,afterRequestId:"../foreign"},
       {...scan,startDate:"2026/10/01"}, {...scan,unitId:"../foreign"},
       {...scan,password:""}, {...scan,password:"x".repeat(129)},
       {...scan,kind:"paid"}, {...review,eventId:"not-an-event"},
