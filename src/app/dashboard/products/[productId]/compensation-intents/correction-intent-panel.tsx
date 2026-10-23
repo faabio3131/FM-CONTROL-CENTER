@@ -30,10 +30,10 @@ type UnitQuotaProof={
   caseResolved:false;reservationCreated:false;providerCalled:false;
   allUnitsVerified:false;futureAiAdmissionGuaranteed:false;
 };
-export function VendeCorrectionIntentPanel({productId}:{productId:string}){
+export function VendeCorrectionIntentPanel({productId,initialIntentId=""}:{productId:string;initialIntentId?:string}){
   const [commandId,setCommandId]=useState("");
   const [reviewVersion,setReviewVersion]=useState("1");
-  const [intentId,setIntentId]=useState("");
+  const [intentId,setIntentId]=useState(initialIntentId);
   const [password,setPassword]=useState("");
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
