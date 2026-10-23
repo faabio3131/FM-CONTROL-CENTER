@@ -214,3 +214,162 @@ export async function readFMFinopsAlertInbox(
     return data;
   }catch{return denied();}
 }
+
+
+/** FM operational alerts persist in Core; Command only authenticates and presents.
+ * These actions must never settle a provider invoice or change customer quotas.
+ */
+export type FMFinopsOperationalOutbox={
+  tenant_id:string;unit_id:string;
+  status:"pending_review"|"no_queued_alerts";
+  provider_invoice_verified:false;automated_dispatch_enabled:false;
+  items:Array<{
+    event_id:string;request_id:string;policy_revision:number;reasons:string[];
+    known_cost_subtotal:string;currency:string|null;
+    unknown_attempts:number;observed_attempts:number;created_at:string;
+  }>;
+};
+export type FMFinopsAlertOperation=
+  |{kind:"scan";startDate:string;endDate:string;afterRequestId?:string}
+  |{kind:"review";eventId:string};
+export type FMFinopsOperationResult=
+  |{status:"accepted";kind:"review"}
+  |{status:"accepted";kind:"scan";created:number;scanned:number;nextCursor:string|null};
+
+const FINGERPRINT=/^[0-9a-f]{64}$/;
+const VALID_REASONS=new Set([
+  "usage_evidence_unavailable","provider_cost_unverified","known_subtotal_above_limit",
+]);
+const integer=(v:unknown)=>typeof v==="number"&&Number.isSafeInteger(v)&&v>=0;
+async function readCoreBounded(res:Response,max:number):Promise<unknown>{
+  if(Number(res.headers.get("Content-Length")??0)>max||!res.body)return denied();
+  const reader=res.body.getReader();let bytes=0;const parts:Uint8Array[]=[];
+  try{
+    for(;;){
+      const next=await reader.read();
+      if(next.done)break;
+      bytes+=next.value.byteLength;
+      if(bytes>max){await reader.cancel();return denied();}
+      parts.push(next.value);
+    }
+  }finally{reader.releaseLock();}
+  return JSON.parse(Buffer.concat(parts).toString("utf8")) as unknown;
+}
+export async function readFMFinopsOperationalOutbox(
+  context:TenantContext,scope:Scope,http:typeof fetch=fetch,
+):Promise<FMFinopsOperationalOutbox>{
+  await checkScope(context,scope,false);
+  const config=commandCoreFinopsAlertPolicyConfig();
+  try{
+    const query=new URLSearchParams({
+      tenant_id:scope.externalTenantId,unit_id:scope.unitId,limit:"50",
+    });
+    const res=await http(config.origin+"/v1/admin/ai/usage/alerts/outbox?"+query,{
+      headers:{"X-Core-Admin-Key":config.readerKey},cache:"no-store",
+      redirect:"error",signal:AbortSignal.timeout(5000),
+    });
+    if(res.status!==200||!res.ok)return denied();
+    const raw=await readCoreBounded(res,32768);
+    if(!raw||typeof raw!=="object"||Array.isArray(raw))return denied();
+    const data=raw as FMFinopsOperationalOutbox;
+    if(data.tenant_id!==scope.externalTenantId||data.unit_id!==scope.unitId||
+      !["pending_review","no_queued_alerts"].includes(data.status)||
+      data.provider_invoice_verified!==false||
+      data.automated_dispatch_enabled!==false||
+      !Array.isArray(data.items)||data.items.length>50||
+      (data.status==="no_queued_alerts")!==(data.items.length===0)||
+      data.items.some(item=>!item||!FINGERPRINT.test(item.event_id)||
+        !SCOPE.test(item.request_id)||!integer(item.policy_revision)||item.policy_revision<1||
+        !Array.isArray(item.reasons)||item.reasons.length>3||
+        item.reasons.some(r=>!VALID_REASONS.has(r))||
+        typeof item.known_cost_subtotal!=="string"||!COST.test(item.known_cost_subtotal)||
+        !(item.currency===null||typeof item.currency==="string"&&/^[A-Z]{3}$/.test(item.currency))||
+        !integer(item.unknown_attempts)||!integer(item.observed_attempts)||
+        item.unknown_attempts>item.observed_attempts||
+        typeof item.created_at!=="string"||item.created_at.length>48||
+        !Number.isFinite(Date.parse(item.created_at))))return denied();
+    return {
+      tenant_id:scope.externalTenantId,unit_id:scope.unitId,status:data.status,
+      provider_invoice_verified:false,automated_dispatch_enabled:false,
+      items:data.items.map(item=>({
+        event_id:item.event_id,request_id:item.request_id,
+        policy_revision:item.policy_revision,reasons:item.reasons,
+        known_cost_subtotal:item.known_cost_subtotal,currency:item.currency,
+        unknown_attempts:item.unknown_attempts,observed_attempts:item.observed_attempts,
+        created_at:item.created_at,
+      })),
+    };
+  }catch{return denied();}
+}
+export async function operateFMFinopsAlertOutbox(
+  context:TenantContext,proof:StepUpProof,sessionId:string,scope:Scope,
+  operation:FMFinopsAlertOperation,http:typeof fetch=fetch,now:Date=new Date(),
+):Promise<FMFinopsOperationResult>{
+  await checkScope(context,scope,true);
+  const config=commandCoreFinopsAlertPolicyConfig();
+  if(proof.userId!==context.userId||!SCOPE.test(sessionId)||
+    !Number.isFinite(now.getTime())||
+    now.getTime()-proof.verifiedAt.getTime()>300000||
+    now.getTime()-proof.verifiedAt.getTime()< -15000)return denied();
+  let url:string,body:string;
+  if(operation.kind==="scan"){
+    const start=checkedDate(operation.startDate),end=checkedDate(operation.endDate);
+    if(end<start||end-start>=31*86400_000||
+      end>Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate())||
+      (operation.afterRequestId!==undefined&&!SCOPE.test(operation.afterRequestId)))
+      return denied();
+    url="/internal/v1/command/ai/finops/alert-scan";
+    body=JSON.stringify({
+      tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+      start_date:operation.startDate,end_date:operation.endDate,limit:50,
+      ...(operation.afterRequestId?{after_request_id:operation.afterRequestId}:{}),
+    });
+  }else{
+    if(!FINGERPRINT.test(operation.eventId))return denied();
+    // The Core review endpoint is FM-global. Narrow it to the precise
+    // customer/unit binding before an admin can mutate an alert by hash.
+    const visible=await readFMFinopsOperationalOutbox(context,scope,http);
+    if(!visible.items.some(item=>item.event_id===operation.eventId))
+      return denied();
+    url="/internal/v1/command/ai/finops/alert-review";
+    body=JSON.stringify({event_id:operation.eventId});
+  }
+  const token=signCoreAIRecoveryAuthorization({
+    userId:context.userId,sessionId,organizationId:context.tenantId,
+    role:"platform_admin",approved:true,stepUpAt:proof.verifiedAt,
+  },{
+    privateKeyPem:config.privateKeyPem,issuer:config.issuer,
+    audience:config.audience,corporateOrganizationId:config.corporateOrganizationId,
+  },{now});
+  try{
+    const res=await http(config.origin+url,{
+      method:"POST",headers:{
+        Authorization:"Bearer "+token,
+        "X-FM-Recovery-Service-Key":config.transport,
+        "Content-Type":"application/json",
+      },body,cache:"no-store",redirect:"error",signal:AbortSignal.timeout(5000),
+    });
+    if(operation.kind==="review"){
+      if(res.status!==204)return denied();
+      return {status:"accepted",kind:"review"};
+    }
+    if(res.status!==200||!res.ok)return denied();
+    const raw=await readCoreBounded(res,2048);
+    if(!raw||typeof raw!=="object"||Array.isArray(raw))return denied();
+    const result=raw as Record<string,unknown>;
+    if(!integer(result.created)||!integer(result.scanned)||
+      (result.created as number)>(result.scanned as number)||
+      (result.scanned as number)>50||
+      result.provider_invoice_verified!==false||
+      result.automated_dispatch_enabled!==false||
+      !(result.next_cursor===null||
+        typeof result.next_cursor==="string"&&SCOPE.test(result.next_cursor)))return denied();
+    return {
+      status:"accepted",kind:"scan",created:result.created as number,
+      scanned:result.scanned as number,nextCursor:result.next_cursor as string|null,
+    };
+  }catch{
+    // A timeout can mean Core persisted an alert/review: no blind retries.
+    return denied();
+  }
+}
