@@ -109,6 +109,7 @@ def test_command_assistant_core_separate_processes_postgres_recovery(tmp_path):
         public_key=signing_key.public_key().public_bytes(
             serialization.Encoding.Raw, serialization.PublicFormat.Raw,
         ),
+        allowed_providers=frozenset({"gemini"}),
     )
     signed_payload = json.dumps({
         "issuer": "synthetic-provider-signed",
