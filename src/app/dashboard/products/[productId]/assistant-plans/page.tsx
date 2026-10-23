@@ -16,6 +16,7 @@ import { VendeContractHistory } from "./vende-contract-history";
 import { VendeCoreFinopsPanel } from "./vende-core-finops-panel";
 import { VendeFinopsAlertPolicyEditor } from "./vende-finops-alert-policy-editor";
 import { VendeFinopsAlertInbox } from "./vende-finops-alert-inbox";
+import { VendeFinopsOperationalAlerts } from "./vende-finops-operational-alerts";
 
 export default async function AssistantPlansPage({params}:{params:Promise<{productId:string}>}) {
   let context;
@@ -51,5 +52,6 @@ export default async function AssistantPlansPage({params}:{params:Promise<{produ
     {product.slug==="vendeatendeia"?<VendeCoreFinopsPanel productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeFinopsAlertPolicyEditor productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeFinopsAlertInbox productId={productId}/>:null}
+    {product.slug==="vendeatendeia"?<VendeFinopsOperationalAlerts productId={productId}/>:null}
   </main>;
 }
