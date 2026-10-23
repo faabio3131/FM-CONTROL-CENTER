@@ -8,6 +8,16 @@ type Case={
   riskId:string;commandId:string;action:string;state:string;reason:string;
   occurredAt:string;reviewVersion:number;reviewStep:ReviewStep;
   reviewer:string|null;reviewedAt:string|null;
+  followup:{
+    nextAction:"initial_review_required"|"refresh_current_evidence"|
+      "correction_preparation_required"|"independent_review_required"|
+      "queue_authorization_required"|"correction_queued"|
+      "correction_processing"|"manual_reconciliation_required"|
+      "remote_readback_required"|"other_risk_investigation";
+    intentId:string|null;currentEntitlementVerified:false;
+    financialRepairExecuted:false;caseResolved:false;
+    automaticRemediationAuthorized:false;
+  };
 };
 type ReviewResponse={
   historicalTotal:number;truncated:boolean;items:Case[];
@@ -27,6 +37,18 @@ type HistoryResponse={
 const stepName:Record<ReviewStep,string>={
   unreviewed:"Aguardando revisão",investigating:"Investigação em andamento",
   escalated:"Escalado para reparação supervisionada",
+};
+const nextActionName:Record<Case["followup"]["nextAction"],string>={
+  initial_review_required:"Próximo passo: primeira revisão corporativa",
+  refresh_current_evidence:"Próximo passo: consultar evidência atual antes da decisão",
+  correction_preparation_required:"Próximo passo: preparar intenção corretiva com duas pessoas",
+  independent_review_required:"Próximo passo: revisão independente da intenção",
+  queue_authorization_required:"Próximo passo: autorização humana para enfileirar",
+  correction_queued:"Correção na fila; aguardar processamento e ACK",
+  correction_processing:"Correção em processamento; não reenviar",
+  manual_reconciliation_required:"Divergência na correção; conciliar antes de agir",
+  remote_readback_required:"Correção entregue; conferir licença, pagamento e Core",
+  other_risk_investigation:"Próximo passo: investigação financeira específica",
 };
 function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId:string}){
   const [password,setPassword]=useState("");
@@ -87,6 +109,16 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
     <strong>{stepName[item.reviewStep]} · {item.action}</strong>
     <small>Comando {item.commandId} · {item.state}</small>
     <small>Motivo registrado: {item.reason}</small>
+    {item.followup?.caseResolved===false&&
+      item.followup.currentEntitlementVerified===false&&
+      item.followup.financialRepairExecuted===false&&
+      item.followup.automaticRemediationAuthorized===false?
+      <p role="status"><strong>{nextActionName[item.followup.nextAction]}</strong>
+        {item.followup.intentId?<span>
+          {" "}· Intenção vinculada: <code>{item.followup.intentId}</code>
+        </span>:null}
+        <small> Estado operacional histórico; não confirma reparação ou encerramento.</small>
+      </p>:<p role="alert">Encaminhamento não comprovado; investigação manual.</p>}
     <small>Detectado em {new Date(item.occurredAt).toLocaleString("pt-BR")}</small>
     {item.reviewer?<small>Última revisão: {item.reviewer} · versão {item.reviewVersion}</small>:null}
     <label>Encaminhamento humano
