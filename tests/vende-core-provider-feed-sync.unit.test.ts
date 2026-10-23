@@ -1,4 +1,7 @@
-import {describe,expect,it} from "vitest";
+import {describe,expect,it,vi} from "vitest";
+vi.mock("@/application/billing/vende-core-finops-policy",()=>({
+  checkScope:vi.fn(),commandCoreFinopsAlertPolicyConfig:vi.fn(),
+}));
 import {validateProviderFeedSyncRequest}
   from "@/application/billing/vende-core-provider-exports";
 
