@@ -195,7 +195,7 @@ export async function syncProviderExportFeed(
   scope:Pick<SourceScope,"productId"|"externalTenantId"|"unitId">,
   input:ProviderFeedSyncRequest,http:typeof fetch=fetch,now:Date=new Date(),
 ):Promise<ProviderFeedSyncOutcome>{
-  await checkScope(context,{...scope,requestId:"feed-sync"},true);
+  await checkScope(context,scope,true);
   validateProviderFeedSyncRequest(input);
   if(proof.userId!==context.userId||!SCOPE.test(sessionId)||
     !Number.isFinite(now.getTime())||
