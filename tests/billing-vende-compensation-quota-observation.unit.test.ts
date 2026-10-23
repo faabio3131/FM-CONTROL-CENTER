@@ -3,8 +3,10 @@ vi.mock("../src/infrastructure/db/client",()=>({db:{}}));
 vi.mock("../src/application/billing/vende-core-quota-readback",()=>({
   readVendeCoreQuotaEvidence:vi.fn(),
 }));
-import {projectQuotaObservation}
-  from "../src/application/billing/vende-compensation-quota-observation";
+import {
+  projectQuotaObservation,matchesVendeQuotaObservationReplay,
+  unchangedVendeCorrectionSnapshot,
+} from "../src/application/billing/vende-compensation-quota-observation";
 
 const productId="11111111-1111-4111-8111-111111111111";
 const intentId="22222222-2222-4222-8222-222222222222";
@@ -58,5 +60,53 @@ describe("F9 immutable historical quota observation",()=>{
         invalid as typeof evidence,input,now,
       )).toThrow("vende.compensation_quota_observation_denied");
     }
+  });
+});
+
+describe("F9 financial-compensation evidence retry fences",()=>{
+  const user={
+    tenantId:"fm-corporate",userId:"fm-human",role:"owner" as const,
+    correlationId:"test-retry",
+  };
+  const recorded={
+    tenantId:user.tenantId,actorId:user.userId,actorType:"user",
+    action:"vende.compensation_unit_quota.observed",
+    resourceType:"vende_compensation_intent",resourceId:intentId,
+    metadata:projectQuotaObservation(evidence,input,now),
+  };
+  it("accepts the exact same historical retry without reasserting fresh balance",()=>{
+    expect(matchesVendeQuotaObservationReplay(recorded,user,input)).toBe(true);
+  });
+  it("rejects collision, tenant swap, operator swap and altered payload",()=>{
+    const tampered=[
+      {...recorded,tenantId:"another-fm"},
+      {...recorded,actorId:"another-operator"},
+      {...recorded,resourceId:productId},
+      {...recorded,action:"vende.payment.settled"},
+      {...recorded,actorType:"service"},
+      {...recorded,metadata:{...recorded.metadata,unitId:"other"}},
+      {...recorded,metadata:{...recorded.metadata,caseResolved:true}},
+      {...recorded,metadata:{...recorded.metadata,noQuotaReservation:false}},
+    ];
+    for(const other of tampered)
+      expect(matchesVendeQuotaObservationReplay(other,user,input)).toBe(false);
+  });
+  it("denies race with command revision, delivery state or signed grant changes",()=>{
+    const current={
+      id:"44444444-4444-4444-8444-444444444444",
+      state:"delivered" as const,revision:7,
+      deliveryTarget:{
+        schema:"fm.vende.reactivation-target.v1" as const,
+        planCode:"PLUS",planRevision:7,validUntil:1790000000,
+      },
+    };
+    expect(unchangedVendeCorrectionSnapshot(current,current)).toBe(true);
+    for(const changed of [
+      {...current,revision:8},
+      {...current,state:"unknown" as const},
+      {...current,id:"55555555-5555-4555-8555-555555555555"},
+      {...current,deliveryTarget:{...current.deliveryTarget,planRevision:8}},
+      {...current,deliveryTarget:{...current.deliveryTarget,validUntil:1790000001}},
+    ])expect(unchangedVendeCorrectionSnapshot(current,changed)).toBe(false);
   });
 });
