@@ -89,6 +89,10 @@ function matchesClosure(metadata:Record<string,unknown>,input:Scope,
     metadata.commercialCaseClosed===true&&metadata.caseResolved===true&&
     metadata.allUnitsVerified===false&&metadata.providerRefundExecuted===false&&
     metadata.quotaCoverage==="one_unit_both_capabilities"&&
+    metadata.futureAiAdmissionGuaranteed===false&&
+    Array.isArray(metadata.capabilities)&&metadata.capabilities.length===2&&
+    metadata.capabilities[0]===CAPABILITIES[0]&&
+    metadata.capabilities[1]===CAPABILITIES[1]&&
     typeof metadata.unitId==="string"&&UNIT.test(metadata.unitId);
 }
 export async function closeVendeCommercialCompensationCase(
@@ -260,11 +264,11 @@ export async function closeVendeCommercialCompensationCase(
 export async function readVendeCommercialClosureStatus(
   context:TenantContext,scope:Scope,config:PlanProjectionConfig,
 ){
+  if(!strictScope(scope))return denied();
   const status=await readVendeCorrectionOutcome(context,scope,config);
-  if(!strictScope(scope)||status.state!=="assistant_active_payment_verified")
-    return {...status,commercialCaseClosed:false,closureRecorded:false,
-      allUnitsVerified:false as const,closureId:null,closureUnitId:null,
-      correctionRevision:null};
+  // Audit is historic even when a later provider reversal or Assistant
+  // suspension makes CURRENT financial closure no longer trustworthy.
+  // Preserve that record separately; never turn it into a live proof.
   const [row]=await db.select({
     id:auditEvents.id,metadata:auditEvents.metadata,
   }).from(auditEvents).where(and(
@@ -281,11 +285,16 @@ export async function readVendeCommercialClosureStatus(
       eq(vendeLifecycleCommands.operationId,status.operationId),
       eq(vendeLifecycleCommands.state,"delivered"),
     )).limit(1);
-  const closed=!!row&&!!correction&&
+  const recorded=!!row&&!!correction&&
     matchesClosure(row.metadata,scope,status.operationId,correction.revision);
-  return {...status,commercialCaseClosed:closed,caseResolved:closed,
-    closureRecorded:closed,allUnitsVerified:false as const,
-    closureId:closed?row.id:null,
-    closureUnitId:closed?row.metadata.unitId as string:null,
+  const currentlyClosed=recorded&&
+    status.state==="assistant_active_payment_verified"&&
+    status.remoteEntitlementConfirmed===true&&
+    status.financialSettlementCurrentlyVerified===true;
+  return {...status,commercialCaseClosed:currentlyClosed,caseResolved:currentlyClosed,
+    closureRecorded:recorded,historicalOnly:recorded&&!currentlyClosed,
+    allUnitsVerified:false as const,
+    closureId:recorded?row.id:null,
+    closureUnitId:recorded?row.metadata.unitId as string:null,
     correctionRevision:correction?.revision??null};
 }
