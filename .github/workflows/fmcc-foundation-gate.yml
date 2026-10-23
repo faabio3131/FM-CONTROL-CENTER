@@ -68,7 +68,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/-FM-Assistant-Base
-          ref: d3842afb5dea019bf0cb53d7f6b9e792c4c5d206
+          ref: d3fa7bde52856fe1cf3b5724aba7da72af1d3a32
           path: assistant-source
           persist-credentials: false
       - name: Use Core included in the pinned VendeAtendeIA monorepo
