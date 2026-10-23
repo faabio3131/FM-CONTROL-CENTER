@@ -1,7 +1,8 @@
 import {describe,expect,it,vi} from "vitest";
 vi.mock("../src/infrastructure/db/client",()=>({db:{}}));
 import {encodeVendeCompensationCursor,evaluateVendeFollowupApproval,
-  parseVendeCompensationCursor,projectVendeCompensationFollowup}
+  parseVendeCompensationCursor,projectVendeCompensationFollowup,
+  projectHistoricalVendeClosure}
   from "../src/application/billing/vende-compensation-review";
 const base={
   action:"SUSPEND_DELINQUENCY",
@@ -159,5 +160,74 @@ describe("F9 bounded compensation keyset cursor",()=>{
     expect(()=>encodeVendeCompensationCursor({
       ...key,id:"not-uuid",
     })).toThrow();
+  });
+});
+
+describe("F9 historical closure projection in FM compensation worklist",()=>{
+  const productId="11111111-1111-4111-8111-111111111111";
+  const intentId="22222222-2222-4222-8222-222222222222";
+  const closureId="33333333-3333-4333-8333-333333333333";
+  const operationId="p01.correction."+intentId;
+  const revision=3;
+  const event={id:closureId,resourceId:intentId,
+    occurredAt:new Date("2026-10-23T20:15:00.000Z"),
+    metadata:{
+      schema:"fm.vende.compensation-commercial-closure.v1",
+      productId,intentId,operationId,revision,unitId:"unit-b",
+      quotaCoverage:"one_unit_both_capabilities",
+      commercialCaseClosed:true,caseResolved:true,
+      allUnitsVerified:false,providerRefundExecuted:false,
+      futureAiAdmissionGuaranteed:false,
+    },
+  };
+  const input={productId,intentId,operationId,revision,
+    correctionState:"delivered",event};
+  it("recognizes audited closure as history only and preserves live recheck",()=>{
+    const history=projectHistoricalVendeClosure(input);
+    expect(history).toEqual({
+      closureId,unitId:"unit-b",recordedAt:event.occurredAt,
+      historicalOnly:true,currentLicenseVerified:false,
+      currentPaymentVerified:false,currentCoreQuotaVerified:false,
+      caseResolved:false,
+    });
+    const follow=projectVendeCompensationFollowup({
+      ...base,intentId,correctionState:"delivered",
+      historicalClosure:history,
+    });
+    expect(follow).toMatchObject({
+      nextAction:"closure_recorded_verify_current",
+      caseResolved:false,currentEntitlementVerified:false,
+      financialRepairExecuted:false,automaticRemediationAuthorized:false,
+    });
+  });
+  it.each([
+    {intentId:"44444444-4444-4444-8444-444444444444"},
+    {productId:"foreign"},
+    {operationId:"p01.correction.foreign"},
+    {revision:4},
+    {correctionState:"pending"},
+  ])("denies foreign, revision-stale and undelivered records %j",delta=>{
+    expect(projectHistoricalVendeClosure({...input,...delta})).toBeNull();
+  });
+  it.each([
+    {unitId:"../foreign"},
+    {schema:"invented"},
+    {quotaCoverage:"all_units"},
+    {commercialCaseClosed:false},
+    {caseResolved:false},
+    {allUnitsVerified:true},
+    {providerRefundExecuted:true},
+    {futureAiAdmissionGuaranteed:true},
+  ])("ignores forged closure audit metadata %j",delta=>{
+    expect(projectHistoricalVendeClosure({
+      ...input,event:{...event,metadata:{...event.metadata,...delta}},
+    })).toBeNull();
+  });
+  it("cannot mark case currently closed when recorded closure is missing",()=>{
+    expect(projectVendeCompensationFollowup({
+      ...base,intentId,correctionState:"delivered",historicalClosure:null,
+    })).toMatchObject({
+      nextAction:"remote_readback_required",caseResolved:false,
+    });
   });
 });
