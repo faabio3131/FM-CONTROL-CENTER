@@ -18,6 +18,7 @@ type Outcome={
   financialSettlementCurrentlyVerified:boolean;
   coreQuotaVerified:false;caseResolved:boolean;
   commercialCaseClosed?:boolean;closureRecorded?:boolean;
+  historicalOnly?:boolean;
   closureId?:string|null;closureUnitId?:string|null;
   correctionRevision?:number|null;allUnitsVerified?:false;
 };
@@ -101,7 +102,10 @@ export function VendeCorrectionIntentPanel({productId,initialIntentId=""}:{produ
       if(!r.ok)throw Error("status_unavailable");
       const data=await r.json() as Outcome;
       if(data.intentId!==intentId||typeof data.caseResolved!=="boolean"||
-         (data.caseResolved&&data.commercialCaseClosed!==true)||
+         (data.caseResolved&&
+           (data.commercialCaseClosed!==true||data.closureRecorded!==true))||
+         (data.closureRecorded===true&&data.caseResolved===false&&
+           data.historicalOnly!==true)||
          data.coreQuotaVerified!==false||
          typeof data.remoteEntitlementConfirmed!=="boolean"||
          typeof data.financialSettlementCurrentlyVerified!=="boolean")
@@ -278,8 +282,13 @@ export function VendeCorrectionIntentPanel({productId,initialIntentId=""}:{produ
       <p>Licença no Assistant verificada agora: {outcome.remoteEntitlementConfirmed?"Sim":"Não"}.
         Pagamento verificado agora: {outcome.financialSettlementCurrentlyVerified?"Sim":"Não"}.
         Core/quotas atuais: consultar por unidade.
-        Caso comercial encerrado: {outcome.commercialCaseClosed?"Sim":"Não"}.
+        Caso comercial atualmente confirmado: {outcome.commercialCaseClosed?"Sim":"Não"}.
         {outcome.closureUnitId?` Unidade registrada: ${outcome.closureUnitId}.`:""}</p>
+      {outcome.closureRecorded&&!outcome.commercialCaseClosed?
+        <p role="alert"><strong>Há um encerramento auditado anterior, mas a
+          situação atual não está confirmada.</strong> É necessária nova
+          conciliação de licença e pagamento; não tratar o caso como resolvido.</p>
+        :null}
     </div>:null}
     <fieldset disabled={busy}>
       <legend>Verificação adicional por unidade no FM Core</legend>
