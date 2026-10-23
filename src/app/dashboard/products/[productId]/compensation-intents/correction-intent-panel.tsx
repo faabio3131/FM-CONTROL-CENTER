@@ -40,6 +40,15 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
   const [capability,setCapability]=useState<"atendimento_interpretacao"|
     "atendimento_transcricao">("atendimento_interpretacao");
   const [coreProof,setCoreProof]=useState<UnitQuotaProof|null>(null);
+  const [pendingObservationId,setPendingObservationId]=useState("");
+  const [history,setHistory]=useState<{
+    intentId:string;historicalOnly:true;caseResolved:false;
+    truncated:boolean;items:Array<{
+      observationId:string;recordedBy:string;recordedAt:string;
+      unitId:string;capability:string;contractRevision:number;
+      historicalOnly:true;caseResolved:false;
+    }>;
+  }|null>(null);
   const version=Number(reviewVersion);
   const valid=UUID.test(commandId)&&Number.isSafeInteger(version)&&version>0;
   async function perform(action:"prepare"|"second_review"|"queue"){
@@ -97,7 +106,57 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
       setMessage("Confirmação indisponível. Não foi comprovada a reativação; não reenviar o comando.");
     }finally{setBusy(false);}
   }
+  async function recordQuotaObservation(){
+    if(!coreProof||!password.trim()||!UUID.test(intentId))return;
+    setBusy(true);setMessage("");
+    const observationId=pendingObservationId||crypto.randomUUID();
+    setPendingObservationId(observationId);
+    try{
+      const res=await fetch(
+        `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents/${encodeURIComponent(intentId)}/quota-observations`,
+        {method:"POST",cache:"no-store",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            observationId,unitId:coreProof.unitId,capability:coreProof.capability,password,
+          }),
+        },
+      );
+      if(!res.ok)throw Error("not_recorded");
+      const result=await res.json() as {
+        observationId:string;status:string;historicalOnly:true;caseResolved:false;
+      };
+      if(result.observationId!==observationId||
+         !["recorded","previously_recorded"].includes(result.status)||
+         result.historicalOnly!==true||result.caseResolved!==false)
+        throw Error("untrusted_confirmation");
+      setMessage("Evidência registrada na auditoria FM para esta unidade. O caso permanece aberto.");
+      setPendingObservationId("");
+      setCoreProof(null);setHistory(null);
+    }catch{
+      setMessage("Registro não confirmado; consulte o histórico antes de repetir. Nenhuma licença foi alterada.");
+    }finally{setPassword("");setBusy(false);}
+  }
+  async function loadQuotaHistory(){
+    if(!UUID.test(intentId))return;
+    setBusy(true);setHistory(null);setMessage("");
+    try{
+      const res=await fetch(
+        `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents/${encodeURIComponent(intentId)}/quota-observations`,
+        {cache:"no-store"},
+      );
+      if(!res.ok)throw Error("history_unavailable");
+      const result=await res.json() as NonNullable<typeof history>;
+      if(result.intentId!==intentId||result.historicalOnly!==true||
+         result.caseResolved!==false||!Array.isArray(result.items)||
+         result.items.length>20||result.items.some(x=>
+           x.historicalOnly!==true||x.caseResolved!==false))
+        throw Error("invalid_history");
+      setHistory(result);
+    }catch{
+      setMessage("Histórico de observações indisponível; não foi presumida verificação atual.");
+    }finally{setBusy(false);}
+  }
   async function verifyCoreQuota(){
+    setPendingObservationId("");
     if(!UUID.test(intentId)||!/^[A-Za-z0-9_.-]{1,128}$/.test(unitId)||
        outcome?.state!=="assistant_active_payment_verified")return;
     setBusy(true);setMessage("");setCoreProof(null);
@@ -145,7 +204,8 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
     </label>
     <label>ID da intenção (para segundo operador)
       <input value={intentId} maxLength={36} disabled={busy}
-        onChange={e=>{setIntentId(e.target.value);setResult(null);}}/>
+        onChange={e=>{setIntentId(e.target.value);setResult(null);
+          setCoreProof(null);setHistory(null);setPendingObservationId("");}}/>
     </label>
     <label>Senha corporativa do operador atual
       <input type="password" autoComplete="current-password" maxLength={128}
@@ -188,12 +248,13 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
         Nenhum token é consumido e o caso permanece aberto.</p>
       <label>ID da unidade licenciada
         <input value={unitId} maxLength={128}
-          onChange={e=>{setUnitId(e.target.value);setCoreProof(null);}}/>
+          onChange={e=>{setUnitId(e.target.value);setCoreProof(null);
+            setPendingObservationId("");}}/>
       </label>
       <label>Capacidade de IA
         <select value={capability}
           onChange={e=>{setCapability(e.target.value as typeof capability);
-            setCoreProof(null);}}>
+            setCoreProof(null);setPendingObservationId("");}}>
           <option value="atendimento_interpretacao">Atendimento · texto</option>
           <option value="atendimento_transcricao">Transcrição · áudio</option>
         </select>
@@ -214,6 +275,26 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
       </p>)}
       <p>Sem reserva nova, sem chamada à IA e sem encerramento do caso.
         A próxima solicitação poderá exigir nova verificação de licença e saldo.</p>
+      <button className="button" type="button"
+        disabled={busy||!password.trim()} onClick={()=>void recordQuotaObservation()}>
+        Registrar evidência histórica com reautenticação
+      </button>
+    </section>:null}
+    <button className="button" type="button"
+      disabled={busy||!UUID.test(intentId)} onClick={()=>void loadQuotaHistory()}>
+      Consultar observações auditadas deste caso
+    </button>
+    {history?<section aria-label="Histórico da verificação por unidade">
+      <p><strong>Somente histórico de verificações anteriores.</strong>
+        Não comprova acesso atual, liquidação futura ou encerramento do caso.</p>
+      {history.items.length===0?<p>Não há observações registradas.</p>:null}
+      {history.items.map(item=><p key={item.observationId}>
+        Unidade {item.unitId} · {item.capability} ·
+        revisão contratual {item.contractRevision} ·
+        registrado por {item.recordedBy} em
+        {" "}{new Date(item.recordedAt).toLocaleString("pt-BR")}
+      </p>)}
+      {history.truncated?<p>Exibidos os 20 registros mais recentes.</p>:null}
     </section>:null}
     {busy?<p role="status">Validando evidência e estado transacional…</p>:null}
     {message?<p role="status">{message}</p>:null}
