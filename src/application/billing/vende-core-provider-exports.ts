@@ -40,11 +40,22 @@ function validatedScope(input:SourceScope){
     !SCOPE.test(input.unitId))return denied();
 }
 async function readLimited(res:Response,size=16384):Promise<unknown>{
-  if(res.status!==200||!res.ok||Number(res.headers.get("Content-Length")??0)>size)
+  const announced=res.headers.get("Content-Length");
+  if(res.status!==200||!res.ok||!res.body||
+    (announced!==null&&(!/^\\d+$/.test(announced)||Number(announced)>size)))
     return denied();
-  const raw=await res.text();
-  if(raw.length>size)return denied();
-  return JSON.parse(raw) as unknown;
+  const reader=res.body.getReader(),parts:Uint8Array[]=[];
+  let received=0;
+  try{
+    for(;;){
+      const chunk=await reader.read();
+      if(chunk.done)break;
+      received+=chunk.value.byteLength;
+      if(received>size){await reader.cancel();return denied();}
+      parts.push(chunk.value);
+    }
+  }finally{reader.releaseLock();}
+  return JSON.parse(Buffer.concat(parts).toString("utf8")) as unknown;
 }
 export async function readProviderAttempts(context:TenantContext,scope:SourceScope,
   http:typeof fetch=fetch):Promise<SourceAttempt[]>{
@@ -232,9 +243,9 @@ export async function syncProviderExportFeed(
   if(!count(data.created)||!count(data.already_recorded)||
     !count(data.unreported)||!count(data.scanned)||
     data.scanned>input.limit||
-    data.created+data.already_recorded+data.unreported>data.scanned||
+    data.created+data.already_recorded+data.unreported!==data.scanned||
     !(data.next_page===null||Number.isSafeInteger(data.next_page)&&
-      typeof data.next_page==="number"&&data.next_page>=0&&
+      typeof data.next_page==="number"&&data.next_page===input.page+1&&
       data.next_page<=20000)||
     data.provider_invoice_verified!==false||
     data.quota_recovery_authorized!==false)return denied();
