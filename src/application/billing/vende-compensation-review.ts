@@ -54,6 +54,51 @@ function normalizedReview(meta:Record<string,unknown>){
      (decision!=="investigating"&&decision!=="escalated"))return null;
   return {version,decision:decision as VendeReviewStep};
 }
+/** Worklist hints may only advertise a human authorization while the very
+ * same evidence/version and distinct two-person approvals are still fresh.
+ * Dispatch revalidates everything independently; this helper grants no rights. */
+type ApprovalAudit={
+  id:string;actorId:string;occurredAt:Date;metadata:Record<string,unknown>;
+};
+export function evaluateVendeFollowupApproval(input:{
+  productId:string;commandId:string;
+  review:{version:number;decision:VendeReviewStep}|undefined;
+  prepared:ApprovalAudit|undefined;
+  reviewed:Omit<ApprovalAudit,"id">|undefined;
+  observation:{id:string;occurredAt:Date;metadata:Record<string,unknown>}|undefined;
+  now:Date;
+}):{currentPreparation:boolean;currentIndependentReview:boolean}{
+  const {productId,commandId,review,prepared,reviewed,observation,now}=input;
+  const recent=(date:Date)=>date instanceof Date&&
+    Number.isFinite(date.getTime())&&Number.isFinite(now.getTime())&&
+    now.getTime()-date.getTime()>=0&&now.getTime()-date.getTime()<=120_000;
+  const p=prepared?.metadata;
+  const currentPreparation=!!(review?.decision==="escalated"&&prepared&&observation&&
+    UUID.test(prepared.id)&&recent(prepared.occurredAt)&&recent(observation.occurredAt)&&
+    observation.occurredAt.getTime()<=prepared.occurredAt.getTime()&&
+    p?.schema==="fm.vende.compensation-intent.v1"&&
+    p.productId===productId&&p.commandId===commandId&&
+    p.reviewVersion===review.version&&p.observationId===observation.id&&
+    p.preparedBy===prepared.actorId&&p.approvedForDispatch===false&&
+    p.remediationDispatched===false&&
+    observation.metadata.schema==="fm.vende.compensation-observation.v1"&&
+    observation.metadata.productId===productId&&
+    observation.metadata.reviewVersion===review.version&&
+    observation.metadata.operationId===p.operationId);
+  const r=reviewed?.metadata;
+  const currentIndependentReview=!!(currentPreparation&&reviewed&&prepared&&
+    recent(reviewed.occurredAt)&&
+    reviewed.occurredAt.getTime()>=prepared.occurredAt.getTime()&&
+    reviewed.actorId!==prepared.actorId&&
+    r?.schema==="fm.vende.compensation-second-review.v1"&&
+    r.productId===productId&&r.intentId===prepared.id&&
+    r.observationId===observation?.id&&r.reviewVersion===review?.version&&
+    r.preparerId===prepared.actorId&&r.reviewerId===reviewed.actorId&&
+    r.approvedForDispatch===false&&r.remediationDispatched===false&&
+    r.caseResolved===false);
+  return {currentPreparation,currentIndependentReview};
+}
+
 type FollowupStatus=
   "initial_review_required"|"refresh_current_evidence"|
   "correction_preparation_required"|"independent_review_required"|
@@ -63,7 +108,7 @@ type FollowupStatus=
 export function projectVendeCompensationFollowup(input:{
   action:string;reason:string;reviewStep:string;
   intentId:string|null;independentReviewComplete:boolean;
-  correctionState:string|null;
+  approvalCurrent?:boolean;correctionState:string|null;
 }):{
   nextAction:FollowupStatus;intentId:string|null;
   currentEntitlementVerified:false;financialRepairExecuted:false;
@@ -76,8 +121,10 @@ export function projectVendeCompensationFollowup(input:{
     else if(input.correctionState==="delivered")nextAction="remote_readback_required";
     else nextAction="manual_reconciliation_required";
   }else if(input.intentId){
-    nextAction=input.independentReviewComplete
-      ?"queue_authorization_required":"independent_review_required";
+    nextAction=input.approvalCurrent===true
+      ?(input.independentReviewComplete
+        ?"queue_authorization_required":"independent_review_required")
+      :"refresh_current_evidence";
   }else if(input.reviewStep==="unreviewed"){
     nextAction="initial_review_required";
   }else if(input.reviewStep==="investigating"){
@@ -116,8 +163,8 @@ export async function readVendeCompensationReviews(
       occurredAt:auditEvents.occurredAt,metadata:auditEvents.metadata,
     }).from(auditEvents).where(scope)
       .orderBy(desc(auditEvents.occurredAt),desc(auditEvents.id)).limit(51);
-    const ids=riskRows.map(row=>row.resourceId)
-      .filter((id):id is string=>typeof id==="string"&&UUID.test(id));
+    const ids=[...new Set(riskRows.slice(0,50).map(row=>row.resourceId)
+      .filter((id):id is string=>typeof id==="string"&&UUID.test(id)))];
     const commands=ids.length?await tx.select({
       id:vendeLifecycleCommands.id,action:vendeLifecycleCommands.action,
       state:vendeLifecycleCommands.state,operationId:vendeLifecycleCommands.operationId,
@@ -150,6 +197,7 @@ export async function readVendeCompensationReviews(
     const preparedRows=ids.length?await tx.selectDistinctOn(
       [auditEvents.resourceId],{
         id:auditEvents.id,resourceId:auditEvents.resourceId,
+        actorId:auditEvents.actorId,occurredAt:auditEvents.occurredAt,
         metadata:auditEvents.metadata,
       },
     ).from(auditEvents).where(and(
@@ -166,10 +214,12 @@ export async function readVendeCompensationReviews(
       row.metadata.schema==="fm.vende.compensation-intent.v1"&&
       row.metadata.commandId===row.resourceId&&
       row.metadata.approvedForDispatch===false,
-    ).map(row=>[row.resourceId as string,row.id]));
+    ).map(row=>[row.resourceId as string,row]));
     const reviewOfIntentRows=ids.length?await tx.selectDistinctOn(
       [auditEvents.resourceId],{
-        resourceId:auditEvents.resourceId,metadata:auditEvents.metadata,
+        resourceId:auditEvents.resourceId,
+        actorId:auditEvents.actorId,occurredAt:auditEvents.occurredAt,
+        metadata:auditEvents.metadata,
       },
     ).from(auditEvents).where(and(
       eq(auditEvents.tenantId,context.tenantId),
@@ -186,8 +236,24 @@ export async function readVendeCompensationReviews(
       row.metadata.approvedForDispatch===false&&
       row.metadata.caseResolved===false&&
       typeof row.metadata.intentId==="string"&&UUID.test(row.metadata.intentId),
-    ).map(row=>[row.resourceId as string,row.metadata.intentId as string]));
-    const intentIds=[...prepared.values()];
+    ).map(row=>[row.resourceId as string,row]));
+    const observationRows=ids.length?await tx.selectDistinctOn(
+      [auditEvents.resourceId],{
+        id:auditEvents.id,resourceId:auditEvents.resourceId,
+        occurredAt:auditEvents.occurredAt,metadata:auditEvents.metadata,
+      },
+    ).from(auditEvents).where(and(
+      eq(auditEvents.tenantId,context.tenantId),
+      eq(auditEvents.action,"vende.compensation_review.remote_observed"),
+      eq(auditEvents.resourceType,"vende_lifecycle_command"),
+      inArray(auditEvents.resourceId,ids),
+      sql`${auditEvents.metadata} ->> 'productId' = ${productId}`,
+    )).orderBy(
+      auditEvents.resourceId,desc(auditEvents.occurredAt),desc(auditEvents.id),
+    ).limit(50):[];
+    const observations=new Map(observationRows.filter(row=>row.resourceId)
+      .map(row=>[row.resourceId as string,row]));
+    const intentIds=[...prepared.values()].map(row=>row.id);
     const correctionRows=intentIds.length?await tx.select({
       operationId:vendeLifecycleCommands.operationId,
       state:vendeLifecycleCommands.state,
@@ -206,6 +272,12 @@ export async function readVendeCompensationReviews(
         const command=risk.resourceId?byCommand.get(risk.resourceId):null;
         if(!command)return [];
         const latest=reviews.get(command.id);
+        const preparedIntent=prepared.get(command.id);
+        const approval=evaluateVendeFollowupApproval({
+          productId,commandId:command.id,review:latest,
+          prepared:preparedIntent,reviewed:reviewed.get(command.id),
+          observation:observations.get(command.id),now:new Date(),
+        });
         // Metadata is untrusted for presentation: display only fixed known
         // codes and identifiers, never arbitrary logs / payment details.
         return [{
@@ -220,12 +292,14 @@ export async function readVendeCompensationReviews(
             action:command.action,
             reason:knownVendeRiskReason(risk.metadata.reason),
             reviewStep:latest?.decision??"unreviewed",
-            intentId:prepared.get(command.id)??null,
-            independentReviewComplete:
-              !!prepared.get(command.id)&&
-              reviewed.get(command.id)===prepared.get(command.id),
+            intentId:preparedIntent?.id??null,
+            approvalCurrent:approval.currentPreparation&&
+              command.action==="SUSPEND_DELINQUENCY"&&
+              command.state==="delivered"&&
+              risk.metadata.reason==="delinquency_paid_after_delivery",
+            independentReviewComplete:approval.currentIndependentReview,
             correctionState:corrections.get(
-              "p01.correction."+(prepared.get(command.id)??""),
+              "p01.correction."+(preparedIntent?.id??""),
             )??null,
           }),
         }];
