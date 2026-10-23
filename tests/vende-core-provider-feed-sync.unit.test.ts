@@ -114,6 +114,7 @@ describe("F9 Command to configured Core provider feed: signed and bounded",()=>{
     {...counters,created:2}, // impossible count exceeds scan
     {...counters,next_page:0}, // replay current page
     {...counters,next_page:2}, // skip next page
+    {...counters,created:0,scanned:0,next_page:1}, // no-progress loop
     {...counters,provider_invoice_verified:true},
     {...counters,quota_recovery_authorized:true},
     {...counters,created:true},
