@@ -11,12 +11,13 @@ export function VendeFinopsOperationalAlerts({productId}:{productId:string}){
   const [end,setEnd]=useState(today);
   const [password,setPassword]=useState("");
   const [items,setItems]=useState<Item[]>([]);
+  const [nextCursor,setNextCursor]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
   const [status,setStatus]=useState("");
   const [error,setError]=useState("");
   const endpoint="/api/billing/products/"+encodeURIComponent(productId)+
     "/vende-core-finops/alert-operations";
-  const reset=()=>{setItems([]);setStatus("");setError("");setPassword("");};
+  const reset=()=>{setItems([]);setNextCursor(null);setStatus("");setError("");setPassword("");};
   async function refresh(){
     setBusy(true);setError("");setStatus("");
     try{
@@ -34,12 +35,13 @@ export function VendeFinopsOperationalAlerts({productId}:{productId:string}){
       setError("Fila não confirmada pelo Core. Nenhum alerta será presumido.");
     }finally{setBusy(false);}
   }
-  async function action(kind:"scan"|"review",eventId?:string){
+  async function action(kind:"scan"|"review",eventId?:string,continueScan=false){
     if(!password)return;
     setBusy(true);setError("");setStatus("");
     try{
       const payload=kind==="scan"?
-        {kind,externalTenantId:tenant,unitId:unit,startDate:start,endDate:end,password}:
+        {kind,externalTenantId:tenant,unitId:unit,startDate:start,endDate:end,password,
+         ...(continueScan&&nextCursor?{afterRequestId:nextCursor}:{})}:
         {kind,externalTenantId:tenant,unitId:unit,eventId,password};
       const res=await fetch(endpoint,{
         method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",
@@ -51,6 +53,7 @@ export function VendeFinopsOperationalAlerts({productId}:{productId:string}){
       };
       if(reply.status!=="accepted"||reply.kind!==kind)throw Error("invalid_ack");
       setItems([]);
+      setNextCursor(kind==="scan"?reply.nextCursor??null:null);
       setStatus(kind==="scan"?
         "Varredura interna confirmada: "+reply.created+" novos alertas em "+
         reply.scanned+" solicitações. Consulte a fila para atualizar."+
@@ -93,6 +96,11 @@ export function VendeFinopsOperationalAlerts({productId}:{productId:string}){
     <button className="button" type="button"
       disabled={busy||!tenant||!unit||!password||!start||!end}
       onClick={()=>void action("scan")}>Processar janela com reautenticação</button>
+    {nextCursor?<button className="button" type="button"
+      disabled={busy||!password}
+      onClick={()=>void action("scan",undefined,true)}>
+      Processar próxima página autorizada
+    </button>:null}
     {items.map(item=><article className="card" key={item.event_id}>
       <strong>{item.request_id}</strong>
       <p>Revisão {item.policy_revision} · Subtotal interno: {item.known_cost_subtotal}
