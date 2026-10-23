@@ -43,7 +43,7 @@ export function commandCoreFinopsAlertPolicyConfig(env:Record<string,string|unde
     audience,corporateOrganizationId};
 }
 
-async function checkScope(context:TenantContext,input:Scope,write:boolean){
+export async function checkScope(context:TenantContext,input:Scope,write:boolean){
   requireFMPlanAuthority(context,write);
   if(!UUID.test(input.productId)||!SCOPE.test(input.externalTenantId)||!SCOPE.test(input.unitId))
     return denied();
