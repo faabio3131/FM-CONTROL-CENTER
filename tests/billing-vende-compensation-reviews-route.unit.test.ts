@@ -19,7 +19,7 @@ beforeEach(()=>{
   vi.resetAllMocks();
   m.session.mockResolvedValue({tenantId:"fm",userId:"owner",role:"owner"});
   m.password.mockResolvedValue({userId:"owner",verifiedAt:new Date()});
-  m.read.mockResolvedValue({historicalTotal:1,truncated:false,items:[],
+  m.read.mockResolvedValue({historicalTotal:1,truncated:false,nextCursor:null,items:[],
     entitlementVerified:false,automaticCompensationAuthorized:false,
     remoteRemediationCompleted:false});
   m.write.mockResolvedValue({commandId,reviewVersion:1,reviewStep:"investigating",
@@ -32,7 +32,24 @@ describe("P01 human-governed financial compensation triage API",()=>{
     expect(r.headers.get("Cache-Control")).toBe("no-store");
     expect(await r.json()).toMatchObject({
       entitlementVerified:false,automaticCompensationAuthorized:false});
-    expect(m.read).toHaveBeenCalledWith(expect.objectContaining({tenantId:"fm"}),productId);
+    expect(m.read).toHaveBeenCalledWith(expect.objectContaining({tenantId:"fm"}),productId,undefined);
+  });
+  it("supports only one bounded keyset cursor and preserves FM server scope",async()=>{
+    const cursor=Buffer.from(JSON.stringify([
+      "2026-10-23T01:23:45.000Z","33333333-3333-4333-8333-333333333333",
+    ])).toString("base64url");
+    const ok=await GET(new Request(url+"?after="+cursor),params);
+    expect(ok.status).toBe(200);
+    expect(m.read).toHaveBeenCalledWith(
+      expect.objectContaining({tenantId:"fm"}),productId,cursor);
+    for(const query of [
+      "?after=","?after=%%","?after="+("A".repeat(129)),
+      "?after="+cursor+"&after="+cursor,"?after="+cursor+"&tenantId=other",
+      "?after="+cursor+"&action=refund",
+    ]){
+      const response=await GET(new Request(url+query),params);
+      expect(response.status).toBe(400);
+    }
   });
   it("requires fresh corporate step-up and never dispatches license/PSP",async()=>{
     const r=await POST(post(valid),params);

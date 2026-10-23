@@ -20,7 +20,7 @@ type Case={
   };
 };
 type ReviewResponse={
-  historicalTotal:number;truncated:boolean;items:Case[];
+  historicalTotal:number;truncated:boolean;nextCursor:string|null;items:Case[];
   entitlementVerified:false;automaticCompensationAuthorized:false;
   remoteRemediationCompleted:false;
 };
@@ -178,14 +178,26 @@ export function VendeCompensationReviews({productId}:{productId:string}){
   const [data,setData]=useState<ReviewResponse|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
-  async function refresh(){
+  const [currentCursor,setCurrentCursor]=useState<string|null>(null);
+  const [previousCursors,setPreviousCursors]=useState<Array<string|null>>([]);
+  async function refresh(after:string|null=null,history:Array<string|null>=[]){
     setBusy(true);setError("");
     try{
-      const r=await fetch(
-        `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-reviews`,{cache:"no-store"});
+      const uri=`/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-reviews`+
+        (after?`?after=${encodeURIComponent(after)}`:"");
+      const r=await fetch(uri,{cache:"no-store"});
       if(!r.ok)throw Error("unavailable");
-      setData(await r.json() as ReviewResponse);
-    }catch{setData(null);setError("Revisões de divergências indisponíveis.");}
+      const result=await r.json() as ReviewResponse;
+      if(!result||!Array.isArray(result.items)||result.items.length>50||
+        !Number.isSafeInteger(result.historicalTotal)||result.historicalTotal<0||
+        typeof result.truncated!=="boolean"||
+        !(result.nextCursor===null||
+          typeof result.nextCursor==="string"&&result.nextCursor.length<=128)||
+        result.truncated!==(result.nextCursor!==null)||
+        result.truncated&&result.items.length!==50)
+        throw Error("invalid_pagination");
+      setData(result);setCurrentCursor(after);setPreviousCursors(history);
+    }catch{setError("Consulta indisponivel; pagina anterior preservada.");}
     finally{setBusy(false);}
   }
   return <section className="card" aria-label="Revisões financeiras supervisionadas">
@@ -204,7 +216,18 @@ export function VendeCompensationReviews({productId}:{productId:string}){
     {error?<p role="status">{error}</p>:null}
     {data?<p role="status">{data.historicalTotal} alerta(s) históricos registrados.
       Nenhum alerta é considerado reparado ou encerrado automaticamente.</p>:null}
-    {data?.truncated?<p>Exibindo as 50 divergências mais recentes; histórico total permanece íntegro.</p>:null}
+    {data?<nav aria-label="Paginas de divergencias comerciais">
+      <span>Pagina {previousCursors.length+1} - {data.items.length} registro(s) exibidos.</span>{" "}
+      <button className="button" type="button"
+        disabled={busy||previousCursors.length===0}
+        onClick={()=>void refresh(previousCursors.at(-1)??null,previousCursors.slice(0,-1))}>
+        Pagina anterior
+      </button>{" "}
+      <button className="button" type="button" disabled={busy||!data.nextCursor}
+        onClick={()=>void refresh(data.nextCursor,[...previousCursors,currentCursor])}>
+        Proxima pagina
+      </button>
+    </nav>:null}
     {data&&!data.items.length?<p>Nenhum alerta de divergência localizado.</p>:null}
     {data?.items.length?<div className="product-grid">{data.items.map(item=>
       <ReviewItem key={item.riskId} item={item} productId={productId} onDone={()=>void refresh()}/>

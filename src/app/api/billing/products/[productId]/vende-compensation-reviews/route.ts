@@ -12,10 +12,19 @@ const reply=(body:unknown,status:number)=>NextResponse.json(body,{
 });
 export async function GET(request:Request,{params}:Params){
   try{
-    if(new URL(request.url).search)return reply({error:"review.invalid"},400);
+    const url=new URL(request.url);
+    if([...url.searchParams.keys()].some(k=>k!=="after")||
+      url.searchParams.getAll("after").length>1||
+      url.searchParams.toString().length>192)
+      return reply({error:"review.invalid"},400);
+    const after=url.searchParams.get("after");
+    if(after!==null&&(!after||after.length>128||
+      !/^[A-Za-z0-9_-]+$/.test(after)))
+      return reply({error:"review.invalid"},400);
     const context=await resolveTenantContext(await headers());
     const {productId}=await params;
-    return reply(await readVendeCompensationReviews(context,productId),200);
+    return reply(await readVendeCompensationReviews(
+      context,productId,after??undefined),200);
   }catch{return reply({error:"review.unavailable"},403);}
 }
 export async function POST(request:Request,{params}:Params){
