@@ -14,6 +14,7 @@ import { VendeCommercialClaimsSupervisor } from "./vende-commercial-claims-super
 import { VendeCompensationReviews } from "./vende-compensation-reviews";
 import { VendeContractHistory } from "./vende-contract-history";
 import { VendeCoreFinopsPanel } from "./vende-core-finops-panel";
+import { VendeProviderExportWorkspace } from "./vende-provider-export-workspace";
 import { VendeFinopsAlertPolicyEditor } from "./vende-finops-alert-policy-editor";
 import { VendeFinopsAlertInbox } from "./vende-finops-alert-inbox";
 import { VendeFinopsOperationalAlerts } from "./vende-finops-operational-alerts";
@@ -53,5 +54,6 @@ export default async function AssistantPlansPage({params}:{params:Promise<{produ
     {product.slug==="vendeatendeia"?<VendeFinopsAlertPolicyEditor productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeFinopsAlertInbox productId={productId}/>:null}
     {product.slug==="vendeatendeia"?<VendeFinopsOperationalAlerts productId={productId}/>:null}
+    {product.slug==="vendeatendeia"?<VendeProviderExportWorkspace productId={productId}/>:null}
   </main>;
 }
