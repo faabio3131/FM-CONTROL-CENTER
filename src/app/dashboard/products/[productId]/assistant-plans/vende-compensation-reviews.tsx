@@ -13,10 +13,17 @@ type Case={
       "correction_preparation_required"|"independent_review_required"|
       "queue_authorization_required"|"correction_queued"|
       "correction_processing"|"manual_reconciliation_required"|
-      "remote_readback_required"|"other_risk_investigation";
+      "remote_readback_required"|"closure_recorded_verify_current"|
+      "other_risk_investigation";
     intentId:string|null;currentEntitlementVerified:false;
     financialRepairExecuted:false;caseResolved:false;
     automaticRemediationAuthorized:false;
+    historicalClosure:{
+      closureId:string;unitId:string;recordedAt:string;
+      historicalOnly:true;currentLicenseVerified:false;
+      currentPaymentVerified:false;currentCoreQuotaVerified:false;
+      caseResolved:false;
+    }|null;
   };
 };
 type ReviewResponse={
@@ -48,6 +55,7 @@ const nextActionName:Record<Case["followup"]["nextAction"],string>={
   correction_processing:"Correção em processamento; não reenviar",
   manual_reconciliation_required:"Divergência na correção; conciliar antes de agir",
   remote_readback_required:"Correção entregue; conferir licença, pagamento e Core",
+  closure_recorded_verify_current:"Fechamento comercial registrado; conferir novamente a situação atual",
   other_risk_investigation:"Próximo passo: investigação financeira específica",
 };
 function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId:string}){
@@ -117,8 +125,19 @@ function ReviewItem({item,onDone,productId}:{item:Case;onDone:()=>void;productId
         {item.followup.intentId?<span>
           {" "}· Intenção vinculada: <code>{item.followup.intentId}</code>
         </span>:null}
-        <small> Estado operacional histórico; não confirma reparação ou encerramento.</small>
+        <small> Estado operacional histórico; não confirma licença, pagamento ou quotas atuais.</small>
       </p>:<p role="alert">Encaminhamento não comprovado; investigação manual.</p>}
+    {item.followup?.historicalClosure?
+      <p role="status">
+        <strong>Encerramento comercial auditado (histórico)</strong>
+        {" "}em {new Date(item.followup.historicalClosure.recordedAt).toLocaleString("pt-BR")}
+        {" "}· Unidade {item.followup.historicalClosure.unitId}.
+        Este registro não confirma o estado atual da licença, do pagamento ou das quotas.
+      </p>:null}
+    {item.followup?.intentId?
+      <p><Link className="button" href={`/dashboard/products/${encodeURIComponent(productId)}/compensation-intents?intentId=${encodeURIComponent(item.followup.intentId)}`}>
+        Conferir situação atual desta intenção
+      </Link></p>:null}
     <small>Detectado em {new Date(item.occurredAt).toLocaleString("pt-BR")}</small>
     {item.reviewer?<small>Última revisão: {item.reviewer} · versão {item.reviewVersion}</small>:null}
     <label>Encaminhamento humano
@@ -189,6 +208,17 @@ export function VendeCompensationReviews({productId}:{productId:string}){
       if(!r.ok)throw Error("unavailable");
       const result=await r.json() as ReviewResponse;
       if(!result||!Array.isArray(result.items)||result.items.length>50||
+        result.items.some(item=>{
+          const closure=item.followup?.historicalClosure;
+          return closure!==null&&closure!==undefined&&(
+            !/^[0-9a-f-]{36}$/i.test(closure.closureId)||
+            !/^[A-Za-z0-9_.-]{1,128}$/.test(closure.unitId)||
+            closure.historicalOnly!==true||
+            closure.currentLicenseVerified!==false||
+            closure.currentPaymentVerified!==false||
+            closure.currentCoreQuotaVerified!==false||
+            closure.caseResolved!==false);
+        })||
         !Number.isSafeInteger(result.historicalTotal)||result.historicalTotal<0||
         typeof result.truncated!=="boolean"||
         !(result.nextCursor===null||
