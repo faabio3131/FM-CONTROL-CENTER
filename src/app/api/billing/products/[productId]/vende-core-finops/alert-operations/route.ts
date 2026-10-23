@@ -63,12 +63,19 @@ export async function POST(request:Request,{params}:Params){
     return response({error:"finops.outbox.invalid"},400);
   let operation:FMFinopsAlertOperation;
   if(input.kind==="scan"){
-    if(Object.keys(input).sort().join(",")!==
-       "endDate,externalTenantId,kind,password,startDate,unitId"||
+    const expected="endDate,externalTenantId,kind,password,startDate,unitId";
+    const expectedWithCursor="afterRequestId,"+expected;
+    const fields=Object.keys(input).sort().join(",");
+    if(![expected,expectedWithCursor].includes(fields)||
        typeof input.startDate!=="string"||!DATE.test(input.startDate)||
-       typeof input.endDate!=="string"||!DATE.test(input.endDate))
-      return response({error:"finops.outbox.invalid"},400);
-    operation={kind:"scan",startDate:input.startDate,endDate:input.endDate};
+       typeof input.endDate!=="string"||!DATE.test(input.endDate)||
+       (input.afterRequestId!==undefined&&(
+         typeof input.afterRequestId!=="string"||!SCOPE.test(input.afterRequestId)
+       )))return response({error:"finops.outbox.invalid"},400);
+    operation={
+      kind:"scan",startDate:input.startDate,endDate:input.endDate,
+      ...(input.afterRequestId?{afterRequestId:input.afterRequestId}:{})
+    };
   }else if(input.kind==="review"){
     if(Object.keys(input).sort().join(",")!==
        "eventId,externalTenantId,kind,password,unitId"||
