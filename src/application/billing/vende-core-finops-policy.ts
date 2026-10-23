@@ -230,7 +230,7 @@ export type FMFinopsOperationalOutbox={
   }>;
 };
 export type FMFinopsAlertOperation=
-  |{kind:"scan";startDate:string;endDate:string}
+  |{kind:"scan";startDate:string;endDate:string;afterRequestId?:string}
   |{kind:"review";eventId:string};
 export type FMFinopsOperationResult=
   |{status:"accepted";kind:"review"}
@@ -315,14 +315,22 @@ export async function operateFMFinopsAlertOutbox(
   if(operation.kind==="scan"){
     const start=checkedDate(operation.startDate),end=checkedDate(operation.endDate);
     if(end<start||end-start>=31*86400_000||
-      end>Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()))return denied();
+      end>Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate())||
+      (operation.afterRequestId!==undefined&&!SCOPE.test(operation.afterRequestId)))
+      return denied();
     url="/internal/v1/command/ai/finops/alert-scan";
     body=JSON.stringify({
       tenant_id:scope.externalTenantId,unit_id:scope.unitId,
       start_date:operation.startDate,end_date:operation.endDate,limit:50,
+      ...(operation.afterRequestId?{after_request_id:operation.afterRequestId}:{}),
     });
   }else{
     if(!FINGERPRINT.test(operation.eventId))return denied();
+    // The Core review endpoint is FM-global. Narrow it to the precise
+    // customer/unit binding before an admin can mutate an alert by hash.
+    const visible=await readFMFinopsOperationalOutbox(context,scope,http);
+    if(!visible.items.some(item=>item.event_id===operation.eventId))
+      return denied();
     url="/internal/v1/command/ai/finops/alert-review";
     body=JSON.stringify({event_id:operation.eventId});
   }
