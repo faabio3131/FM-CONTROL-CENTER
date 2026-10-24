@@ -95,11 +95,11 @@ describe("F18 premium UX/UI", () => {
     const prefix = "data:image/webp;base64,";
     expect(APPROVED_COMMAND_ARTWORK_SRC.startsWith(prefix)).toBe(true);
     const approvedBytes = Buffer.from(APPROVED_COMMAND_ARTWORK_SRC.slice(prefix.length), "base64");
-    expect(approvedBytes.byteLength).toBe(23936);
+    expect(approvedBytes.byteLength).toBe(102890);
     expect(approvedBytes.subarray(0, 4).toString("ascii")).toBe("RIFF");
     expect(approvedBytes.subarray(8, 12).toString("ascii")).toBe("WEBP");
     expect(createHash("sha256").update(approvedBytes).digest("hex")).toBe(
-      "3dd07bb27f92cb3ee64a23e5ac47c8457b8cc8d4026802132b75d55088f219ea",
+      "7c27c54dcbbb58f86bd27239517f2b41cdcdf68d3eb4d2305593d5ec4e3d6b6a",
     );
   });
 

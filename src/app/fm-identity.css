@@ -149,11 +149,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:var(--f
 .core-suggestion:hover{border-color:rgba(255,159,28,.55);color:var(--text)}
 .command-auth-proof>span{border:1px solid var(--line);background:rgba(255,255,255,.02)}
 
-/* arte do Core: bordas dissolvidas no preto (sem moldura quadrada) */
-.command-approved-artwork{
-  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 52%,transparent 71%);
-  mask-image:radial-gradient(circle at 50% 50%,#000 52%,transparent 71%);
-}
+/* arte do Core: logo original em âmbar, PNG/WebP com transparência (sem moldura quadrada) */
+.command-approved-artwork{-webkit-mask-image:none;mask-image:none}
 
 /* cartão de acesso e botões da abertura */
 .command-auth-card{border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg,var(--surface-strong),var(--surface));box-shadow:0 40px 80px -50px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
