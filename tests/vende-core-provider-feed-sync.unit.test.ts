@@ -9,7 +9,7 @@ vi.mock("@/application/integration/fm-core-ai-recovery-jwt",()=>({
 }));
 import {validateProviderFeedSyncRequest,syncProviderExportFeed,
   validProviderObservationTime,readProviderAttempts,
-  readProviderComparison,importProviderExport}
+  readProviderComparison,importProviderExport,validProviderImportUsage}
   from "@/application/billing/vende-core-provider-exports";
 
 const input={
@@ -259,5 +259,99 @@ describe("F9 strict redaction of extra provider and Core properties",()=>{
     expect(projection).toEqual(expected);
     expect(JSON.stringify(projection)).not.toContain("MUST_NOT_LEAK");
     expect(JSON.stringify(projection)).not.toContain("clientEmail");
+  });
+});
+
+describe("F9 admission of supplier observations for real Core attempts",()=>{
+  const source={
+    attemptId:"attempt-1",provider:"openai",model:"model-1",
+    adapter:"openai_compatible" as const,accountRef:"account-1",
+    sourceRef:"provider-row-1",observedAt:"2026-10-23T12:00:00Z",
+    usage:{prompt_tokens:12,completion_tokens:3},costUsd:"0.001",
+  };
+  const scoped={...scope,requestId:"request-1"};
+  const attempts={
+    tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+    request_id:scoped.requestId,provider_invoice_verified:false,
+    items:[{
+      event_id:"e1",attempt_id:"attempt-1",provider:"openai",
+      model:"model-1",outcome:"completed",fallback:false,
+      input_tokens:12,output_tokens:3,
+      cost_known_subtotal_usd:null,cost_known:false,
+    }],
+  };
+  it("accepts exact adapter keys and unknown counters without guessing zero",()=>{
+    expect(validProviderImportUsage(source)).toBe(true);
+    expect(validProviderImportUsage({...source,adapter:"gemini",
+      usage:{promptTokenCount:12,candidatesTokenCount:null}})).toBe(true);
+    expect(validProviderImportUsage({...source,usage:{
+      prompt_tokens:null,completion_tokens:null},costUsd:"0.001"})).toBe(true);
+    for(const changed of [
+      {usage:{prompt_tokens:12,completion_tokens:3,secret:123}},
+      {usage:{prompt_tokens:12}},
+      {usage:{prompt_tokens:12,completion_tokens:-1}},
+      {usage:{prompt_tokens:12,completion_tokens:1.3}},
+      {usage:{prompt_tokens:null,completion_tokens:null},costUsd:null},
+      {adapter:"gemini",usage:{prompt_tokens:12,completion_tokens:3}},
+    ])expect(validProviderImportUsage({...source,...changed} as typeof source))
+      .toBe(false);
+  });
+  it("refuses an invented or swapped attempt and never sends a write",async()=>{
+    for(const change of [
+      {attemptId:"invented-attempt"},
+      {provider:"foreign-provider"},
+      {model:"other-model"},
+    ]){
+      const http=vi.fn(async (url:RequestInfo|URL)=>{
+        expect(String(url)).toContain("/v1/admin/ai/usage/attempts?");
+        return Response.json(attempts);
+      }) as unknown as typeof fetch;
+      await expect(importProviderExport(context,proof,"session-fm",scoped,
+        {...source,...change},http,now))
+        .rejects.toThrow("vende.finops.provider_export_unavailable");
+      expect(http).toHaveBeenCalledOnce();
+      expect(mocks.sign).not.toHaveBeenCalled();
+    }
+  });
+  it("executes one read-only scoped proof then an FM-signed observed write",async()=>{
+    const http=vi.fn(async (url:RequestInfo|URL,options?:RequestInit)=>{
+      const target=String(url);
+      if(target.includes("/v1/admin/ai/usage/attempts?")){
+        expect(options?.method).toBeUndefined();
+        expect(target).toContain("request_id=request-1");
+        return Response.json(attempts);
+      }
+      expect(target).toContain("/internal/v1/command/ai/finops/provider-export");
+      expect(options?.method).toBe("POST");
+      expect((options?.headers as Record<string,string>).Authorization)
+        .toBe("Bearer signed-human-jwt");
+      expect(JSON.parse(String(options?.body))).toMatchObject({
+        tenant_id:"customer-a",unit_id:"unit-a",request_id:"request-1",
+        attempt_id:"attempt-1",provider:"openai",model:"model-1",
+        usage:{prompt_tokens:12,completion_tokens:3},
+      });
+      return Response.json({
+        status:"created",tenant_id:"customer-a",unit_id:"unit-a",
+        request_id:"request-1",attempt_id:"attempt-1",
+        provider_invoice_verified:false,quota_recovery_authorized:false,
+      });
+    }) as unknown as typeof fetch;
+    expect(await importProviderExport(context,proof,"session-fm",scoped,
+      source,http,now)).toBe("created");
+    expect(http).toHaveBeenCalledTimes(2);
+    expect(mocks.sign).toHaveBeenCalledOnce();
+  });
+  it("fails closed if Core has duplicate attempt IDs or cannot prove a real attempt",async()=>{
+    for(const payload of [
+      {...attempts,items:[...attempts.items,...attempts.items]},
+      {...attempts,items:[]},
+    ]){
+      const http=vi.fn(async()=>Response.json(payload)) as unknown as typeof fetch;
+      await expect(importProviderExport(context,proof,"session-fm",scoped,
+        source,http,now)).rejects.toThrow(
+          "vende.finops.provider_export_unavailable");
+      expect(http).toHaveBeenCalledOnce();
+      expect(mocks.sign).not.toHaveBeenCalled();
+    }
   });
 });
