@@ -30,7 +30,7 @@ describe("FMCC cognitive model adapter", () => {
     const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
       max_tokens?: number; reasoning_effort?: string; response_format?: unknown;
     };
-    expect(request.max_tokens).toBe(2048);
+    expect(request.max_tokens).toBe(4096);
     expect(request.reasoning_effort).toBe("low");
     expect(request.response_format).toBeUndefined();
   });

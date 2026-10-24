@@ -3,7 +3,8 @@ import type { CoreEvidence, CoreOperationalContext } from "@/domain/core/contrac
 import { logEvent } from "@/infrastructure/observability/logger";
 
 interface ChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string } }>;
+  choices?: Array<{ message?: { content?: string | null }; finish_reason?: string }>;
+  usage?: { completion_tokens?: number };
 }
 
 function parseJsonObject(content: string): {
@@ -41,7 +42,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
     private readonly baseUrl: string,
     private readonly apiKey: string,
     private readonly model: string,
-    private readonly timeoutMs = 45_000,
+    private readonly timeoutMs = 60_000,
   ) {
     if (!/^https?:\/\//.test(baseUrl) || !apiKey.trim() || !model.trim()) throw new CognitiveModelUnavailableError();
   }
@@ -73,7 +74,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
         'Responda somente JSON no formato {"metricIds":["..."],"capabilityIds":["..."],"productSlugs":["..."]}.',
       ].join(" ") },
       { role: "user", content: JSON.stringify(input) },
-    ], 2048);
+    ], 4096);
 
     try {
       const parsed = parseJsonObject(content);
@@ -137,7 +138,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
         "Contexto operacional é memória de continuidade, não fonte de verdade.",
       ].join(" ") },
       { role: "user", content: JSON.stringify(input) },
-    ], 3072);
+    ], 6144);
 
     if (!content.trim()) throw new CognitiveModelContractError();
     return content.trim();
@@ -169,7 +170,15 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
 
       const payload = await response.json() as ChatCompletionResponse;
       const content = payload.choices?.[0]?.message?.content;
-      if (typeof content !== "string") throw new CognitiveModelContractError();
+      if (typeof content !== "string" || !content.trim()) {
+        // Diagnóstico sem conteúdo do modelo: só metadados (motivo de parada e tokens usados).
+        logEvent("warn", "cognitive_provider_empty_content", {
+          providerHost: new URL(this.baseUrl).hostname, model: this.model,
+          finishReason: payload.choices?.[0]?.finish_reason ?? "unknown",
+          completionTokens: payload.usage?.completion_tokens ?? null, maxTokens,
+        });
+        throw new CognitiveModelContractError();
+      }
       return content;
     } catch (error) {
       if (error instanceof CognitiveModelContractError || error instanceof CognitiveModelUnavailableError) throw error;
