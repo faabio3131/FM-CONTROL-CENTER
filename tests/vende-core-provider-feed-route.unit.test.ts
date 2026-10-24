@@ -65,7 +65,7 @@ describe("F9 provider feed sync corporate API boundary",()=>{
       {...data,provider:"https://evil.example"},
       {...data,accountRef:"../foreign"},{...data,unitId:"../foreign"},
       {...data,password:""},{...data,password:"x".repeat(129)},
-      {...data,page:-1},{...data,limit:"25"},
+      {...data,page:"0"},{...data,limit:"25"},
       {...data,externalTenantId:""},
       {...data,amount:500},
     ])expect((await POST(request(item),params)).status).toBe(400);
