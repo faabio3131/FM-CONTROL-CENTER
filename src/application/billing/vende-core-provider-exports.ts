@@ -99,7 +99,20 @@ export async function readProviderAttempts(context:TenantContext,scope:SourceSco
         typeof a.cost_known_subtotal_usd==="string"&&MONEY.test(a.cost_known_subtotal_usd)))
       return denied();
   }
-  return data.items as SourceAttempt[];
+  // Never return raw Core objects: a future provider adapter may include
+  // credentials, internal traces or customer PII in extra properties.
+  return data.items.map(value=>{
+    const a=value as Record<string,unknown>;
+    return {
+      event_id:a.event_id as string,attempt_id:a.attempt_id as string|null,
+      provider:a.provider as string,model:a.model as string,
+      outcome:a.outcome as string,fallback:a.fallback as boolean,
+      input_tokens:a.input_tokens as number|null,
+      output_tokens:a.output_tokens as number|null,
+      cost_known_subtotal_usd:a.cost_known_subtotal_usd as string|null,
+      cost_known:a.cost_known as boolean,
+    };
+  });
 }
 export async function readProviderComparison(context:TenantContext,scope:SourceScope,
   attemptId:string,http:typeof fetch=fetch):Promise<ProviderComparison>{
@@ -130,7 +143,22 @@ export async function readProviderComparison(context:TenantContext,scope:SourceS
     !["report_cost_usd","internal_cost_usd"].every(k=>
       d[k]===null||typeof d[k]==="string"&&MONEY.test(d[k] as string)))
     return denied();
-  return d as ProviderComparison;
+  // Response is evidence, not a generic upstream JSON forwarding tunnel.
+  return {
+    tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+    request_id:scope.requestId,attempt_id:attemptId,
+    status:d.status as string,provider:d.provider as string|null,
+    source_ref:d.source_ref as string|null,
+    input_tokens_reported:d.input_tokens_reported as number|null,
+    output_tokens_reported:d.output_tokens_reported as number|null,
+    report_cost_usd:d.report_cost_usd as string|null,
+    internal_cost_usd:d.internal_cost_usd as string|null,
+    usage_matches:d.usage_matches as boolean|null,
+    cost_matches:d.cost_matches as boolean|null,
+    needs_attention:d.needs_attention as boolean,
+    provider_invoice_verified:false,
+    provider_signature_verified:false,quota_recovery_authorized:false,
+  };
 }
 export async function importProviderExport(context:TenantContext,proof:StepUpProof,
   sessionId:string,scope:SourceScope,source:ImportSource,
