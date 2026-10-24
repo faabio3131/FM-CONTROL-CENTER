@@ -1,0 +1,61 @@
+name: Deploy Command to Contabo
+
+# Deploy MANUAL: só roda quando uma pessoa autorizada clica em "Run workflow".
+# O ambiente "production-contabo" deve exigir aprovação do dono (Settings > Environments).
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "SHA completo (40 caracteres) de um commit que já está na main"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-contabo-command
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production-contabo
+    env:
+      DEPLOY_SHA: ${{ inputs.sha }}
+      DEPLOY_HOST: ${{ vars.CONTABO_HOST }}
+      DEPLOY_KNOWN_HOSTS: ${{ vars.CONTABO_SSH_KNOWN_HOSTS }}
+      DEPLOY_KEY: ${{ secrets.CONTABO_DEPLOY_SSH_KEY }}
+      PROD_BASE_URL: ${{ vars.FMCC_PRODUCTION_BASE_URL }}
+    steps:
+      - name: Validate inputs
+        shell: bash
+        run: |
+          if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha deve ter 40 caracteres hexadecimais."; exit 1
+          fi
+          for v in DEPLOY_HOST DEPLOY_KNOWN_HOSTS PROD_BASE_URL; do
+            if [ -z "${!v}" ]; then echo "::error::variavel $v nao configurada."; exit 1; fi
+          done
+          if [ -z "$DEPLOY_KEY" ]; then echo "::error::segredo CONTABO_DEPLOY_SSH_KEY nao configurado."; exit 1; fi
+          case "$PROD_BASE_URL" in https://*) ;; *) echo "::error::FMCC_PRODUCTION_BASE_URL deve usar HTTPS."; exit 1;; esac
+
+      - name: Deploy over SSH (restricted key)
+        shell: bash
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ServerAliveInterval=30 \
+              "deploy@${DEPLOY_HOST}" "deploy command ${DEPLOY_SHA}"
+
+      - name: Verify running version
+        shell: bash
+        run: |
+          body="$(curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors --max-time 20 "${PROD_BASE_URL%/}/api/version")"
+          echo "$body"
+          echo "$body" | grep -q "$DEPLOY_SHA" || { echo "::error::a versao em producao nao confere com o SHA pedido."; exit 1; }

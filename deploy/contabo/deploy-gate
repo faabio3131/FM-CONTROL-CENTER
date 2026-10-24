@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Comando forçado do SSH (usuário "deploy"). Aceita SOMENTE: deploy command <sha40>
+# Qualquer outra coisa é recusada. Não abre shell e não repassa argumentos livres.
+set -euo pipefail
+
+read -r verb app sha extra <<<"${SSH_ORIGINAL_COMMAND:-}" || true
+
+if [[ "${verb:-}" != "deploy" || -z "${app:-}" || -z "${sha:-}" || -n "${extra:-}" ]]; then
+  echo "comando nao permitido" >&2
+  exit 2
+fi
+if [[ "$app" != "command" ]]; then
+  echo "app nao permitido" >&2
+  exit 2
+fi
+if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "sha invalido (use os 40 caracteres do commit)" >&2
+  exit 2
+fi
+
+exec sudo -n -u fmadmin /opt/fm/bin/deploy-app "$app" "$sha"

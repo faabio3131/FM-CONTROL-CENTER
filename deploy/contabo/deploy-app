@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Executa como fmadmin (via sudo, chamado pelo deploy-gate). Uso: deploy-app command <sha40>
+# Garantias: só commit que já está na main; backup do banco antes; bloqueia migrações;
+# confere saúde depois; volta sozinho para a versão anterior se falhar.
+set -euo pipefail
+
+APP="${1:-}"
+SHA="${2:-}"
+[[ $# -eq 2 ]] || { echo "uso: deploy-app command <sha40>" >&2; exit 2; }
+[[ "$APP" == "command" ]] || { echo "app nao permitido" >&2; exit 2; }
+[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "sha invalido" >&2; exit 2; }
+
+DIR=/opt/fm/command
+COMPOSE="$DIR/docker-compose.yml"
+SRC="$DIR/src"
+ENVF="$DIR/.env"
+IMAGE=fmcc
+LOG=/opt/fm/deploy.log
+
+log() { echo "$(date -Is) [$APP] $*" | tee -a "$LOG"; }
+
+exec 9>/opt/fm/deploy.lock
+flock -n 9 || { log "ja existe um deploy em andamento"; exit 3; }
+
+cd "$DIR"
+OLD="$(git -C "$SRC" rev-parse HEAD)"
+log "inicio: de=$OLD para=$SHA"
+
+git -C "$SRC" fetch --quiet origin main
+git -C "$SRC" cat-file -e "${SHA}^{commit}" 2>/dev/null || { log "commit nao encontrado"; exit 4; }
+git -C "$SRC" merge-base --is-ancestor "$SHA" origin/main || { log "RECUSADO: commit nao esta na main"; exit 4; }
+
+if [[ "$SHA" == "$OLD" ]]; then
+  log "nada a fazer: ja esta nesse commit"
+  exit 0
+fi
+
+if git -C "$SRC" diff --name-only "$OLD" "$SHA" -- drizzle | grep -q .; then
+  log "RECUSADO: ha migracoes novas entre as versoes; aplicar migracoes e uma etapa manual separada"
+  exit 5
+fi
+
+/opt/fm/backups/backup-command.sh || { log "RECUSADO: backup previo falhou"; exit 6; }
+
+set_commit() {
+  if grep -q '^RENDER_GIT_COMMIT=' "$ENVF"; then
+    sed -i "s/^RENDER_GIT_COMMIT=.*/RENDER_GIT_COMMIT=$1/" "$ENVF"
+  else
+    echo "RENDER_GIT_COMMIT=$1" >> "$ENVF"
+  fi
+}
+
+wait_healthy() {
+  local cid st
+  cid="$(docker compose -f "$COMPOSE" ps -q app)"
+  for _ in $(seq 1 30); do
+    st="$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo none)"
+    [[ "$st" == "healthy" ]] && return 0
+    sleep 5
+  done
+  return 1
+}
+
+docker tag "$IMAGE:current" "$IMAGE:prev"
+git -C "$SRC" checkout --quiet --detach "$SHA"
+set_commit "$SHA"
+
+log "construindo imagem"
+if docker compose -f "$COMPOSE" build app && docker compose -f "$COMPOSE" up -d app && wait_healthy; then
+  echo "$SHA" > "$DIR/DEPLOYED_SHA"
+  log "SUCESSO: $SHA no ar e saudavel"
+  docker image prune -f >/dev/null 2>&1 || true
+  exit 0
+fi
+
+log "FALHOU: voltando para $OLD"
+git -C "$SRC" checkout --quiet --detach "$OLD"
+set_commit "$OLD"
+docker tag "$IMAGE:prev" "$IMAGE:current"
+docker compose -f "$COMPOSE" up -d --no-build app
+if wait_healthy; then
+  log "VOLTA CONCLUIDA: $OLD no ar e saudavel"
+else
+  log "ALERTA: a volta nao ficou saudavel; intervencao manual necessaria"
+fi
+exit 1
