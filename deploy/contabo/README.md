@@ -21,8 +21,8 @@ workflow manual do GitHub que entra por uma chave exclusiva, e essa chave só co
 ## Instalação (uma vez, no servidor, com `sudo`)
 
 1. No PC do dono, gerar a chave exclusiva (sem passphrase, pois fica como segredo do GitHub) e **apagar o arquivo depois de copiar para o GitHub**.
-2. Copiar este diretório para o servidor e rodar: `sudo ./install.sh "ssh-ed25519 AAAA... gh-deploy-command"` (chave **pública**).
-3. No GitHub: criar o ambiente `production-contabo` com revisor obrigatório (o dono); variáveis `CONTABO_HOST`, `CONTABO_SSH_KNOWN_HOSTS` (saída de `ssh-keyscan -t ed25519 <host>`), `FMCC_PRODUCTION_BASE_URL`; segredo `CONTABO_DEPLOY_SSH_KEY` (chave **privada**).
+2. Antes de instalar, conferir que `/opt/fm/command/src`, o Compose, a imagem atual, o contêiner saudável e `/opt/fm/backups/backup-command.sh` existem. O `install.sh` recusa o ambiente se qualquer pré-requisito falhar, **antes** de alterar o Compose. Copiar este diretório para o servidor e rodar: `sudo ./install.sh "ssh-ed25519 AAAA... gh-deploy-command"` (chave **pública**).
+3. No GitHub: criar o ambiente `production-contabo` com revisor obrigatório (o dono); variáveis `CONTABO_HOST`, `CONTABO_SSH_KNOWN_HOSTS` e `FMCC_PRODUCTION_BASE_URL`; segredo `CONTABO_DEPLOY_SSH_KEY` (chave **privada**). Obter a chave pública do servidor por `ssh-keyscan -t ed25519 <host>`, mas **comparar sua impressão digital com a chave verificada no console/provedor Contabo** antes de confiá-la. O `ssh-keyscan` sozinho não autentica o servidor.
 
 ## Limites assumidos
 
