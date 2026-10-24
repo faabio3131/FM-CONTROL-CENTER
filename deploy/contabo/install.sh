@@ -6,8 +6,13 @@ set -euo pipefail
 
 [[ $EUID -eq 0 ]] || { echo "rode com sudo" >&2; exit 1; }
 PUB="${1:-}"
-[[ "$PUB" =~ ^ssh-ed25519\ [A-Za-z0-9+/=]+(\ [^\"\']*)?$ ]] || {
-  echo "passe a chave PUBLICA ed25519 entre aspas como primeiro argumento" >&2; exit 1; }
+# A newline in the comment would inject an unrestricted second authorized_key.
+# Permit exactly one well-formed, printable ed25519 public-key line.
+PUB_REGEX='^ssh-ed25519 [A-Za-z0-9+/=]+( [A-Za-z0-9._@:-]{1,128})?$'
+if [[ ! "$PUB" =~ $PUB_REGEX ]]; then
+  echo "passe uma unica linha com chave PUBLICA ed25519 e comentario seguro" >&2
+  exit 1
+fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE=/opt/fm/command/docker-compose.yml
