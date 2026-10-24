@@ -70,11 +70,23 @@ install -o root -g root -m 755 "$HERE/deploy-app"  /opt/fm/bin/deploy-app
 if ! id deploy >/dev/null 2>&1; then
   adduser --disabled-password --gecos "" deploy
 fi
+[[ "$(getent passwd deploy | cut -d: -f6)" == /home/deploy ]] ||
+  { echo "preflight: unexpected deploy home" >&2; exit 3; }
 passwd -l deploy >/dev/null
 install -d -o deploy -g deploy -m 700 /home/deploy/.ssh
-printf 'restrict,command="/opt/fm/bin/deploy-gate" %s\n' "$PUB" > /home/deploy/.ssh/authorized_keys
-chown deploy:deploy /home/deploy/.ssh/authorized_keys
-chmod 600 /home/deploy/.ssh/authorized_keys
+AUTH=/home/deploy/.ssh/authorized_keys
+# Bootstrap may already have installed the exact authorized key.
+# Never remove, overwrite or append to a different existing key file.
+EXPECTED="$(mktemp)"
+trap 'rm -f "$EXPECTED"' EXIT
+printf 'restrict,command="/opt/fm/bin/deploy-gate" %s\n' "$PUB" > "$EXPECTED"
+if [[ -e "$AUTH" ]]; then
+  cmp -s "$EXPECTED" "$AUTH" ||
+    { echo "preflight: existing authorized_keys differs; refusing overwrite" >&2; exit 3; }
+else
+  install -o deploy -g deploy -m 600 "$EXPECTED" "$AUTH"
+fi
+chmod 600 "$AUTH"
 
 TMP="$(mktemp)"
 echo 'deploy ALL=(fmadmin) NOPASSWD: /opt/fm/bin/deploy-app command *' > "$TMP"
