@@ -211,7 +211,22 @@ export async function readFMFinopsAlertInbox(
          item.unknown_attempts>item.observed_attempts||
          typeof item.all_recorded_costs_known!=="boolean"||
          item.provider_invoice_verified!==false))return denied();
-    return data;
+    // The Core response is untrusted JSON even across authenticated transport.
+    // Only project the documented fields; never expose arbitrary metadata.
+    return {
+      tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+      policy_revision:data.policy_revision,policy_enabled:data.policy_enabled,
+      has_more:data.has_more,next_cursor:data.next_cursor,
+      provider_invoice_verified:false,
+      items:data.items.map(item=>({
+        request_id:item.request_id,status:item.status,reasons:[...item.reasons],
+        known_cost_subtotal:item.known_cost_subtotal,currency:item.currency,
+        unknown_attempts:item.unknown_attempts,
+        observed_attempts:item.observed_attempts,
+        all_recorded_costs_known:item.all_recorded_costs_known,
+        provider_invoice_verified:false as const,
+      })),
+    };
   }catch{return denied();}
 }
 
