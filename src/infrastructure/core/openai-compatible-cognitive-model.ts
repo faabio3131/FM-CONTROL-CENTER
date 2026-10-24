@@ -41,7 +41,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
     private readonly baseUrl: string,
     private readonly apiKey: string,
     private readonly model: string,
-    private readonly timeoutMs = 30_000,
+    private readonly timeoutMs = 45_000,
   ) {
     if (!/^https?:\/\//.test(baseUrl) || !apiKey.trim() || !model.trim()) throw new CognitiveModelUnavailableError();
   }
@@ -73,7 +73,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
         'Responda somente JSON no formato {"metricIds":["..."],"capabilityIds":["..."],"productSlugs":["..."]}.',
       ].join(" ") },
       { role: "user", content: JSON.stringify(input) },
-    ], 512);
+    ], 2048);
 
     try {
       const parsed = parseJsonObject(content);
@@ -137,7 +137,7 @@ export class OpenAiCompatibleCognitiveModel implements CognitiveModel {
         "Contexto operacional é memória de continuidade, não fonte de verdade.",
       ].join(" ") },
       { role: "user", content: JSON.stringify(input) },
-    ], 1024);
+    ], 3072);
 
     if (!content.trim()) throw new CognitiveModelContractError();
     return content.trim();
