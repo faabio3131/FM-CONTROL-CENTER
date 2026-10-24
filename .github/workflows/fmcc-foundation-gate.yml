@@ -68,7 +68,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/-FM-Assistant-Base
-          ref: d3fa7bde52856fe1cf3b5724aba7da72af1d3a32
+          ref: 902c2f3fbc612e3aa7afc0f30a4ce54456f9c4ea
           path: assistant-source
           persist-credentials: false
       - name: Use Core included in the pinned VendeAtendeIA monorepo
@@ -100,10 +100,10 @@ jobs:
           tests/f3_command_core_quota_readback_e2e.py -q -rs
       - name: Prove pinned Core signed readback API and no-reservation semantics
         working-directory: core-source
-        run: python -m pytest tests/test_ai_command_quota_readback.py tests/test_ai_command_quota_runtime_mount.py tests/test_ai_command_finops_api.py tests/service/test_ai_finops_bucket_integrity.py tests/service/test_ai_usage_ledger.py tests/service/test_ai_admin_read_api.py tests/service/test_ai_finops_alert_policy.py tests/service/test_ai_provider_usage_match.py tests/service/test_ai_provider_billing_export.py -q -rs
+        run: python -m pytest tests/test_ai_command_quota_readback.py tests/test_ai_command_quota_runtime_mount.py tests/test_ai_command_finops_api.py tests/service/test_ai_finops_bucket_integrity.py tests/service/test_ai_usage_ledger.py tests/service/test_ai_admin_read_api.py tests/service/test_ai_finops_alert_policy.py tests/service/test_ai_provider_usage_match.py tests/service/test_ai_provider_billing_export.py tests/service/test_ai_provider_export_store.py tests/service/test_ai_request_provider_fallback_reconciliation.py -q -rs
       - name: Assistant F3 customer quota integrity regression
         working-directory: assistant-source
-        run: python -m pytest tests/saas/test_plan_consumption_view.py tests/saas/test_f3_command_assistant_core_usage_contract.py tests/saas/test_provider_usage_reconciliation.py -q -rs
+        run: python -m pytest tests/saas/test_plan_consumption_view.py tests/saas/test_f3_command_assistant_core_usage_contract.py tests/saas/test_provider_usage_reconciliation.py tests/saas/test_commercial_license_transition.py tests/saas/test_license_security_hold.py -q -rs
       - name: Isolate tested Assistant checkout outside Next.js workspace
         run: |
           mkdir -p "$RUNNER_TEMP/f3-cross-runtime"
