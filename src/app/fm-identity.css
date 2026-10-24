@@ -199,3 +199,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:var(--f
 .dashboard-shell dt{color:var(--a2)}
 .command-rail-heading h2,.metric-value.unavailable{color:var(--a2)}
 .panel>.section-heading h2,.panel>h2{color:var(--a2)}
+
+/* menu lateral mais claro que o preto do conteúdo, para destacá-lo (pedido do diretor, 24/10/2026) */
+.command-sidebar{
+  background:
+    radial-gradient(circle at 50% 100%,rgba(255,159,28,.07),transparent 16rem),
+    linear-gradient(180deg,#17171C,#111115);
+  border-right:1px solid var(--line-strong);
+  box-shadow:12px 0 32px -20px rgba(0,0,0,.9);
+}
+.command-sidebar .command-nav-icon{background:#0A0A0C;border-color:#2B2D34}
+.command-sidebar .command-nav-item:hover{background:rgba(255,255,255,.06);border-color:#2B2D34}
+.command-sidebar .command-nav-item.active{background:rgba(255,255,255,.09);border-color:#33353D}
+.command-sidebar-footer{background:#0C0C0F;border-color:#2B2D34}
