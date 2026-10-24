@@ -57,7 +57,7 @@ export function parseRequestReconciliation(
     const a=x as Record<string,unknown>;
     if(!safe(a.attempt_id)||!safe(a.provider)||!safe(a.model,200)||
       !safe(a.outcome,40)||!safe(a.export_status,80)||
-      !(a.source_ref===null||safe(a.source_ref))||
+      !(a.source_ref===null||typeof a.source_ref==="string"&&ID.test(a.source_ref))||
       typeof a.fallback!=="boolean"||typeof a.needs_attention!=="boolean"||
       !resultFlag(a.usage_matches)||!resultFlag(a.cost_matches))
       return denied();
