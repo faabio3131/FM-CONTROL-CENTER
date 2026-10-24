@@ -57,5 +57,18 @@ jobs:
         shell: bash
         run: |
           body="$(curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors --max-time 20 "${PROD_BASE_URL%/}/api/version")"
-          echo "$body"
-          echo "$body" | grep -q "$DEPLOY_SHA" || { echo "::error::a versao em producao nao confere com o SHA pedido."; exit 1; }
+          # Compare the exact JSON field; a SHA appearing elsewhere is not proof.
+          printf '%s' "$body" | python3 -c '
+          import json, os, sys
+          try:
+              value = json.load(sys.stdin)
+              ok = (isinstance(value, dict)
+                    and value.get("service") == "fm-control-center"
+                    and value.get("gitCommit") == os.environ["DEPLOY_SHA"])
+          except (ValueError, KeyError, TypeError):
+              ok = False
+          if not ok:
+              sys.exit("Versão pública do Command não corresponde ao SHA solicitado")
+          '
+          curl --fail --silent --show-error --retry 3 --retry-delay 3 \
+            --max-time 20 "${PROD_BASE_URL%/}/api/ready" >/dev/null
