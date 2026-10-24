@@ -3,19 +3,13 @@
 # Qualquer outra coisa é recusada. Não abre shell e não repassa argumentos livres.
 set -euo pipefail
 
-read -r verb app sha extra <<<"${SSH_ORIGINAL_COMMAND:-}" || true
-
-if [[ "${verb:-}" != "deploy" || -z "${app:-}" || -z "${sha:-}" || -n "${extra:-}" ]]; then
-  echo "comando nao permitido" >&2
+# Match the WHOLE original SSH command, not only its first line.
+# read <<<... silently ignores any injected newline after the first line.
+REGEX='^deploy command ([0-9a-f]{40})$'
+ORIGINAL="${SSH_ORIGINAL_COMMAND:-}"
+if [[ ! "$ORIGINAL" =~ $REGEX ]]; then
+  echo "comando nao permitido (deploy command <sha40>)" >&2
   exit 2
 fi
-if [[ "$app" != "command" ]]; then
-  echo "app nao permitido" >&2
-  exit 2
-fi
-if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "sha invalido (use os 40 caracteres do commit)" >&2
-  exit 2
-fi
-
-exec sudo -n -u fmadmin /opt/fm/bin/deploy-app "$app" "$sha"
+SHA="${BASH_REMATCH[1]}"
+exec sudo -n -u fmadmin /opt/fm/bin/deploy-app command "$SHA"
