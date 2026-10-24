@@ -7,6 +7,7 @@ import type { NotificationItem } from "@/domain/notifications/contracts";
 import type { DashboardIdentity } from "@/domain/security/dashboard-identity";
 import type { FmccRole } from "@/domain/security/permissions";
 import { commandNavigationForRole, type CommandNavigationFeatures } from "@/presentation/command-navigation";
+import { CommandMark } from "@/presentation/command-mark";
 import { rotuloPapelFmcc } from "@/presentation/pt-br";
 import { SignOutButton } from "./sign-out-button";
 
@@ -63,7 +64,7 @@ export function CommandShell({
     <div className="command-app-shell">
       <header className="command-topbar">
         <Link href="/dashboard" className="command-brand" aria-label="FM Command — Visão Geral">
-          <span className="command-brand-mark" aria-hidden="true">FM</span>
+          <span className="command-brand-mark" aria-hidden="true"><CommandMark /></span>
           <span className="command-brand-company">FM Tecnologia</span>
           <span className="command-brand-divider" aria-hidden="true" />
           <strong>COMMAND</strong>

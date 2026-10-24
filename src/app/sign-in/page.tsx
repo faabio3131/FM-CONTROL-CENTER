@@ -4,6 +4,7 @@ import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/infrastructure/auth/auth-client";
+import { CommandMark } from "@/presentation/command-mark";
 import { APPROVED_COMMAND_ARTWORK_SRC } from "@/presentation/command-approved-artwork";
 
 const benefits = [
@@ -59,7 +60,7 @@ export default function SignInPage() {
       <section className="command-auth-experience" aria-labelledby="command-auth-title">
         <header className="command-auth-brandbar">
           <div className="command-auth-brand-lockup" aria-label="FM Tecnologia · FM Command">
-            <strong>FM</strong>
+            <strong aria-hidden="true"><CommandMark gradientId="command-auth-mark-gradient" /></strong>
             <span>FM Tecnologia</span>
             <i aria-hidden="true" />
             <b>COMMAND</b>

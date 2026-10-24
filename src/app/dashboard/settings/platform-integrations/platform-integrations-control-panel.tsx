@@ -289,7 +289,7 @@ export function PlatformIntegrationsControlPanel({
               aria-pressed={showPassword}
               onClick={() => setShowPassword((current) => !current)}
               disabled={!canWrite}
-              style={{ minWidth: 44, height: 40, borderRadius: 8, border: "1px solid var(--border, #314366)", background: "transparent", color: "inherit", cursor: "pointer" }}
+              style={{ minWidth: 44, height: 40, borderRadius: 8, border: "1px solid var(--border, #131315)", background: "transparent", color: "inherit", cursor: "pointer" }}
             >
               <span aria-hidden="true" style={{ fontSize: 18 }}>{showPassword ? "◉" : "👁"}</span>
             </button>
