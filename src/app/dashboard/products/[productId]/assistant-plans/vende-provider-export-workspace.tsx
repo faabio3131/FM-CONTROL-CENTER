@@ -67,6 +67,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
       if(found.provider_invoice_verified!==false||
         found.provider_signature_verified!==false||
         found.quota_recovery_authorized!==false||
+        found.tenant_id!==tenant||found.unit_id!==unit||
         found.attempt_id!==id||found.request_id!==requestId||
         typeof found.needs_attention!=="boolean")throw Error("untrusted");
       setComparison(found);
@@ -161,9 +162,30 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
       if(!["created","already_recorded"].includes(data.status??""))
         throw Error("untrusted");
       setStatus(data.status==="created"?
-        "Registro observacional armazenado no Core. Consulte a comparação.":
-        "Esse registro já estava armazenado, sem duplicação.");
+        "Registro observacional armazenado no Core; conferindo divergências atuais.":
+        "Registro já existente no Core; conferindo divergências atuais.");
+      setSourceRef("");
       setPassword("");
+      // A successful POST is final regardless of subsequent readback failure.
+      // Never turn a failed GET into an ambiguous invitation to retry the POST.
+      try{
+        const id=selected.attempt_id;
+        const compared=await fetch(scopeUrl(id),{cache:"no-store"});
+        if(!compared.ok)throw Error("unavailable");
+        const verified=await compared.json() as ProviderComparison;
+        if(verified.tenant_id!==tenant||verified.unit_id!==unit||
+          verified.request_id!==requestId||verified.attempt_id!==id||
+          verified.provider_invoice_verified!==false||
+          verified.provider_signature_verified!==false||
+          verified.quota_recovery_authorized!==false||
+          typeof verified.needs_attention!=="boolean")throw Error("untrusted");
+        setComparison(verified);
+        setStatus(data.status==="created"?
+          "Observação registrada e comparação atual consultada no Core.":
+          "Observação já existente; comparação atual consultada no Core.");
+      }catch{
+        setError("Observação registrada no Core, mas a comparação atual está indisponível. Use 'Consultar comparação'; não reenvie a importação.");
+      }
     }catch{
       setError("Importação não confirmada. Consulte o Core antes de repetir.");
       setPassword("");
