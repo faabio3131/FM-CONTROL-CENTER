@@ -187,3 +187,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:var(--f
 .command-not-found .card{max-width:560px}
 .command-not-found .command-not-found-code{font:700 clamp(3.2rem,9vw,5.5rem)/1 var(--fd);letter-spacing:-.05em;color:var(--a2);margin:0 0 8px}
 .command-not-found h1{font-size:clamp(1.6rem,3.2vw,2.2rem);margin:0 0 10px}
+
+/* ---------- âmbar nos nomes de serviço, rótulos e status (pedido do diretor, 24/10/2026) ---------- */
+.metric-label,.command-card>span,.command-service-list strong,.command-alert-list strong,.command-health-counts strong,
+.command-activity-grid strong,.foundation-grid strong,.product-card>strong,.alert-item>div>strong,
+.settings-member-row strong,.dashboard-shell th{color:var(--a2)}
+.status-value{color:var(--a2);font-weight:650}
+.product-card small[role="status"],.core-voice-status{color:var(--a2)}
+.command-status-pill{letter-spacing:.04em}
+.command-status-pill.unknown{border-color:rgba(255,159,28,.35);background:rgba(255,159,28,.07);color:var(--a2)}
+.dashboard-shell dt{color:var(--a2)}
+.command-rail-heading h2,.metric-value.unavailable{color:var(--a2)}
+.panel>.section-heading h2,.panel>h2{color:var(--a2)}
