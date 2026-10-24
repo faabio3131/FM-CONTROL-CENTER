@@ -218,3 +218,46 @@ describe("F9 supplier evidence ingress hardening",()=>{
     }
   });
 });
+
+describe("F9 strict redaction of extra provider and Core properties",()=>{
+  const ctx={...scope,requestId:"request-1"};
+  const attempt={
+    event_id:"event-1",attempt_id:"attempt-1",provider:"openai",
+    model:"example-model",outcome:"completed",fallback:false,
+    input_tokens:4,output_tokens:2,cost_known_subtotal_usd:"0.0001",
+    cost_known:true,
+  };
+  it("never forwards unexpected payloads from Core attempts to Command UI",async()=>{
+    const rows=await readProviderAttempts(context,ctx,
+      httpMock(Response.json({
+        tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+        request_id:ctx.requestId,provider_invoice_verified:false,
+        items:[{...attempt,internalApiKey:"MUST_NOT_LEAK",
+          nestedCustomer:{taxId:"999"},trace:"private"}],
+        source_token:"MUST_NOT_LEAK",
+      })));
+    expect(rows).toEqual([attempt]);
+    expect(JSON.stringify(rows)).not.toContain("MUST_NOT_LEAK");
+    expect(JSON.stringify(rows)).not.toContain("taxId");
+  });
+  it("projects only verified comparison fields, dropping untrusted extensions",async()=>{
+    const expected={
+      tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+      request_id:ctx.requestId,attempt_id:attempt.attempt_id,
+      status:"compared",provider:"openai",source_ref:"provider-ref",
+      input_tokens_reported:4,output_tokens_reported:2,
+      report_cost_usd:"0.0001",internal_cost_usd:"0.0001",
+      usage_matches:true,cost_matches:true,needs_attention:false,
+      provider_invoice_verified:false,provider_signature_verified:false,
+      quota_recovery_authorized:false,
+    };
+    const projection=await readProviderComparison(context,ctx,
+      attempt.attempt_id,httpMock(Response.json({
+        ...expected,secret:"MUST_NOT_LEAK",
+        sensitive:{clientEmail:"private@example.test"},
+      })));
+    expect(projection).toEqual(expected);
+    expect(JSON.stringify(projection)).not.toContain("MUST_NOT_LEAK");
+    expect(JSON.stringify(projection)).not.toContain("clientEmail");
+  });
+});
