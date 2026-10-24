@@ -229,3 +229,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:var(--f
   .metric-card:hover,.command-card:hover,.foundation-grid article:hover,.foundation-grid>a:hover,.product-card:hover,
   .guardrail-grid article:hover,.alert-item:hover,.organization-option:hover{transform:none}
 }
+
+/* logo no Core do dashboard: menor que o original, para não competir com o conteúdo */
+.core-approved-artwork.command-approved-artwork{width:min(100%,170px)}
+.core-approved-artwork-stage{min-height:170px}
