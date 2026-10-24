@@ -2,6 +2,8 @@
 import {useState} from "react";
 import type {ProviderComparison,SourceAttempt}
   from "@/application/billing/vende-core-provider-exports";
+import type {ProviderRequestReconciliation}
+  from "@/application/billing/vende-core-request-reconciliation";
 
 const MONEY=/^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,18})?$/;
 type FeedProgress={pages:number;created:number;alreadyRecorded:number;
@@ -13,6 +15,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
   const [attempts,setAttempts]=useState<SourceAttempt[]>([]);
   const [selected,setSelected]=useState<SourceAttempt|null>(null);
   const [comparison,setComparison]=useState<ProviderComparison|null>(null);
+  const [requestReport,setRequestReport]=useState<ProviderRequestReconciliation|null>(null);
   const [adapter,setAdapter]=useState<"openai_compatible"|"gemini">("openai_compatible");
   const [account,setAccount]=useState("");
   const [sourceRef,setSourceRef]=useState("");
@@ -33,7 +36,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
   const endpoint="/api/billing/products/"+
     encodeURIComponent(productId)+"/vende-core-finops/provider-exports";
   const clear=()=>{
-    setAttempts([]);setSelected(null);setComparison(null);
+    setAttempts([]);setSelected(null);setComparison(null);setRequestReport(null);
     setStatus("");setError("");setPassword("");resetFeed();
   };
   function scopeUrl(id?:string){
@@ -57,6 +60,35 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
       setStatus(rows.length+" tentativa(s) localizadas no ledger Core.");
     }catch{setAttempts([]);setError("Não foi possível consultar as tentativas no Core.");}
     finally{setBusy(false);}
+  }
+  async function reconcileRequest(){
+    if(!tenant||!unit||!requestId||!password){
+      setError("Informe tenant, unidade, solicitação e senha da FM.");return;
+    }
+    setBusy(true);setError("");setStatus("");setRequestReport(null);
+    try{
+      const path=endpoint.replace("/provider-exports","/request-reconciliation");
+      const result=await fetch(path,{
+        method:"POST",cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          externalTenantId:tenant,unitId:unit,requestId,password,
+        }),
+      });
+      if(!result.ok)throw Error("unavailable");
+      const raw=await result.json() as ProviderRequestReconciliation;
+      if(raw.tenant_id!==tenant||raw.unit_id!==unit||raw.request_id!==requestId||
+        raw.provider_invoice_verified!==false||
+        raw.quota_recovery_authorized!==false||
+        raw.real_provider_charges_certified!==false||
+        !Array.isArray(raw.per_provider)||!Array.isArray(raw.attempts)||
+        raw.attempts.length!==raw.attempts_observed)throw Error("untrusted");
+      setRequestReport(raw);
+      setStatus(raw.needs_attention?
+        "Reconciliação com pendências: consulte divergências por fornecedor.":
+        "Extratos observacionais coincidentes; faturas ainda não certificadas.");
+    }catch{setError("Reconciliação completa indisponível ou não autorizada.");}
+    finally{setBusy(false);setPassword("");}
   }
   async function inspect(id:string){
     setBusy(true);setError("");setComparison(null);setStatus("");
@@ -214,6 +246,30 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     </div>
     <button className="button" type="button" disabled={busy||!tenant||!unit||!requestId}
       onClick={()=>void load()}>Buscar tentativas no Core</button>
+    <button className="button" type="button"
+      disabled={busy||!tenant||!unit||!requestId||!password}
+      onClick={()=>void reconcileRequest()}>
+      Conciliar todos os fornecedores e fallbacks (reautenticação FM)
+    </button>
+    {requestReport?<section aria-label="Reconciliação consolidada de IA">
+      <h3>Diagnóstico por requisição</h3>
+      <p>{requestReport.attempts_observed} tentativa(s), 
+        {requestReport.fallback_attempts} fallback(s).
+        Estado: {requestReport.needs_attention?"requer investigação":"coincidência observacional"}.
+        Nenhuma fatura ou recuperação de quotas está autorizada por esta leitura.</p>
+      <div className="form-grid">
+        {requestReport.per_provider.map(row=><article key={row.provider} className="card">
+          <strong>{row.provider}</strong>
+          <p>{row.attempts} tentativas • {row.fallback_attempts} fallback(s) • 
+            {row.uncertain_attempts} pendência(s) • {row.missing_exports} extrato(s) ausente(s).</p>
+          <p>Custo conhecido interno: {row.internal_known_cost_usd} USD.
+            Extratos: {row.reported_known_cost_usd} USD.
+            Diferenças: {row.cost_disagreements}.</p>
+          <p>Custos desconhecidos: {row.internal_unknown_costs} internos e
+            {row.reported_unknown_costs} nos extratos.</p>
+        </article>)}
+      </div>
+    </section>:null}
     <section aria-label="Coleta configurada de relatórios de fornecedor">
       <h3>Coleta de evidências do fornecedor configurado</h3>
       <p>A origem e credencial são selecionadas exclusivamente no Core pela FM.
