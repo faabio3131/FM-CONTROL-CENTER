@@ -57,4 +57,14 @@ describe("CME-07 dashboard identity", () => {
       "Render · preview/cme07",
     );
   });
+
+  it("reconhece a Contabo só quando declarada", () => {
+    const contabo: DeploymentIdentity = {
+      service: "fm-control-center",
+      environment: "contabo",
+      gitCommit: "abc123",
+      gitBranch: null,
+    };
+    expect(deploymentEnvironmentLabel(contabo)).toBe("Contabo · produção");
+  });
 });
