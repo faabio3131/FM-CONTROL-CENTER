@@ -64,8 +64,8 @@ test("abertura premium do FM Command exibe o Core e permanece responsiva", async
     )
     .toMatchObject({
       complete: true,
-      width: 1040,
-      height: 1040,
+      width: 650,
+      height: 650,
       source: expect.stringContaining("data:image/webp;base64,"),
     });
   await expect(page.getByRole("heading", { name: "Acesse sua conta" })).toBeVisible();
