@@ -321,10 +321,10 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                 <small>Tipo técnico: {source.sourceType}</small>
                 <small>Modo: {source.syncMode === "pull" ? "Consulta periódica" : source.syncMode}</small>
                 <small>Referência de segredo: {source.hasSecretReference ? "Configurada por referência" : "Ausente"}</small>
-                <small>Saúde persistida: {rotuloSaude(source.status)}</small>
-                <small>Último sync bem-sucedido: {dataHora(source.lastSuccessfulSyncAt)}</small>
+                <small>Saúde persistida: <b className="status-value">{rotuloSaude(source.status)}</b></small>
+                <small>Último sync bem-sucedido: <b className="status-value">{dataHora(source.lastSuccessfulSyncAt)}</b></small>
                 <small>
-                  Última tentativa: {dataHora(source.lastAttemptAt)} · {rotuloSync(source.lastAttemptStatus)}
+                  Última tentativa: <b className="status-value">{dataHora(source.lastAttemptAt)} · {rotuloSync(source.lastAttemptStatus)}</b>
                 </small>
                 {source.baseUrl ? <small>Origem: {source.baseUrl}</small> : null}
                 <div>

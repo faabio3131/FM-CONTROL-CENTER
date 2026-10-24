@@ -1,0 +1,234 @@
+/* =========================================================
+   FM COMMAND — IDENTIDADE VISUAL FM TECNOLOGIA
+   Fonte da verdade: landing page oficial (repo fm-site-novo, assets/site.css,
+   html[data-p=command]). O preto domina; o âmbar do Command só aparece em detalhes.
+   Camada estritamente visual: não altera contratos, auth, RBAC nem tenancy.
+   Carregada por último em layout.tsx para prevalecer sobre as camadas anteriores.
+   ========================================================= */
+:root{
+  color-scheme:dark;
+  --fd:Sora,Inter,"Helvetica Neue",Arial,sans-serif;
+  --fb:"Plus Jakarta Sans",Inter,"Helvetica Neue",Arial,sans-serif;
+
+  /* superfícies e linhas (neutras, como no site) */
+  --bg:#000;--bg-elevated:#030304;--surface:#08080A;--surface-strong:#0F0F12;--surface-soft:#050506;
+  --line:#1D1E23;--line-strong:#2B2D34;--border:#1D1E23;--card:#08080A;
+  /* texto */
+  --text:#EEF1F5;--text-secondary:#C3C8D0;--muted:#A1A6AE;--subtle:#6B7078;
+  /* acento do produto Command (landing: html[data-p=command]) */
+  --a:#FF9F1C;--a2:#FFC46B;--argb:255,159,28;--hl:#FFC46B;
+  --accent:#FF9F1C;--accent-ink:#1A0E00;
+  /* estados */
+  --info:#FFC46B;--success:#52D6A0;--warning:#E6C46E;--danger:#E5484D;
+  --ok:#52D6A0;--am:#E6C46E;
+  /* forma */
+  --radius-sm:10px;--radius-md:14px;--radius-lg:18px;--radius-xl:22px;
+  --shadow-sm:0 10px 28px -16px rgba(0,0,0,.8);--shadow-lg:0 40px 80px -50px rgba(0,0,0,.9);
+  --focus:0 0 0 3px rgba(255,159,28,.28);
+  --content:1320px;
+
+  /* aliases da camada anterior apontando para a paleta oficial */
+  --command-bg:#000;--command-bg-deep:#000;--command-surface:#08080A;--command-surface-2:#0F0F12;
+  --command-line:#2B2D34;--command-line-soft:#1D1E23;
+  --command-blue:#FF9F1C;--command-cyan:#FFC46B;--command-violet:#FFC46B;
+  --command-green:#52D6A0;--command-warning:#E6C46E;--command-red:#E5484D;
+  --command-text:#EEF1F5;--command-muted:#A1A6AE;
+  --command-glow:inset 0 1px 0 rgba(255,255,255,.04);
+  --command-glow-strong:0 0 0 1px rgba(255,159,28,.25),0 24px 50px -24px rgba(0,0,0,.85);
+}
+
+html{background:#000;color-scheme:dark;-webkit-font-smoothing:antialiased}
+body{
+  font-family:var(--fb);
+  background:
+    radial-gradient(55% 40rem at 82% 0%,rgba(255,159,28,.05),transparent 70%),
+    #000;
+  color:var(--text);
+  line-height:1.6;
+}
+body::before{
+  opacity:1;
+  background-image:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 1px,transparent 1px 56px),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 56px);
+  background-size:auto;
+  -webkit-mask-image:radial-gradient(85% 60% at 50% 0%,#000 25%,transparent);
+  mask-image:radial-gradient(85% 60% at 50% 0%,#000 25%,transparent);
+}
+::selection{background:rgba(255,159,28,.28)}
+:focus-visible{outline:2px solid var(--a2);outline-offset:3px;box-shadow:none}
+
+/* tipografia */
+h1,h2,h3,h4,h5,.command-brand strong,.command-card strong,.metric-card>strong,.metric-value{font-family:var(--fd)}
+h1{letter-spacing:-.045em;font-weight:700;line-height:1.03}
+h2{letter-spacing:-.04em;font-weight:700}
+h3{letter-spacing:-.02em;font-weight:600}
+p{color:var(--muted)}
+code{color:var(--a2)}
+.eyebrow{color:var(--muted);letter-spacing:.18em;font-weight:700}
+.eyebrow::before{background:var(--a);width:7px;height:7px;border-radius:50%}
+
+/* superfícies: cartões neutros, borda fina, sem neon */
+.hero,.card,.auth-card,.panel,.core-panel,.metric-card,.command-card,.foundation-grid article,.foundation-grid>a,
+.guardrail-grid article,.alert-item,.empty-state,.comparison-panel,.product-card,.organization-option{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--command-glow);
+}
+.hero::after,.card::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent)}
+.core-panel{background:radial-gradient(70% 120% at 100% 0%,rgba(255,159,28,.07),transparent 70%),linear-gradient(180deg,var(--surface-strong),var(--surface))}
+.command-card::after,.metric-card::after{background:linear-gradient(90deg,var(--a),transparent);opacity:.55}
+.metric-card::before{background:linear-gradient(var(--a),transparent);opacity:.6}
+.foundation-grid>a:hover,.product-card:hover,.archive-link:hover{border-color:rgba(255,159,28,.45);background:var(--surface-strong);box-shadow:none;transform:translateY(-2px)}
+.command-card span,.metric-label{color:var(--muted)}
+.command-card strong{color:var(--text)}
+.command-card small{color:var(--subtle)}
+.command-card.attention strong{color:var(--warning)}
+.foundation-grid strong{color:var(--text)}
+
+/* botões — idênticos ao .btn da landing */
+.button{
+  min-height:44px;border-radius:12px;border:1px solid var(--line);
+  background:rgba(255,255,255,.02);color:var(--text);box-shadow:none;
+  font-family:var(--fb);font-weight:600;
+}
+.button:hover:not(:disabled){border-color:rgba(255,159,28,.55);background:rgba(255,255,255,.04);box-shadow:none;transform:none}
+.button.primary{background:var(--a);border-color:var(--a);color:#1A0E00;box-shadow:none}
+.button.primary:hover:not(:disabled){background:var(--a);filter:brightness(1.07)}
+
+/* campos */
+input,select,textarea{
+  background:var(--surface-soft);border:1px solid var(--line);border-radius:12px;color:var(--text);
+}
+input::placeholder,textarea::placeholder{color:var(--subtle)}
+input:hover,select:hover,textarea:hover{border-color:var(--line-strong)}
+input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:var(--focus)}
+
+/* shell: topbar e menu lateral */
+.command-topbar{background:rgba(0,0,0,.88);border-bottom:1px solid var(--line);box-shadow:none;backdrop-filter:blur(14px)}
+.command-brand{color:var(--text)}
+.command-brand-mark{display:inline-flex;width:30px;height:30px;background:none;filter:none;-webkit-background-clip:border-box;background-clip:border-box;color:inherit}
+.command-brand-mark svg{width:100%;height:100%}
+.command-brand-company{font-family:var(--fd);font-weight:600;color:var(--text)}
+.command-brand-divider{background:var(--line-strong)}
+.command-brand strong{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--a2);letter-spacing:.32em;font-weight:700}
+.command-topbar p{color:var(--subtle)}
+.command-topbar-badge{border-color:rgba(82,214,160,.3);background:rgba(82,214,160,.06);color:var(--ok)}
+.command-topbar-badge span{text-shadow:none}
+.command-sidebar{background:#000;border-right:1px solid var(--line)}
+.command-nav-item{color:var(--muted);border-radius:10px;font-weight:600}
+.command-nav-icon{border:1px solid var(--line);background:var(--surface);color:var(--a)}
+.command-nav-item:hover{color:var(--text);background:rgba(255,255,255,.04);border-color:var(--line)}
+.command-nav-item.active{
+  color:var(--text);background:rgba(255,255,255,.06);border-color:var(--line);
+  box-shadow:inset 2px 0 0 var(--a);
+}
+.command-nav-item.active .command-nav-icon{color:#1A0E00;background:var(--a);border-color:var(--a);box-shadow:none}
+.command-sidebar-footer{background:var(--surface);border:1px solid var(--line)}
+.command-sidebar-footer strong{color:var(--a2)}
+.command-sidebar-footer span{color:var(--subtle)}
+
+/* conteúdo */
+.dashboard-header{border-bottom:1px solid var(--line)}
+.dashboard-header>a{border:1px solid var(--line);border-radius:12px;color:var(--text-secondary)}
+.dashboard-header>a:hover{border-color:rgba(255,159,28,.55);background:rgba(255,255,255,.03)}
+.section-divider{background:var(--line)}
+.metric-provenance,.core-evidence{border-top-color:var(--line)}
+
+/* ---------- refinamentos: o preto domina, o âmbar só em detalhes ---------- */
+/* títulos e textos de leitura em branco/cinza; âmbar fica para rótulos, links e destaques */
+.core-panel-copy h2{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--text);-webkit-text-fill-color:currentColor}
+.command-auth-copy h1{color:var(--text)}
+.command-auth-copy h1 em{background:none;-webkit-background-clip:border-box;background-clip:border-box;-webkit-text-fill-color:currentColor;color:var(--a2);filter:none}
+.command-auth-brand-lockup>span,.command-auth-form>label,.command-auth-benefits strong,.command-auth-security strong,
+.foundation-grid strong,.settings-member-row strong,.command-service-list strong,.command-alert-list strong,
+.command-activity-grid strong,.command-health-counts strong,.dashboard-shell td{color:var(--text)}
+.command-activity-grid span,.command-auth-proof>span,.core-suggestion{color:var(--text-secondary)}
+.core-suggestion{border-color:var(--line);background:transparent}
+.core-suggestion:hover{border-color:rgba(255,159,28,.55);color:var(--text)}
+.command-auth-proof>span{border:1px solid var(--line);background:rgba(255,255,255,.02)}
+
+/* arte do Core: bordas dissolvidas no preto (sem moldura quadrada) */
+.command-approved-artwork{
+  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 52%,transparent 71%);
+  mask-image:radial-gradient(circle at 50% 50%,#000 52%,transparent 71%);
+}
+
+/* cartão de acesso e botões da abertura */
+.command-auth-card{border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg,var(--surface-strong),var(--surface));box-shadow:0 40px 80px -50px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
+.command-auth-field{border-color:var(--line);background:var(--surface-soft)}
+.command-auth-field:focus-within{border-color:var(--a);box-shadow:var(--focus)}
+.command-auth-submit,.command-auth-card button[type="submit"]{background:var(--a);border:1px solid var(--a);color:#1A0E00;box-shadow:none;font-weight:700}
+.command-auth-submit:hover,.command-auth-card button[type="submit"]:hover:not(:disabled){filter:brightness(1.07);background:var(--a);box-shadow:none}
+.command-auth-security>span,.command-auth-security .command-auth-check{border-color:rgba(82,214,160,.3)}
+.command-auth-brandbar{background:rgba(0,0,0,.88);border-bottom:1px solid var(--line)}
+.command-auth-benefits{border-top:1px solid var(--line);background:#000}
+.command-auth-benefits>article>span{border-color:var(--line);background:var(--surface);color:var(--a2)}
+.command-auth-shell{background:#000;color:var(--text)}
+.command-auth-experience::before{background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 1px,transparent 1px 56px),repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 56px);background-size:auto;opacity:1}
+.command-auth-experience::after{background:radial-gradient(ellipse at 50% 100%,rgba(255,159,28,.10),transparent 60%);opacity:1}
+.command-auth-submit{background:var(--a)!important;border-color:var(--a)!important;box-shadow:none!important;color:#1A0E00}
+.command-auth-submit:hover:not(:disabled){filter:brightness(1.07)}
+.command-auth-brand-lockup>strong{display:inline-flex;width:34px;height:34px;background:none;-webkit-background-clip:border-box;background-clip:border-box;filter:none;color:inherit}
+.command-auth-brand-lockup>strong svg{width:100%;height:100%}
+.command-auth-brand-lockup>span{font-family:var(--fd);font-weight:600}
+.command-auth-brand-lockup>b{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--a2);filter:none}
+.command-auth-brand-lockup>i{background:var(--line-strong)}
+
+/* campos e seletores dentro do painel: texto branco, como no site */
+.dashboard-shell input,.dashboard-shell select,.dashboard-shell textarea,
+.settings-governance-grid input,.settings-governance-grid select,.settings-member-row select{color:var(--text)}
+.settings-governance-grid input,.settings-governance-grid select,.settings-member-row select{border-color:var(--line);background:var(--surface-soft)}
+.dashboard-shell code,.dashboard-header-context code{color:var(--a2)}
+
+/* página não encontrada */
+.command-not-found{min-height:100vh;display:grid;place-items:center;padding:24px;text-align:center}
+.command-not-found .card{max-width:560px}
+.command-not-found .command-not-found-code{font:700 clamp(3.2rem,9vw,5.5rem)/1 var(--fd);letter-spacing:-.05em;color:var(--a2);margin:0 0 8px}
+.command-not-found h1{font-size:clamp(1.6rem,3.2vw,2.2rem);margin:0 0 10px}
+
+/* ---------- âmbar nos nomes de serviço, rótulos e status (pedido do diretor, 24/10/2026) ---------- */
+.metric-label,.command-card>span,.command-service-list strong,.command-alert-list strong,.command-health-counts strong,
+.command-activity-grid strong,.foundation-grid strong,.product-card>strong,.alert-item>div>strong,
+.settings-member-row strong,.dashboard-shell th{color:var(--a2)}
+.status-value{color:var(--a2);font-weight:650}
+.product-card small[role="status"],.core-voice-status{color:var(--a2)}
+.command-status-pill{letter-spacing:.04em}
+.command-status-pill.unknown{border-color:rgba(255,159,28,.35);background:rgba(255,159,28,.07);color:var(--a2)}
+.dashboard-shell dt{color:var(--a2)}
+.command-rail-heading h2,.metric-value.unavailable{color:var(--a2)}
+.panel>.section-heading h2,.panel>h2{color:var(--a2)}
+
+/* menu lateral mais claro que o preto do conteúdo, para destacá-lo (pedido do diretor, 24/10/2026) */
+.command-sidebar{
+  background:
+    radial-gradient(circle at 50% 100%,rgba(255,159,28,.07),transparent 16rem),
+    linear-gradient(180deg,#17171C,#111115);
+  border-right:1px solid var(--line-strong);
+  box-shadow:12px 0 32px -20px rgba(0,0,0,.9);
+}
+.command-sidebar .command-nav-icon{background:#0A0A0C;border-color:#2B2D34}
+.command-sidebar .command-nav-item:hover{background:rgba(255,255,255,.06);border-color:#2B2D34}
+.command-sidebar .command-nav-item.active{background:rgba(255,255,255,.09);border-color:#33353D}
+.command-sidebar-footer{background:#0C0C0F;border-color:#2B2D34}
+
+/* ---------- brilho âmbar ao passar o mouse nos quadros (igual ao site) ---------- */
+.card,.panel,.core-panel,.metric-card,.command-card,.foundation-grid article,.foundation-grid>a,.product-card,
+.guardrail-grid article,.alert-item,.empty-state,.comparison-panel,.organization-option,.command-auth-card,
+.command-alert-summary,.command-activity-grid>*,.command-service-list>li,.command-alert-list>li{
+  transition:border-color .2s ease,box-shadow .25s ease,transform .2s ease,background-color .2s ease;
+}
+.card:hover,.panel:hover,.core-panel:hover,.metric-card:hover,.command-card:hover,.foundation-grid article:hover,
+.foundation-grid>a:hover,.product-card:hover,.guardrail-grid article:hover,.alert-item:hover,.empty-state:hover,
+.comparison-panel:hover,.organization-option:hover,.command-auth-card:hover{
+  border-color:rgba(255,159,28,.6);
+  box-shadow:0 0 0 1px rgba(255,159,28,.28),0 0 24px rgba(255,159,28,.22),0 0 56px -8px rgba(255,159,28,.16),inset 0 1px 0 rgba(255,255,255,.05);
+}
+/* cartões pequenos sobem levemente, como o .pcard da landing; painéis grandes só acendem */
+.metric-card:hover,.command-card:hover,.foundation-grid article:hover,.foundation-grid>a:hover,.product-card:hover,
+.guardrail-grid article:hover,.alert-item:hover,.organization-option:hover{transform:translateY(-2px)}
+@media(prefers-reduced-motion:reduce){
+  .metric-card:hover,.command-card:hover,.foundation-grid article:hover,.foundation-grid>a:hover,.product-card:hover,
+  .guardrail-grid article:hover,.alert-item:hover,.organization-option:hover{transform:none}
+}

@@ -95,11 +95,11 @@ describe("F18 premium UX/UI", () => {
     const prefix = "data:image/webp;base64,";
     expect(APPROVED_COMMAND_ARTWORK_SRC.startsWith(prefix)).toBe(true);
     const approvedBytes = Buffer.from(APPROVED_COMMAND_ARTWORK_SRC.slice(prefix.length), "base64");
-    expect(approvedBytes.byteLength).toBe(53526);
+    expect(approvedBytes.byteLength).toBe(23936);
     expect(approvedBytes.subarray(0, 4).toString("ascii")).toBe("RIFF");
     expect(approvedBytes.subarray(8, 12).toString("ascii")).toBe("WEBP");
     expect(createHash("sha256").update(approvedBytes).digest("hex")).toBe(
-      "319b6a4a3254b34a75383e1e6013bfa0bf487e421349ee5b37cc2c01cb9dd5a4",
+      "3dd07bb27f92cb3ee64a23e5ac47c8457b8cc8d4026802132b75d55088f219ea",
     );
   });
 
@@ -124,9 +124,16 @@ describe("F18 premium UX/UI", () => {
     expect(core).toContain("INTELIGÊNCIA COGNITIVA VERTICAL");
     expect(core).toContain("APPROVED_COMMAND_ARTWORK_SRC");
     expect(core).not.toContain("core-orb-note");
-    expect(css).toContain("--command-blue:#1f7aff");
-    expect(css).toContain("--command-cyan:#00d9ff");
-    expect(css).toContain("--command-violet:#8b5cf6");
+    // Identidade visual FM Tecnologia (landing page, html[data-p=command]): preto + âmbar.
+    const identity = source("src/app/fm-identity.css");
+    expect(identity).toContain("--bg:#000");
+    expect(identity).toContain("--a:#FF9F1C");
+    expect(identity).toContain("--a2:#FFC46B");
+    expect(identity).toContain("--line:#1D1E23");
+    expect(identity).toContain("--fd:Sora");
+    expect(identity).toContain('--fb:"Plus Jakarta Sans"');
+    expect(identity).toContain("--command-blue:#FF9F1C");
+    expect(source("src/app/layout.tsx")).toContain('import "./fm-identity.css"');
     expect(css).toContain(".command-sidebar");
     expect(css).toContain(".command-topbar");
     expect(css).toContain(".core-approved-artwork");
