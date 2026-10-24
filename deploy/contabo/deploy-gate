@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Comando forçado do SSH (usuário "deploy"). Aceita SOMENTE: deploy command <sha40>
+# Qualquer outra coisa é recusada. Não abre shell e não repassa argumentos livres.
+set -euo pipefail
+
+# Match the WHOLE original SSH command, not only its first line.
+# read <<<... silently ignores any injected newline after the first line.
+REGEX='^deploy command ([0-9a-f]{40})$'
+ORIGINAL="${SSH_ORIGINAL_COMMAND:-}"
+if [[ ! "$ORIGINAL" =~ $REGEX ]]; then
+  echo "comando nao permitido (deploy command <sha40>)" >&2
+  exit 2
+fi
+SHA="${BASH_REMATCH[1]}"
+exec sudo -n -u fmadmin /opt/fm/bin/deploy-app command "$SHA"

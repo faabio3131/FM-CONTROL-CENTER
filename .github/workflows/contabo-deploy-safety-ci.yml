@@ -1,0 +1,33 @@
+name: Contabo Deploy Safety CI
+
+on:
+  pull_request:
+    paths:
+      - "deploy/contabo/**"
+      - ".github/workflows/deploy-contabo-command.yml"
+      - ".github/workflows/contabo-deploy-safety-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/contabo/**"
+      - ".github/workflows/deploy-contabo-command.yml"
+      - ".github/workflows/contabo-deploy-safety-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Validate all shell entrypoints
+        run: |
+          bash -n deploy/contabo/deploy-gate
+          bash -n deploy/contabo/deploy-app
+          bash -n deploy/contabo/install.sh
+          bash -n deploy/contabo/test-deploy-gate.sh
+          shellcheck deploy/contabo/deploy-gate deploy/contabo/deploy-app deploy/contabo/install.sh deploy/contabo/test-deploy-gate.sh
+      - name: Reject hostile SSH payloads without server access
+        run: bash deploy/contabo/test-deploy-gate.sh
