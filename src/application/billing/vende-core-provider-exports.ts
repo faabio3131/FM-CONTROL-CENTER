@@ -160,6 +160,23 @@ export async function readProviderComparison(context:TenantContext,scope:SourceS
     provider_signature_verified:false,quota_recovery_authorized:false,
   };
 }
+/** Source counters must match one supported provider report format exactly.
+ * An unknown token count stays null; it is never coerced to zero. */
+export function validProviderImportUsage(source:ImportSource):boolean{
+  if(!source||typeof source!=="object"||!source.usage||
+     typeof source.usage!=="object"||Array.isArray(source.usage))return false;
+  const keys=source.adapter==="gemini"?
+    ["promptTokenCount","candidatesTokenCount"]:
+    source.adapter==="openai_compatible"?
+      ["prompt_tokens","completion_tokens"]:null;
+  if(!keys||Object.keys(source.usage).sort().join(",")!==
+    [...keys].sort().join(","))return false;
+  return keys.every(key=>{
+    const value=source.usage[key];
+    return value===null||
+      typeof value==="number"&&Number.isSafeInteger(value)&&value>=0;
+  })&&(keys.some(key=>source.usage[key]!==null)||source.costUsd!==null);
+}
 export async function importProviderExport(context:TenantContext,proof:StepUpProof,
   sessionId:string,scope:SourceScope,source:ImportSource,
   http:typeof fetch=fetch,now:Date=new Date()):Promise<"created"|"already_recorded">{
@@ -174,12 +191,16 @@ export async function importProviderExport(context:TenantContext,proof:StepUpPro
     !safe(source.sourceRef)||
     !["openai_compatible","gemini"].includes(source.adapter)||
     !validProviderObservationTime(source.observedAt,now)||
-    !source.usage||typeof source.usage!=="object"||
-    Array.isArray(source.usage)||Object.keys(source.usage).length>12||
-    Object.entries(source.usage).some(([k,v])=>!safe(k,64)||
-      !(v===null||Number.isSafeInteger(v)&&v>=0))||
-    !(source.costUsd===null||typeof source.costUsd==="string"&&MONEY.test(source.costUsd)))
+    !(source.costUsd===null||typeof source.costUsd==="string"&&MONEY.test(source.costUsd))||
+    !validProviderImportUsage(source))
     return denied();
+  // Import may only annotate a real attempt for this customer + unit +
+  // request. An invented ID or mismatched model must never be recorded.
+  // GET is read-only; any failure denies the subsequent Core mutation.
+  const attempts=await readProviderAttempts(context,scope,http);
+  const matches=attempts.filter(a=>a.attempt_id===source.attemptId);
+  if(matches.length!==1||matches[0].provider!==source.provider||
+     matches[0].model!==source.model)return denied();
   const cfg=commandCoreFinopsAlertPolicyConfig();
   const authorization=signCoreAIRecoveryAuthorization({
     userId:context.userId,sessionId,organizationId:context.tenantId,
