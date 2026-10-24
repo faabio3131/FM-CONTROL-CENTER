@@ -212,3 +212,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:var(--f
 .command-sidebar .command-nav-item:hover{background:rgba(255,255,255,.06);border-color:#2B2D34}
 .command-sidebar .command-nav-item.active{background:rgba(255,255,255,.09);border-color:#33353D}
 .command-sidebar-footer{background:#0C0C0F;border-color:#2B2D34}
+
+/* ---------- brilho âmbar ao passar o mouse nos quadros (igual ao site) ---------- */
+.card,.panel,.core-panel,.metric-card,.command-card,.foundation-grid article,.foundation-grid>a,.product-card,
+.guardrail-grid article,.alert-item,.empty-state,.comparison-panel,.organization-option,.command-auth-card,
+.command-alert-summary,.command-activity-grid>*,.command-service-list>li,.command-alert-list>li{
+  transition:border-color .2s ease,box-shadow .25s ease,transform .2s ease,background-color .2s ease;
+}
+.card:hover,.panel:hover,.core-panel:hover,.metric-card:hover,.command-card:hover,.foundation-grid article:hover,
+.foundation-grid>a:hover,.product-card:hover,.guardrail-grid article:hover,.alert-item:hover,.empty-state:hover,
+.comparison-panel:hover,.organization-option:hover,.command-auth-card:hover{
+  border-color:rgba(255,159,28,.6);
+  box-shadow:0 0 0 1px rgba(255,159,28,.28),0 0 24px rgba(255,159,28,.22),0 0 56px -8px rgba(255,159,28,.16),inset 0 1px 0 rgba(255,255,255,.05);
+}
+/* cartões pequenos sobem levemente, como o .pcard da landing; painéis grandes só acendem */
+.metric-card:hover,.command-card:hover,.foundation-grid article:hover,.foundation-grid>a:hover,.product-card:hover,
+.guardrail-grid article:hover,.alert-item:hover,.organization-option:hover{transform:translateY(-2px)}
+@media(prefers-reduced-motion:reduce){
+  .metric-card:hover,.command-card:hover,.foundation-grid article:hover,.foundation-grid>a:hover,.product-card:hover,
+  .guardrail-grid article:hover,.alert-item:hover,.organization-option:hover{transform:none}
+}
