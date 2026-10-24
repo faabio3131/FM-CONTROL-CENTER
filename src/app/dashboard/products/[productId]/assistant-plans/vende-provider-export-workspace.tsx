@@ -253,14 +253,14 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     </button>
     {requestReport?<section aria-label="Reconciliação consolidada de IA">
       <h3>Diagnóstico por requisição</h3>
-      <p>{requestReport.attempts_observed} tentativa(s), 
+      <p>{requestReport.attempts_observed} tentativa(s),
         {requestReport.fallback_attempts} fallback(s).
         Estado: {requestReport.needs_attention?"requer investigação":"coincidência observacional"}.
         Nenhuma fatura ou recuperação de quotas está autorizada por esta leitura.</p>
       <div className="form-grid">
         {requestReport.per_provider.map(row=><article key={row.provider} className="card">
           <strong>{row.provider}</strong>
-          <p>{row.attempts} tentativas • {row.fallback_attempts} fallback(s) • 
+          <p>{row.attempts} tentativas • {row.fallback_attempts} fallback(s) •
             {row.uncertain_attempts} pendência(s) • {row.missing_exports} extrato(s) ausente(s).</p>
           <p>Custo conhecido interno: {row.internal_known_cost_usd} USD.
             Extratos: {row.reported_known_cost_usd} USD.
