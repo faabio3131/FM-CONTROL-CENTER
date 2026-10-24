@@ -26,8 +26,10 @@ git -C "$SRC" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
   { echo "preflight: command source repository missing" >&2; exit 3; }
 [[ -z "$(git -C "$SRC" status --porcelain)" ]] ||
   { echo "preflight: source repository has uncommitted changes" >&2; exit 3; }
-command -v docker >/dev/null && command -v python3 >/dev/null ||
-  { echo "preflight: docker or python3 missing" >&2; exit 3; }
+if ! command -v docker >/dev/null || ! command -v python3 >/dev/null; then
+  echo "preflight: docker or python3 missing" >&2
+  exit 3
+fi
 docker info >/dev/null 2>&1 ||
   { echo "preflight: docker engine unavailable" >&2; exit 3; }
 # Parse the EFFECTIVE Compose model instead of guessing which service an
