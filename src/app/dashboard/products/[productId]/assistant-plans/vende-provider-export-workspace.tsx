@@ -4,6 +4,8 @@ import type {ProviderComparison,SourceAttempt}
   from "@/application/billing/vende-core-provider-exports";
 
 const MONEY=/^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,18})?$/;
+type FeedProgress={pages:number;created:number;alreadyRecorded:number;
+  unreported:number;scanned:number;lastPage:number};
 export function VendeProviderExportWorkspace({productId}:{productId:string}){
   const [tenant,setTenant]=useState("");
   const [unit,setUnit]=useState("");
@@ -19,6 +21,12 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
   const [outputTokens,setOutputTokens]=useState("");
   const [cost,setCost]=useState("");
   const [password,setPassword]=useState("");
+  const [feedProvider,setFeedProvider]=useState("");
+  const [feedStart,setFeedStart]=useState("");
+  const [feedEnd,setFeedEnd]=useState("");
+  const [feedNextPage,setFeedNextPage]=useState<number|null>(null);
+  const [feedProgress,setFeedProgress]=useState<FeedProgress|null>(null);
+  const resetFeed=()=>{setFeedNextPage(null);setFeedProgress(null);};
   const [busy,setBusy]=useState(false);
   const [status,setStatus]=useState("");
   const [error,setError]=useState("");
@@ -26,7 +34,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     encodeURIComponent(productId)+"/vende-core-finops/provider-exports";
   const clear=()=>{
     setAttempts([]);setSelected(null);setComparison(null);
-    setStatus("");setError("");setPassword("");
+    setStatus("");setError("");setPassword("");resetFeed();
   };
   function scopeUrl(id?:string){
     return endpoint+"?"+new URLSearchParams({
@@ -59,11 +67,65 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
       if(found.provider_invoice_verified!==false||
         found.provider_signature_verified!==false||
         found.quota_recovery_authorized!==false||
+        found.tenant_id!==tenant||found.unit_id!==unit||
         found.attempt_id!==id||found.request_id!==requestId||
         typeof found.needs_attention!=="boolean")throw Error("untrusted");
       setComparison(found);
     }catch{setError("A comparação do Core não foi confirmada.");}
     finally{setBusy(false);}
+  }
+  async function syncFeed(page=0){
+    if(page!==0&&page!==feedNextPage){
+      setError("Continuação inválida: reinicie a consulta com a primeira página.");
+      return;
+    }
+    if(!tenant||!unit||!account||!feedProvider||!feedStart||!feedEnd||!password){
+      setError("Preencha tenant, unidade, provedor, conta, período e senha.");
+      return;
+    }
+    setBusy(true);setError("");setStatus("");
+    if(page===0)resetFeed();
+    try{
+      const res=await fetch(endpoint.replace("/provider-exports","/provider-feed-sync"),{
+        method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",
+        body:JSON.stringify({
+          externalTenantId:tenant,unitId:unit,provider:feedProvider,
+          accountRef:account,startDate:feedStart,endDate:feedEnd,
+          page,limit:25,password,
+        }),
+      });
+      if(!res.ok)throw Error("unavailable");
+      const data=await res.json() as {
+        created:number;alreadyRecorded:number;unreported:number;
+        scanned:number;nextPage:number|null;
+        providerInvoiceVerified:boolean;quotaRecoveryAuthorized:boolean;
+      };
+      const validInt=(v:unknown)=>typeof v==="number"&&Number.isSafeInteger(v)&&v>=0;
+      if(!validInt(data.created)||!validInt(data.alreadyRecorded)||
+        !validInt(data.unreported)||!validInt(data.scanned)||
+        data.scanned>25||
+        data.created+data.alreadyRecorded+data.unreported!==data.scanned||
+        data.providerInvoiceVerified!==false||data.quotaRecoveryAuthorized!==false||
+        !(data.nextPage===null||validInt(data.nextPage)&&
+          data.nextPage===page+1&&data.nextPage<=20000&&
+          data.scanned>0))throw Error("untrusted");
+      setFeedNextPage(data.nextPage);
+      setFeedProgress(prev=>{
+        const prior=page===0?null:prev;
+        return {pages:(prior?.pages??0)+1,created:(prior?.created??0)+data.created,
+          alreadyRecorded:(prior?.alreadyRecorded??0)+data.alreadyRecorded,
+          unreported:(prior?.unreported??0)+data.unreported,
+          scanned:(prior?.scanned??0)+data.scanned,lastPage:page};
+      });
+      setStatus("Coleta concluída nesta página: "+data.created+" nova(s), "+
+        data.alreadyRecorded+" já existentes, "+data.unreported+
+        " ainda sem observação. Fatura e quotas não verificadas.");
+    }catch{
+      // An uncertain POST may have committed records in Core. Never offer
+      // an automatic continuation/retry after an unconfirmed response.
+      setFeedNextPage(null);
+      setError("Coleta não confirmada. Consulte o Core antes de repetir; fonte pode estar indisponível.");
+    }finally{setPassword("");setBusy(false);}
   }
   async function submit(){
     if(!selected?.attempt_id||!password||!account||!sourceRef||!observed){
@@ -100,9 +162,30 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
       if(!["created","already_recorded"].includes(data.status??""))
         throw Error("untrusted");
       setStatus(data.status==="created"?
-        "Registro observacional armazenado no Core. Consulte a comparação.":
-        "Esse registro já estava armazenado, sem duplicação.");
+        "Registro observacional armazenado no Core; conferindo divergências atuais.":
+        "Registro já existente no Core; conferindo divergências atuais.");
+      setSourceRef("");
       setPassword("");
+      // A successful POST is final regardless of subsequent readback failure.
+      // Never turn a failed GET into an ambiguous invitation to retry the POST.
+      try{
+        const id=selected.attempt_id;
+        const compared=await fetch(scopeUrl(id),{cache:"no-store"});
+        if(!compared.ok)throw Error("unavailable");
+        const verified=await compared.json() as ProviderComparison;
+        if(verified.tenant_id!==tenant||verified.unit_id!==unit||
+          verified.request_id!==requestId||verified.attempt_id!==id||
+          verified.provider_invoice_verified!==false||
+          verified.provider_signature_verified!==false||
+          verified.quota_recovery_authorized!==false||
+          typeof verified.needs_attention!=="boolean")throw Error("untrusted");
+        setComparison(verified);
+        setStatus(data.status==="created"?
+          "Observação registrada e comparação atual consultada no Core.":
+          "Observação já existente; comparação atual consultada no Core.");
+      }catch{
+        setError("Observação registrada no Core, mas a comparação atual está indisponível. Use 'Consultar comparação'; não reenvie a importação.");
+      }
     }catch{
       setError("Importação não confirmada. Consulte o Core antes de repetir.");
       setPassword("");
@@ -131,6 +214,55 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     </div>
     <button className="button" type="button" disabled={busy||!tenant||!unit||!requestId}
       onClick={()=>void load()}>Buscar tentativas no Core</button>
+    <section aria-label="Coleta configurada de relatórios de fornecedor">
+      <h3>Coleta de evidências do fornecedor configurado</h3>
+      <p>A origem e credencial são selecionadas exclusivamente no Core pela FM.
+        Esta operação é observacional: não valida fatura, cobrança ou quotas.
+        O Core informa tentativas ainda sem extrato e não inventa custo zero.</p>
+      <div className="form-grid">
+        <label>Provedor cadastrado no Core
+          <input value={feedProvider} maxLength={128} disabled={busy}
+            placeholder="Identificador do provedor"
+            onChange={e=>{setFeedProvider(e.target.value);resetFeed();}}/>
+        </label>
+        <label>Conta do fornecedor
+          <input value={account} maxLength={128} disabled={busy}
+            onChange={e=>{setAccount(e.target.value);resetFeed();}}/>
+        </label>
+        <label>Início do período
+          <input type="date" value={feedStart} disabled={busy}
+            onChange={e=>{setFeedStart(e.target.value);resetFeed();}}/>
+        </label>
+        <label>Fim do período
+          <input type="date" value={feedEnd} disabled={busy}
+            onChange={e=>{setFeedEnd(e.target.value);resetFeed();}}/>
+        </label>
+        <label>Senha corporativa (step-up)
+          <input type="password" autoComplete="off" value={password}
+            disabled={busy} maxLength={128}
+            onChange={e=>setPassword(e.target.value)}/>
+        </label>
+      </div>
+      <button className="button" type="button"
+        disabled={busy||!tenant||!unit||!account||!feedProvider||
+          !feedStart||!feedEnd||!password}
+        onClick={()=>void syncFeed(0)}>Coletar lote do fornecedor configurado</button>
+      {feedProgress?<p role="status">
+        Totais dos {feedProgress.pages} lote(s) confirmados:{" "}
+        {feedProgress.scanned} tentativa(s) examinadas,
+        {" "}{feedProgress.created} novas,
+        {" "}{feedProgress.alreadyRecorded} já registradas e
+        {" "}{feedProgress.unreported} sem observação.
+        {feedNextPage===null?" Não há continuação confirmada no navegador.":
+          " Há outra página; exige nova reautenticação."}
+        Estes totais não equivalem a uma fatura do fornecedor.
+      </p>:null}
+      {feedNextPage!==null?<button className="button" type="button"
+        disabled={busy||!password}
+        onClick={()=>void syncFeed(feedNextPage)}>
+        Continuar próxima página ({feedNextPage})
+      </button>:null}
+    </section>
     {attempts.length>0?<div>
       <h3>Tentativas registradas</h3>
       <div className="form-grid">
@@ -186,11 +318,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
           <input inputMode="decimal" value={cost} disabled={busy}
             onChange={e=>setCost(e.target.value)} maxLength={36}/>
         </label>
-        <label>Senha corporativa para confirmar
-          <input type="password" autoComplete="off" value={password}
-            disabled={busy} maxLength={128}
-            onChange={e=>setPassword(e.target.value)}/>
-        </label>
+
       </div>
       <button type="button" className="button"
         disabled={busy||!password||!account||!sourceRef||!observed}

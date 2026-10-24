@@ -7,6 +7,17 @@ import {checkScope,commandCoreFinopsAlertPolicyConfig}
 
 const SCOPE=/^[A-Za-z0-9_.-]{1,128}$/;
 const MONEY=/^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,18})?$/;
+const ISO_OBSERVED=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+/** External source timestamps must be UTC, real dates and not future evidence. */
+export function validProviderObservationTime(value:unknown,now:Date):boolean{
+  if(typeof value!=="string"||value.length>40||
+     !ISO_OBSERVED.test(value)||!Number.isFinite(now.getTime()))return false;
+  const ts=Date.parse(value);
+  if(!Number.isFinite(ts)||ts<Date.UTC(2020,0,1)||
+     ts>now.getTime()+5*60_000)return false;
+  const normalized=new Date(ts).toISOString();
+  return normalized.startsWith(value.slice(0,19));
+}
 const denied=():never=>{throw Error("vende.finops.provider_export_unavailable");};
 
 export type SourceScope={
@@ -40,11 +51,22 @@ function validatedScope(input:SourceScope){
     !SCOPE.test(input.unitId))return denied();
 }
 async function readLimited(res:Response,size=16384):Promise<unknown>{
-  if(res.status!==200||!res.ok||Number(res.headers.get("Content-Length")??0)>size)
+  const announced=res.headers.get("Content-Length");
+  if(res.status!==200||!res.ok||!res.body||
+    (announced!==null&&(!/^\d+$/.test(announced)||Number(announced)>size)))
     return denied();
-  const raw=await res.text();
-  if(raw.length>size)return denied();
-  return JSON.parse(raw) as unknown;
+  const reader=res.body.getReader(),parts:Uint8Array[]=[];
+  let received=0;
+  try{
+    for(;;){
+      const chunk=await reader.read();
+      if(chunk.done)break;
+      received+=chunk.value.byteLength;
+      if(received>size){await reader.cancel();return denied();}
+      parts.push(chunk.value);
+    }
+  }finally{reader.releaseLock();}
+  return JSON.parse(Buffer.concat(parts).toString("utf8")) as unknown;
 }
 export async function readProviderAttempts(context:TenantContext,scope:SourceScope,
   http:typeof fetch=fetch):Promise<SourceAttempt[]>{
@@ -74,10 +96,23 @@ export async function readProviderAttempts(context:TenantContext,scope:SourceSco
       !(a.output_tokens===null||Number.isSafeInteger(a.output_tokens)&&
         (a.output_tokens as number)>=0)||
       !(a.cost_known_subtotal_usd===null||
-        typeof a.cost_known_subtotal_usd==="string"&&a.cost_known_subtotal_usd.length<=80))
+        typeof a.cost_known_subtotal_usd==="string"&&MONEY.test(a.cost_known_subtotal_usd)))
       return denied();
   }
-  return data.items as SourceAttempt[];
+  // Never return raw Core objects: a future provider adapter may include
+  // credentials, internal traces or customer PII in extra properties.
+  return data.items.map(value=>{
+    const a=value as Record<string,unknown>;
+    return {
+      event_id:a.event_id as string,attempt_id:a.attempt_id as string|null,
+      provider:a.provider as string,model:a.model as string,
+      outcome:a.outcome as string,fallback:a.fallback as boolean,
+      input_tokens:a.input_tokens as number|null,
+      output_tokens:a.output_tokens as number|null,
+      cost_known_subtotal_usd:a.cost_known_subtotal_usd as string|null,
+      cost_known:a.cost_known as boolean,
+    };
+  });
 }
 export async function readProviderComparison(context:TenantContext,scope:SourceScope,
   attemptId:string,http:typeof fetch=fetch):Promise<ProviderComparison>{
@@ -106,9 +141,41 @@ export async function readProviderComparison(context:TenantContext,scope:SourceS
     !["input_tokens_reported","output_tokens_reported"].every(k=>
       d[k]===null||Number.isSafeInteger(d[k])&&(d[k] as number)>=0)||
     !["report_cost_usd","internal_cost_usd"].every(k=>
-      d[k]===null||typeof d[k]==="string"&&(d[k] as string).length<=80))
+      d[k]===null||typeof d[k]==="string"&&MONEY.test(d[k] as string)))
     return denied();
-  return d as ProviderComparison;
+  // Response is evidence, not a generic upstream JSON forwarding tunnel.
+  return {
+    tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+    request_id:scope.requestId,attempt_id:attemptId,
+    status:d.status as string,provider:d.provider as string|null,
+    source_ref:d.source_ref as string|null,
+    input_tokens_reported:d.input_tokens_reported as number|null,
+    output_tokens_reported:d.output_tokens_reported as number|null,
+    report_cost_usd:d.report_cost_usd as string|null,
+    internal_cost_usd:d.internal_cost_usd as string|null,
+    usage_matches:d.usage_matches as boolean|null,
+    cost_matches:d.cost_matches as boolean|null,
+    needs_attention:d.needs_attention as boolean,
+    provider_invoice_verified:false,
+    provider_signature_verified:false,quota_recovery_authorized:false,
+  };
+}
+/** Source counters must match one supported provider report format exactly.
+ * An unknown token count stays null; it is never coerced to zero. */
+export function validProviderImportUsage(source:ImportSource):boolean{
+  if(!source||typeof source!=="object"||!source.usage||
+     typeof source.usage!=="object"||Array.isArray(source.usage))return false;
+  const keys=source.adapter==="gemini"?
+    ["promptTokenCount","candidatesTokenCount"]:
+    source.adapter==="openai_compatible"?
+      ["prompt_tokens","completion_tokens"]:null;
+  if(!keys||Object.keys(source.usage).sort().join(",")!==
+    [...keys].sort().join(","))return false;
+  return keys.every(key=>{
+    const value=source.usage[key];
+    return value===null||
+      typeof value==="number"&&Number.isSafeInteger(value)&&value>=0;
+  })&&(keys.some(key=>source.usage[key]!==null)||source.costUsd!==null);
 }
 export async function importProviderExport(context:TenantContext,proof:StepUpProof,
   sessionId:string,scope:SourceScope,source:ImportSource,
@@ -123,14 +190,17 @@ export async function importProviderExport(context:TenantContext,proof:StepUpPro
     !safe(source.model,200)||!safe(source.accountRef)||
     !safe(source.sourceRef)||
     !["openai_compatible","gemini"].includes(source.adapter)||
-    !safe(source.observedAt,40)||
-    !Number.isFinite(Date.parse(source.observedAt))||
-    !source.usage||typeof source.usage!=="object"||
-    Array.isArray(source.usage)||Object.keys(source.usage).length>12||
-    Object.entries(source.usage).some(([k,v])=>!safe(k,64)||
-      !(v===null||Number.isSafeInteger(v)&&v>=0))||
-    !(source.costUsd===null||typeof source.costUsd==="string"&&MONEY.test(source.costUsd)))
+    !validProviderObservationTime(source.observedAt,now)||
+    !(source.costUsd===null||typeof source.costUsd==="string"&&MONEY.test(source.costUsd))||
+    !validProviderImportUsage(source))
     return denied();
+  // Import may only annotate a real attempt for this customer + unit +
+  // request. An invented ID or mismatched model must never be recorded.
+  // GET is read-only; any failure denies the subsequent Core mutation.
+  const attempts=await readProviderAttempts(context,scope,http);
+  const matches=attempts.filter(a=>a.attempt_id===source.attemptId);
+  if(matches.length!==1||matches[0].provider!==source.provider||
+     matches[0].model!==source.model)return denied();
   const cfg=commandCoreFinopsAlertPolicyConfig();
   const authorization=signCoreAIRecoveryAuthorization({
     userId:context.userId,sessionId,organizationId:context.tenantId,
@@ -162,4 +232,91 @@ export async function importProviderExport(context:TenantContext,proof:StepUpPro
     data.provider_invoice_verified!==false||data.quota_recovery_authorized!==false)
     return denied();
   return data.status as "created"|"already_recorded";
+}
+
+export type ProviderFeedSyncRequest={
+  provider:string;accountRef:string;startDate:string;endDate:string;
+  page:number;limit:number;
+};
+export type ProviderFeedSyncOutcome={
+  created:number;alreadyRecorded:number;unreported:number;scanned:number;
+  nextPage:number|null;providerInvoiceVerified:false;quotaRecoveryAuthorized:false;
+};
+const CALENDAR=/^\d{4}-\d{2}-\d{2}$/;
+const FEED_ID=/^[A-Za-z0-9_.:-]{1,128}$/;
+export function validateProviderFeedSyncRequest(
+  input:ProviderFeedSyncRequest,now:Date=new Date(),
+):void{
+  if(!input||typeof input!=="object"||Array.isArray(input)||
+    !FEED_ID.test(input.provider)||!FEED_ID.test(input.accountRef)||
+    !CALENDAR.test(input.startDate)||!CALENDAR.test(input.endDate)||
+    !Number.isSafeInteger(input.page)||input.page<0||input.page>20000||
+    !Number.isSafeInteger(input.limit)||input.limit<1||input.limit>50)
+    return denied();
+  const from=new Date(input.startDate+"T00:00:00.000Z");
+  const to=new Date(input.endDate+"T00:00:00.000Z");
+  if(!Number.isFinite(from.getTime())||!Number.isFinite(to.getTime())||
+    !Number.isFinite(now.getTime())||
+    to.getTime()>Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate())||
+    from.toISOString().slice(0,10)!==input.startDate||
+    to.toISOString().slice(0,10)!==input.endDate||
+    to.getTime()<from.getTime()||
+    to.getTime()-from.getTime()>92*86_400_000)return denied();
+}
+/** Operator-triggered supplier feed. Core chooses endpoint and secret exclusively. */
+export async function syncProviderExportFeed(
+  context:TenantContext,proof:StepUpProof,sessionId:string,
+  scope:Pick<SourceScope,"productId"|"externalTenantId"|"unitId">,
+  input:ProviderFeedSyncRequest,http:typeof fetch=fetch,now:Date=new Date(),
+):Promise<ProviderFeedSyncOutcome>{
+  await checkScope(context,scope,true);
+  validateProviderFeedSyncRequest(input,now);
+  if(proof.userId!==context.userId||!SCOPE.test(sessionId)||
+    !Number.isFinite(now.getTime())||
+    now.getTime()-proof.verifiedAt.getTime()>300000||
+    now.getTime()-proof.verifiedAt.getTime()< -15000)return denied();
+  const cfg=commandCoreFinopsAlertPolicyConfig();
+  const authorization=signCoreAIRecoveryAuthorization({
+    userId:context.userId,sessionId,organizationId:context.tenantId,
+    role:"platform_admin",approved:true,stepUpAt:proof.verifiedAt,
+  },{
+    privateKeyPem:cfg.privateKeyPem,issuer:cfg.issuer,
+    audience:cfg.audience,corporateOrganizationId:cfg.corporateOrganizationId,
+  },{now});
+  const body=JSON.stringify({
+    tenant_id:scope.externalTenantId,unit_id:scope.unitId,
+    provider:input.provider,account_ref:input.accountRef,
+    start_date:input.startDate,end_date:input.endDate,
+    page:input.page,limit:input.limit,
+  });
+  const res=await http(
+    cfg.origin+"/internal/v1/command/ai/finops/provider-export/sync",{
+      method:"POST",cache:"no-store",redirect:"error",
+      headers:{"Authorization":"Bearer "+authorization,
+        "X-FM-Recovery-Service-Key":cfg.transport,
+        "Content-Type":"application/json"},
+      body,signal:AbortSignal.timeout(15000),
+    },
+  );
+  const raw=await readLimited(res,2048);
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))return denied();
+  const data=raw as Record<string,unknown>;
+  const count=(value:unknown):value is number=>Number.isSafeInteger(value)&&
+    typeof value==="number"&&value>=0&&value<=50;
+  if(!count(data.created)||!count(data.already_recorded)||
+    !count(data.unreported)||!count(data.scanned)||
+    data.scanned>input.limit||
+    data.created+data.already_recorded+data.unreported!==data.scanned||
+    (data.scanned===0&&data.next_page!==null)||
+    !(data.next_page===null||Number.isSafeInteger(data.next_page)&&
+      typeof data.next_page==="number"&&data.next_page===input.page+1&&
+      data.next_page<=20000)||
+    data.provider_invoice_verified!==false||
+    data.quota_recovery_authorized!==false)return denied();
+  return {
+    created:data.created,alreadyRecorded:data.already_recorded,
+    unreported:data.unreported,scanned:data.scanned,
+    nextPage:data.next_page as number|null,
+    providerInvoiceVerified:false,quotaRecoveryAuthorized:false,
+  };
 }

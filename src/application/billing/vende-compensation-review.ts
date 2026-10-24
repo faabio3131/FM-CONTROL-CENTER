@@ -132,18 +132,55 @@ type FollowupStatus=
   "correction_preparation_required"|"independent_review_required"|
   "queue_authorization_required"|"correction_queued"|
   "correction_processing"|"manual_reconciliation_required"|
-  "remote_readback_required"|"other_risk_investigation";
+  "remote_readback_required"|"closure_recorded_verify_current"|
+  "other_risk_investigation";
+export type HistoricalVendeClosure={
+  closureId:string;unitId:string;recordedAt:Date;historicalOnly:true;
+  currentLicenseVerified:false;currentPaymentVerified:false;
+  currentCoreQuotaVerified:false;caseResolved:false;
+};
+/** Only a previously audited event, never a proof of CURRENT settlement.
+ * Fenced to the exact product, correction operation and current revision. */
+export function projectHistoricalVendeClosure(input:{
+  productId:string;intentId:string;operationId:string;revision:number;
+  correctionState:string;
+  event:{id:string;resourceId:string|null;occurredAt:Date;
+    metadata:Record<string,unknown>}|undefined;
+}):HistoricalVendeClosure|null{
+  const {event:e}=input,m=e?.metadata;
+  if(input.correctionState!=="delivered"||!e||!m||
+     !UUID.test(e.id)||e.resourceId!==input.intentId||
+     !Number.isFinite(e.occurredAt.getTime())||
+     m.schema!=="fm.vende.compensation-commercial-closure.v1"||
+     m.productId!==input.productId||m.intentId!==input.intentId||
+     m.operationId!==input.operationId||m.revision!==input.revision||
+     m.commercialCaseClosed!==true||m.caseResolved!==true||
+     m.quotaCoverage!=="one_unit_both_capabilities"||
+     m.allUnitsVerified!==false||m.providerRefundExecuted!==false||
+     m.futureAiAdmissionGuaranteed!==false||
+     typeof m.unitId!=="string"||!/^[A-Za-z0-9_.-]{1,128}$/.test(m.unitId))
+    return null;
+  return {closureId:e.id,unitId:m.unitId,recordedAt:e.occurredAt,
+    historicalOnly:true,currentLicenseVerified:false,
+    currentPaymentVerified:false,currentCoreQuotaVerified:false,
+    caseResolved:false};
+}
 export function projectVendeCompensationFollowup(input:{
   action:string;reason:string;reviewStep:string;
   intentId:string|null;independentReviewComplete:boolean;
   approvalCurrent?:boolean;correctionState:string|null;
+  historicalClosure?:HistoricalVendeClosure|null;
 }):{
   nextAction:FollowupStatus;intentId:string|null;
+  historicalClosure:HistoricalVendeClosure|null;
   currentEntitlementVerified:false;financialRepairExecuted:false;
   caseResolved:false;automaticRemediationAuthorized:false;
 }{
   let nextAction:FollowupStatus;
-  if(input.intentId&&input.correctionState){
+  if(input.intentId&&input.correctionState==="delivered"&&
+     input.historicalClosure){
+    nextAction="closure_recorded_verify_current";
+  }else if(input.intentId&&input.correctionState){
     if(input.correctionState==="pending")nextAction="correction_queued";
     else if(input.correctionState==="processing")nextAction="correction_processing";
     else if(input.correctionState==="delivered")nextAction="remote_readback_required";
@@ -166,6 +203,7 @@ export function projectVendeCompensationFollowup(input:{
   }
   return {
     nextAction,intentId:input.intentId,
+    historicalClosure:input.historicalClosure??null,
     currentEntitlementVerified:false,financialRepairExecuted:false,
     caseResolved:false,automaticRemediationAuthorized:false,
   };
@@ -294,6 +332,7 @@ export async function readVendeCompensationReviews(
     const correctionRows=intentIds.length?await tx.select({
       operationId:vendeLifecycleCommands.operationId,
       state:vendeLifecycleCommands.state,
+      revision:vendeLifecycleCommands.revision,
     }).from(vendeLifecycleCommands).where(and(
       eq(vendeLifecycleCommands.tenantId,context.tenantId),
       eq(vendeLifecycleCommands.productId,productId),
@@ -302,6 +341,18 @@ export async function readVendeCompensationReviews(
         intentIds.map(id=>"p01.correction."+id)),
     )).limit(50):[];
     const corrections=new Map(correctionRows.map(row=>[row.operationId,row.state]));
+    const closureRows=intentIds.length?await tx.select({
+      id:auditEvents.id,resourceId:auditEvents.resourceId,
+      occurredAt:auditEvents.occurredAt,metadata:auditEvents.metadata,
+    }).from(auditEvents).where(and(
+      eq(auditEvents.tenantId,context.tenantId),
+      eq(auditEvents.action,"vende.compensation_case.commercially_closed"),
+      eq(auditEvents.resourceType,"vende_compensation_intent"),
+      inArray(auditEvents.resourceId,intentIds),
+      sql`${auditEvents.metadata} ->> 'productId' = ${productId}`,
+    )).orderBy(desc(auditEvents.occurredAt),desc(auditEvents.id)).limit(50):[];
+    const historicalClosures=new Map(closureRows.filter(row=>row.resourceId)
+      .map(row=>[row.resourceId as string,row]));
     const hasMore=riskRows.length>PAGE_SIZE;
     return {
       historicalTotal:Number(count?.total??0),
@@ -312,6 +363,16 @@ export async function readVendeCompensationReviews(
         if(!command)return [];
         const latest=reviews.get(command.id);
         const preparedIntent=prepared.get(command.id);
+        const correction=preparedIntent
+          ?correctionRows.find(row=>
+            row.operationId==="p01.correction."+preparedIntent.id):undefined;
+        const historicalClosure=preparedIntent&&correction
+          ?projectHistoricalVendeClosure({
+            productId,intentId:preparedIntent.id,
+            operationId:correction.operationId,revision:correction.revision,
+            correctionState:correction.state,
+            event:historicalClosures.get(preparedIntent.id),
+          }):null;
         const approval=evaluateVendeFollowupApproval({
           productId,commandId:command.id,review:latest,
           prepared:preparedIntent,reviewed:reviewed.get(command.id),
@@ -340,6 +401,7 @@ export async function readVendeCompensationReviews(
             correctionState:corrections.get(
               "p01.correction."+(preparedIntent?.id??""),
             )??null,
+            historicalClosure,
           }),
         }];
       }),

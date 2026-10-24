@@ -16,7 +16,11 @@ type Outcome={
     "delivered_unverified"|"assistant_active_payment_verified";
   remoteEntitlementConfirmed:boolean;
   financialSettlementCurrentlyVerified:boolean;
-  coreQuotaVerified:false;caseResolved:false;
+  coreQuotaVerified:false;caseResolved:boolean;
+  commercialCaseClosed?:boolean;closureRecorded?:boolean;
+  historicalOnly?:boolean;
+  closureId?:string|null;closureUnitId?:string|null;
+  correctionRevision?:number|null;allUnitsVerified?:false;
 };
 type UnitQuotaProof={
   intentId:string;unitId:string;capability:string;
@@ -27,10 +31,10 @@ type UnitQuotaProof={
   caseResolved:false;reservationCreated:false;providerCalled:false;
   allUnitsVerified:false;futureAiAdmissionGuaranteed:false;
 };
-export function VendeCorrectionIntentPanel({productId}:{productId:string}){
+export function VendeCorrectionIntentPanel({productId,initialIntentId=""}:{productId:string;initialIntentId?:string}){
   const [commandId,setCommandId]=useState("");
   const [reviewVersion,setReviewVersion]=useState("1");
-  const [intentId,setIntentId]=useState("");
+  const [intentId,setIntentId]=useState(initialIntentId);
   const [password,setPassword]=useState("");
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
@@ -41,6 +45,7 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
     "atendimento_transcricao">("atendimento_interpretacao");
   const [coreProof,setCoreProof]=useState<UnitQuotaProof|null>(null);
   const [pendingObservationId,setPendingObservationId]=useState("");
+  const [pendingClosureId,setPendingClosureId]=useState("");
   const [history,setHistory]=useState<{
     intentId:string;historicalOnly:true;caseResolved:false;
     truncated:boolean;items:Array<{
@@ -96,7 +101,11 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
       );
       if(!r.ok)throw Error("status_unavailable");
       const data=await r.json() as Outcome;
-      if(data.intentId!==intentId||data.caseResolved!==false||
+      if(data.intentId!==intentId||typeof data.caseResolved!=="boolean"||
+         (data.caseResolved&&
+           (data.commercialCaseClosed!==true||data.closureRecorded!==true))||
+         (data.closureRecorded===true&&data.caseResolved===false&&
+           data.historicalOnly!==true)||
          data.coreQuotaVerified!==false||
          typeof data.remoteEntitlementConfirmed!=="boolean"||
          typeof data.financialSettlementCurrentlyVerified!=="boolean")
@@ -182,6 +191,39 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
       setMessage("Não foi possível certificar a quota atual desta unidade no Core. Nenhum consumo foi realizado.");
     }finally{setBusy(false);}
   }
+  async function closeCommercialCase(){
+    if(!UUID.test(intentId)||!password.trim()||
+       !/^[A-Za-z0-9_.-]{1,128}$/.test(unitId)||
+       outcome?.state!=="assistant_active_payment_verified"||
+       !Number.isSafeInteger(outcome.correctionRevision)||
+       (outcome.correctionRevision??0)<1)return;
+    const closureId=pendingClosureId||crypto.randomUUID();
+    setPendingClosureId(closureId);setBusy(true);setMessage("");
+    try{
+      const res=await fetch(
+        `/api/billing/products/${encodeURIComponent(productId)}/vende-compensation-intents/${encodeURIComponent(intentId)}/close`,
+        {method:"POST",cache:"no-store",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({closureId,unitId,
+            expectedRevision:outcome.correctionRevision,password})},
+      );
+      if(!res.ok)throw Error("closure_rejected");
+      const proof=await res.json() as {closureId:string;status:string;
+        caseResolved:true;commercialCaseClosed:true;allUnitsVerified:false;
+        providerRefundExecuted:false;quotaCoverage:string};
+      if(proof.closureId!==closureId||proof.caseResolved!==true||
+         proof.commercialCaseClosed!==true||proof.allUnitsVerified!==false||
+         proof.providerRefundExecuted!==false||
+         proof.quotaCoverage!=="one_unit_both_capabilities"||
+         !["recorded","previously_recorded"].includes(proof.status))
+        throw Error("closure_untrusted");
+      setOutcome({...outcome,caseResolved:true,commercialCaseClosed:true,
+        closureRecorded:true,closureId,closureUnitId:unitId});
+      setPendingClosureId("");
+      setMessage("Caso comercial encerrado com revisão humana e auditoria. A leitura de quota cobre somente a unidade informada, sem garantia futura.");
+    }catch{
+      setMessage("Encerramento não confirmado. Consulte o status antes de repetir; nenhuma cobrança foi alterada.");
+    }finally{setPassword("");setBusy(false);}
+  }
   return <section className="card" aria-label="Intenções de correção financeiras governadas">
     <span className="eyebrow">FM Tecnologia · dupla revisão de divergências</span>
     <h2>Preparar revisão corretiva</h2>
@@ -239,7 +281,14 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
             :"Estado exige reconciliação; não repetir o envio"}</strong>
       <p>Licença no Assistant verificada agora: {outcome.remoteEntitlementConfirmed?"Sim":"Não"}.
         Pagamento verificado agora: {outcome.financialSettlementCurrentlyVerified?"Sim":"Não"}.
-        Core/quotas verificados: Não. Caso encerrado: Não.</p>
+        Core/quotas atuais: consultar por unidade.
+        Caso comercial atualmente confirmado: {outcome.commercialCaseClosed?"Sim":"Não"}.
+        {outcome.closureUnitId?` Unidade registrada: ${outcome.closureUnitId}.`:""}</p>
+      {outcome.closureRecorded&&!outcome.commercialCaseClosed?
+        <p role="alert"><strong>Há um encerramento auditado anterior, mas a
+          situação atual não está confirmada.</strong> É necessária nova
+          conciliação de licença e pagamento; não tratar o caso como resolvido.</p>
+        :null}
     </div>:null}
     <fieldset disabled={busy}>
       <legend>Verificação adicional por unidade no FM Core</legend>
@@ -296,6 +345,23 @@ export function VendeCorrectionIntentPanel({productId}:{productId:string}){
       </p>)}
       {history.truncated?<p>Exibidos os 20 registros mais recentes.</p>:null}
     </section>:null}
+    <section aria-label="Encerramento supervisionado do caso comercial">
+      <h3>Encerramento governado F9</h3>
+      <p>Somente após segunda revisão por operador independente, licença ativa,
+        pagamento vigente e quotas atuais de texto e áudio na mesma unidade.
+        A verificação acontece novamente no servidor. O encerramento refere-se
+        ao caso comercial; não certifica todas as unidades, uso futuro de IA,
+        estorno ou reembolso. Exige senha do segundo operador.</p>
+      <button className="button" type="button"
+        disabled={busy||!password.trim()||!UUID.test(intentId)||
+          !/^[A-Za-z0-9_.-]{1,128}$/.test(unitId)||
+          outcome?.state!=="assistant_active_payment_verified"||
+          outcome?.commercialCaseClosed===true||
+          !Number.isSafeInteger(outcome?.correctionRevision)}
+        onClick={()=>void closeCommercialCase()}>
+        Autorizar encerramento comercial (com auditoria)
+      </button>
+    </section>
     {busy?<p role="status">Validando evidência e estado transacional…</p>:null}
     {message?<p role="status">{message}</p>:null}
     {result?<div role="status">

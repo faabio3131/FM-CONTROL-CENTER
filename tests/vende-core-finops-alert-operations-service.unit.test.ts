@@ -12,6 +12,7 @@ vi.mock("../src/application/integration/fm-core-ai-recovery-jwt",
   ()=>({signCoreAIRecoveryAuthorization:mocks.sign}));
 import {
   readFMFinopsOperationalOutbox,operateFMFinopsAlertOutbox,
+  readFMFinopsAlertInbox,
 } from "../src/application/billing/vende-core-finops-policy";
 
 const productId="11111111-1111-4111-8111-111111111111";
@@ -179,5 +180,45 @@ describe("F3 Command operational alerts use authoritative Core and FM identity",
     await expect(operateFMFinopsAlertOutbox(context,proof,"session-a",scope,{
       kind:"scan",startDate:"2026-10-01",endDate:"2026-10-22",
     },http,time)).rejects.toThrow();
+  });
+});
+
+describe("F9 paginated alert inbox redacts raw Core response",()=>{
+  const filter={...scope,startDate:"2026-10-01",endDate:"2026-10-22"};
+  const item={
+    request_id:"req-a",status:"needs_attention" as const,
+    reasons:["provider_cost_unverified"],
+    known_cost_subtotal:"0.12",currency:"USD",
+    unknown_attempts:1,observed_attempts:2,
+    all_recorded_costs_known:false,provider_invoice_verified:false,
+  };
+  const raw={
+    tenant_id:"tenant-a",unit_id:"unit-a",policy_revision:1,
+    policy_enabled:true,has_more:false,next_cursor:null,
+    provider_invoice_verified:false,items:[item],
+  };
+  it("projects only whitelisted values, stripping any nested provider data",async()=>{
+    const http=httpMock(()=>Response.json({
+      ...raw,providerToken:"MUST_NOT_LEAK",
+      items:[{...item,customerInfo:{email:"private@example.test"},
+        debugCredentials:"MUST_NOT_LEAK"}],
+    }));
+    const result=await readFMFinopsAlertInbox(context,filter,http);
+    expect(result).toEqual(raw);
+    expect(JSON.stringify(result)).not.toContain("MUST_NOT_LEAK");
+    expect(JSON.stringify(result)).not.toContain("customerInfo");
+  });
+  it("rejects foreign unit, forged invoices and incoherent pagination",async()=>{
+    for(const invalid of [
+      {...raw,unit_id:"foreign-unit"},
+      {...raw,provider_invoice_verified:true},
+      {...raw,items:[{...item,provider_invoice_verified:true}]},
+      {...raw,has_more:true,next_cursor:"req-a"},
+      {...raw,items:[{...item,unknown_attempts:3}]},
+    ]){
+      await expect(readFMFinopsAlertInbox(context,filter,
+        httpMock(()=>Response.json(invalid)))).rejects.toThrow(
+          "vende.finops.alert_policy_unavailable");
+    }
   });
 });

@@ -68,16 +68,16 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: faabio3131/-FM-Assistant-Base
-          ref: 582063080c30d547e87bbd73099bdbd0955f3969
+          ref: d3fa7bde52856fe1cf3b5724aba7da72af1d3a32
           path: assistant-source
           persist-credentials: false
-      - name: Checkout pinned public Core (internal quota and recovery)
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          repository: faabio3131/FM-Core-Base-
-          ref: 4feb7f201e6e1295d74d4fa1a9c35a1068579693
-          path: core-source
-          persist-credentials: false
+      - name: Use Core included in the pinned VendeAtendeIA monorepo
+        run: |
+          test -f assistant-source/services/fm-core/pyproject.toml
+          test -f assistant-source/services/fm-core/core/ai_service_api.py
+          # Legacy harness path is an alias, NEVER a checkout of the archived Core.
+          ln -s assistant-source/services/fm-core core-source
+          test -d core-source/core
       - name: Set up Python for Command to Assistant contract
         uses: actions/setup-python@v5
         with:
@@ -103,7 +103,7 @@ jobs:
         run: python -m pytest tests/test_ai_command_quota_readback.py tests/test_ai_command_quota_runtime_mount.py tests/test_ai_command_finops_api.py tests/service/test_ai_finops_bucket_integrity.py tests/service/test_ai_usage_ledger.py tests/service/test_ai_admin_read_api.py tests/service/test_ai_finops_alert_policy.py tests/service/test_ai_provider_usage_match.py tests/service/test_ai_provider_billing_export.py -q -rs
       - name: Assistant F3 customer quota integrity regression
         working-directory: assistant-source
-        run: python -m pytest tests/saas/test_plan_consumption_view.py tests/saas/test_f3_command_assistant_core_usage_contract.py -q -rs
+        run: python -m pytest tests/saas/test_plan_consumption_view.py tests/saas/test_f3_command_assistant_core_usage_contract.py tests/saas/test_provider_usage_reconciliation.py -q -rs
       - name: Isolate tested Assistant checkout outside Next.js workspace
         run: |
           mkdir -p "$RUNNER_TEMP/f3-cross-runtime"

@@ -5,8 +5,8 @@ vi.mock("../src/application/security/resolve-tenant-context",
   ()=>({resolveTenantContext:m.session}));
 vi.mock("../src/application/billing/assistant-plan-outbox-dispatcher",
   ()=>({planProjectionConfigFromEnvironment:m.config}));
-vi.mock("../src/application/billing/vende-compensation-outcome",
-  ()=>({readVendeCorrectionOutcome:m.read}));
+vi.mock("../src/application/billing/vende-compensation-closure",
+  ()=>({readVendeCommercialClosureStatus:m.read}));
 import {GET} from "../src/app/api/billing/products/[productId]/vende-compensation-intents/[intentId]/status/route";
 const productId="11111111-1111-4111-8111-111111111111";
 const intentId="22222222-2222-4222-8222-222222222222";
