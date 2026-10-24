@@ -71,6 +71,6 @@ describe("Core provider request reconciliation: strictly private, fail-closed",(
     },a.per_provider[1]]})).toThrow();
     expect(()=>parse({...a,attempts:[{
       ...a.attempts[0],source_ref:"Bearer secret",
-    },a.attempts[1]]})).not.toThrow();
+    },a.attempts[1]]})).toThrow();
   });
 });
