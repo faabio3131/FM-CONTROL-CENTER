@@ -3,7 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { billingProductPlans } from "@/infrastructure/db/billing-schema";
 import { productDefinitions, sourceDefinitions } from "@/infrastructure/db/platform-schema";
-import { appendIronPlanMapping, readIronPlanMappings, type IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
+import { appendIronPlanMapping, assertIronPlanMappingRegistrationState, readIronPlanMappings, type IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 
 export class PostgresIronPlanMappingRepository {
   async list(tenantId: string, productId: string, sourceId: string): Promise<readonly IronVersionedPlanMapping[]> {
@@ -68,9 +68,12 @@ export class PostgresIronPlanMappingRepository {
         eq(billingProductPlans.productId, productId),
         eq(billingProductPlans.planCode, input.commercialPlanCode.trim().toUpperCase()),
       )).limit(1);
-      if (!plan || (plan.status !== "inactive" && plan.status !== "active"))
-        throw new Error("billing.iron_commercial_plan_not_found");
+      if (!plan) throw new Error("billing.iron_commercial_plan_not_found");
+      // Never attach a new IRON entitlement version to an already-active
+      // commercial price. Replays of the existing immutable binding remain
+      // idempotent, even after the FM plan was activated separately.
       const result = appendIronPlanMapping(source.config, input);
+      assertIronPlanMappingRegistrationState(plan.status, result.created);
       if (result.created) {
         await tx.update(sourceDefinitions).set({ config: result.config, updatedAt: new Date() }).where(and(
           eq(sourceDefinitions.tenantId, tenantId),
