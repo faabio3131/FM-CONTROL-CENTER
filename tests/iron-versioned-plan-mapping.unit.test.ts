@@ -4,6 +4,7 @@ import {
   IRON_PLAN_MAPPING_SCHEMA,
   IronPlanMappingError,
   appendIronPlanMapping,
+  assertIronPlanMappingRegistrationState,
   readIronPlanMappings,
   resolveIronPlanMapping,
 } from "@/domain/billing/iron-versioned-plan-mapping";
@@ -53,6 +54,26 @@ describe("D11 immutable Command → IRON versioned entitlement mapping", () => {
       schemaVersion: IRON_PLAN_MAPPING_SCHEMA,
       mappings: [{ ...original.mapping, ironPlanVersion: 0 }],
     } })).toThrow("billing.iron_plan_mapping_invalid");
+  });
+
+  it("rejects new mapping for active FM plan but retains existing immutable replay", () => {
+    expect(() => assertIronPlanMappingRegistrationState("inactive", true)).not.toThrow();
+    expect(() => assertIronPlanMappingRegistrationState("active", true))
+      .toThrow("billing.iron_mapping_requires_inactive_draft");
+    expect(() => assertIronPlanMappingRegistrationState("active", false)).not.toThrow();
+    expect(() => assertIronPlanMappingRegistrationState("inactive", false)).not.toThrow();
+    for (const status of ["cancelled", "unknown", ""]) {
+      expect(() => assertIronPlanMappingRegistrationState(status, false))
+        .toThrow("billing.iron_mapping_requires_inactive_draft");
+    }
+  });
+
+  it("registers under the existing source lock and validates draft state before writing", async () => {
+    const source = await readFile("src/infrastructure/billing/postgres-iron-plan-mapping-repository.ts", "utf8");
+    expect(source).toContain("assertIronPlanMappingRegistrationState(plan.status, result.created)");
+    expect(source.indexOf("assertIronPlanMappingRegistrationState(plan.status, result.created)"))
+      .toBeLessThan(source.indexOf("await tx.update(sourceDefinitions).set"));
+    expect(source).toContain('for("update", { of: sourceDefinitions })');
   });
 
   it("binds mapping registration and invoice preparation through the same PostgreSQL lock", async () => {

@@ -69,6 +69,17 @@ export function readIronPlanMappings(config: Record<string, unknown>): readonly 
   });
 }
 
+/**
+ * A first-time commercial-to-IRON binding must be recorded while the FM plan
+ * is still an inactive draft. Previously stored immutable bindings may be
+ * replayed idempotently after the corresponding FM plan becomes active.
+ */
+export function assertIronPlanMappingRegistrationState(status: string, created: boolean): void {
+  if (status !== "inactive" && (created || status !== "active")) {
+    throw new IronPlanMappingError("billing.iron_mapping_requires_inactive_draft");
+  }
+}
+
 export function resolveIronPlanMapping(
   config: Record<string, unknown>, commercialPlanCode: string,
 ): IronVersionedPlanMapping {
