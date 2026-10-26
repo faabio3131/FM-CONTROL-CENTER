@@ -1,23 +1,83 @@
 #!/usr/bin/env bash
 # Executa como fmadmin (via sudo, chamado pelo deploy-gate). Uso: deploy-app command <sha40>
-# Garantias: só commit que já está na main; backup do banco antes; bloqueia migrações;
-# confere saúde depois; volta sozinho para a versão anterior se falhar.
+# Garantias: só commit que já está na main; backup do banco antes; migração só se for aditiva
+# (operação destrutiva ou alteração de migração existente é RECUSADA); confere saúde depois;
+# se falhar, restaura o banco do backup verificado e volta sozinho para a versão anterior.
 set -euo pipefail
 
-APP="${1:-}"
+APP="${1:-command}"
+
+DIR="${CMD_DIR:-/opt/fm/command}"
+COMPOSE="$DIR/docker-compose.yml"
+SRC="$DIR/src"
+ENVF="$DIR/.env"
+IMAGE=fmcc
+LOG="${CMD_LOG:-/opt/fm/deploy.log}"
+BKDIR="${CMD_BKDIR:-/opt/fm/backups/command}"
+DBUSER="${CMD_DBUSER:-fmcc}"
+DBNAME="${CMD_DBNAME:-fmcc}"
+
+log() { echo "$(date -Is) [$APP] $*" | tee -a "$LOG"; }
+
+# ---------------------------------------------------------------------------------------------
+# Funções de segurança do banco (testáveis em separado: CMD_LIB_ONLY=1 só carrega as funções).
+# ---------------------------------------------------------------------------------------------
+
+# Dump pré-deploy verificado (pg_restore --list + sha256). Define DUMP_FILE.
+predeploy_dump() {
+  local out n
+  mkdir -p "$BKDIR"
+  out="$BKDIR/fmcc-predeploy-$(date +%Y%m%d-%H%M%S).dump"
+  docker compose -f "$COMPOSE" exec -T db pg_dump -U "$DBUSER" -d "$DBNAME" -Fc --no-owner > "$out.tmp" \
+    || { rm -f "$out.tmp"; return 1; }
+  n="$(docker compose -f "$COMPOSE" exec -T db pg_restore --list < "$out.tmp" | wc -l)"
+  [[ "$n" -gt 20 ]] || { rm -f "$out.tmp"; echo "dump suspeito: $n itens"; return 1; }
+  mv "$out.tmp" "$out"
+  sha256sum "$out" > "$out.sha256"
+  find "$BKDIR" -name 'fmcc-predeploy-*' -mtime +7 -delete
+  DUMP_FILE="$out"
+  echo "OK $out itens=$n"
+}
+
+# Restaura o banco de um dump verificado. O app deve estar parado antes. Uso: restore_db ARQUIVO
+restore_db() {
+  local f="$1"
+  [[ -f "$f" && -f "$f.sha256" ]] || { echo "dump ou sha256 ausente"; return 1; }
+  sha256sum -c "$f.sha256" >/dev/null 2>&1 || { echo "sha256 do dump nao confere"; return 1; }
+  docker compose -f "$COMPOSE" exec -T db psql -U "$DBUSER" -d "$DBNAME" -v ON_ERROR_STOP=1 \
+    -c "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public;" >/dev/null || return 1
+  docker compose -f "$COMPOSE" exec -T db pg_restore -U "$DBUSER" -d "$DBNAME" --no-owner --exit-on-error < "$f" || return 1
+  echo "restaurado de $f"
+}
+
+# Migrações novas (arquivos .sql adicionados em drizzle/). Imprime a contagem.
+count_new_migrations() {
+  git -C "$1" diff --name-only --diff-filter=A "$2" "$3" -- 'drizzle/*.sql' | wc -l
+}
+
+# Recusa: migração existente alterada/removida/renomeada OU operação destrutiva nas linhas adicionadas.
+scan_migrations() {
+  local d="$1" old="$2" new="$3" changed hits
+  changed="$(git -C "$d" diff --name-status "$old" "$new" -- 'drizzle/*.sql' | grep -v -E '^A[[:space:]]' || true)"
+  if [[ -n "$changed" ]]; then
+    echo "migracao existente alterada, removida ou renomeada"; return 1
+  fi
+  hits="$(git -C "$d" diff -U0 "$old" "$new" -- 'drizzle/*.sql' | grep '^+' | grep -v '^+++' |
+    grep -i -E -c 'DROP[[:space:]]+(TABLE|COLUMN|SCHEMA|DATABASE|CONSTRAINT|INDEX|TYPE)|TRUNCATE|DELETE[[:space:]]+FROM|ALTER[[:space:]]+COLUMN.*TYPE|RENAME' || true)"
+  if [[ "${hits:-0}" -gt 0 ]]; then
+    echo "operacao destrutiva ou de renomeacao em migracao ($hits linha(s))"; return 1
+  fi
+  return 0
+}
+
+# Carregado só para teste das funções acima (source com CMD_LIB_ONLY=1).
+[[ "${CMD_LIB_ONLY:-0}" == "1" ]] && return 0
+
 SHA="${2:-}"
 [[ $# -eq 2 ]] || { echo "uso: deploy-app command <sha40>" >&2; exit 2; }
 [[ "$APP" == "command" ]] || { echo "app nao permitido" >&2; exit 2; }
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "sha invalido" >&2; exit 2; }
 
-DIR=/opt/fm/command
-COMPOSE="$DIR/docker-compose.yml"
-SRC="$DIR/src"
-ENVF="$DIR/.env"
-IMAGE=fmcc
-LOG=/opt/fm/deploy.log
-
-log() { echo "$(date -Is) [$APP] $*" | tee -a "$LOG"; }
 
 exec 9>/opt/fm/deploy.lock
 flock -n 9 || { log "ja existe um deploy em andamento"; exit 3; }
@@ -35,25 +95,40 @@ if [[ "$SHA" == "$OLD" ]]; then
   exit 0
 fi
 
+MIGRATING=0
 if git -C "$SRC" diff --name-only "$OLD" "$SHA" -- drizzle | grep -q .; then
-  log "RECUSADO: ha migracoes novas entre as versoes; aplicar migracoes e uma etapa manual separada"
-  exit 5
+  if ! reason="$(scan_migrations "$SRC" "$OLD" "$SHA")"; then
+    log "RECUSADO: $reason; exige aprovacao e execucao manual"
+    exit 5
+  fi
+  NEW_MIG="$(count_new_migrations "$SRC" "$OLD" "$SHA")"
+  if [[ "$NEW_MIG" -gt 0 ]]; then
+    MIGRATING=1
+    log "migracoes novas aditivas: $NEW_MIG (serao aplicadas na subida, com backup e volta automatica)"
+  fi
 fi
 
 /opt/fm/backups/backup-command.sh || { log "RECUSADO: backup previo falhou"; exit 6; }
+DUMP_FILE=""
+if [[ "$MIGRATING" == "1" ]]; then
+  out="$(predeploy_dump)" || { log "RECUSADO: dump pre-migracao falhou: $out"; exit 6; }
+  log "dump pre-migracao: $out"
+fi
 
-set_commit() {
-  if grep -q '^RENDER_GIT_COMMIT=' "$ENVF"; then
-    sed -i "s/^RENDER_GIT_COMMIT=.*/RENDER_GIT_COMMIT=$1/" "$ENVF"
+set_env() {
+  if grep -q "^$1=" "$ENVF"; then
+    sed -i "s/^$1=.*/$1=$2/" "$ENVF"
   else
-    echo "RENDER_GIT_COMMIT=$1" >> "$ENVF"
+    echo "$1=$2" >> "$ENVF"
   fi
 }
+set_commit() { set_env RENDER_GIT_COMMIT "$1"; }
+PREV_MIGFLAG="$(grep -E '^RUN_MIGRATIONS_ON_STARTUP=' "$ENVF" | cut -d= -f2- || true)"
 
 wait_healthy() {
-  local cid st
+  local cid st tries="${1:-30}"
   cid="$(docker compose -f "$COMPOSE" ps -q app)"
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 "$tries"); do
     st="$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo none)"
     [[ "$st" == "healthy" ]] && return 0
     sleep 5
@@ -64,16 +139,31 @@ wait_healthy() {
 docker tag "$IMAGE:current" "$IMAGE:prev"
 git -C "$SRC" checkout --quiet --detach "$SHA"
 set_commit "$SHA"
+[[ "$MIGRATING" == "1" ]] && set_env RUN_MIGRATIONS_ON_STARTUP true
 
 log "construindo imagem"
-if docker compose -f "$COMPOSE" build app && docker compose -f "$COMPOSE" up -d app && wait_healthy; then
+TRIES=30; [[ "$MIGRATING" == "1" ]] && TRIES=60
+if docker compose -f "$COMPOSE" build app && docker compose -f "$COMPOSE" up -d app && wait_healthy "$TRIES"; then
   echo "$SHA" > "$DIR/DEPLOYED_SHA"
+  if [[ "$MIGRATING" == "1" ]]; then
+    set_env RUN_MIGRATIONS_ON_STARTUP "${PREV_MIGFLAG:-false}"
+    log "migracoes aplicadas; flag de migracao no start restaurada"
+  fi
   log "SUCESSO: $SHA no ar e saudavel"
   docker image prune -f >/dev/null 2>&1 || true
   exit 0
 fi
 
 log "FALHOU: voltando para $OLD"
+if [[ "$MIGRATING" == "1" ]]; then
+  docker compose -f "$COMPOSE" stop app >/dev/null 2>&1 || true
+  if restore_db "$DUMP_FILE" >>"$LOG" 2>&1; then
+    log "banco restaurado do dump pre-migracao"
+  else
+    log "ALERTA: restauracao do banco FALHOU; dump verificado em $DUMP_FILE; intervencao manual necessaria"
+  fi
+  set_env RUN_MIGRATIONS_ON_STARTUP "${PREV_MIGFLAG:-false}"
+fi
 git -C "$SRC" checkout --quiet --detach "$OLD"
 set_commit "$OLD"
 docker tag "$IMAGE:prev" "$IMAGE:current"
