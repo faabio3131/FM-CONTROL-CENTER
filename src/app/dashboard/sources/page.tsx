@@ -19,6 +19,9 @@ import {
 } from "@/infrastructure/integration/postgres-repositories";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import { SourceControlPanel } from "./source-control-panel";
+import { commercialOriginOverride, commercialOriginOverrideEnabled } from "@/application/integration/commercial-origin-override";
+import { environmentIronAllowedOrigins, environmentIronControlTenantId, IRON_COMMERCIAL_SECRET_REF, IRON_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/iron-commercial-connector";
+import { environmentKordenaAllowedOrigins, environmentKordenaControlTenantId, KORDENA_COMMERCIAL_SECRET_REF, KORDENA_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/kordena-commercial-connector";
 
 export default async function SourcesPage() {
   let context;
@@ -63,7 +66,31 @@ export default async function SourcesPage() {
 
   const safeSources = sources.map((source) => {
     const operational = operationalStates.get(source.id);
+    // Display both the persisted address and the actually selected in-memory route.
+    // This never rewrites the canonical source row or expands any permissions.
+    let runtimeOrigin: string | undefined;
+    let originOverrideInvalid = false;
+    const iron = source.sourceType === IRON_COMMERCIAL_SOURCE_TYPE;
+    const kordena = source.sourceType === KORDENA_COMMERCIAL_SOURCE_TYPE;
+    if (iron || kordena) {
+      try {
+        runtimeOrigin = commercialOriginOverride(source, {
+          enabled: commercialOriginOverrideEnabled(iron
+            ? process.env.FMCC_IRON_SOURCE_ORIGIN_OVERRIDE
+            : process.env.FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE),
+          controlTenantId: iron ? environmentIronControlTenantId() : environmentKordenaControlTenantId(),
+          sourceType: iron ? IRON_COMMERCIAL_SOURCE_TYPE : KORDENA_COMMERCIAL_SOURCE_TYPE,
+          secretRef: iron ? IRON_COMMERCIAL_SECRET_REF : KORDENA_COMMERCIAL_SECRET_REF,
+          configuredBaseUrl: iron ? process.env.FMCC_IRON_BASE_URL : process.env.FMCC_KORDENA_BASE_URL,
+          allowedOrigins: iron ? environmentIronAllowedOrigins() : environmentKordenaAllowedOrigins(),
+        }) ?? undefined;
+      } catch {
+        originOverrideInvalid = true;
+      }
+    }
     return {
+      runtimeOrigin,
+      originOverrideInvalid,
       id: source.id,
       productId: source.productId,
       name: source.name,

@@ -7,6 +7,8 @@ import {
   type SourceDefinition,
 } from "@/domain/integration/contracts";
 
+import { commercialOriginOverride, commercialOriginOverrideEnabled } from "@/application/integration/commercial-origin-override";
+
 export const KORDENA_COMMERCIAL_SOURCE_TYPE = "kordena-commercial-v1";
 export const KORDENA_COMMERCIAL_SECRET_REF =
   "env:FMCC_KORDENA_CONTROL_PLANE_TOKEN";
@@ -222,7 +224,15 @@ function sourceBaseUrl(
   source: SourceDefinition,
   allowedOrigins: readonly string[],
 ): string {
-  const raw = source.config.baseUrl;
+  const override = commercialOriginOverride(source, {
+    enabled: commercialOriginOverrideEnabled(process.env.FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE),
+    controlTenantId: environmentKordenaControlTenantId(),
+    sourceType: KORDENA_COMMERCIAL_SOURCE_TYPE,
+    secretRef: KORDENA_COMMERCIAL_SECRET_REF,
+    configuredBaseUrl: process.env.FMCC_KORDENA_BASE_URL,
+    allowedOrigins,
+  });
+  const raw = override ?? source.config.baseUrl;
   if (typeof raw !== "string" || !raw.trim()) {
     throw new KordenaCommercialConnectorError(
       "integration.kordena_base_url_missing",

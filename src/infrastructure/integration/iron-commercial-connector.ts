@@ -7,6 +7,8 @@ import {
   type SourceDefinition,
 } from "@/domain/integration/contracts";
 
+import { commercialOriginOverride, commercialOriginOverrideEnabled } from "@/application/integration/commercial-origin-override";
+
 export const IRON_COMMERCIAL_SOURCE_TYPE = "iron-commercial-v1";
 export const IRON_COMMERCIAL_SECRET_REF = "env:FMCC_IRON_CONTROL_PLANE_TOKEN";
 
@@ -155,7 +157,15 @@ export function environmentIronAllowedOrigins(): readonly string[] {
 }
 
 function baseUrl(source: SourceDefinition, allowedOrigins: readonly string[]): string {
-  const raw = source.config.baseUrl;
+  const override = commercialOriginOverride(source, {
+    enabled: commercialOriginOverrideEnabled(process.env.FMCC_IRON_SOURCE_ORIGIN_OVERRIDE),
+    controlTenantId: environmentIronControlTenantId(),
+    sourceType: IRON_COMMERCIAL_SOURCE_TYPE,
+    secretRef: IRON_COMMERCIAL_SECRET_REF,
+    configuredBaseUrl: process.env.FMCC_IRON_BASE_URL,
+    allowedOrigins,
+  });
+  const raw = override ?? source.config.baseUrl;
   if (typeof raw !== "string" || !raw.trim()) {
     throw new IronCommercialConnectorError("integration.iron_base_url_missing");
   }

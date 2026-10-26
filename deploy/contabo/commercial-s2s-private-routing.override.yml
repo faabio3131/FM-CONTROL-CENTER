@@ -1,0 +1,16 @@
+# Routing overlay for the EXISTING FM Command Compose deployment (not a new app).
+# This file does not start new containers and does not touch PostgreSQL.
+#
+# The official HTTPS hostnames are resolved INSIDE the Command container to
+# the Docker host gateway, so TLS/SNI and the Nginx Proxy Manager certificates
+# remain valid while outbound S2S traffic stays on the VPS internal path.
+#
+# Apply this overlay to /opt/fm/command/docker-compose.yml only after the
+# FMCC_IRON_CONTROL_PLANE_TOKEN receiver has been provisioned and checked.
+# This file is NOT picked up automatically by deploy-app; integrating it into
+# the real server Compose is a separate controlled configuration change.
+services:
+  app:
+    extra_hosts:
+      - "api.ironfitcore.com.br:host-gateway"
+      - "api.kordenaia.com.br:host-gateway"

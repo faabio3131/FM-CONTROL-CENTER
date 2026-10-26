@@ -1,4 +1,6 @@
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
+import { commercialOriginOverride, commercialOriginOverrideEnabled } from "@/application/integration/commercial-origin-override";
+import { environmentIronAllowedOrigins } from "@/infrastructure/integration/iron-commercial-connector";
 import { randomUUID } from "node:crypto";
 import { buildConnectorRuntime } from "@/application/integration/connector-composition";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
@@ -50,7 +52,15 @@ function assertExistingSource(
     source.syncMode !== "pull" ||
     source.secretRef !== IRON_COMMERCIAL_SECRET_REF ||
     source.mappingVersion !== MAPPING_VERSION ||
-    sourceBaseUrl.replace(/\/$/, "") !== expected.baseUrl
+    (sourceBaseUrl.replace(/\/$/, "") !== expected.baseUrl &&
+      commercialOriginOverride(source, {
+        enabled: commercialOriginOverrideEnabled(process.env.FMCC_IRON_SOURCE_ORIGIN_OVERRIDE),
+        controlTenantId: expected.tenantId,
+        sourceType: IRON_COMMERCIAL_SOURCE_TYPE,
+        secretRef: IRON_COMMERCIAL_SECRET_REF,
+        configuredBaseUrl: process.env.FMCC_IRON_BASE_URL,
+        allowedOrigins: environmentIronAllowedOrigins(),
+      }) !== expected.baseUrl)
   ) {
     throw new Error("integration.iron_bootstrap_source_mismatch");
   }
@@ -99,6 +109,9 @@ export async function bootstrapIronCommercialRuntime(
       baseUrl: config.baseUrl,
     });
   } else {
+    if (commercialOriginOverrideEnabled(process.env.FMCC_IRON_SOURCE_ORIGIN_OVERRIDE)) {
+      throw new Error("integration.iron_override_requires_existing_source");
+    }
     source = await new SourceRegistryService(sources, products).register(context, {
       productId: product.id,
       name: SOURCE_NAME,
@@ -118,7 +131,9 @@ export async function bootstrapIronCommercialRuntime(
     });
   }
 
-  if (!config.verifyOnStartup) {
+  // The explicit no-database-write cutover must not run startup sync/ingestion.
+  // Health is verified separately through the existing read-only operator action.
+  if (commercialOriginOverrideEnabled(process.env.FMCC_IRON_SOURCE_ORIGIN_OVERRIDE) || !config.verifyOnStartup) {
     return { status: "ready", sourceId: source.id, created };
   }
 

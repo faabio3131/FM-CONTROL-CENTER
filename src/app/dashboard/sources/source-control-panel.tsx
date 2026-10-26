@@ -21,6 +21,8 @@ type SourceView = {
   freshnessSeconds?: number;
   hasSecretReference: boolean;
   baseUrl?: string;
+  runtimeOrigin?: string;
+  originOverrideInvalid?: boolean;
   lastAttemptAt?: string;
   lastAttemptStatus?: string;
   lastSuccessfulSyncAt?: string;
@@ -326,7 +328,9 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                 <small>
                   Última tentativa: <b className="status-value">{dataHora(source.lastAttemptAt)} · {rotuloSync(source.lastAttemptStatus)}</b>
                 </small>
-                {source.baseUrl ? <small>Origem: {source.baseUrl}</small> : null}
+                {source.baseUrl ? <small>Origem cadastrada: {source.baseUrl}</small> : null}
+                  {source.runtimeOrigin ? <small>Origem em uso (sem alterar o banco): {source.runtimeOrigin}</small> : null}
+                  {source.originOverrideInvalid ? <small role="alert">Configuração de origem em execução inválida — conexão bloqueada.</small> : null}
                 <div>
                   <button
                     className="button"
