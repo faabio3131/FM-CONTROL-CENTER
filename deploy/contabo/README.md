@@ -12,7 +12,9 @@ workflow manual do GitHub que entra por uma chave exclusiva, e essa chave só co
 4. O job entra por SSH como o usuário `deploy`. O `sshd` executa **apenas** `/opt/fm/bin/deploy-gate` (opção `restrict,command=`), que valida o pedido e chama `deploy-app` como `fmadmin` (regra de `sudo` exata).
 5. `deploy-app`:
    - recusa SHA que não esteja na `main`;
-   - recusa se houver **migrações novas** (`drizzle/`) entre a versão atual e a pedida; migração é uma etapa manual separada;
+   - **migrações novas aditivas** (`drizzle/*.sql` novos, sem DROP/TRUNCATE/DELETE FROM/RENAME/troca de tipo e sem alterar migração antiga) são aplicadas na subida do app (`RUN_MIGRATIONS_ON_STARTUP=true` só durante o deploy), depois de um **dump verificado** (`pg_restore --list` + sha256);
+   - migração **destrutiva** ou **alteração de migração existente** é RECUSADA (exit 5): exige aprovação e execução manual;
+   - se a subida ou o healthcheck falhar depois de migrar, **restaura o banco** do dump verificado e volta a imagem anterior;
    - faz o **backup do banco** antes;
    - constrói a imagem, sobe e espera o healthcheck;
    - se falhar, **volta sozinho** para a versão anterior (`fmcc:prev`) e registra em `/opt/fm/deploy.log`.
