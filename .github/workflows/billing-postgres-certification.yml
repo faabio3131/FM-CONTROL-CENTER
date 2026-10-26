@@ -87,6 +87,7 @@ jobs:
         run: npx vitest run tests/iron-commercial-plan-activation-postgres.test.ts
         env:
           FMCC_IRON_ACTIVATION_PG_TEST: "YES"
+          BETTER_AUTH_SECRET: "ci-only-iron-commercial-activation-test-secret-0000000000000000000000"
           BETTER_AUTH_SECRET: "ci-only-iron-activation-secret-000000000000000000000000"
       - name: TypeScript
         run: npm run typecheck
