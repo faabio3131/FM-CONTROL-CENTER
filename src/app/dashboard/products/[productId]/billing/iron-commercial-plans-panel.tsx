@@ -5,6 +5,7 @@ import type { IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-p
 import { IronCommercialPlanCreateForm } from "./iron-commercial-plan-create-form";
 import type { IronPublishedPlanVersion } from "@/infrastructure/integration/iron-commercial-connector";
 import { IronPlanVersionBindingForm } from "./iron-plan-version-binding-form";
+import { IronCommercialPlanActivationForm } from "./iron-commercial-plan-activation-form";
 
 export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAvailable, canWrite, publishedIronPlans, publishedIronPlansAvailable }: {
   productId: string;
@@ -46,6 +47,19 @@ export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAv
       <h3>Vincular preço da FM a uma versão publicada do IRON</h3>
       <p>O catálogo de versões vem diretamente do domínio canônico do IRON. Registrar um vínculo não publica preços, ativa uma assinatura ou concede direitos.</p>
       <IronPlanVersionBindingForm
+        productId={productId}
+        plans={plans}
+        mappings={mappings}
+        canWrite={canWrite}
+        mappingAvailable={mappingAvailable}
+        publishedPlans={publishedIronPlans}
+        publishedPlansAvailable={publishedIronPlansAvailable}
+      />
+    </div>
+    <div className="panel">
+      <h3>Ativar preço comercial após revisão</h3>
+      <p>A ativação exige vínculo existente com uma versão publicada do IRON, confirmação explícita e senha administrativa da FM. Não gera cobrança nem licença.</p>
+      <IronCommercialPlanActivationForm
         productId={productId}
         plans={plans}
         mappings={mappings}
