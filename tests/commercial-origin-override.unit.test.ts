@@ -3,6 +3,9 @@ import type { SourceDefinition } from "@/domain/integration/contracts";
 import { commercialOriginOverride, commercialOriginOverrideEnabled } from "@/application/integration/commercial-origin-override";
 import { IronCommercialConnector } from "@/infrastructure/integration/iron-commercial-connector";
 import { KordenaCommercialConnector } from "@/infrastructure/integration/kordena-commercial-connector";
+import { KordenaBillingConnector } from "@/infrastructure/integration/kordena-billing-connector";
+import { KordenaPlatformIntegrationConnector } from "@/infrastructure/integration/kordena-platform-integration-connector";
+
 
 const iron: SourceDefinition = {
   id: "iron-source", tenantId: "fm-tenant", productId: "iron-product",
@@ -114,4 +117,60 @@ describe("governed S2S origin correction without persistence changes", () => {
     expect(fetcher.mock.calls[0]?.[0]).toBe("https://api.kordenaia.com.br/v1/control-plane/fmcc/health");
     expect(kordena.config.baseUrl).toBe("https://old-kordena.example.test");
   });
+  it("routes Kordena billing reads over the same governed S2S origin", async () => {
+    vi.stubEnv("FMCC_KORDENA_CONTROL_TENANT_ID", "fm-tenant");
+    vi.stubEnv("FMCC_KORDENA_BASE_URL", "https://api.kordenaia.com.br");
+    vi.stubEnv("FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE", "true");
+    const calls: string[] = [];
+    const fetcher: typeof fetch = async (input) => {
+      calls.push(String(input));
+      if (String(input).endsWith("/configuration-options")) {
+        return new Response(JSON.stringify({
+          provider_codes: [], legal_entity_types: [], payment_methods: [], environments: [],
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify([]), { status: 200 });
+    };
+    const connector = new KordenaBillingConnector(
+      () => "x".repeat(40), fetcher,
+      () => ["https://api.kordenaia.com.br"], () => "fm-tenant",
+    );
+    const out = await connector.overview(context, kordena);
+    expect(out.providerAccounts).toEqual([]);
+    expect(calls).toHaveLength(3);
+    expect(calls.every(url => url.startsWith("https://api.kordenaia.com.br/"))).toBe(true);
+    expect(kordena.config.baseUrl).toBe("https://old-kordena.example.test");
+  });
+
+  it("routes Kordena platform integration reads to the governed S2S origin", async () => {
+    vi.stubEnv("FMCC_KORDENA_CONTROL_TENANT_ID", "fm-tenant");
+    vi.stubEnv("FMCC_KORDENA_BASE_URL", "https://api.kordenaia.com.br");
+    vi.stubEnv("FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE", "true");
+    const calls: string[] = [];
+    const fetcher: typeof fetch = async input => {
+      calls.push(String(input));
+      return new Response(JSON.stringify({ integracoes: [] }), { status: 200 });
+    };
+    const connector = new KordenaPlatformIntegrationConnector(
+      () => "x".repeat(40), fetcher,
+      () => ["https://api.kordenaia.com.br"], () => "fm-tenant",
+    );
+    expect(await connector.overview(context, kordena)).toEqual({ integracoes: [] });
+    expect(calls).toEqual(["https://api.kordenaia.com.br/v1/control-plane/fmcc/integrations"]);
+  });
+
+  it("denies a foreign-tenant Kordena billing target before any request", async () => {
+    vi.stubEnv("FMCC_KORDENA_CONTROL_TENANT_ID", "fm-tenant");
+    vi.stubEnv("FMCC_KORDENA_BASE_URL", "https://api.kordenaia.com.br");
+    vi.stubEnv("FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE", "true");
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("{}", { status: 200 }));
+    const connector = new KordenaBillingConnector(
+      () => "x".repeat(40), fetcher as typeof fetch,
+      () => ["https://api.kordenaia.com.br"], () => "fm-tenant",
+    );
+    await expect(connector.overview(context, { ...kordena, tenantId: "other" }))
+      .rejects.toThrow("integration.commercial_origin_override_scope_denied");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
 });
