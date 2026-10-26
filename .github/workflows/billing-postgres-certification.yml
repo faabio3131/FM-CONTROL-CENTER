@@ -11,6 +11,7 @@ on:
       - "src/domain/billing/**"
       - "tests/billing-*.test.ts"
       - "tests/iron-asaas-atomic-reconciliation*.test.ts"
+      - "tests/iron-commercial-plan-activation-postgres.test.ts"
       - "src/app/api/billing/products/**"
       - "drizzle/**"
       - "scripts/billing-postgres-certification.mjs"
@@ -82,5 +83,10 @@ jobs:
           BETTER_AUTH_SECRET: "ci-only-vendeatendeia-auth-secret-0000000000000000000000"
       - name: Certify production pilot read-only readiness guards
         run: node --test tests/billing-production-pilot-readiness.test.mjs
+      - name: IRON commercial plan activation transactions in disposable PostgreSQL
+        run: npx vitest run tests/iron-commercial-plan-activation-postgres.test.ts
+        env:
+          FMCC_IRON_ACTIVATION_PG_TEST: "YES"
+          BETTER_AUTH_SECRET: "ci-only-iron-activation-secret-000000000000000000000000"
       - name: TypeScript
         run: npm run typecheck

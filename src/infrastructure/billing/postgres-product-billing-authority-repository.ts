@@ -67,6 +67,12 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       eq(productDefinitions.status, "active"),
     )).limit(1);
     if (!product) throw new Error("billing.product_not_found");
+    // IRON plans must pass the separate authenticated activation transition.
+    // A direct POST /plans may create a draft but must never publish an
+    // unbound price, even if the caller bypasses the browser form.
+    if (product.slug === FMCC_IRON_PRODUCT_SLUG && input.status !== "inactive") {
+      throw new Error("billing.iron_plan_requires_inactive_draft");
+    }
 
     const insertPlan = db.insert(billingProductPlans).values({
       tenantId,
