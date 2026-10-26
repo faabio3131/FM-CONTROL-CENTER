@@ -73,7 +73,7 @@ describe("governed S2S origin correction without persistence changes", () => {
   it("routes the IRON connector to the new URL only when explicitly enabled", async () => {
     vi.stubEnv("FMCC_IRON_CONTROL_TENANT_ID", "fm-tenant");
     vi.stubEnv("FMCC_IRON_BASE_URL", "https://api.ironfitcore.com.br");
-    const fetcher = vi.fn(async () => new Response("{}", { status: 200 }));
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("{}", { status: 200 }));
     const connector = new IronCommercialConnector(
       () => "x".repeat(40), fetcher as typeof fetch,
       () => ["https://old-iron.example.test", "https://api.ironfitcore.com.br"],
@@ -92,7 +92,7 @@ describe("governed S2S origin correction without persistence changes", () => {
     vi.stubEnv("FMCC_IRON_CONTROL_TENANT_ID", "fm-tenant");
     vi.stubEnv("FMCC_IRON_BASE_URL", "https://untrusted.example.test");
     vi.stubEnv("FMCC_IRON_SOURCE_ORIGIN_OVERRIDE", "true");
-    const fetcher = vi.fn(async () => new Response("{}", { status: 200 }));
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("{}", { status: 200 }));
     const connector = new IronCommercialConnector(
       () => "x".repeat(40), fetcher as typeof fetch,
       () => ["https://old-iron.example.test"], () => "fm-tenant",
@@ -105,7 +105,7 @@ describe("governed S2S origin correction without persistence changes", () => {
     vi.stubEnv("FMCC_KORDENA_CONTROL_TENANT_ID", "fm-tenant");
     vi.stubEnv("FMCC_KORDENA_BASE_URL", "https://api.kordenaia.com.br");
     vi.stubEnv("FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE", "true");
-    const fetcher = vi.fn(async () => new Response("{}", { status: 200 }));
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("{}", { status: 200 }));
     const connector = new KordenaCommercialConnector(
       () => "x".repeat(40), fetcher as typeof fetch,
       () => ["https://api.kordenaia.com.br"], () => "fm-tenant",
