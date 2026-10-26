@@ -11,6 +11,7 @@ on:
       - "src/domain/billing/**"
       - "tests/billing-*.test.ts"
       - "tests/iron-asaas-atomic-reconciliation*.test.ts"
+      - "tests/iron-commercial-plan-activation-postgres.test.ts"
       - "src/app/api/billing/products/**"
       - "drizzle/**"
       - "scripts/billing-postgres-certification.mjs"
