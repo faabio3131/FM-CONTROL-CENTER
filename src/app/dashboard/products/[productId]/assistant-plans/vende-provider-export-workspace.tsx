@@ -224,7 +224,7 @@ export function VendeProviderExportWorkspace({productId}:{productId:string}){
     }finally{setBusy(false);}
   }
   return <section className="card" aria-label="Conciliação operacional de consumo IA">
-    <span className="eyebrow">FM Tecnologia • FinOps F3</span>
+    <span className="eyebrow">FM Tecnologia IA • FinOps F3</span>
     <h2>Conciliação de evidências por tentativa de IA</h2>
     <p>Consulte as tentativas efetivas, selecione o registro e informe os dados
       obtidos de uma fonte de consumo do fornecedor. A importação é histórica e

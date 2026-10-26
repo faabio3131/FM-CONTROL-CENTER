@@ -84,7 +84,7 @@ export function AssistantPlanEditor({productId}:{productId:string}) {
   }
 
   return <div className="card">
-    <span className="eyebrow">FM Tecnologia · catálogo corporativo</span>
+    <span className="eyebrow">FM Tecnologia IA · catálogo corporativo</span>
     <h2>Planos por franquia de consumo</h2>
     <p>Todos os planos oferecem todas as funcionalidades. Apenas a FM define preço e limites.
       Nenhum valor será cobrado nem sincronizado com clientes por este editor isolado.</p>

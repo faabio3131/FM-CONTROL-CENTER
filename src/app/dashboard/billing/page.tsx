@@ -17,7 +17,7 @@ export default async function BillingPilotPage() {
   }
   if (!permitted) redirect("/dashboard");
   return <main className="dashboard-shell"><header className="dashboard-header"><div>
-    <span className="eyebrow">FM Tecnologia · Billing Centralizado</span>
+    <span className="eyebrow">FM Tecnologia IA · Billing Centralizado</span>
     <h1>Checkout de homologação</h1>
     <p>Compra simulada de R$ 1,00 com pagamento real desabilitado até certificação.</p>
   </div></header><PilotCheckout /></main>;

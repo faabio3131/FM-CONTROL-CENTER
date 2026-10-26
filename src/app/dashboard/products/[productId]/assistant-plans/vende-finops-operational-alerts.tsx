@@ -73,7 +73,7 @@ export function VendeFinopsOperationalAlerts({productId}:{productId:string}){
     }finally{setPassword("");setBusy(false);}
   }
   return <section className="card" aria-label="Operação corporativa de alertas FinOps">
-    <span className="eyebrow">FM Tecnologia · Construção F3</span>
+    <span className="eyebrow">FM Tecnologia IA · Construção F3</span>
     <h2>Fila operacional de alertas de IA</h2>
     <p>Materializa alertas a partir do consumo registrado e permite revisão administrativa.
       Não altera franquias, não confirma faturas de provedores e não envia mensagens externas.</p>

@@ -231,7 +231,7 @@ export function VendeCompensationReviews({productId}:{productId:string}){
     finally{setBusy(false);}
   }
   return <section className="card" aria-label="Revisões financeiras supervisionadas">
-    <span className="eyebrow">FM Tecnologia · controle humano</span>
+    <span className="eyebrow">FM Tecnologia IA · controle humano</span>
     <h2>Revisões de compensação comercial</h2>
     <p>Investigações e escalonamentos são auditados. Após abrir uma investigação, a FM
       pode consultar uma evidência autenticada do estado remoto e do registro financeiro

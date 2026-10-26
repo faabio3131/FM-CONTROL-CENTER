@@ -71,7 +71,7 @@ export function VendeLicenseQueueSupervisor() {
   }
 
   return <section className="card" aria-label="Supervisão de licenças VendeAtendeIA">
-    <span className="eyebrow">FM Tecnologia · operação de licenças</span>
+    <span className="eyebrow">FM Tecnologia IA · operação de licenças</span>
     <h2>Supervisão da fila de licenças</h2>
     <p>O Command exibe o estado persistido e não repete envios com resposta incerta.
       Uma reconciliação exige prova assinada do Assistant e senha corporativa.</p>

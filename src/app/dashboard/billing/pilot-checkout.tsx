@@ -132,7 +132,7 @@ export function PilotCheckout() {
 
  return <section className="panel" aria-label="Compra de teste Kordena">
   <h2>Compra de teste — Kordena</h2>
-  <p>Fluxo de homologação protegido para a conta Asaas da FM Tecnologia.</p>
+  <p>Fluxo de homologação protegido para a conta Asaas da FM Tecnologia IA.</p>
   {error&&<p role="alert">{error}</p>}
   {!pilot&&<p>Verificando fatura e permissões...</p>}
   {pilot&&<><p><strong>{pilot.product} — R$ {pilot.value.replace(".",",")}</strong></p>

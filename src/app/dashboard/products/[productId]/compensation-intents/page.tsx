@@ -39,7 +39,7 @@ export default async function CompensationIntentsPage({
   return <main className="dashboard-shell">
     <header className="dashboard-header">
       <div>
-        <span className="eyebrow">FM Tecnologia · VendeAtendeIA · P01</span>
+        <span className="eyebrow">FM Tecnologia IA · VendeAtendeIA · P01</span>
         <h1>Reparação supervisionada — intenção auditável</h1>
       </div>
     </header>

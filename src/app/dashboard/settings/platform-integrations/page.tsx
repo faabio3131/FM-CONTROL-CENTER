@@ -62,7 +62,7 @@ export default async function PlatformIntegrationsPage() {
           <span className="eyebrow">Command · Control Center</span>
           <h1>Infraestrutura & APIs</h1>
           <p>
-            Credenciais e modelos operados pela FM Tecnologia. Segredos são
+            Credenciais e modelos operados pela FM Tecnologia IA. Segredos são
             enviados somente ao backend, armazenados no Vault canônico do produto
             e nunca são exibidos novamente.
           </p>

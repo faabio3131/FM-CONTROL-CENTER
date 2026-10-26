@@ -37,7 +37,7 @@ export function VendeCommercialClaimsSupervisor({productId}:{productId:string}){
     finally{setBusy(false);}
   }
   return <section className="card" aria-label="Supervisão do ciclo comercial">
-    <span className="eyebrow">FM Tecnologia · contratos e licenças</span>
+    <span className="eyebrow">FM Tecnologia IA · contratos e licenças</span>
     <h2>Supervisão de comandos comerciais</h2>
     <p>Consulta somente leitura dos comandos registrados no Command. Uma operação pendente
       ou incerta não prova suspensão ou reativação no SaaS; nenhuma nova tentativa é feita nesta tela.</p>

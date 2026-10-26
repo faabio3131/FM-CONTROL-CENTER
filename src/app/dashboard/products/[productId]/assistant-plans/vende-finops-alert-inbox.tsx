@@ -45,7 +45,7 @@ export function VendeFinopsAlertInbox({productId}:{productId:string}){
     }finally{setBusy(false);}
   }
   return <section className="card" aria-label="Caixa de alertas FinOps FM">
-    <span className="eyebrow">FM Tecnologia · Operação interna</span>
+    <span className="eyebrow">FM Tecnologia IA · Operação interna</span>
     <h2>Alertas de consumo de IA</h2>
     <p>Consulta read-only das solicitações do cliente e unidade. Exibe custos estimados
       e registros incompletos; não comprova fatura de provedor nem altera franquias.</p>

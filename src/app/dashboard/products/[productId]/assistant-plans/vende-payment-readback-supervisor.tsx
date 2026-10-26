@@ -45,7 +45,7 @@ export function VendePaymentReadbackSupervisor({productId}:{productId:string}){
     }finally{setPassword("");setBusy(false);}
   }
   return <section className="card" aria-label="Verificação de pagamentos VendeAtendeIA">
-    <span className="eyebrow">FM Tecnologia · conciliação</span>
+    <span className="eyebrow">FM Tecnologia IA · conciliação</span>
     <h2>Verificação de pagamentos</h2>
     <p>Consulte a fatura registrada no Command e revise a associação do pagador.
       Uma observação registrada não confirma quitação nem altera a licença do cliente.</p>

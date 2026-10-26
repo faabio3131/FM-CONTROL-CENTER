@@ -56,7 +56,7 @@ export function VendeFinopsAlertPolicyEditor({productId}:{productId:string}){
     }finally{setBusy(false);}
   }
   return <section className="card" aria-label="Política corporativa de alertas FinOps">
-    <span className="eyebrow">FM Tecnologia · Governança de custos de IA</span>
+    <span className="eyebrow">FM Tecnologia IA · Governança de custos de IA</span>
     <h2>Limite de alerta por cliente e unidade</h2>
     <p>Configure o limiar de custo estimado por solicitação, em USD. Esta regra não altera
       a franquia do cliente, não liquida custos e não executa cobranças. Custos desconhecidos

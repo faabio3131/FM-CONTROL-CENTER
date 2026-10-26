@@ -29,7 +29,7 @@ describe("D11 Asaas hosted invoice — Pix, credit card and boleto",()=>{
     const body=JSON.parse(String(post![1]?.body));
     expect(body).toEqual({
       customer:customerId,billingType:"UNDEFINED",value:129.9,
-      dueDate,description:"IRON FIT CORE - Licenca SaaS FM Tecnologia",externalReference:ref,
+      dueDate,description:"IRON FIT CORE - Licenca SaaS FM Tecnologia IA",externalReference:ref,
     });
     expect(JSON.stringify(body)).not.toMatch(/creditCard|cvv|cardNumber|holderName/i);
     expect(fetcher.mock.calls.filter(([,options])=>options?.method==="POST")).toHaveLength(1);
