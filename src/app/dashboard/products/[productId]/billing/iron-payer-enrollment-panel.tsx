@@ -45,7 +45,7 @@ export function IronPayerEnrollmentPanel({productId,academies,canWrite,enabled}:
         <span className="eyebrow">IRON FIT CORE · Billing SaaS</span>
         <h2>Cadastro do pagador da academia</h2>
       </div>
-      <p>Vincule o responsável financeiro da academia à conta Asaas da FM Tecnologia. Este cadastro não movimenta cobranças e não pertence ao financeiro de alunos.</p>
+      <p>Vincule o responsável financeiro da academia à conta Asaas da FM Tecnologia IA. Este cadastro não movimenta cobranças e não pertence ao financeiro de alunos.</p>
     </div>
     {!canWrite?<p>O cadastro financeiro exige permissão administrativa específica.</p>:
      !enabled?<p>Cadastro aguardando habilitação financeira e homologação da conta Asaas. Nenhuma solicitação será enviada ao provedor.</p>:

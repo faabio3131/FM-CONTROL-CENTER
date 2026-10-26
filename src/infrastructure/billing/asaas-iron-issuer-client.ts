@@ -114,7 +114,7 @@ export class AsaasIronIssuerClient {
       // when enabled on the provider account. No PAN/CVV enters FM Command.
       customer: input.customerId, billingType: "UNDEFINED",
       value: input.amountMinor / 100, dueDate: input.dueDate,
-      description: "IRON FIT CORE - Licenca SaaS FM Tecnologia",
+      description: "IRON FIT CORE - Licenca SaaS FM Tecnologia IA",
       externalReference: ironAsaasInvoiceReference(input.invoiceId),
     });
     return this.validatePayment(payment,input);

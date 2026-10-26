@@ -36,7 +36,7 @@ export default async function AssistantPlansPage({params}:{params:Promise<{produ
   catch(error){if(error instanceof ProductNotFoundError) notFound();throw error;}
   return <main className="dashboard-shell">
     <header className="dashboard-header">
-      <div><span className="eyebrow">Command · FM Tecnologia</span>
+      <div><span className="eyebrow">Command · FM Tecnologia IA</span>
         <h1>Planos e franquias · {product.name}</h1>
         <p>Controle corporativo de preços e consumo. Todas as funções permanecem disponíveis em qualquer plano.</p>
       </div>

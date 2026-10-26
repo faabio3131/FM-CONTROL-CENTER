@@ -92,7 +92,7 @@ export function KordenaCommercialAdminForm(props: {
     "new_customers_only",
   );
   const [priceReason, setPriceReason] = useState(
-    "Novo preço de assinatura definido pela FM Tecnologia",
+    "Novo preço de assinatura definido pela FM Tecnologia IA",
   );
   const effectivePlanVersions = useMemo(
     () => props.catalog.flatMap((raw) => {
@@ -399,7 +399,7 @@ export function KordenaCommercialAdminForm(props: {
         <span className="eyebrow">FM Command · Valores configuráveis</span>
         <h3 id="kordena-price-editor-title">Configurar preços do Kordena</h3>
         <p>
-          Os preços ainda serão definidos pela FM Tecnologia. O formulário
+          Os preços ainda serão definidos pela FM Tecnologia IA. O formulário
           apenas prepara um rascunho para a Plataforma Comercial versionada do
           Kordena. Criar preço não ativa cobrança; validar e publicar são
           operações independentes e governadas.

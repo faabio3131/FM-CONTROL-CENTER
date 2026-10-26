@@ -53,7 +53,7 @@ export function VendeCoreFinopsPanel({productId}:{productId:string}){
     }finally{setBusy(false);}
   }
   return <section className="card" aria-label="FinOps interno de inteligência artificial">
-    <span className="eyebrow">FM Tecnologia · despesas internas com IA</span>
+    <span className="eyebrow">FM Tecnologia IA · despesas internas com IA</span>
     <h2>Consumo e custos técnicos do Core</h2>
     <p>Consulta corporativa de tentativas, fallback e custo estimado por
       modelo, moeda, cliente e unidade. O fornecedor de IA é pago pela FM,

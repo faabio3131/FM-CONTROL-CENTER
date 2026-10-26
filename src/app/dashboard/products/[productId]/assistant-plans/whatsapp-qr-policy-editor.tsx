@@ -59,7 +59,7 @@ export function WhatsAppQRPolicyEditor({productId}:{productId:string}){
     finally{setBusy(false);}
   }
   return <section className="card" aria-label="Validade do QR Code WhatsApp">
-    <span className="eyebrow">Integrações · FM Tecnologia</span>
+    <span className="eyebrow">Integrações · FM Tecnologia IA</span>
     <h2>Validade máxima do QR Code WhatsApp</h2>
     <p>Padrão: <strong>45 segundos</strong>. A FM controla o limite visual;
       a validade real do WhatsApp/Evolution sempre prevalece quando for menor.</p>

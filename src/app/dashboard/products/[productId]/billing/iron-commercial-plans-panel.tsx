@@ -18,8 +18,8 @@ export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAv
 }) {
   return <section className="executive-section" aria-label="Planos comerciais IRON">
     <div className="section-heading">
-      <div><span className="eyebrow">FM Tecnologia · Gestão comercial</span><h2>Planos e preços do IRON</h2></div>
-      <p>O preço da licença IRON pertence à FM Tecnologia, separado das mensalidades dos alunos.</p>
+      <div><span className="eyebrow">FM Tecnologia IA · Gestão comercial</span><h2>Planos e preços do IRON</h2></div>
+      <p>O preço da licença IRON pertence à FM Tecnologia IA, separado das mensalidades dos alunos.</p>
     </div>
     <div className="panel">
       <h3>Planos comerciais</h3>

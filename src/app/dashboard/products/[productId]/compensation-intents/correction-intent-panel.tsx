@@ -225,7 +225,7 @@ export function VendeCorrectionIntentPanel({productId,initialIntentId=""}:{produ
     }finally{setPassword("");setBusy(false);}
   }
   return <section className="card" aria-label="Intenções de correção financeiras governadas">
-    <span className="eyebrow">FM Tecnologia · dupla revisão de divergências</span>
+    <span className="eyebrow">FM Tecnologia IA · dupla revisão de divergências</span>
     <h2>Preparar revisão corretiva</h2>
     <p>Somente para suspensão de inadimplência já entregue quando o pagamento
       foi verificado posteriormente, a licença remota continua suspensa e o

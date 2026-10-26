@@ -65,7 +65,7 @@ export function CommandShell({
       <header className="command-topbar">
         <Link href="/dashboard" className="command-brand" aria-label="FM Command — Visão Geral">
           <span className="command-brand-mark" aria-hidden="true"><CommandMark /></span>
-          <span className="command-brand-company">FM Tecnologia</span>
+          <span className="command-brand-company">FM Tecnologia IA</span>
           <span className="command-brand-divider" aria-hidden="true" />
           <strong>COMMAND</strong>
         </Link>
