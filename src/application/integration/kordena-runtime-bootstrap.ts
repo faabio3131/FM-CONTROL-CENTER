@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { commercialOriginOverride, commercialOriginOverrideEnabled } from "@/application/integration/commercial-origin-override";
+import { environmentKordenaAllowedOrigins } from "@/infrastructure/integration/kordena-commercial-connector";
 import { buildConnectorRuntime } from "@/application/integration/connector-composition";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { kordenaRuntimeBootstrapConfig } from "@/config/kordena-runtime-bootstrap";
@@ -53,7 +55,15 @@ function assertExistingSource(
     source.syncMode !== "pull" ||
     source.secretRef !== KORDENA_COMMERCIAL_SECRET_REF ||
     source.mappingVersion !== MAPPING_VERSION ||
-    baseUrl.replace(/\/$/, "") !== expected.baseUrl
+    (baseUrl.replace(/\/$/, "") !== expected.baseUrl &&
+      commercialOriginOverride(source, {
+        enabled: commercialOriginOverrideEnabled(process.env.FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE),
+        controlTenantId: expected.tenantId,
+        sourceType: KORDENA_COMMERCIAL_SOURCE_TYPE,
+        secretRef: KORDENA_COMMERCIAL_SECRET_REF,
+        configuredBaseUrl: process.env.FMCC_KORDENA_BASE_URL,
+        allowedOrigins: environmentKordenaAllowedOrigins(),
+      }) !== expected.baseUrl)
   ) {
     throw new Error("integration.kordena_bootstrap_source_mismatch");
   }
@@ -102,6 +112,9 @@ export async function bootstrapKordenaCommercialRuntime(
       baseUrl: config.baseUrl,
     });
   } else {
+    if (commercialOriginOverrideEnabled(process.env.FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE)) {
+      throw new Error("integration.kordena_override_requires_existing_source");
+    }
     source = await new SourceRegistryService(sources, products).register(context, {
       productId: product.id,
       name: SOURCE_NAME,
@@ -121,7 +134,8 @@ export async function bootstrapKordenaCommercialRuntime(
     });
   }
 
-  if (!config.verifyOnStartup) {
+  // Never run startup sync/ingestion while no-database-write routing is enabled.
+  if (commercialOriginOverrideEnabled(process.env.FMCC_KORDENA_SOURCE_ORIGIN_OVERRIDE) || !config.verifyOnStartup) {
     return { status: "ready", sourceId: source.id, created };
   }
 
