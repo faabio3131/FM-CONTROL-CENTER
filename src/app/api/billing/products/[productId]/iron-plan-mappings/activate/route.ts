@@ -2,7 +2,8 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/application/audit/record-audit-event";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
-import { verifyPasswordStepUp } from "@/application/security/password-step-up";
+import { StepUpRequiredError, verifyPasswordStepUp } from "@/application/security/password-step-up";
+import { AuthenticationRequiredError, PermissionDeniedError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import { requirePermission } from "@/domain/security/tenant-context";
 import {
   IronCommercialPlanActivationError,
@@ -100,6 +101,14 @@ export async function POST(
         result: "failure",
         metadata: { errorType: error instanceof Error ? error.name : "unknown" },
       }).catch(() => undefined);
+    }
+    if (error instanceof AuthenticationRequiredError) {
+      return NextResponse.json({ error: "security.authentication_required" }, { status: 401 });
+    }
+    if (error instanceof PermissionDeniedError ||
+        error instanceof TenantScopeRequiredError ||
+        error instanceof StepUpRequiredError) {
+      return NextResponse.json({ error: "security.activation_access_denied" }, { status: 403 });
     }
     if (error instanceof IronCommercialPlanActivationError ||
         error instanceof IronPlanMappingError) {
