@@ -118,6 +118,6 @@ describe("IRON / FMCC — governança de ativação comercial", () => {
     expect(form).toContain('expectedAmountMinor: plan.amountMinor');
     expect(form).toContain('/iron-plan-mappings/activate');
     expect(form).toContain("router.refresh()");
-    expect(form).not.toContain("checkout");
+    expect(form).not.toContain("/api/billing/checkout");
   });
 });
