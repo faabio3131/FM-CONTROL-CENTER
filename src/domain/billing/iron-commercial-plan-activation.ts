@@ -1,5 +1,11 @@
 import type { IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
-import type { IronPublishedPlanVersion } from "@/infrastructure/integration/iron-commercial-connector";
+/** Structural contract of the IRON-owned PUBLISHED plan projection. */
+type PublishedIronPlanIdentity = {
+  readonly planCode: string;
+  readonly displayName: string;
+  readonly version: number;
+  readonly publishedAt: string;
+};
 
 /**
  * Command-owned offer publication, not IRON entitlement publication.
@@ -51,7 +57,7 @@ export function assertIronCommercialPlanActivation(
   input: IronCommercialPlanActivationInput,
   plan: { planCode: string; amountMinor: number; currency: string; status: string },
   mapping: IronVersionedPlanMapping,
-  published: IronPublishedPlanVersion,
+  published: PublishedIronPlanIdentity,
 ): void {
   // Every assertion is repeated inside the transaction after taking the
   // same advisory lock used by invoice preparation and mapping registration.
