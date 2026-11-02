@@ -5,7 +5,8 @@ export type PlanResource =
   | "ai.requests" | "ai.total_tokens" | "ai.input_tokens"
   | "ai.output_tokens" | "ai.cached_tokens" | "ai.cost_usd_microunits"
   | "audio.seconds" | "whatsapp.messages" | "automation.executions"
-  | "storage.bytes" | "crm.leads" | "users.seats" | "units.active";
+  | "storage.bytes" | "crm.leads" | "users.seats" | "units.active"
+  | "integrations.active";
 
 export type PlanAllowance = Readonly<{
   resource: PlanResource;
@@ -43,6 +44,7 @@ const METRICS: ReadonlySet<string> = new Set([
   "ai.output_tokens", "ai.cached_tokens", "ai.cost_usd_microunits",
   "audio.seconds", "whatsapp.messages", "automation.executions",
   "storage.bytes", "crm.leads", "users.seats", "units.active",
+  "integrations.active",
 ]);
 
 export function parseConsumptionPlanDraft(value: unknown): ConsumptionPlanDraft {

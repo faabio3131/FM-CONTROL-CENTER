@@ -21,6 +21,22 @@ describe("FM-administered plans: all features, consumption only",()=>{
     expect(()=>parseConsumptionPlanDraft({...good,allowances:[...good.allowances,{resource:"crm.enabled",scope:"tenant",limitUnits:1,windowSeconds:2592000}]})).toThrow("plans.metric_invalid");
     expect(()=>parseConsumptionPlanDraft({...good,allowances:[...good.allowances,{...good.allowances[0],enabled:false}]})).toThrow("plans.feature_gating_forbidden");
   });
+  it("accepts scoped integrations quota and refuses feature-gating substitutions",()=>{
+    const allowances=[...good.allowances,{
+      resource:"integrations.active",scope:"unit",limitUnits:5,windowSeconds:2592000,
+    }];
+    const parsed=parseConsumptionPlanDraft({...good,allowances});
+    expect(parsed.allowances[2]).toEqual(allowances[2]);
+    expect(()=>parseConsumptionPlanDraft({...good,allowances:[
+      ...allowances,{...allowances[2],scope:"tenant"},
+    ]})).toThrow("plans.duplicate_allowance");
+    expect(()=>parseConsumptionPlanDraft({...good,allowances:[
+      ...good.allowances,{...allowances[2],limitUnits:0},
+    ]})).toThrow("plans.limit_invalid");
+    expect(()=>parseConsumptionPlanDraft({...good,allowances:[
+      ...good.allowances,{...allowances[2],enabled:false},
+    ]})).toThrow("plans.feature_gating_forbidden");
+  });
   it("rejects underdefined AI allowances and cross-tenant duplicate keys",()=>{
     expect(()=>parseConsumptionPlanDraft({...good,allowances:[good.allowances[0]]})).toThrow("plans.ai_limits_required");
     expect(()=>parseConsumptionPlanDraft({...good,allowances:[...good.allowances,good.allowances[0]]})).toThrow("plans.duplicate_allowance");

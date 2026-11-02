@@ -16,7 +16,7 @@ const METRICS=[
   "ai.requests","ai.total_tokens","ai.input_tokens","ai.output_tokens",
   "ai.cached_tokens","ai.cost_usd_microunits","audio.seconds",
   "whatsapp.messages","automation.executions","storage.bytes",
-  "crm.leads","users.seats","units.active",
+  "crm.leads","users.seats","units.active","integrations.active",
 ] as const;
 
 export function AssistantPlanEditor({productId}:{productId:string}) {
