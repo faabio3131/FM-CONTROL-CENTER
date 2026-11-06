@@ -82,6 +82,31 @@ describe("C08 NFCore cognitive connector isolated from legacy Kordena",() => {
    await expect(connector.pull(context,source)).rejects.toThrow("nfcore.response_too_large");
    expect(fetcher).toHaveBeenCalledTimes(1);
  });
+ it("times out stalled response body even after HTTP headers arrive", async () => {
+   const stream = new ReadableStream<Uint8Array>({
+     start(controller) {
+       controller.enqueue(new TextEncoder().encode('{"schemaVersion":'));
+       // Deliberately never finish or close. Header response succeeds immediately.
+     },
+   });
+   const fetcher = vi.fn(async () => new Response(stream, { status: 200 }));
+   const client = new NfcoreCognitiveConnector(
+     () => "x".repeat(40), fetcher as unknown as typeof fetch,
+     () => ["https://api.nfcore.com.br"], () => "fm-control",
+   );
+   await expect(client.pull({ ...context, timeoutMs: 150 }, source))
+     .rejects.toThrow("nfcore.transport_timeout");
+   expect(fetcher).toHaveBeenCalledTimes(1);
+ });
+ it("times out stalled header retrieval even when fetch ignores AbortSignal", async () => {
+   const fetcher = vi.fn(async (): Promise<Response> => new Promise(() => {}));
+   const client = new NfcoreCognitiveConnector(
+     () => "x".repeat(40), fetcher as unknown as typeof fetch,
+     () => ["https://api.nfcore.com.br"], () => "fm-control",
+   );
+   await expect(client.pull({ ...context, timeoutMs: 150 }, source))
+     .rejects.toThrow("nfcore.transport_timeout");
+ });
  it("never returns a healthy state if the provider is unauthenticated",async() => {
    const c=new NfcoreCognitiveConnector(()=>undefined,vi.fn() as unknown as typeof fetch,
      ()=>["https://api.nfcore.com.br"],()=>"fm-control");
