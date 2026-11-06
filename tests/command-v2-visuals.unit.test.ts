@@ -32,5 +32,6 @@ describe("Command V2 selective port — governable charts", () => {
     expect(comparableBars([{...rows[0],value:{value:"100.2x",unit:"count"}},rows[1]])).toBeNull();
     expect(comparableBars([{...rows[0],value:{value:"-4",unit:"count"}},rows[1]])).toBeNull();
     expect(comparableBars([{...rows[0],value:{value:"1e5",unit:"count"}},rows[1]])).toBeNull();
+    expect(comparableBars([{...rows[0],value:{value:"1",unit:"currency",currency:"BRL"}},{...rows[1],value:{value:"2",unit:"currency",currency:"USD"}}])).toBeNull();
   });
 });
