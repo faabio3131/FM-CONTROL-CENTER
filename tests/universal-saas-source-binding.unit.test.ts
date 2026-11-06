@@ -49,6 +49,14 @@ describe("C08 registration for arbitrary future SaaS", () => {
     await expect(authorized.service.register(context,{...legitimate,authoritativeDomain:"commercial"})).rejects.toThrow();
     expect(authorized.create).not.toHaveBeenCalled();
   });
+  it("rejects a product returned by a broken repository from another organization", async () => {
+    const r=setup();
+    r.findById.mockResolvedValueOnce({
+      id:"product-1",tenantId:"other-organization",slug:"nfcore",name:"NFCore",status:"active",
+    });
+    await expect(r.service.register(context,legitimate)).rejects.toThrow("integration.product_scope_invalid");
+    expect(r.create).not.toHaveBeenCalled();
+  });
   it("viewer cannot register even with correct source and cannot invoke product lookups", async () => {
     const r=setup();
     await expect(r.service.register({...context,role:"viewer"},legitimate)).rejects.toThrow();
