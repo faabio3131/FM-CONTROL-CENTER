@@ -158,7 +158,7 @@ export class NfcoreCognitiveConnector implements Connector {
     if (!response.ok) throw new NfcoreConnectorError("nfcore.remote_denied");
     const declaredLength = response.headers.get("content-length");
     if (declaredLength && (
-      !/^(0|[1-9]\\d*)$/.test(declaredLength) || Number(declaredLength) > 65536
+      !/^(0|[1-9]\d*)$/.test(declaredLength) || Number(declaredLength) > 65536
     )) throw new NfcoreConnectorError("nfcore.response_too_large");
     if (!response.body) throw new NfcoreConnectorError("nfcore.response_invalid");
     const reader = response.body.getReader();
