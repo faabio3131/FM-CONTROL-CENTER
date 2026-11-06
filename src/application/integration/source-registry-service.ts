@@ -51,7 +51,10 @@ export class SourceRegistryService {
     }
     if (input.productId) {
       const product = await this.products?.findById(context.tenantId, input.productId);
-      if (!product || product.status !== "active") throw new InvalidProductScopeError();
+      if (!product || product.status !== "active" ||
+          product.tenantId !== context.tenantId || product.id !== input.productId) {
+        throw new InvalidProductScopeError();
+      }
       const binding = universal
         ? universalSaasProfileForProduct(product.slug)
         : fixedBinding;
