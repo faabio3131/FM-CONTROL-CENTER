@@ -249,6 +249,10 @@ export function CoreQueryForm({
           <h2 id="core-title">FM COMMAND CORE</h2>
           <p>A inteligência cognitiva que entende sua operação, conecta informações e transforma contexto em decisões mais precisas.</p>
           <p className="core-supporting-copy">Analisa, contextualiza, recomenda e coordena capacidades com governança e rastreabilidade.</p>
+          <div className="nfcore-authority-legend" aria-label="Separação de autoridade">
+            <span className="nfcore-ai-label">Recomendação IA · análise, sem execução</span>
+            <span className="nfcore-deterministic-label">Autoridade Determinística · ações somente em fluxos autenticados</span>
+          </div>
           {productContext ? (
             <p className="core-context">
               Contexto governado: <strong>{productContext.name}</strong> ·{" "}
