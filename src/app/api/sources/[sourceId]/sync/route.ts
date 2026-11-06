@@ -54,7 +54,8 @@ export async function POST(
       result: "success",
       metadata: {
         status: result.status,
-        ingested: result.ingested,
+        ingested: result.ingested, // legacy number of processed facts
+        inserted: result.inserted ?? null, // confirmed new rows only
       },
     });
 
