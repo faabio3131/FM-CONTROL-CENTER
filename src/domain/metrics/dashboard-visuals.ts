@@ -31,6 +31,9 @@ export function comparableBars(rows: readonly ComparableMetricRow[]): readonly V
   if (rows.length !== 2 || rows.some(({ value }) =>
     !value || value.value === null || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value.value)
   )) return null;
+  const first = rows[0]!.value!;
+  if (rows.some(({ value }) => value!.unit !== first.unit ||
+    (value!.currency ?? "") !== (first.currency ?? ""))) return null;
   const amounts = rows.map(({ value }) => Number(value!.value));
   if (amounts.some((n) => !Number.isFinite(n) || n < 0)) return null;
   const max = Math.max(...amounts, 0);
