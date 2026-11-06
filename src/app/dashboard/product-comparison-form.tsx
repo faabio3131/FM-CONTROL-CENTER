@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { comparableBars } from "@/domain/metrics/dashboard-visuals";
+import { BarChart } from "./charts/bar-chart";
 import { mensagemErroComparacao, mensagemEstadoComparacao, rotuloEstadoComparacao, rotuloUnidade } from "@/presentation/pt-br";
 
 type Product = { id: string; name: string; slug: string };
@@ -22,6 +24,7 @@ const METRICS = [
 export function ProductComparisonForm({ products }: { products: readonly Product[] }) {
   const [result, setResult] = useState<ComparisonPayload | null>(null);
   const [loading, setLoading] = useState(false);
+  const comparisonBars = result?.status === "comparable" && result.values ? comparableBars(result.values) : null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,8 +65,13 @@ export function ProductComparisonForm({ products }: { products: readonly Product
             <>
               <strong>Estado: {rotuloEstadoComparacao(result.status)}</strong>
               {result.status === "comparable" ? (
-                <ul>{result.values?.map(({ product, value }) => <li key={product.id}>{product.name}: {value?.value ?? "Indisponível"} {value?.currency ?? rotuloUnidade(value?.unit)}</li>)}</ul>
-              ) : <p>{mensagemEstadoComparacao(result.status)}</p>}
+                <>
+                  {comparisonBars ? (
+                    <BarChart items={comparisonBars} ariaLabel="Comparação visual dos dois produtos" unavailableText="Indisponível" />
+                  ) : <p>Gráfico indisponível para estes valores; os dados literais continuam abaixo.</p>}
+                  <ul>{result.values?.map(({ product, value }) => <li key={product.id}>{product.name}: {value?.value ?? "Indisponível"} {value?.currency ?? rotuloUnidade(value?.unit)}</li>)}</ul>
+                </>
+              ) : <p>{mensagemEstadoComparacao(result.status)}</p>
             </>
           )}
         </div>
