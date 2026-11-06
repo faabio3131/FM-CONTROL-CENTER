@@ -113,7 +113,7 @@ export default async function DashboardPage() {
 
       <section className="command-home-stage" aria-label="Command Core e operação">
         <div className="command-home-main">
-          <CoreQueryForm />
+          <CoreQueryForm homePresentation />
         </div>
 
         <aside className="command-home-rail" aria-label="Saúde, serviços e alertas">
