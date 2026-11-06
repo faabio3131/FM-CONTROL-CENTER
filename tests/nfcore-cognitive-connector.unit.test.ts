@@ -72,6 +72,16 @@ describe("C08 NFCore cognitive connector isolated from legacy Kordena",() => {
    await expect(client.pull(context,{...source,secretRef:"env:FMCC_KORDENA_TOKEN"})).rejects.toThrow("nfcore.scope_denied");
    expect(fetcher).toHaveBeenCalledTimes(1);
  });
+ it("fails closed before parsing a response exceeding 64 KiB", async () => {
+   const oversized={...snapshot(), padding:"x".repeat(70000)};
+   const fetcher=vi.fn(async()=>new Response(JSON.stringify(oversized), {status:200}));
+   const connector=new NfcoreCognitiveConnector(
+     ()=>"x".repeat(40), fetcher as unknown as typeof fetch,
+     ()=>["https://api.nfcore.com.br"], ()=>"fm-control",
+   );
+   await expect(connector.pull(context,source)).rejects.toThrow("nfcore.response_too_large");
+   expect(fetcher).toHaveBeenCalledTimes(1);
+ });
  it("never returns a healthy state if the provider is unauthenticated",async() => {
    const c=new NfcoreCognitiveConnector(()=>undefined,vi.fn() as unknown as typeof fetch,
      ()=>["https://api.nfcore.com.br"],()=>"fm-control");
