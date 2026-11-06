@@ -9,7 +9,7 @@ export const UNIVERSAL_SAAS_USAGE_PATH = "/v1/fmcc/saas/usage" as const;
 
 /** Avoid punctuation in environment variable keys, path traversal and collisions. */
 export function isValidSaasSlug(value: string): boolean {
-  return /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(value) && value.length <= 48;
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 128;
 }
 
 export function saasEnvKey(productSlug: string): string {
