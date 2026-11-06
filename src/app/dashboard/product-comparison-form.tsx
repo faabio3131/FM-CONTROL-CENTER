@@ -71,7 +71,7 @@ export function ProductComparisonForm({ products }: { products: readonly Product
                   ) : <p>Gráfico indisponível para estes valores; os dados literais continuam abaixo.</p>}
                   <ul>{result.values?.map(({ product, value }) => <li key={product.id}>{product.name}: {value?.value ?? "Indisponível"} {value?.currency ?? rotuloUnidade(value?.unit)}</li>)}</ul>
                 </>
-              ) : <p>{mensagemEstadoComparacao(result.status)}</p>
+              ) : <p>{mensagemEstadoComparacao(result.status)}</p>}
             </>
           )}
         </div>
