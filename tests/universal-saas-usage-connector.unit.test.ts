@@ -60,6 +60,7 @@ describe("Universal SaaS C08 — signed-scope contract without billing authority
     expect(universalSaasSecretRef("nfcore")).toBe("env:FMCC_SAAS_NFCORE_CONTROL_TOKEN");
     expect(universalSaasSecretRef("gym-pro")).toBe("env:FMCC_SAAS_GYM_PRO_CONTROL_TOKEN");
     expect(isValidSaasSlug("gym-pro")).toBe(true);
+    expect(isValidSaasSlug("2gym")).toBe(true);
     for (const invalid of ["../nfcore", "my_app", "UPPER", "a--b", "localhost:443", ""]) {
       expect(isValidSaasSlug(invalid)).toBe(false);
     }
