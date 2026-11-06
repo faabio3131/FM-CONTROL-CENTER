@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SaasAdapterProfile } from "@/application/integration/saas-adapter-profiles";
+import type { CommercialCoverageReport } from "@/application/integration/commercial-source-coverage";
 
 type ProductOption = {
   id: string;
@@ -38,6 +39,8 @@ type Props = {
 type SourceState = {
   health?: string;
   sync?: string;
+  coverage?: CommercialCoverageReport;
+  coverageError?: string;
 };
 
 function rotuloSaude(status: string) {
@@ -185,6 +188,48 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
     }
   }
 
+  async function commercialCoverage(sourceId: string) {
+    setBusy(`coverage:${sourceId}`);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/sources/${sourceId}/coverage`, {
+        cache: "no-store",
+      });
+      const body = await json(response);
+      if (!response.ok) {
+        setStates(current => ({
+          ...current,
+          [sourceId]: {
+            ...current[sourceId],
+            coverage: undefined,
+            coverageError: "Não foi possível consultar a cobertura comercial agora.",
+          },
+        }));
+        return;
+      }
+      const coverage = body.coverage as CommercialCoverageReport | undefined;
+      if (!coverage || !Array.isArray(coverage.collections) ||
+          !Number.isSafeInteger(coverage.snapshotFactCount)) {
+        throw new Error("integration.coverage_response_invalid");
+      }
+      setStates(current => ({
+        ...current,
+        [sourceId]: { ...current[sourceId], coverage, coverageError: undefined },
+      }));
+    } catch {
+      setStates(current => ({
+        ...current,
+        [sourceId]: {
+          ...current[sourceId],
+          coverage: undefined,
+          coverageError: "Falha ao consultar cobertura. Verifique a conexão autenticada.",
+        },
+      }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function sync(sourceId: string) {
     setBusy(`sync:${sourceId}`);
     setMessage(null);
@@ -212,7 +257,8 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
         ? "Sincronização já processada para esta chave."
         : status === "in_progress"
           ? "Sincronização já está em andamento."
-          : `Sincronização concluída: ${ingested} fato(s) canônico(s) ingerido(s).`;
+          : `Sincronização concluída: ${ingested} fato(s) recebido(s) para processamento. ` +
+            "Fatos repetidos podem já existir no banco; essa contagem não indica quantidade de funcionalidades.";
       setStates((current) => ({
         ...current,
         [sourceId]: { ...current[sourceId], sync: label },
@@ -350,7 +396,58 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                       {busy === `sync:${source.id}` ? "Sincronizando…" : "Sincronizar agora"}
                     </button>
                   ) : null}
+                  {canWrite && (
+                    source.sourceType === "kordena-commercial-v1" ||
+                    source.sourceType === "iron-commercial-v1"
+                  ) ? (
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={busy === `coverage:${source.id}`}
+                      onClick={() => void commercialCoverage(source.id)}
+                    >
+                      {busy === `coverage:${source.id}` ? "Consultando…" : "Ver cobertura comercial"}
+                    </button>
+                  ) : null}
                 </div>
+                {states[source.id]?.coverageError ? (
+                  <small role="alert">{states[source.id]?.coverageError}</small>
+                ) : null}
+                {states[source.id]?.coverage ? (
+                  <div className="fmcc-source-coverage" role="region"
+                    aria-label={`Cobertura comercial de ${source.name}`}>
+                    <strong>Cobertura do contrato — leitura atual</strong>
+                    <small>Retrato de {dataHora(states[source.id]?.coverage?.asOf)}.
+                      A quantidade de fatos não mede a completude comercial.</small>
+                    <small>Fatos no snapshot: {states[source.id]?.coverage?.snapshotFactCount}.
+                      Os conjuntos abaixo são lidos diretamente do SaaS, mas não são todos
+                      armazenados como fatos pelo sincronizador.</small>
+                    <ul className="fmcc-source-coverage-list">
+                      {states[source.id]?.coverage?.collections.map(item => (
+                        <li key={item.code}>
+                          <span>{item.label}</span>
+                          <strong>{item.authority === "fm-command"
+                            ? "Autoridade: FM Command"
+                            : `${item.reportedRecords} registro(s) reportado(s)`}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    {states[source.id]?.coverage?.summary.length ? (
+                      <details>
+                        <summary>Ver indicadores agregados do SaaS</summary>
+                        <ul className="fmcc-source-coverage-list">
+                          {states[source.id]?.coverage?.summary.map(item => (
+                            <li key={item.code}><span>{item.label}</span><strong>{item.count}</strong></li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                    <small>Telemetria adicional: {states[source.id]?.coverage?.additionalTelemetry === "reported"
+                      ? "declarada no snapshot" : "não certificada nesta consulta"}.</small>
+                    <small>Essa leitura comprova campos disponíveis no contrato; não certifica
+                      reconciliação de pagamentos, execução de todas as funções nem integração E2E.</small>
+                  </div>
+                ) : null}
                 {states[source.id]?.health ? <small role="status">{states[source.id]?.health}</small> : null}
                 {states[source.id]?.sync ? <small role="status">{states[source.id]?.sync}</small> : null}
               </article>
