@@ -138,5 +138,5 @@ export interface CanonicalFactRepository {
     mappingVersion: string;
     fact: ConnectorFact;
     correlationId: string;
-  }): Promise<void>;
+  }): Promise<void | number>;
 }
