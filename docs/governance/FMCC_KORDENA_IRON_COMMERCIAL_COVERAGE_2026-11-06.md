@@ -9,7 +9,7 @@ Painel `/dashboard/sources` mostrava **2 fatos** para Kordena e **8 fatos** para
 - `KordenaCommercialConnector.pull()` lê `/v1/control-plane/fmcc/snapshot` mas transforma em fatos apenas `snapshot.facts`.
 - `IronCommercialConnector.pull()` lê `/api/v1/control-plane/fmcc/snapshot` e igualmente converte apenas `snapshot.facts`.
 - `ConnectorRuntime.syncPull()` retorna `ingested: result.facts.length`, isto é **quantidade tentada/processada no lote**, não número garantido de novos inserts ou domínios integrados.
-- `PostgresCanonicalFactRepository.ingest()` usa `onConflictDoNothing` e não informa quantidade efetivamente nova. A nova UI passou a falar em **fatos recebidos para processamento**, sem alegar novidade.
+- `PostgresCanonicalFactRepository.ingest()` usa `onConflictDoNothing`. Antes não informava registros novos; agora usa `RETURNING` para devolver **quantos foram realmente inseridos**. O runtime mantém `ingested` como contagem legada de fatos processados e adiciona `inserted` para inserts novos confirmados; se o repositório não retornar a medida, `inserted` permanece **desconhecido**, não zero. A UI exibe ambos separadamente.
 - O backend IRON já expõe arrays distintos para academias, trials, assinaturas, entitlements e onboarding, e deliberadamente marca transações de billing como autoridade `FM_COMMAND_AUTHORITY`. No backend IRON, os `facts` são projetados dos conjuntos academias, trials, assinaturas e onboarding, **não** de entitlements nem de transações financeiras.
 - O contrato Kordena já separa clientes, contas, trials, assinaturas, transações, entitlements, catálogo, summary e observabilidade opcional. O número de fatos não substitui essas estruturas.
 
