@@ -27,7 +27,7 @@ const source: SourceDefinition = {
 };
 const env = {
   FMCC_SAAS_GYM_PRO_CONTROL_TOKEN: "x".repeat(40),
-  FMCC_SAAS_GYM_PRO_CONTROL_TENANT_ID: tenant,
+  FMCC_SAAS_GYM_PRO_COMMAND_TENANT_ID: tenant,
   FMCC_SAAS_GYM_PRO_ALLOWED_ORIGINS: "https://api.gym-pro.example",
 } as Record<string,string>;
 const readEnv = (key: string) => env[key];
