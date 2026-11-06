@@ -17,7 +17,7 @@ import { KordenaBillingControlService } from "@/application/integration/kordena-
 import { BillingControlPanel } from "./billing-control-panel";
 import { IronPayerEnrollmentPanel } from "./iron-payer-enrollment-panel";
 import { IronCommercialPlansPanel } from "./iron-commercial-plans-panel";
-import { ProductBillingAuthorityService, type BillingProductPlanView } from "@/application/billing/product-billing-authority-service";
+import { ProductBillingAuthorityService, type BillingProductPlanView, type BillingProductRouteView } from "@/application/billing/product-billing-authority-service";
 import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
 import { PostgresIronPlanMappingRepository } from "@/infrastructure/billing/postgres-iron-plan-mapping-repository";
 import type { IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
@@ -114,6 +114,25 @@ export default async function ProductBillingPage({
     }
   }
 
+  // Generic FM billing is the authority for ALL other SaaS products too.
+  // Read-only introspection never derives a price from a remote connector.
+  let genericPlans: readonly BillingProductPlanView[] | null = null;
+  let genericRoute: BillingProductRouteView | null | undefined;
+  if (!isIron) {
+    const billing = new ProductBillingAuthorityService(
+      new PostgresProductBillingAuthorityRepository(),
+    );
+    try {
+      [genericPlans, genericRoute] = await Promise.all([
+        billing.listPlans(context, product.id),
+        billing.getRoute(context, product.id),
+      ]);
+    } catch {
+      genericPlans = null;
+      genericRoute = undefined;
+    }
+  }
+
   let publishedIronPlans: readonly IronPublishedPlanVersion[] = [];
   let publishedIronPlansAvailable = false;
   if (isIron && ironSources.length === 1) {
@@ -179,6 +198,37 @@ export default async function ProductBillingPage({
         </article>
       </section>
 
+      {!isIron ? (
+        <section className="executive-section" aria-label="Planos FM por produto">
+          <div className="section-heading">
+            <div><span className="eyebrow">Control Plane FM · C01/C03</span><h2>Planos e cobrança central</h2></div>
+            <p>Este é o cadastro financeiro canônico do Command, separado do uso e da emissão fiscal no SaaS.</p>
+          </div>
+          <div className="panel">
+            <h3>Planos financeiros cadastrados</h3>
+            {genericPlans === null ? <p role="status">Catálogo indisponível: não foi possível ler o billing canônico.</p>
+              : genericPlans.length === 0 ? <p>Nenhum plano FM cadastrado para este produto. Valores não são presumidos a partir do marketing do SaaS.</p>
+              : <div className="foundation-grid">{genericPlans.map(plan => <article key={plan.id}>
+                  <strong>{plan.name} · {plan.planCode}</strong>
+                  <span>{new Intl.NumberFormat("pt-BR", {style:"currency",currency:"BRL"}).format(plan.amountMinor / 100)}
+                    {" · "}{plan.interval === "monthly" ? "Mensal" : "Anual"}</span>
+                  <span>{plan.status === "active" ? "Ativo no cadastro FM" : "Inativo no cadastro FM"}</span>
+                </article>)}</div>}
+            <p>Plano ativo não comprova checkout, gateway, assinatura, pagamento recebido ou ativação no SaaS.</p>
+          </div>
+          <div className="panel">
+            <h3>Roteamento de cobrança</h3>
+            {genericRoute === undefined ? <p role="status">Consulta do gateway indisponível.</p>
+              : genericRoute === null ? <p>Nenhuma conta de gateway vinculada neste produto.</p>
+              : <>
+                <p>Provider: {genericRoute.provider} · Ambiente: {genericRoute.environment}</p>
+                <p>Estado: {genericRoute.status === "enabled" ? "Habilitado no cadastro FM" : "Desabilitado"}</p>
+              </>}
+            <p>Não há ativação automática de cobrança ou alteração de contrato neste painel.</p>
+          </div>
+        </section>
+      ) : null}
+
       {isIron ? (
         ironPlansAvailable ? (
           <IronCommercialPlansPanel
@@ -213,6 +263,12 @@ export default async function ProductBillingPage({
             enabled={process.env.FMCC_IRON_ASAAS_PAYER_ENROLLMENT_ENABLED==="YES"}
           />
         )
+      ) : product.slug !== "kordena" ? (
+        <section className="panel">
+          <h2>Control plane do SaaS em preparação</h2>
+          <p>A estrutura de planos e gateway está acima no Command. A emissão e as assinaturas externas exigem integração autenticada específica; não são presumidas pelo cadastro financeiro.</p>
+          <Link className="button" href="/dashboard/sources">Gerenciar integração do SaaS</Link>
+        </section>
       ) : !source ? (
         <section className="panel">
           <h2>Fonte comercial não conectada</h2>

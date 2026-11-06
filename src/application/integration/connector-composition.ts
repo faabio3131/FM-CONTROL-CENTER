@@ -2,6 +2,7 @@ import {
   NfcoreCognitiveConnector,
   type NfcoreSecretResolver,
 } from "@/infrastructure/integration/nfcore-cognitive-connector";
+import { UniversalSaasUsageConnector } from "@/infrastructure/integration/universal-saas-usage-connector";
 import { ConnectorRuntime } from "@/application/integration/connector-runtime";
 import {
   PostgresCanonicalFactRepository,
@@ -30,11 +31,12 @@ export function buildConnectorRuntime(input?: {
     input?.fetcher,
   );
   const nfcoreConnector = new NfcoreCognitiveConnector(input?.resolveSecret, input?.fetcher);
+  const universalConnector = new UniversalSaasUsageConnector(input?.fetcher);
   return new ConnectorRuntime(
     new PostgresSourceRepository(),
     new PostgresSyncRepository(),
     new PostgresCanonicalFactRepository(),
-    [connector, ironConnector, nfcoreConnector],
+    [connector, ironConnector, nfcoreConnector, universalConnector],
   );
 }
 

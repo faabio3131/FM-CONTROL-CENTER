@@ -1,7 +1,8 @@
 import type { NewSourceDefinition, SourceDefinition, SourceRepository } from "@/domain/integration/contracts";
 import type { ProductRepository } from "@/domain/products/contracts";
+import { UNIVERSAL_SAAS_SOURCE_TYPE } from "@/domain/integration/universal-saas-contract";
 import { requirePermission, type TenantContext } from "@/domain/security/tenant-context";
-import { profileForSourceType, sourceMatchesAdapter } from "@/application/integration/saas-adapter-profiles";
+import { profileForSourceType, sourceMatchesAdapter, universalSaasProfileForProduct } from "@/application/integration/saas-adapter-profiles";
 
 export class InvalidProductSourceBindingError extends Error {
   constructor() { super("integration.product_source_binding_invalid"); }
@@ -43,11 +44,34 @@ export class SourceRegistryService {
     assertConfigContainsNoSecrets(input.config);
     if (!input.name.trim() || !input.sourceType.trim() || !input.authoritativeDomain.trim()) throw new Error("integration.source_definition_invalid");
     if (input.freshnessSeconds !== undefined && (!Number.isInteger(input.freshnessSeconds) || input.freshnessSeconds < 1)) throw new Error("integration.freshness_invalid");
-    const binding = profileForSourceType(input.sourceType);
-    if (binding && !input.productId) throw new InvalidProductSourceBindingError();
+    const fixedBinding = profileForSourceType(input.sourceType);
+    const universal = input.sourceType === UNIVERSAL_SAAS_SOURCE_TYPE;
+    if ((fixedBinding || universal) && !input.productId) {
+      throw new InvalidProductSourceBindingError();
+    }
     if (input.productId) {
       const product = await this.products?.findById(context.tenantId, input.productId);
-      if (!product || product.status !== "active") throw new InvalidProductScopeError();
+      if (!product || product.status !== "active" ||
+          product.tenantId !== context.tenantId || product.id !== input.productId) {
+        throw new InvalidProductScopeError();
+      }
+      const binding = universal
+        ? universalSaasProfileForProduct(product.slug)
+        : fixedBinding;
+      if (universal && !binding) throw new InvalidProductSourceBindingError();
+      if (universal) {
+        const origin = input.config?.baseUrl;
+        if (typeof origin !== "string" || origin.length > 512) {
+          throw new InvalidProductSourceBindingError();
+        }
+        let parsed: URL;
+        try { parsed = new URL(origin); }
+        catch { throw new InvalidProductSourceBindingError(); }
+        if (parsed.protocol !== "https:" || parsed.username || parsed.password ||
+          parsed.pathname !== "/" || parsed.search || parsed.hash) {
+          throw new InvalidProductSourceBindingError();
+        }
+      }
       if (
         binding &&
         (product.slug !== binding.productSlug ||

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SaasAdapterProfile } from "@/application/integration/saas-adapter-profiles";
+import { UNIVERSAL_SAAS_SOURCE_TYPE } from "@/domain/integration/universal-saas-contract";
 
 type ProductOption = {
   id: string;
@@ -88,8 +89,11 @@ async function json(response: Response): Promise<Record<string, unknown>> {
 export function SourceControlPanel({ products, sources, canWrite, supportedAdapters }: Props) {
   const router = useRouter();
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedAdapterType, setSelectedAdapterType] = useState("");
   const selectedProduct = products.find((product) => product.id === selectedProductId);
-  const selection = supportedAdapters.find(profile => profile.productSlug === selectedProduct?.slug);
+  const productAdapters = supportedAdapters.filter(p => p.productSlug === selectedProduct?.slug);
+  const selection = productAdapters.find(p => p.sourceType === selectedAdapterType)
+    ?? productAdapters[0];
   const alreadyRegistered = sources.some((source) =>
     source.productId === selectedProductId && source.sourceType === selection?.sourceType
   );
@@ -102,11 +106,12 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const productId = String(form.get("productId") ?? "").trim();
+    const selectedSourceType = String(form.get("sourceType") ?? "").trim();
     const baseUrl = String(form.get("baseUrl") ?? "").trim();
     const freshnessSeconds = Number(form.get("freshnessSeconds") ?? "300");
 
     const product = products.find((item) => item.id === productId);
-    const config = supportedAdapters.find(profile => profile.productSlug === product?.slug);
+    const config = supportedAdapters.find(profile => profile.productSlug === product?.slug && profile.sourceType === selectedSourceType);
     if (!config || !baseUrl || sources.some((item) =>
       item.productId === productId && item.sourceType === config.sourceType
     )) {
@@ -128,7 +133,9 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
           secretRef: config.secretRef,
           mappingVersion: config.mappingVersion,
           freshnessSeconds,
-          config: { baseUrl },
+          config: config.sourceType === UNIVERSAL_SAAS_SOURCE_TYPE
+            ? { baseUrl, productSlug: product?.slug }
+            : { baseUrl },
         }),
       });
       const body = await json(response);
@@ -138,6 +145,7 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
       }
       formElement.reset();
       setSelectedProductId("");
+      setSelectedAdapterType("");
       setMessage(`Fonte ${product?.name ?? "comercial"} cadastrada. Teste a conexão antes de sincronizar.`);
       router.refresh();
     } catch {
@@ -255,11 +263,28 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
             <form className="product-create-form" onSubmit={register}>
               <label>
                 Produto
-                <select name="productId" required value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)}>
+                <select name="productId" required value={selectedProductId} onChange={(event) => {
+                  setSelectedProductId(event.target.value);
+                  setSelectedAdapterType("");
+                }}>
                   <option value="" disabled>Selecione o produto</option>
                   {products.filter((product) => supportedAdapters.some(profile => profile.productSlug === product.slug)).map((product) => (
                     <option key={product.id} value={product.id}>
                       {product.name} ({product.slug})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Contrato de integração
+                <select name="sourceType" required value={selection?.sourceType ?? ""}
+                  disabled={!selectedProduct}
+                  onChange={(event) => setSelectedAdapterType(event.target.value)}>
+                  {productAdapters.length === 0 ? <option value="">Selecione o produto</option> : null}
+                  {productAdapters.map(profile => (
+                    <option key={profile.sourceType} value={profile.sourceType}>
+                      {profile.sourceType === UNIVERSAL_SAAS_SOURCE_TYPE
+                        ? "Consumo operacional universal v1" : profile.name}
                     </option>
                   ))}
                 </select>
