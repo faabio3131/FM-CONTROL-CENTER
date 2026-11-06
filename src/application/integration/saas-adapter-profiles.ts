@@ -13,7 +13,7 @@ export interface SaasAdapterProfile {
   readonly name: string;
   readonly sourceType: string;
   readonly mappingVersion: string;
-  readonly authoritativeDomain: "commercial";
+  readonly authoritativeDomain: "commercial" | "cognitive";
   readonly syncMode: ConnectorSyncMode;
   readonly secretRef: string; // reference only, never credential material
   readonly urlLabel: string;
@@ -38,7 +38,7 @@ export const SAAS_ADAPTER_PROFILES: readonly SaasAdapterProfile[] = Object.freez
     name: "NFCore Cognitive Operational Telemetry",
     sourceType: NFCORE_COGNITIVE_SOURCE_TYPE,
     mappingVersion: NFCORE_COGNITIVE_SOURCE_TYPE,
-    authoritativeDomain: "commercial",
+    authoritativeDomain: "cognitive",
     syncMode: "pull",
     secretRef: NFCORE_COGNITIVE_SECRET_REF,
     urlLabel: "URL HTTPS do NFCore",
