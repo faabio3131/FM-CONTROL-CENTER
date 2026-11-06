@@ -1,3 +1,7 @@
+import {
+  NfcoreCognitiveConnector,
+  type NfcoreSecretResolver,
+} from "@/infrastructure/integration/nfcore-cognitive-connector";
 import { ConnectorRuntime } from "@/application/integration/connector-runtime";
 import {
   PostgresCanonicalFactRepository,
@@ -14,7 +18,7 @@ import {
 } from "@/infrastructure/integration/iron-commercial-connector";
 
 export function buildConnectorRuntime(input?: {
-  resolveSecret?: SecretResolver & IronSecretResolver;
+  resolveSecret?: SecretResolver & IronSecretResolver & NfcoreSecretResolver;
   fetcher?: typeof fetch;
 }) {
   const connector = new KordenaCommercialConnector(
@@ -25,11 +29,12 @@ export function buildConnectorRuntime(input?: {
     input?.resolveSecret,
     input?.fetcher,
   );
+  const nfcoreConnector = new NfcoreCognitiveConnector(input?.resolveSecret, input?.fetcher);
   return new ConnectorRuntime(
     new PostgresSourceRepository(),
     new PostgresSyncRepository(),
     new PostgresCanonicalFactRepository(),
-    [connector, ironConnector],
+    [connector, ironConnector, nfcoreConnector],
   );
 }
 
@@ -51,4 +56,11 @@ export function buildIronCommercialConnector(input?: {
     input?.resolveSecret,
     input?.fetcher,
   );
+}
+
+export function buildNfcoreCognitiveConnector(input?: {
+  resolveSecret?: NfcoreSecretResolver;
+  fetcher?: typeof fetch;
+}) {
+  return new NfcoreCognitiveConnector(input?.resolveSecret, input?.fetcher);
 }

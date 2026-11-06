@@ -1877,3 +1877,19 @@ form.card>label{margin-top:2px}
     padding:7px 11px;
   }
 }
+
+/* NFCore / Command governance: semantics-only glass UI; no operational authority in CSS. */
+.nfcore-ops-audit-console{background:linear-gradient(130deg,rgba(2,8,23,.96),rgba(6,17,43,.94));border:1px solid rgba(129,150,185,.28);box-shadow:0 15px 45px rgba(0,0,0,.16);backdrop-filter:blur(14px);max-width:var(--content);margin:18px auto}
+.nfcore-ops-audit-console>p{color:var(--text-secondary);font-size:.78rem;margin-bottom:12px}
+.nfcore-ops-audit-log{border:1px solid rgba(95,121,159,.28);border-radius:12px;background:#020817;padding:14px;max-height:340px;overflow:auto;color:#cbd5e1;font:500 .74rem/1.7 ui-monospace,SFMono-Regular,Consolas,monospace}
+.nfcore-ops-audit-entry{display:flex;flex-wrap:wrap;column-gap:11px;row-gap:1px;padding:10px 0;border-bottom:1px solid rgba(92,113,151,.19);overflow-wrap:anywhere}
+.nfcore-ops-audit-entry:last-child{border-bottom:0}
+.nfcore-ops-audit-entry time{color:#86efac}
+.nfcore-ops-audit-entry [data-result="failed"],.nfcore-ops-audit-entry [data-result="denied"]{color:#fca5a5}
+.nfcore-ops-audit-entry [data-result="warning"],.nfcore-ops-audit-entry [data-result="unknown"]{color:#fcd34d}
+.nfcore-ops-audit-entry small{width:100%;color:#94a3b8}
+.nfcore-authority-legend{display:flex;gap:8px;flex-wrap:wrap;margin:9px 0 10px}
+.nfcore-authority-legend span{border:1px solid;border-radius:999px;padding:5px 9px;font-size:.68rem;font-weight:700}
+.nfcore-ai-label{border-color:#8b5cf6!important;color:#c4b5fd;background:rgba(109,40,217,.1)}
+.nfcore-deterministic-label{border-color:#64748b!important;color:#cbd5e1;background:rgba(51,65,85,.35)}
+@media(max-width:620px){.nfcore-ops-audit-console{padding:13px}.nfcore-ops-audit-log{font-size:.66rem;padding:10px}}

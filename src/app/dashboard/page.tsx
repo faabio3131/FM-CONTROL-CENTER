@@ -291,6 +291,33 @@ export default async function DashboardPage() {
         </section>
       ) : null}
 
+      {activityFeed ? (
+        <section className="panel nfcore-ops-audit-console" aria-labelledby="nfcore-ops-audit-title">
+          <div className="command-rail-heading">
+            <div>
+              <span className="eyebrow">Governança · leitura auditável</span>
+              <h2 id="nfcore-ops-audit-title">Console de auditoria</h2>
+            </div>
+            <Link href="/dashboard/activity">Histórico completo</Link>
+          </div>
+          <p>Até seis eventos recentes do ledger e das projeções autorizadas. Nenhum evento ou ator é fabricado.</p>
+          <div className="nfcore-ops-audit-log" role="log" aria-label="Eventos auditáveis recentes" aria-live="off">
+            {activityFeed.items.length ? activityFeed.items.map((event) => (
+              <div className="nfcore-ops-audit-entry" key={event.id}>
+                <time dateTime={event.occurredAt}>[{new Intl.DateTimeFormat("pt-BR", {
+                  dateStyle: "short", timeStyle: "medium", timeZone: "America/Sao_Paulo",
+                }).format(new Date(event.occurredAt))}]</time>
+                <span>[ATOR: {event.actorRef ?? "não informado"}]</span>
+                <span>[TENANT: {context.tenantId}]</span>
+                <span>[AÇÃO: {event.action ?? event.eventType}]</span>
+                <span data-result={event.result ?? "unknown"}>[STATUS: {event.result ?? "não informado"}]</span>
+                <small>Fonte: {event.sourceAuthority} · {event.correlationId ?? "sem correlação"}</small>
+              </div>
+            )) : <p>Nenhum evento auditável disponível no escopo autorizado.</p>}
+          </div>
+        </section>
+      ) : null}
+
       <section className="foundation-grid" aria-label="Controles da plataforma">
         <article><strong>Identidade</strong><span>Validada no servidor</span></article>
         <article><strong>Isolamento por organização</strong><span>Bloqueio por padrão</span></article>

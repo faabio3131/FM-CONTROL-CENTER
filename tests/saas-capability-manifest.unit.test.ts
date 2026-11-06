@@ -7,6 +7,7 @@ import {
 } from "@/application/integration/saas-adapter-profiles";
 import { KordenaCommercialConnector } from "@/infrastructure/integration/kordena-commercial-connector";
 import { IronCommercialConnector } from "@/infrastructure/integration/iron-commercial-connector";
+import { NfcoreCognitiveConnector } from "@/infrastructure/integration/nfcore-cognitive-connector";
 import type { Connector } from "@/domain/integration/contracts";
 
 const now = new Date("2026-10-20T14:00:00Z");
@@ -24,8 +25,8 @@ const manifest = (profile=SAAS_ADAPTER_PROFILES[0], caps:readonly string[] = [
 describe("C08 offline capability manifest precheck (not S2S auth)", () => {
   it("reconhece contratos locais de Kordena e IRON sem alegar E2E", () => {
     for (const [profile, connector] of [
-      [SAAS_ADAPTER_PROFILES[0],new KordenaCommercialConnector()],
-      [SAAS_ADAPTER_PROFILES[1],new IronCommercialConnector()],
+      [SAAS_ADAPTER_PROFILES.find(p => p.productSlug === "kordena")!,new KordenaCommercialConnector()],
+      [SAAS_ADAPTER_PROFILES.find(p => p.productSlug === "iron")!,new IronCommercialConnector()],
     ] as const) {
       const result=inspectSaasCapabilityManifest(manifest(profile),profile,connector,now);
       expect(result.schema_version).toBe("fmcc.saas-capabilities.v1");
@@ -34,8 +35,19 @@ describe("C08 offline capability manifest precheck (not S2S auth)", () => {
       expect(Object.keys(result)).not.toContain("authorized");
     }
   });
+  it("não trata telemetria NFCore como manifesto comercial de faturamento", () => {
+    const profile = SAAS_ADAPTER_PROFILES.find(p => p.productSlug === "nfcore")!;
+    const connector = new NfcoreCognitiveConnector();
+    expect(profile.authoritativeDomain).toBe("cognitive");
+    expect(connector.capabilities).toEqual(["cognitive.metrics.readonly"]);
+    expect(() => inspectSaasCapabilityManifest(
+      manifest(profile, ["cognitive.metrics.readonly"]), profile, connector, now,
+    )).toThrow("integration.manifest_capabilities_invalid");
+    // Commercial-specific manifests require commercial.snapshot + commercial.facts.
+    // NFCore cognitive-only adapter can never pretend to provide billing.
+  });
   it("nega identity/version drift e capacidades não suportadas", () => {
-    const profile=SAAS_ADAPTER_PROFILES[1],connector=new IronCommercialConnector();
+    const profile=SAAS_ADAPTER_PROFILES.find(p => p.productSlug === "iron")!,connector=new IronCommercialConnector();
     for(const bad of [
       {...manifest(profile),schema_version:"v99"},
       {...manifest(profile),product_slug:"kordena"},
