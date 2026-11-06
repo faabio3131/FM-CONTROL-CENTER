@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SaasAdapterProfile } from "@/application/integration/saas-adapter-profiles";
 import type { CommercialCoverageReport } from "@/application/integration/commercial-source-coverage";
+import type { NfcoreCognitiveCoverageReport } from "@/application/integration/nfcore-cognitive-coverage";
 
 type ProductOption = {
   id: string;
@@ -41,6 +42,8 @@ type SourceState = {
   sync?: string;
   coverage?: CommercialCoverageReport;
   coverageError?: string;
+  cognitiveCoverage?: NfcoreCognitiveCoverageReport;
+  cognitiveCoverageError?: string;
 };
 
 function rotuloSaude(status: string) {
@@ -188,6 +191,15 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
     }
   }
 
+  function closeCoverage(sourceId: string, kind: "commercial" | "cognitive") {
+    setStates(current => ({
+      ...current,
+      [sourceId]: kind === "commercial"
+        ? { ...current[sourceId], coverage: undefined, coverageError: undefined }
+        : { ...current[sourceId], cognitiveCoverage: undefined, cognitiveCoverageError: undefined },
+    }));
+  }
+
   async function commercialCoverage(sourceId: string) {
     setBusy(`coverage:${sourceId}`);
     setMessage(null);
@@ -223,6 +235,48 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
           ...current[sourceId],
           coverage: undefined,
           coverageError: "Falha ao consultar cobertura. Verifique a conexão autenticada.",
+        },
+      }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function cognitiveCoverage(sourceId: string) {
+    setBusy(`cognitive-coverage:${sourceId}`);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/sources/${sourceId}/cognitive-coverage`, {
+        cache: "no-store",
+      });
+      const body = await json(response);
+      if (!response.ok) {
+        setStates(current => ({
+          ...current,
+          [sourceId]: {
+            ...current[sourceId],
+            cognitiveCoverage: undefined,
+            cognitiveCoverageError: "Não foi possível consultar o NFCore. Verifique a conexão autenticada, o token de serviço e o endpoint cognitivo.",
+          },
+        }));
+        return;
+      }
+      const coverage = body.coverage as NfcoreCognitiveCoverageReport | undefined;
+      if (!coverage || coverage.source !== "nfcore-cognitive-metrics-v1" ||
+          !Array.isArray(coverage.metrics) || typeof coverage.aiEnabled !== "boolean") {
+        throw new Error("integration.nfcore_cognitive_coverage_invalid");
+      }
+      setStates(current => ({
+        ...current,
+        [sourceId]: { ...current[sourceId], cognitiveCoverage: coverage, cognitiveCoverageError: undefined },
+      }));
+    } catch {
+      setStates(current => ({
+        ...current,
+        [sourceId]: {
+          ...current[sourceId],
+          cognitiveCoverage: undefined,
+          cognitiveCoverageError: "Falha de consulta cognitiva. Não há métricas confirmadas; verifique a conexão do NFCore.",
         },
       }));
     } finally {
@@ -412,14 +466,65 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                       {busy === `coverage:${source.id}` ? "Consultando…" : "Ver cobertura comercial"}
                     </button>
                   ) : null}
+                  {canWrite && source.sourceType === "nfcore-cognitive-metrics-v1" ? (
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={busy === `cognitive-coverage:${source.id}`}
+                      onClick={() => void cognitiveCoverage(source.id)}
+                    >
+                      {busy === `cognitive-coverage:${source.id}` ? "Consultando…" : "Ver cobertura cognitiva"}
+                    </button>
+                  ) : null}
                 </div>
+                {states[source.id]?.cognitiveCoverageError ? (
+                  <small role="alert">{states[source.id]?.cognitiveCoverageError}</small>
+                ) : null}
+                {states[source.id]?.cognitiveCoverage ? (
+                  <div className="fmcc-source-coverage" role="region"
+                    aria-label={`Cobertura cognitiva de ${source.name}`}>
+                    <div className="fmcc-source-coverage-heading">
+                      <strong>Cobertura cognitiva — leitura atual</strong>
+                      <button type="button" className="fmcc-source-coverage-close"
+                        aria-label={`Fechar cobertura cognitiva de ${source.name}`}
+                        onClick={() => closeCoverage(source.id, "cognitive")}>
+                        Fechar ×
+                      </button>
+                    </div>
+                    <small>Consulta em {dataHora(states[source.id]?.cognitiveCoverage?.queriedAt)}.
+                      Contrato: {states[source.id]?.cognitiveCoverage?.contract}.</small>
+                    <small>IA externa habilitada: {states[source.id]?.cognitiveCoverage?.aiEnabled ? "Sim" : "Não"}.
+                      Contadores por processo desde {dataHora(states[source.id]?.cognitiveCoverage?.since)}.</small>
+                    <small>Último evento observado: {states[source.id]?.cognitiveCoverage?.lastObservedAt
+                      ? dataHora(states[source.id]?.cognitiveCoverage?.lastObservedAt ?? undefined)
+                      : "Nenhum evento informado"}.</small>
+                    <ul className="fmcc-source-coverage-list">
+                      {states[source.id]?.cognitiveCoverage?.metrics.map(metric => (
+                        <li key={metric.code}>
+                          <span>{metric.label}</span>
+                          <strong>{metric.value === null ? "Não informado" : metric.value.toLocaleString("pt-BR")}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    <small>São contadores do processo atual; reinícios podem zerar o período.
+                      Custos ausentes não significam custo zero. Não representam pagamentos, faturamento,
+                      quotas duráveis nem certificação comercial E2E.</small>
+                  </div>
+                ) : null}
                 {states[source.id]?.coverageError ? (
                   <small role="alert">{states[source.id]?.coverageError}</small>
                 ) : null}
                 {states[source.id]?.coverage ? (
                   <div className="fmcc-source-coverage" role="region"
                     aria-label={`Cobertura comercial de ${source.name}`}>
-                    <strong>Cobertura do contrato — leitura atual</strong>
+                    <div className="fmcc-source-coverage-heading">
+                      <strong>Cobertura do contrato — leitura atual</strong>
+                      <button type="button" className="fmcc-source-coverage-close"
+                        aria-label={`Fechar cobertura comercial de ${source.name}`}
+                        onClick={() => closeCoverage(source.id, "commercial")}>
+                        Fechar ×
+                      </button>
+                    </div>
                     <small>Retrato de {dataHora(states[source.id]?.coverage?.asOf)}.
                       A quantidade de fatos não mede a completude comercial.</small>
                     <small>Fatos no snapshot: {states[source.id]?.coverage?.snapshotFactCount}.
