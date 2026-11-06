@@ -1893,3 +1893,17 @@ form.card>label{margin-top:2px}
 .nfcore-ai-label{border-color:#8b5cf6!important;color:#c4b5fd;background:rgba(109,40,217,.1)}
 .nfcore-deterministic-label{border-color:#64748b!important;color:#cbd5e1;background:rgba(51,65,85,.35)}
 @media(max-width:620px){.nfcore-ops-audit-console{padding:13px}.nfcore-ops-audit-log{font-size:.66rem;padding:10px}}
+
+/* SaaS universal v1 — visualização com estados semânticos de consumo declarado. */
+.fmcc-universal-usage-metric{display:flex;gap:6px;flex-direction:column;
+  padding:9px 11px;margin-top:9px;border-radius:10px;
+  border:1px solid rgba(125,143,172,.23);background:rgba(6,17,43,.55)}
+.fmcc-universal-usage-metric span{font-size:.76rem;color:var(--text-secondary)}
+.fmcc-universal-usage-metric strong{font-size:.82rem;overflow-wrap:anywhere;color:#cbd5e1}
+.fmcc-universal-usage-metric[data-severity="normal"] strong{color:#86efac}
+.fmcc-universal-usage-metric[data-severity="warning"] strong{color:#fcd34d}
+.fmcc-universal-usage-metric[data-severity="critical"] strong{color:#fca5a5}
+.fmcc-universal-usage-metric progress{height:8px;width:100%;accent-color:#64748b}
+.fmcc-universal-usage-metric[data-severity="normal"] progress{accent-color:#22c55e}
+.fmcc-universal-usage-metric[data-severity="warning"] progress{accent-color:#f59e0b}
+.fmcc-universal-usage-metric[data-severity="critical"] progress{accent-color:#ef4444}
