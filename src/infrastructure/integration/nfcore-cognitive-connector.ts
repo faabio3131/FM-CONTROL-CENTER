@@ -156,8 +156,31 @@ export class NfcoreCognitiveConnector implements Connector {
       throw new RetryableConnectorError("nfcore.provider_unavailable");
     }
     if (!response.ok) throw new NfcoreConnectorError("nfcore.remote_denied");
-    const body = await response.text();
-    if (body.length > 65536) throw new NfcoreConnectorError("nfcore.response_too_large");
+    const declaredLength = response.headers.get("content-length");
+    if (declaredLength && (
+      !/^(0|[1-9]\\d*)$/.test(declaredLength) || Number(declaredLength) > 65536
+    )) throw new NfcoreConnectorError("nfcore.response_too_large");
+    if (!response.body) throw new NfcoreConnectorError("nfcore.response_invalid");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let size = 0;
+    let body = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 65536) throw new NfcoreConnectorError("nfcore.response_too_large");
+        body += decoder.decode(value, { stream: true });
+      }
+      body += decoder.decode();
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      if (error instanceof NfcoreConnectorError) throw error;
+      throw new NfcoreConnectorError("nfcore.response_invalid");
+    } finally {
+      reader.releaseLock();
+    }
     try { return JSON.parse(body) as unknown; }
     catch { throw new NfcoreConnectorError("nfcore.response_invalid"); }
   }
