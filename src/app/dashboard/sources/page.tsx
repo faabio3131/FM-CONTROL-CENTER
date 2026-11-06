@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { buildC08IntegrationReadiness, type C08EvidenceState, type C08NextAction } from "@/application/integration/c08-product-readiness";
 import { assertC08SnapshotCapacity, readC08OperationalStates } from "@/application/integration/c08-operational-snapshot";
-import { SAAS_ADAPTER_PROFILES, profileForProductSlug } from "@/application/integration/saas-adapter-profiles";
+import { SAAS_ADAPTER_PROFILES, availableSaasProfiles, profileForProductSlug } from "@/application/integration/saas-adapter-profiles";
 import { buildSaasAdapterPreflight, type SaasAdapterPreflightStatus } from "@/application/integration/saas-adapter-preflight";
 import { SourceRegistryService } from "@/application/integration/source-registry-service";
 import { ProductRegistryService } from "@/application/products/product-registry-service";
@@ -112,7 +112,10 @@ export default async function SourcesPage() {
   });
 
   const readiness = buildC08IntegrationReadiness(context.tenantId, products, sources, operationalStates);
-  const admission = buildSaasAdapterPreflight(context.tenantId, products, sources);
+  const supportedProfiles = availableSaasProfiles(products);
+  const admission = buildSaasAdapterPreflight(
+    context.tenantId, products, sources, supportedProfiles,
+  );
 
   const activeProducts = products
     .filter((product) => product.status === "active")
@@ -252,19 +255,24 @@ export default async function SourcesPage() {
           <p>Adaptador implementado não significa fonte conectada, testes E2E aprovados ou homologação.</p>
         </div>
         <p>Adaptadores disponíveis neste build: {SAAS_ADAPTER_PROFILES.map(profile => profile.title.replace("Conectar ", "")).join(", ")}.</p>
+        <p>Contrato universal de consumo v1 disponível para todos os produtos ativos
+          ({activeProducts.length}), além dos conectores específicos já existentes.
+          A fonte só fica operacional após o SaaS implementar o endpoint, ter seu
+          token por produto configurado e passar no teste de conexão autenticada.</p>
         {activeProducts.filter(product => !profileForProductSlug(product.slug)).length > 0 ? (
           <p role="status">
-            SaaS sem adaptador neste build: {activeProducts
+            SaaS sem adaptador específico: {activeProducts
               .filter(product => !profileForProductSlug(product.slug))
-              .map(product => product.name).join(", ")}. A conexão exige contrato e adaptador aprovados;
-            não serão criados endpoints ou credenciais automaticamente.
+              .map(product => product.name).join(", ")}. Já podem ser cadastrados
+            pelo contrato universal de consumo, sem reprogramar o Command.
+            Cobrança e licenças permanecem sujeitas a contratos separados.
           </p>
         ) : null}
       </section>
       <SourceControlPanel
         products={activeProducts}
         sources={safeSources}
-        supportedAdapters={SAAS_ADAPTER_PROFILES}
+        supportedAdapters={supportedProfiles}
         canWrite={roleHasPermission(context.role, "source:write")}
       />
     </main>
