@@ -129,7 +129,7 @@ export class NfcoreCognitiveConnector implements Connector {
     if (!approvedTenant || approvedTenant !== context.tenantId ||
         source.tenantId !== context.tenantId || !source.productId ||
         source.sourceType !== this.sourceType || source.secretRef !== NFCORE_COGNITIVE_SECRET_REF ||
-        source.authoritativeDomain !== "commercial" || source.syncMode !== "pull" ||
+        source.authoritativeDomain !== "cognitive" || source.syncMode !== "pull" ||
         source.mappingVersion !== this.sourceType) {
       throw new NfcoreConnectorError("nfcore.scope_denied");
     }
