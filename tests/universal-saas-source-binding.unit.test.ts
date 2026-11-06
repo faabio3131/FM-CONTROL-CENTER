@@ -57,6 +57,18 @@ describe("C08 registration for arbitrary future SaaS", () => {
     await expect(r.service.register(context,legitimate)).rejects.toThrow("integration.product_scope_invalid");
     expect(r.create).not.toHaveBeenCalled();
   });
+  it("rejects HTTP, embedded credentials and path-based origin before persistence", async () => {
+    const r=setup();
+    for (const baseUrl of [
+      "http://api.nfcore.com.br", "https://admin:secret@api.nfcore.com.br",
+      "https://api.nfcore.com.br/private", "https://api.nfcore.com.br/?token=abc",
+    ]) {
+      await expect(r.service.register(context,{
+        ...legitimate, config: { ...legitimate.config, baseUrl },
+      })).rejects.toThrow("integration.product_source_binding_invalid");
+    }
+    expect(r.create).not.toHaveBeenCalled();
+  });
   it("viewer cannot register even with correct source and cannot invoke product lookups", async () => {
     const r=setup();
     await expect(r.service.register({...context,role:"viewer"},legitimate)).rejects.toThrow();
