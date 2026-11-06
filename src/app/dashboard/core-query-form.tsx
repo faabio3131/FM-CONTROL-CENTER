@@ -20,6 +20,8 @@ type CoreQueryFormProps = {
     readonly label: string;
     readonly promptPrefix: string;
   };
+  /** Dashboard-only premium presentation: no decorative artwork. */
+  readonly homePresentation?: boolean;
 };
 
 interface SpeechRecognitionAlternativeLike {
@@ -95,6 +97,7 @@ function voiceErrorMessage(code?: string): string {
 export function CoreQueryForm({
   productContext,
   domainContext,
+  homePresentation = false,
 }: CoreQueryFormProps = {}) {
   const [state, setState] = useState<State>({ status: "idle" });
   const [question, setQuestion] = useState("");
@@ -242,7 +245,10 @@ export function CoreQueryForm({
   }
 
   return (
-    <section className="core-panel" aria-labelledby="core-title">
+    <section
+      className={homePresentation ? "core-panel core-panel-home-clean" : "core-panel"}
+      aria-labelledby="core-title"
+    >
       <div className="core-panel-head">
         <div className="core-panel-copy">
           <span className="eyebrow">INTELIGÊNCIA COGNITIVA VERTICAL</span>
@@ -264,17 +270,19 @@ export function CoreQueryForm({
             </p>
           ) : null}
         </div>
-        <div className="core-orb-stage core-approved-artwork-stage" aria-label="FM Command Core">
-          <Image
-            className="command-approved-artwork core-approved-artwork"
-            src={APPROVED_COMMAND_ARTWORK_SRC}
-            alt="FM Command"
-            width={650}
-            height={650}
-            priority
-            unoptimized
-          />
-        </div>
+        {!homePresentation ? (
+          <div className="core-orb-stage core-approved-artwork-stage" aria-label="FM Command Core">
+            <Image
+              className="command-approved-artwork core-approved-artwork"
+              src={APPROVED_COMMAND_ARTWORK_SRC}
+              alt="FM Command"
+              width={650}
+              height={650}
+              priority
+              unoptimized
+            />
+          </div>
+        ) : null}
       </div>
 
       <form onSubmit={submit} className="core-form">
