@@ -15,6 +15,9 @@ import { PostgresMetricStore } from "@/infrastructure/metrics/postgres-metric-st
 import { PostgresOperationalHealthRepository } from "@/infrastructure/operations/postgres-health-repository";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import { rotuloAtualidade, rotuloAutoridadeFonte, rotuloMetrica, rotuloQualidade, rotuloSeveridadeAlerta, rotuloStatusDefinicao, rotuloStatusProduto } from "@/presentation/pt-br";
+import { BarChart } from "./charts/bar-chart";
+import { LiveRefresh } from "./live/live-refresh";
+import { countBars } from "@/domain/metrics/dashboard-visuals";
 import { CoreQueryForm } from "./core-query-form";
 import { ProductComparisonForm } from "./product-comparison-form";
 import { ProductCreateForm } from "./product-create-form";
@@ -76,6 +79,17 @@ export default async function DashboardPage() {
   const governedAvailable = metrics.filter(({ value }) => value?.value !== null && value).length;
   const activeProducts = products.filter((product) => product.status === "active").length;
   const activeAlerts = alertOverview.occurrences.filter((occurrence) => occurrence.status === "active").length;
+  const healthBars = countBars([
+    { id: "operational", label: "Operacionais", count: operationalHealth.counts.operational },
+    { id: "degraded", label: "Degradados", count: operationalHealth.counts.degraded },
+    { id: "unavailable", label: "Indisponíveis", count: operationalHealth.counts.unavailable },
+    { id: "unknown", label: "Sem observação válida", count: operationalHealth.counts.unknown },
+  ], operationalHealth.services.length > 0);
+  const alertBars = countBars([
+    { id: "critical", label: "Críticos", count: alertOverview.occurrences.filter((x) => x.status === "active" && x.severity === "critical").length },
+    { id: "warning", label: "Atenção", count: alertOverview.occurrences.filter((x) => x.status === "active" && x.severity === "warning").length },
+    { id: "info", label: "Informativos", count: alertOverview.occurrences.filter((x) => x.status === "active" && x.severity === "info").length },
+  ], true);
 
   return (
     <main className="dashboard-shell dashboard-home-compact">
@@ -85,7 +99,7 @@ export default async function DashboardPage() {
           <h1>FM Command</h1>
           <p>Visão executiva governada de {identity?.organizationName ?? "sua organização"}.</p>
         </div>
-        <span className="dashboard-header-context">{identity?.organizationName ?? "Organização ativa"}</span>
+        <div className="fmcc-v2-header-tools"><LiveRefresh /><span className="dashboard-header-context">{identity?.organizationName ?? "Organização ativa"}</span></div>
       </header>
 
       <section className="command-overview" aria-label="Resumo executivo">
@@ -109,6 +123,25 @@ export default async function DashboardPage() {
           <strong>Governado</strong>
           <small><a href="#core-title">Consultar com evidência</a></small>
         </article>
+      </section>
+
+      <section className="executive-section fmcc-v2-visual-section" aria-labelledby="fmcc-v2-visual-title">
+        <div className="section-heading">
+          <div><span className="eyebrow">Portado do Command V2 · Métricas governadas</span><h2 id="fmcc-v2-visual-title">Panorama visual</h2></div>
+          <p>Gráficos construídos somente com leituras autorizadas. Ausência de fonte nunca vira zero.</p>
+        </div>
+        <div className="fmcc-v2-visual-grid">
+          <article className="panel fmcc-v2-visual-panel">
+            <h3>Saúde dos serviços</h3>
+            <p>Estado mais recente de serviços monitorados. Sem fonte registrada, os valores ficam indisponíveis.</p>
+            <BarChart items={healthBars} ariaLabel="Serviços por estado operacional" unavailableText="Indisponível" />
+          </article>
+          <article className="panel fmcc-v2-visual-panel">
+            <h3>Alertas ativos por severidade</h3>
+            <p>Recorte das até 50 ocorrências mais recentes retornadas pelo serviço de alertas.</p>
+            <BarChart items={alertBars} ariaLabel="Alertas ativos por severidade nas últimas 50 ocorrências" unavailableText="Indisponível" />
+          </article>
+        </div>
       </section>
 
       <section className="command-home-stage" aria-label="Command Core e operação">
