@@ -252,13 +252,16 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
         return;
       }
       const status = typeof body.status === "string" ? body.status : "completed";
-      const ingested = typeof body.ingested === "number" ? body.ingested : 0;
+      const processed = typeof body.ingested === "number" ? body.ingested : null;
+      const inserted = typeof body.inserted === "number" ? body.inserted : null;
       const label = status === "duplicate"
         ? "Sincronização já processada para esta chave."
         : status === "in_progress"
           ? "Sincronização já está em andamento."
-          : `Sincronização concluída: ${ingested} fato(s) recebido(s) para processamento. ` +
-            "Fatos repetidos podem já existir no banco; essa contagem não indica quantidade de funcionalidades.";
+          : `Sincronização concluída: ${processed ?? "não informado"} fato(s) processado(s).` +
+            (inserted === null ? " Novos registros no banco: não verificados."
+              : ` Novos registros gravados: ${inserted}.`) +
+            " Essa contagem não corresponde ao número de funcionalidades integradas.";
       setStates((current) => ({
         ...current,
         [sourceId]: { ...current[sourceId], sync: label },
