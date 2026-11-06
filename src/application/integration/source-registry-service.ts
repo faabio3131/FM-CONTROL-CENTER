@@ -59,6 +59,19 @@ export class SourceRegistryService {
         ? universalSaasProfileForProduct(product.slug)
         : fixedBinding;
       if (universal && !binding) throw new InvalidProductSourceBindingError();
+      if (universal) {
+        const origin = input.config?.baseUrl;
+        if (typeof origin !== "string" || origin.length > 512) {
+          throw new InvalidProductSourceBindingError();
+        }
+        let parsed: URL;
+        try { parsed = new URL(origin); }
+        catch { throw new InvalidProductSourceBindingError(); }
+        if (parsed.protocol !== "https:" || parsed.username || parsed.password ||
+          parsed.pathname !== "/" || parsed.search || parsed.hash) {
+          throw new InvalidProductSourceBindingError();
+        }
+      }
       if (
         binding &&
         (product.slug !== binding.productSlug ||
