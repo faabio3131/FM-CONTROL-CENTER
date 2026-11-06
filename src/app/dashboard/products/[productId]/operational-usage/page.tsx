@@ -49,6 +49,8 @@ export default async function OperationalUsagePage({
     if (error instanceof ProductNotFoundError) notFound();
     throw error;
   }
+  // Defensive scope check even if the product repository is compromised.
+  if (product.tenantId !== context.tenantId) notFound();
   const profile = universalSaasProfileForProduct(product.slug);
   const allSources = await new SourceRegistryService(new PostgresSourceRepository(), products).list(context);
   const bound = profile ? allSources.filter(source =>
