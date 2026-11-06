@@ -20,6 +20,7 @@ export function LiveRefresh() {
     let stopped = false;
     let running = false;
     let failures = 0;
+    let denied = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let activeRequest: AbortController | null = null;
     const schedule = () => {
@@ -36,6 +37,7 @@ export function LiveRefresh() {
         });
         if (stopped) return;
         if (response.status === 401 || response.status === 403) {
+          denied = true;
           setState("paused");
           router.refresh();
           return;
@@ -58,7 +60,7 @@ export function LiveRefresh() {
       } finally {
         running = false;
         activeRequest = null;
-        if (!stopped && document.visibilityState === "visible") schedule();
+        if (!stopped && !denied && document.visibilityState === "visible") schedule();
       }
     }
     function onVisibility() {
