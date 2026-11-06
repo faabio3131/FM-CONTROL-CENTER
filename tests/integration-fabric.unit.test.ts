@@ -61,6 +61,38 @@ describe("F07 integration fabric", () => {
     expect(facts).toHaveLength(1);
   });
 
+  it("distingue fatos recebidos de inserts novos e reconhece deduplicação", async () => {
+    const connector: Connector = {
+      sourceType: "fixture", capabilities: ["billing.read"],
+      async health() { return "healthy"; },
+      async pull() {
+        return { facts: [
+          { externalId: "f1", factType: "billing.invoice", payload: {}, sourceTimestamp: new Date("2026-11-06T10:00:00Z") },
+          { externalId: "f2", factType: "billing.invoice", payload: {}, sourceTimestamp: new Date("2026-11-06T10:00:00Z") },
+        ] };
+      },
+    };
+    let attempts = 0;
+    const runtime = new ConnectorRuntime(
+      sourceRepo(source),
+      {
+        async begin() { return { id: "execution-insert", state: "started" as const }; },
+        async complete() {},
+        async fail() {},
+      },
+      { async ingest() { attempts++; return attempts === 1 ? 1 : 0; } },
+      [connector], 1000, 1, 0,
+    );
+    const result = await runtime.syncPull(context, { sourceId: "source-1", idempotencyKey: "unique" });
+    expect(result).toMatchObject({ status: "completed", ingested: 2, inserted: 1 });
+  });
+
+  it("não inventa zero inserts quando repositório não devolve contagem", async () => {
+    const { runtime } = runtimeFor();
+    const result = await runtime.syncPull(context, { sourceId: "source-1", idempotencyKey: "idem-no-insert-count" });
+    expect(result).toMatchObject({ ingested: 1, inserted: null });
+  });
+
   it("falha fechado quando a source não pertence ao tenant", async () => {
     const { runtime } = runtimeFor(null);
     await expect(runtime.syncPull(context, { sourceId: "other", idempotencyKey: "idem-x" }))

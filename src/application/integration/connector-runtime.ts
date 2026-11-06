@@ -194,8 +194,10 @@ export class ConnectorRuntime {
         context,
         input.cursor,
       );
+      let inserted = 0;
+      let insertedKnown = true;
       for (const fact of result.facts) {
-        await this.facts.ingest({
+        const insertCount = await this.facts.ingest({
           tenantId: context.tenantId,
           productId: source.productId,
           sourceId: source.id,
@@ -203,6 +205,12 @@ export class ConnectorRuntime {
           fact,
           correlationId: context.correlationId,
         });
+        if (insertCount === undefined) insertedKnown = false;
+        else if (Number.isSafeInteger(insertCount) && insertCount >= 0 && insertCount <= 1) {
+          inserted += insertCount;
+        } else {
+          throw new Error("integration.canonical_fact_insert_count_invalid");
+        }
       }
       await this.syncs.complete({
         id: executionId,
@@ -215,12 +223,14 @@ export class ConnectorRuntime {
         executionId,
         correlationId: context.correlationId,
         ingested: result.facts.length,
+        inserted: insertedKnown ? inserted : null,
         rateLimitRemaining: result.rateLimitRemaining,
       });
       return {
         status: "completed" as const,
         executionId,
         ingested: result.facts.length,
+        inserted: insertedKnown ? inserted : null,
         nextCursor: result.nextCursor,
         rateLimitRemaining: result.rateLimitRemaining,
       };
