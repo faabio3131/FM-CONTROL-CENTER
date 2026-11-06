@@ -62,6 +62,18 @@ describe("NFCore C08 cognitive coverage, no commercial fabrication", () => {
     expect(text).toContain("buildNfcoreCognitiveConnector().pull");
     expect(text).toContain('"cache-control": "no-store');
   });
+  it("allows each source coverage panel to close independently and reopen on demand", () => {
+    const ui=readFileSync(resolve(process.cwd(),"src/app/dashboard/sources/source-control-panel.tsx"),"utf8");
+    expect(ui).toContain('function closeCoverage(sourceId: string, kind: "commercial" | "cognitive")');
+    expect(ui).toContain('onClick={() => closeCoverage(source.id, "commercial")}');
+    expect(ui).toContain('onClick={() => closeCoverage(source.id, "cognitive")}');
+    expect(ui).toContain('aria-label={`Fechar cobertura comercial de ${source.name}`}');
+    expect(ui).toContain('aria-label={`Fechar cobertura cognitiva de ${source.name}`}');
+    expect(ui).toContain("coverage: undefined, coverageError: undefined");
+    expect(ui).toContain("cognitiveCoverage: undefined, cognitiveCoverageError: undefined");
+    expect(ui).toContain("Ver cobertura comercial");
+    expect(ui).toContain("Ver cobertura cognitiva");
+  });
   it("adds a separate NFCore control, preserving Kordena and IRON commercial coverage", () => {
     const ui=readFileSync(resolve(process.cwd(),"src/app/dashboard/sources/source-control-panel.tsx"),"utf8");
     expect(ui).toContain("Ver cobertura cognitiva");

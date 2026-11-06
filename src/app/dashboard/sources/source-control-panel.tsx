@@ -191,6 +191,15 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
     }
   }
 
+  function closeCoverage(sourceId: string, kind: "commercial" | "cognitive") {
+    setStates(current => ({
+      ...current,
+      [sourceId]: kind === "commercial"
+        ? { ...current[sourceId], coverage: undefined, coverageError: undefined }
+        : { ...current[sourceId], cognitiveCoverage: undefined, cognitiveCoverageError: undefined },
+    }));
+  }
+
   async function commercialCoverage(sourceId: string) {
     setBusy(`coverage:${sourceId}`);
     setMessage(null);
@@ -474,7 +483,14 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                 {states[source.id]?.cognitiveCoverage ? (
                   <div className="fmcc-source-coverage" role="region"
                     aria-label={`Cobertura cognitiva de ${source.name}`}>
-                    <strong>Cobertura cognitiva — leitura atual</strong>
+                    <div className="fmcc-source-coverage-heading">
+                      <strong>Cobertura cognitiva — leitura atual</strong>
+                      <button type="button" className="fmcc-source-coverage-close"
+                        aria-label={`Fechar cobertura cognitiva de ${source.name}`}
+                        onClick={() => closeCoverage(source.id, "cognitive")}>
+                        Fechar ×
+                      </button>
+                    </div>
                     <small>Consulta em {dataHora(states[source.id]?.cognitiveCoverage?.queriedAt)}.
                       Contrato: {states[source.id]?.cognitiveCoverage?.contract}.</small>
                     <small>IA externa habilitada: {states[source.id]?.cognitiveCoverage?.aiEnabled ? "Sim" : "Não"}.
@@ -501,7 +517,14 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                 {states[source.id]?.coverage ? (
                   <div className="fmcc-source-coverage" role="region"
                     aria-label={`Cobertura comercial de ${source.name}`}>
-                    <strong>Cobertura do contrato — leitura atual</strong>
+                    <div className="fmcc-source-coverage-heading">
+                      <strong>Cobertura do contrato — leitura atual</strong>
+                      <button type="button" className="fmcc-source-coverage-close"
+                        aria-label={`Fechar cobertura comercial de ${source.name}`}
+                        onClick={() => closeCoverage(source.id, "commercial")}>
+                        Fechar ×
+                      </button>
+                    </div>
                     <small>Retrato de {dataHora(states[source.id]?.coverage?.asOf)}.
                       A quantidade de fatos não mede a completude comercial.</small>
                     <small>Fatos no snapshot: {states[source.id]?.coverage?.snapshotFactCount}.

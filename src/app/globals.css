@@ -2035,3 +2035,28 @@ form.card>label{margin-top:2px}
  .fmcc-source-coverage{padding:12px}
  .fmcc-source-coverage-list li{flex-wrap:wrap;gap:3px}
 }
+
+/* C08: compact, accessible close control on each opened coverage panel. */
+.fmcc-source-coverage-heading{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.fmcc-source-coverage-heading > strong{font-size:.94rem;color:#fbbf71}
+.fmcc-source-coverage-close{
+  appearance:none;
+  cursor:pointer;
+  border:1px solid rgba(251,191,113,.40);
+  background:rgba(15,23,42,.68);
+  color:#fcd9a3;
+  border-radius:8px;
+  padding:7px 11px;
+  min-height:36px;
+  font:inherit;
+  font-size:.78rem;
+  font-weight:700;
+}
+.fmcc-source-coverage-close:hover{background:rgba(251,191,113,.13)}
+.fmcc-source-coverage-close:focus-visible{outline:2px solid #fbbf71;outline-offset:3px}
