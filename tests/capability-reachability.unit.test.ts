@@ -54,6 +54,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
       "/dashboard/products/[productId]/compensation-intents",
       "/dashboard/products/[productId]/receivables",
       "/dashboard/products/[productId]/usage",
+      "/dashboard/products/[productId]/operational-usage",
       "/dashboard/subscriptions/[subscriptionId]",
       "/dashboard/billing/operations",
       "/dashboard/billing/lifecycle-reviews",
@@ -83,6 +84,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     expect(product).toContain("/dashboard/products/${productId}/assistant-plans");
     expect(product).toContain("/dashboard/products/${productId}/receivables");
     expect(product).toContain("/dashboard/products/${productId}/usage");
+    expect(product).toContain("/dashboard/products/${productId}/operational-usage");
     expect(subscriptions).toContain("/dashboard/subscriptions/${record.subscriptionId}");
     expect(operations).toContain("/dashboard/billing/operations");
     expect(operations).toContain("/dashboard/billing/lifecycle-reviews");
@@ -98,6 +100,7 @@ describe("FM Command capability reachability — zero órfãos", () => {
     const billing = source("src/app/dashboard/products/[productId]/billing/page.tsx");
     const receivables = source("src/app/dashboard/products/[productId]/receivables/page.tsx");
     const ironUsage = source("src/app/dashboard/products/[productId]/usage/page.tsx");
+    const universalUsage = source("src/app/dashboard/products/[productId]/operational-usage/page.tsx");
     const sources = source("src/app/dashboard/sources/page.tsx");
     const search = source("src/app/dashboard/search/page.tsx");
     const notifications = source("src/app/dashboard/notifications/page.tsx");
@@ -108,6 +111,10 @@ describe("FM Command capability reachability — zero órfãos", () => {
     expect(receivables).toContain('roleHasPermission(context.role, "receivable:read")');
     expect(ironUsage).toContain('roleHasPermission(context.role, "billing:read")');
     expect(ironUsage).toContain("product.slug !== FMCC_IRON_PRODUCT_SLUG");
+    expect(universalUsage).toContain('roleHasPermission(context.role, "metric:read")');
+    expect(universalUsage).toContain('roleHasPermission(context.role, "source:read")');
+    expect(universalUsage).toContain("eq(canonicalFacts.tenantId, context.tenantId)");
+    expect(universalUsage).toContain("eq(canonicalFacts.productId, product.id)");
     expect(sources).toContain('roleHasPermission(context.role, "source:read")');
     expect(search).toContain('roleHasPermission(context.role, "search:use")');
     expect(notifications).toContain('roleHasPermission(context.role, "notification:use")');
