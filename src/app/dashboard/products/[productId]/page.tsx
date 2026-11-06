@@ -121,6 +121,13 @@ export default async function ProductPage({
               Billing
             </Link>
           ) : null}
+          {(context.role === "owner" || context.role === "admin") &&
+          roleHasPermission(context.role, "source:read") &&
+          roleHasPermission(context.role, "metric:read") ? (
+            <Link className="button" href={`/dashboard/products/${productId}/operational-usage`}>
+              Consumo operacional SaaS
+            </Link>
+          ) : null}
           {cockpit.product.slug === FMCC_IRON_PRODUCT_SLUG &&
           roleHasPermission(context.role, "billing:read") &&
           (context.role === "owner" || context.role === "admin") ? (
