@@ -7,6 +7,7 @@ import {
 } from "@/application/integration/saas-adapter-profiles";
 import { KordenaCommercialConnector } from "@/infrastructure/integration/kordena-commercial-connector";
 import { IronCommercialConnector } from "@/infrastructure/integration/iron-commercial-connector";
+import { NfcoreCognitiveConnector } from "@/infrastructure/integration/nfcore-cognitive-connector";
 import type { Connector } from "@/domain/integration/contracts";
 
 const now = new Date("2026-10-20T14:00:00Z");
@@ -33,6 +34,16 @@ describe("C08 offline capability manifest precheck (not S2S auth)", () => {
       expect(Object.keys(result)).not.toContain("tenant_id");
       expect(Object.keys(result)).not.toContain("authorized");
     }
+  });
+  it("valida manifesto de telemetria NFCore com contrato próprio, sem alegar E2E", () => {
+    const profile = SAAS_ADAPTER_PROFILES.find(p => p.productSlug === "nfcore");
+    expect(profile).toBeDefined();
+    const connector = new NfcoreCognitiveConnector();
+    const payload = manifest(profile!, ["cognitive.metrics.readonly"]);
+    const result = inspectSaasCapabilityManifest(payload, profile!, connector, now);
+    expect(result.capabilities).toEqual(["cognitive.metrics.readonly"]);
+    expect(result.product_slug).toBe("nfcore");
+    expect(Object.keys(result)).not.toContain("authorized");
   });
   it("nega identity/version drift e capacidades não suportadas", () => {
     const profile=SAAS_ADAPTER_PROFILES[1],connector=new IronCommercialConnector();
