@@ -141,17 +141,30 @@ export class NfcoreCognitiveConnector implements Connector {
     if (!secret || secret.length < 32) throw new NfcoreConnectorError("nfcore.secret_unavailable");
     const url = sourceUrl(source, this.allowedOrigins());
     const abort = new AbortController();
-    const t = setTimeout(() => abort.abort(), context.timeoutMs);
-    let response: Response;
+    // The SAME bounded deadline covers headers AND every body chunk.
+    // Race the deadline explicitly: a custom/faulty fetcher may ignore AbortSignal.
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        abort.abort();
+        reject(new RetryableConnectorError("nfcore.transport_timeout"));
+      }, context.timeoutMs);
+    });
     try {
-      response = await this.fetcher(url, {
-        method: "GET", redirect: "error", cache: "no-store",
-        headers: { authorization: "Bearer " + secret, "x-correlation-id": context.correlationId, accept: "application/json" },
-        signal: abort.signal,
-      });
-    } catch {
-      throw new RetryableConnectorError("nfcore.transport_unavailable");
-    } finally { clearTimeout(t); }
+      let response: Response;
+      try {
+        response = await Promise.race([
+          this.fetcher(url, {
+            method: "GET", redirect: "error", cache: "no-store",
+            headers: { authorization: "Bearer " + secret, "x-correlation-id": context.correlationId, accept: "application/json" },
+            signal: abort.signal,
+          }),
+          deadline,
+        ]);
+      } catch (error) {
+        if (error instanceof RetryableConnectorError) throw error;
+        throw new RetryableConnectorError("nfcore.transport_unavailable");
+      }
     if (response.status === 429 || response.status >= 500) {
       throw new RetryableConnectorError("nfcore.provider_unavailable");
     }
@@ -167,7 +180,7 @@ export class NfcoreCognitiveConnector implements Connector {
     let body = "";
     try {
       while (true) {
-        const { done, value } = await reader.read();
+        const { done, value } = await Promise.race([reader.read(), deadline]);
         if (done) break;
         size += value.byteLength;
         if (size > 65536) throw new NfcoreConnectorError("nfcore.response_too_large");
@@ -175,14 +188,20 @@ export class NfcoreCognitiveConnector implements Connector {
       }
       body += decoder.decode();
     } catch (error) {
-      await reader.cancel().catch(() => {});
-      if (error instanceof NfcoreConnectorError) throw error;
+      // Do not await cancellation: a hostile source may never resolve cancel().
+      void reader.cancel().catch(() => {});
+      if (error instanceof NfcoreConnectorError || error instanceof RetryableConnectorError) {
+        throw error;
+      }
       throw new NfcoreConnectorError("nfcore.response_invalid");
     } finally {
       reader.releaseLock();
     }
     try { return JSON.parse(body) as unknown; }
     catch { throw new NfcoreConnectorError("nfcore.response_invalid"); }
+    } finally {
+      clearTimeout(timeout);
+    }
   }
   async health(context: ConnectorContext, source: SourceDefinition): Promise<"healthy" | "degraded" | "unavailable"> {
     try {
