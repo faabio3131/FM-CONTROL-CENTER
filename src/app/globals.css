@@ -2007,3 +2007,31 @@ form.card>label{margin-top:2px}
   .core-panel-home-clean .nfcore-authority-legend span{font-size:.66rem}
   .core-panel-home-clean .core-form{padding-top:16px}
 }
+
+
+/* FMCC C08: source coverage is distinct from snapshot fact count and billing. */
+.fmcc-source-coverage{
+  margin-top:14px;
+  padding:15px;
+  display:grid;
+  gap:8px;
+  background:linear-gradient(150deg,rgba(6,17,43,.80),rgba(2,8,23,.85));
+  border:1px solid rgba(177,127,56,.35);
+  border-radius:12px;
+  min-width:0;
+}
+.fmcc-source-coverage > strong{font-size:.94rem;color:#fbbf71}
+.fmcc-source-coverage small{color:#bac6d8;font-size:.76rem;line-height:1.55;overflow-wrap:anywhere}
+.fmcc-source-coverage details{margin:4px 0}
+.fmcc-source-coverage summary{cursor:pointer;color:#e5e7eb;font-size:.82rem}
+.fmcc-source-coverage-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:0}
+.fmcc-source-coverage-list li{
+ display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+ padding:8px 0;border-bottom:1px solid rgba(148,163,184,.14);font-size:.78rem;
+}
+.fmcc-source-coverage-list li span{color:#cbd5e1}
+.fmcc-source-coverage-list li strong{color:#fcd34d;font-size:.78rem;text-align:right}
+@media(max-width:620px){
+ .fmcc-source-coverage{padding:12px}
+ .fmcc-source-coverage-list li{flex-wrap:wrap;gap:3px}
+}
