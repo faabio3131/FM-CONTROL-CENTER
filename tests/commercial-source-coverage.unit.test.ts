@@ -107,7 +107,8 @@ describe("C08 commercial coverage — truthful facts vs business collections",()
   it("UI no longer calls attempted facts inserted records or certified features",()=>{
     const ui=readFileSync(resolve(process.cwd(),"src/app/dashboard/sources/source-control-panel.tsx"),"utf8");
     expect(ui).toContain("Ver cobertura comercial");
-    expect(ui).toContain("fato(s) recebido(s) para processamento");
+    expect(ui).toContain("fato(s) processado(s)");
+    expect(ui).toContain("Novos registros gravados:");
     expect(ui).toContain("Os conjuntos abaixo são lidos diretamente do SaaS");
     expect(ui).not.toContain("fato(s) canônico(s) ingerido(s)");
   });
