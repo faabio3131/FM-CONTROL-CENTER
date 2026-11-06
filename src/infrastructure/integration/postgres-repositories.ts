@@ -362,7 +362,7 @@ export class PostgresCanonicalFactRepository
     };
     correlationId: string;
   }) {
-    await db
+    const inserted = await db
       .insert(canonicalFacts)
       .values({
         tenantId: input.tenantId,
@@ -377,6 +377,8 @@ export class PostgresCanonicalFactRepository
           correlationId: input.correlationId,
         },
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ id: canonicalFacts.id });
+    return inserted.length;
   }
 }
