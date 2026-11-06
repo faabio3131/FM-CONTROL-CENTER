@@ -480,7 +480,7 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                     <small>IA externa habilitada: {states[source.id]?.cognitiveCoverage?.aiEnabled ? "Sim" : "Não"}.
                       Contadores por processo desde {dataHora(states[source.id]?.cognitiveCoverage?.since)}.</small>
                     <small>Último evento observado: {states[source.id]?.cognitiveCoverage?.lastObservedAt
-                      ? dataHora(states[source.id]?.cognitiveCoverage?.lastObservedAt)
+                      ? dataHora(states[source.id]?.cognitiveCoverage?.lastObservedAt ?? undefined)
                       : "Nenhum evento informado"}.</small>
                     <ul className="fmcc-source-coverage-list">
                       {states[source.id]?.cognitiveCoverage?.metrics.map(metric => (
