@@ -61,12 +61,17 @@ export function buildSaasAdapterPreflight(
         productId: product.id, productSlug: product.slug, sourceId: null,
         status: "source_missing", authenticatedSaasE2eCertified: false,
       }];
-      return matches.map(source => ({
-        productId: product.id, productSlug: product.slug, sourceId: source.id,
-        status: sourceMatchesAdapter(source, profile)
-          ? "local_contract_ready" as const : "binding_mismatch" as const,
-        authenticatedSaasE2eCertified: false as const,
-      }));
+      return matches.map(source => {
+        const sourceProfile = profiles.find(p =>
+          p.productSlug === product.slug && p.sourceType === source.sourceType
+        );
+        return {
+          productId: product.id, productSlug: product.slug, sourceId: source.id,
+          status: sourceProfile && sourceMatchesAdapter(source, sourceProfile)
+            ? "local_contract_ready" as const : "binding_mismatch" as const,
+          authenticatedSaasE2eCertified: false as const,
+        };
+      });
     });
   return {
     contractVersion: "fmcc.c08.adapter-preflight.v1",
