@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/application/audit/record-audit-event";
 import { buildCoreGateway } from "@/application/core/core-composition";
+import { buildCustomerSnapshotQueryService, classifyCustomerCountQuestion } from "@/application/core/customer-snapshot-query";
 import { CoreArgumentError } from "@/application/core/core-gateway";
 import { CoreReadCapabilityContractError } from "@/domain/core/read-capability";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -39,9 +40,15 @@ export async function POST(request: Request) {
       throw new CoreArgumentError();
     }
     const productSlugs = body.productSlugs as string[] | undefined;
-    const answer = await buildCoreGateway().ask(context, body.question, {
-      productSlugs,
-    });
+    // Customer counts use authoritative SaaS snapshots, not the LLM's potentially
+    // incorrect selection of subscription.active.count. This works without model credentials.
+    const customerIntent = classifyCustomerCountQuestion(body.question);
+    const answer = customerIntent
+      ? await buildCustomerSnapshotQueryService().answer(context, body.question, {
+          kind: customerIntent,
+          productSlugs,
+        })
+      : await buildCoreGateway().ask(context, body.question, { productSlugs });
     await auditCoreQuery(context, "success", {
       question: body.question,
       answer: answer.answer,
