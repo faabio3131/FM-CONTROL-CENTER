@@ -1,4 +1,5 @@
 import { NFCORE_COGNITIVE_SECRET_REF, NFCORE_COGNITIVE_SOURCE_TYPE } from "@/infrastructure/integration/nfcore-cognitive-connector";
+import { NFCORE_COMMERCIAL_SECRET_REF, NFCORE_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/nfcore-commercial-connector";
 import type { ConnectorSyncMode, SourceDefinition } from "@/domain/integration/contracts";
 import { KORDENA_COMMERCIAL_SECRET_REF, KORDENA_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/kordena-commercial-connector";
 import { IRON_COMMERCIAL_SECRET_REF, IRON_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/iron-commercial-connector";
@@ -34,7 +35,7 @@ export const SAAS_ADAPTER_PROFILES: readonly SaasAdapterProfile[] = Object.freez
   }),
   Object.freeze({
     productSlug: "nfcore",
-    title: "Conectar NFCore",
+    title: "Conectar NFCore — Cobertura Cognitiva",
     name: "NFCore Cognitive Operational Telemetry",
     sourceType: NFCORE_COGNITIVE_SOURCE_TYPE,
     mappingVersion: NFCORE_COGNITIVE_SOURCE_TYPE,
@@ -42,6 +43,22 @@ export const SAAS_ADAPTER_PROFILES: readonly SaasAdapterProfile[] = Object.freez
     syncMode: "pull",
     secretRef: NFCORE_COGNITIVE_SECRET_REF,
     urlLabel: "URL HTTPS do NFCore",
+    placeholder: "https://api.nfcore.com.br",
+  }),
+  // Independent of the cognitive profile above: NFCore has two separate
+  // adapter profiles for the SAME product, one per authoritativeDomain,
+  // per FM-CONTROL-CENTER AGENTS.md's explicit domain-separation rule.
+  // Never merge these into a single profile or infer one from the other.
+  Object.freeze({
+    productSlug: "nfcore",
+    title: "Conectar NFCore — Cobertura Comercial",
+    name: "NFCore Commercial Snapshot",
+    sourceType: NFCORE_COMMERCIAL_SOURCE_TYPE,
+    mappingVersion: NFCORE_COMMERCIAL_SOURCE_TYPE,
+    authoritativeDomain: "commercial",
+    syncMode: "pull",
+    secretRef: NFCORE_COMMERCIAL_SECRET_REF,
+    urlLabel: "URL HTTPS do NFCore (comercial)",
     placeholder: "https://api.nfcore.com.br",
   }),
   Object.freeze({

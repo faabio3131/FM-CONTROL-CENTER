@@ -1,5 +1,6 @@
 import type { KordenaCommercialSnapshot } from "@/infrastructure/integration/kordena-commercial-connector";
 import type { IronCommercialSnapshot } from "@/infrastructure/integration/iron-commercial-connector";
+import type { NfcoreCommercialSnapshot } from "@/infrastructure/integration/nfcore-commercial-connector";
 
 /**
  * A source may offer many business collections while its pull() persists only
@@ -14,7 +15,7 @@ export interface CommercialCoverageRow {
 }
 
 export interface CommercialCoverageReport {
-  readonly source: "kordena-commercial-v1" | "iron-commercial-v1";
+  readonly source: "kordena-commercial-v1" | "iron-commercial-v1" | "nfcore-commercial-v1";
   readonly contract: string;
   readonly asOf: string;
   readonly snapshotFactCount: number;
@@ -25,7 +26,7 @@ export interface CommercialCoverageReport {
   readonly completeIntegrationCertified: false;
 }
 
-type InputSnapshot = KordenaCommercialSnapshot | IronCommercialSnapshot;
+type InputSnapshot = KordenaCommercialSnapshot | IronCommercialSnapshot | NfcoreCommercialSnapshot;
 type CollectionRow = { code: string; label: string };
 
 const KORDENA_COLLECTIONS: readonly CollectionRow[] = [
@@ -69,6 +70,21 @@ const IRON_SUMMARY: readonly CollectionRow[] = [
   { code: "canceled_subscriptions", label: "Assinaturas canceladas" },
 ];
 
+// NFCore's collections share the exact same field names as Kordena's
+// (customers, product_accounts, trials, subscriptions, billing_transactions,
+// entitlements, catalog), so KORDENA_COLLECTIONS is reused as-is below
+// instead of duplicating an identical row list. Its summary fields are
+// different: derived strictly from the real SubscriptionStatus enum
+// (trial/active/grace/suspended/canceled), never an invented payment label.
+const NFCORE_SUMMARY: readonly CollectionRow[] = [
+  { code: "customers", label: "Clientes comerciais" },
+  { code: "trial_subscriptions", label: "Assinaturas em trial" },
+  { code: "active_subscriptions", label: "Assinaturas ativas" },
+  { code: "grace_subscriptions", label: "Assinaturas em carência" },
+  { code: "suspended_subscriptions", label: "Assinaturas suspensas" },
+  { code: "canceled_subscriptions", label: "Assinaturas canceladas" },
+];
+
 function safeCount(value: unknown): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     throw new Error("integration.commercial_coverage_count_invalid");
@@ -77,20 +93,23 @@ function safeCount(value: unknown): number {
 }
 
 export function projectCommercialCoverage(
-  sourceType: "kordena-commercial-v1" | "iron-commercial-v1",
+  sourceType: "kordena-commercial-v1" | "iron-commercial-v1" | "nfcore-commercial-v1",
   input: InputSnapshot,
 ): CommercialCoverageReport {
   if ((sourceType === "kordena-commercial-v1" &&
        (input.schema_version !== "kordena.fmcc.commercial.v1" || input.product_code !== "KORDENA")) ||
       (sourceType === "iron-commercial-v1" &&
-       (input.schema_version !== "iron.fmcc.commercial.v1" || input.product_code !== "IRON_FIT_CORE"))) {
+       (input.schema_version !== "iron.fmcc.commercial.v1" || input.product_code !== "IRON_FIT_CORE")) ||
+      (sourceType === "nfcore-commercial-v1" &&
+       (input.schema_version !== "nfcore.fmcc.commercial.v1" || input.product_code !== "NFCORE"))) {
     throw new Error("integration.commercial_coverage_contract_mismatch");
   }
   const date = new Date(input.as_of);
   if (Number.isNaN(date.getTime())) throw new Error("integration.commercial_coverage_date_invalid");
   const kordena = sourceType === "kordena-commercial-v1";
-  const rows = kordena ? KORDENA_COLLECTIONS : IRON_COLLECTIONS;
-  const summaryFields = kordena ? KORDENA_SUMMARY : IRON_SUMMARY;
+  const nfcore = sourceType === "nfcore-commercial-v1";
+  const rows = kordena || nfcore ? KORDENA_COLLECTIONS : IRON_COLLECTIONS;
+  const summaryFields = nfcore ? NFCORE_SUMMARY : kordena ? KORDENA_SUMMARY : IRON_SUMMARY;
   const raw = input as unknown as Record<string, unknown>;
   const claimedAuthority = input.coverage.billing_transactions === "FM_COMMAND_AUTHORITY";
   const collections = rows.map(row => {

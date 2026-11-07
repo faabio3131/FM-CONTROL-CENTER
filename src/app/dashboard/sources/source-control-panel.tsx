@@ -94,11 +94,27 @@ async function json(response: Response): Promise<Record<string, unknown>> {
 export function SourceControlPanel({ products, sources, canWrite, supportedAdapters }: Props) {
   const router = useRouter();
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedSourceType, setSelectedSourceType] = useState("");
   const selectedProduct = products.find((product) => product.id === selectedProductId);
-  const selection = supportedAdapters.find(profile => profile.productSlug === selectedProduct?.slug);
+  // A product can have more than one adapter profile registered (e.g. NFCore
+  // has an independent cognitive profile and an independent commercial
+  // profile). Never assume a single adapter per product here.
+  const profilesForSelectedProduct = supportedAdapters.filter(
+    profile => profile.productSlug === selectedProduct?.slug
+  );
+  const selection = selectedSourceType
+    ? profilesForSelectedProduct.find(profile => profile.sourceType === selectedSourceType)
+    : profilesForSelectedProduct.length === 1
+      ? profilesForSelectedProduct[0]
+      : undefined;
   const alreadyRegistered = sources.some((source) =>
     source.productId === selectedProductId && source.sourceType === selection?.sourceType
   );
+
+  function selectProduct(productId: string) {
+    setSelectedProductId(productId);
+    setSelectedSourceType("");
+  }
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [states, setStates] = useState<Record<string, SourceState>>({});
@@ -108,11 +124,17 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const productId = String(form.get("productId") ?? "").trim();
+    const sourceType = String(form.get("sourceType") ?? "").trim();
     const baseUrl = String(form.get("baseUrl") ?? "").trim();
     const freshnessSeconds = Number(form.get("freshnessSeconds") ?? "300");
 
     const product = products.find((item) => item.id === productId);
-    const config = supportedAdapters.find(profile => profile.productSlug === product?.slug);
+    const candidateProfiles = supportedAdapters.filter(profile => profile.productSlug === product?.slug);
+    const config = sourceType
+      ? candidateProfiles.find(profile => profile.sourceType === sourceType)
+      : candidateProfiles.length === 1
+        ? candidateProfiles[0]
+        : undefined;
     if (!config || !baseUrl || sources.some((item) =>
       item.productId === productId && item.sourceType === config.sourceType
     )) {
@@ -144,6 +166,7 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
       }
       formElement.reset();
       setSelectedProductId("");
+      setSelectedSourceType("");
       setMessage(`Fonte ${product?.name ?? "comercial"} cadastrada. Teste a conexão antes de sincronizar.`);
       router.refresh();
     } catch {
@@ -358,7 +381,7 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
             <form className="product-create-form" onSubmit={register}>
               <label>
                 Produto
-                <select name="productId" required value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)}>
+                <select name="productId" required value={selectedProductId} onChange={(event) => selectProduct(event.target.value)}>
                   <option value="" disabled>Selecione o produto</option>
                   {products.filter((product) => supportedAdapters.some(profile => profile.productSlug === product.slug)).map((product) => (
                     <option key={product.id} value={product.id}>
@@ -367,6 +390,32 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                   ))}
                 </select>
               </label>
+              {profilesForSelectedProduct.length > 1 ? (
+                <label>
+                  Integração
+                  <select
+                    name="sourceType"
+                    required
+                    value={selectedSourceType}
+                    onChange={(event) => setSelectedSourceType(event.target.value)}
+                  >
+                    <option value="" disabled>Selecione a integração</option>
+                    {profilesForSelectedProduct.map((profile) => {
+                      const registered = sources.some((source) =>
+                        source.productId === selectedProductId && source.sourceType === profile.sourceType
+                      );
+                      return (
+                        <option key={profile.sourceType} value={profile.sourceType} disabled={registered}>
+                          {profile.title} — {profile.authoritativeDomain === "commercial" ? "Comercial" : "Cognitiva"}
+                          {registered ? " (já cadastrada)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              ) : (
+                <input type="hidden" name="sourceType" value={selectedSourceType || (selection?.sourceType ?? "")} />
+              )}
               <label>
                 {selection?.urlLabel ?? "URL HTTPS do produto"}
                 <input
@@ -455,7 +504,8 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                   ) : null}
                   {canWrite && (
                     source.sourceType === "kordena-commercial-v1" ||
-                    source.sourceType === "iron-commercial-v1"
+                    source.sourceType === "iron-commercial-v1" ||
+                    source.sourceType === "nfcore-commercial-v1"
                   ) ? (
                     <button
                       className="button"

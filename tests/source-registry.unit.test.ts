@@ -7,6 +7,7 @@ import {
 import { KordenaCommercialConnector } from "@/infrastructure/integration/kordena-commercial-connector";
 import { IronCommercialConnector } from "@/infrastructure/integration/iron-commercial-connector";
 import { NfcoreCognitiveConnector } from "@/infrastructure/integration/nfcore-cognitive-connector";
+import { NfcoreCommercialConnector } from "@/infrastructure/integration/nfcore-commercial-connector";
 import type { SourceRepository } from "@/domain/integration/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
@@ -23,17 +24,30 @@ const owner: TenantContext = { tenantId: "t1", userId: "u1", role: "owner", corr
 
 describe("F07 Source Registry", () => {
   it("mantém um catálogo único e consistente com os adaptadores implementados", () => {
-    const implementations = [new KordenaCommercialConnector(), new IronCommercialConnector(), new NfcoreCognitiveConnector()];
+    const implementations = [
+      new KordenaCommercialConnector(), new IronCommercialConnector(),
+      new NfcoreCognitiveConnector(), new NfcoreCommercialConnector(),
+    ];
     expect(SAAS_ADAPTER_PROFILES.map(p => p.sourceType).sort())
       .toEqual(implementations.map(c => c.sourceType).sort());
-    expect(new Set(SAAS_ADAPTER_PROFILES.map(p => p.productSlug)).size).toBe(SAAS_ADAPTER_PROFILES.length);
+    // A product may have more than one adapter profile (e.g. NFCore has an
+    // independent cognitive profile and an independent commercial profile),
+    // so productSlug alone is not unique; sourceType is the real key.
     expect(new Set(SAAS_ADAPTER_PROFILES.map(p => p.sourceType)).size).toBe(SAAS_ADAPTER_PROFILES.length);
+    expect(new Set(SAAS_ADAPTER_PROFILES.map(p => `${p.productSlug}:${p.authoritativeDomain}`)).size)
+      .toBe(SAAS_ADAPTER_PROFILES.length);
     for (const profile of SAAS_ADAPTER_PROFILES) {
-      expect(profileForProductSlug(profile.productSlug)).toBe(profile);
       expect(profileForSourceType(profile.sourceType)).toBe(profile);
       expect(profile.mappingVersion).toBe(profile.sourceType);
       expect(profile.secretRef).toMatch(/^env:[A-Z0-9_]+$/);
-      expect(profile.authoritativeDomain).toBe(profile.productSlug === "nfcore" ? "cognitive" : "commercial");
+    }
+    // Every productSlug must resolve to at least one profile, and every
+    // profile that profileForProductSlug can reach must be found verbatim
+    // among that product's own profiles.
+    for (const slug of new Set(SAAS_ADAPTER_PROFILES.map(p => p.productSlug))) {
+      const found = profileForProductSlug(slug);
+      expect(found).toBeDefined();
+      expect(SAAS_ADAPTER_PROFILES.filter(p => p.productSlug === slug)).toContain(found);
     }
     expect(profileForProductSlug("saas-futuro")).toBeUndefined();
     expect(publicAdapterCatalog().every(item => item.integrationState === "adapter_implemented_not_connected")).toBe(true);
