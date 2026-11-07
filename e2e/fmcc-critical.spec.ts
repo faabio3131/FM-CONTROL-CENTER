@@ -350,15 +350,9 @@ test("menu principal do Command abre todas as rotas autorizadas sem tela vazia",
     })),
   );
   expect(entries.length).toBeGreaterThanOrEqual(14);
-  for (const { href, label } of entries) {
+  for (const [index, { href, label }] of entries.entries()) {
     expect(href, `Link vazio no menu ${label}`).toBeTruthy();
-    await page.locator(".command-sidebar nav a").evaluateAll(
-      (anchors, target) => {
-        const found = anchors.find(anchor => anchor.getAttribute("href") === target) as HTMLElement | undefined;
-        found?.click();
-      },
-      href,
-    );
+    await page.locator(".command-sidebar nav a").nth(index).click();
     const expected = new URL(href, "http://127.0.0.1").pathname;
     await expect.poll(() => new URL(page.url()).pathname, { message: `Navegação ${label}` })
       .toBe(expected);
