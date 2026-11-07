@@ -33,7 +33,7 @@ function reachable(href: string, routes: readonly string[]): boolean {
 }
 function jsxAttribute(node: ts.JsxOpeningLikeElement, key: string): ts.JsxAttribute | undefined {
   return node.attributes.properties.find(
-    (p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && p.name.text === key,
+    (p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && ts.isIdentifier(p.name) && p.name.text === key,
   );
 }
 function staticAttribute(node: ts.JsxOpeningLikeElement, key: string): string | null {
