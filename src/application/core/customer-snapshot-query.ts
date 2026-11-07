@@ -207,7 +207,10 @@ export class CustomerSnapshotQueryService {
       const noun = SOURCE_BY_PRODUCT[item.product.slug]?.noun ?? "clientes";
       if (item.status === "available") {
         const asOf = item.evidence?.asOf ?? "sem timestamp";
-        return `${item.product.name}: ${item.count} ${noun} ${input.kind === "active" ? "ativos" : "cadastrados"} (atualizado em ${asOf}).`;
+        const adjective = noun === "academias"
+          ? (input.kind === "active" ? "ativas" : "cadastradas")
+          : (input.kind === "active" ? "ativos" : "cadastrados");
+        return `${item.product.name}: ${item.count} ${noun} ${adjective} (atualizado em ${asOf}).`;
       }
       if (input.kind === "active" && item.registeredCount !== null) {
         return `${item.product.name}: clientes ativos não informados; o snapshot informa apenas ${item.registeredCount} ${noun} cadastrados.`;
