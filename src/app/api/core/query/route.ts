@@ -31,7 +31,8 @@ export async function POST(request: Request) {
       question?: unknown;
       productSlugs?: unknown;
     };
-    if (typeof body.question !== "string") throw new CoreArgumentError();
+    if (typeof body.question !== "string" || !body.question.trim() ||
+        body.question.trim().length > 4000) throw new CoreArgumentError();
     if (
       body.productSlugs !== undefined &&
       (!Array.isArray(body.productSlugs) ||
