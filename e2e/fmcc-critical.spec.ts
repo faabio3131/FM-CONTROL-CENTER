@@ -297,3 +297,44 @@ test("fontes: cadastro governado do Kordena permanece fail-closed sem runtime ex
     ),
   ).toBeVisible();
 });
+
+
+test("operações F14: os cartões abrem diagnóstico real e fecham sem perder a navegação", async ({ page }) => {
+  await signUpAndCreateOrganization(page, "operations-cards");
+  await page.goto("/dashboard/operations");
+  await expect(page.getByRole("heading", { name: "Saúde operacional governada" })).toBeVisible();
+  await expect(page.getByText("Nenhum serviço monitorado.", { exact: true })).toBeVisible();
+
+  for (const label of [
+    "Serviços monitorados",
+    "Operacionais",
+    "Degradados",
+    "Indisponíveis / desconhecidos",
+  ]) {
+    await page.getByRole("link", { name: `Detalhar ${label}` }).click();
+    const panel = page.locator("#operations-detail");
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("heading", { name: label, exact: true })).toBeVisible();
+    await expect(panel.getByText("Nenhum serviço monitorado nesta condição.")).toBeVisible();
+    await panel.getByRole("link", { name: "Fechar detalhes de operações" }).click();
+    await expect(page.locator("#operations-detail")).toHaveCount(0);
+  }
+
+  for (const label of ["Incidentes", "Falhas de integrações", "Consumo de infraestrutura"]) {
+    await page.getByRole("link", { name: `Detalhar ${label}` }).click();
+    const panel = page.locator("#operations-detail");
+    await expect(panel.getByRole("heading", { name: label, exact: true })).toBeVisible();
+    await expect(panel.getByText(/Identificador canônico:/)).toBeVisible();
+    await expect(panel.getByText(/Fonte:/)).toBeVisible();
+    await panel.getByRole("link", { name: "Fechar detalhes de operações" }).click();
+    await expect(panel).toHaveCount(0);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("link", { name: "Detalhar Incidentes" }).click();
+  await expect(page.locator("#operations-detail")).toBeVisible();
+  const hasOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasOverflow).toBe(false);
+});
