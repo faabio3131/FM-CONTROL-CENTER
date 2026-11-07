@@ -23,7 +23,7 @@ describe("F14 operations UI", () => {
     expect(source).toContain("Fechar ×");
     expect(source).toContain("selectedServices.map");
     expect(source).toContain("sources.map");
-    expect(source).toContain("status persistido");
+    expect(source).toContain("Status persistido");
     expect(source).toContain("overview.metrics.map");
     expect(source).toContain("/dashboard/activity?category=operations");
     expect(source).toContain("roleHasPermission");
