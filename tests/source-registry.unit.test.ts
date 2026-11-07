@@ -29,6 +29,7 @@ describe("F07 Source Registry", () => {
     const implementations = [
       new KordenaCommercialConnector(), new IronCommercialConnector(),
       new NfcoreCognitiveConnector(), new NfcoreCommercialConnector(),
+      new IronUsageConnector(), new NfcoreOperationalUsageConnector(),
     ];
     expect(SAAS_ADAPTER_PROFILES.map(p => p.sourceType).sort())
       .toEqual(implementations.map(c => c.sourceType).sort());

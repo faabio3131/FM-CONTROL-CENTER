@@ -64,7 +64,7 @@ describe("NFCore C08 cognitive coverage, no commercial fabrication", () => {
   });
   it("allows each source coverage panel to close independently and reopen on demand", () => {
     const ui=readFileSync(resolve(process.cwd(),"src/app/dashboard/sources/source-control-panel.tsx"),"utf8");
-    expect(ui).toContain('function closeCoverage(sourceId: string, kind: "commercial" | "cognitive")');
+    expect(ui).toContain('function closeCoverage(sourceId: string, kind: "commercial" | "cognitive" | "operational")');
     expect(ui).toContain('onClick={() => closeCoverage(source.id, "commercial")}');
     expect(ui).toContain('onClick={() => closeCoverage(source.id, "cognitive")}');
     expect(ui).toContain('aria-label={`Fechar cobertura comercial de ${source.name}`}');
