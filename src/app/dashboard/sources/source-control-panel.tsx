@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { SaasAdapterProfile } from "@/application/integration/saas-adapter-profiles";
 import type { CommercialCoverageReport } from "@/application/integration/commercial-source-coverage";
 import type { NfcoreCognitiveCoverageReport } from "@/application/integration/nfcore-cognitive-coverage";
+import type { OperationalUsageCoverageReport } from "@/application/integration/operational-usage-coverage";
 
 type ProductOption = {
   id: string;
@@ -44,6 +45,8 @@ type SourceState = {
   coverageError?: string;
   cognitiveCoverage?: NfcoreCognitiveCoverageReport;
   cognitiveCoverageError?: string;
+  usageCoverage?: OperationalUsageCoverageReport;
+  usageCoverageError?: string;
 };
 
 function rotuloSaude(status: string) {
@@ -214,12 +217,14 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
     }
   }
 
-  function closeCoverage(sourceId: string, kind: "commercial" | "cognitive") {
+  function closeCoverage(sourceId: string, kind: "commercial" | "cognitive" | "operational") {
     setStates(current => ({
       ...current,
       [sourceId]: kind === "commercial"
         ? { ...current[sourceId], coverage: undefined, coverageError: undefined }
-        : { ...current[sourceId], cognitiveCoverage: undefined, cognitiveCoverageError: undefined },
+        : kind === "cognitive"
+          ? { ...current[sourceId], cognitiveCoverage: undefined, cognitiveCoverageError: undefined }
+          : { ...current[sourceId], usageCoverage: undefined, usageCoverageError: undefined },
     }));
   }
 
@@ -300,6 +305,66 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
           ...current[sourceId],
           cognitiveCoverage: undefined,
           cognitiveCoverageError: "Falha de consulta cognitiva. Não há métricas confirmadas; verifique a conexão do NFCore.",
+        },
+      }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function operationalAdapter(source: SourceView): SourceView | undefined {
+    const product = products.find(item => item.id === source.productId);
+    const sourceType = product?.slug === "iron"
+      ? "iron-usage-v1"
+      : product?.slug === "nfcore"
+        ? "nfcore-operational-usage-v1" : null;
+    return sourceType
+      ? sources.find(item => item.productId === source.productId && item.sourceType === sourceType)
+      : undefined;
+  }
+  function supportsOperationalUsage(source: SourceView): boolean {
+    const product = products.find(item => item.id === source.productId);
+    return product?.slug === "iron" || product?.slug === "nfcore";
+  }
+
+  async function loadOperationalUsage(sourceId: string, usageSourceId?: string) {
+    setStates(current => ({
+      ...current, [sourceId]: {
+        ...current[sourceId], usageCoverage: undefined, usageCoverageError: undefined,
+      },
+    }));
+    if (!usageSourceId) {
+      setStates(current => ({
+        ...current, [sourceId]: {
+          ...current[sourceId],
+          usageCoverageError: "Fonte de consumo operacional não cadastrada. Registre o adaptador operacional deste produto antes da consulta.",
+        },
+      }));
+      return;
+    }
+    setBusy(`usage:${sourceId}`);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/sources/${usageSourceId}/usage`, { cache: "no-store" });
+      const body = await json(response);
+      if (!response.ok) throw new Error("operational_usage.query_failed");
+      const coverage = body.coverage as OperationalUsageCoverageReport | undefined;
+      if (!coverage || !Array.isArray(coverage.summary) ||
+          !Array.isArray(coverage.groups) ||
+          !["iron-usage-v1", "nfcore-operational-usage-v1"].includes(coverage.source) ||
+          !["execution_count", "quota_usage"].includes(coverage.measurementKind)) {
+        throw new Error("operational_usage.response_invalid");
+      }
+      setStates(current => ({
+        ...current,[sourceId]: {
+          ...current[sourceId],usageCoverage: coverage,usageCoverageError:undefined,
+        },
+      }));
+    } catch {
+      setStates(current => ({
+        ...current,[sourceId]: {
+          ...current[sourceId], usageCoverage:undefined,
+          usageCoverageError:"Consumo operacional indisponível. Verifique credencial, origem HTTPS e contrato do produto.",
         },
       }));
     } finally {
@@ -492,7 +557,7 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                   >
                     {busy === `health:${source.id}` ? "Testando…" : "Testar conexão"}
                   </button>
-                  {canWrite ? (
+                  {canWrite && source.authoritativeDomain !== "operational-usage" ? (
                     <button
                       className="button"
                       type="button"
@@ -516,6 +581,16 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                       {busy === `coverage:${source.id}` ? "Consultando…" : "Ver cobertura comercial"}
                     </button>
                   ) : null}
+                  {canWrite && supportsOperationalUsage(source) ? (
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={busy === `usage:${source.id}`}
+                      onClick={() => void loadOperationalUsage(source.id, operationalAdapter(source)?.id)}
+                    >
+                      {busy === `usage:${source.id}` ? "Consultando…" : "Ver consumo operacional"}
+                    </button>
+                  ) : null}
                   {canWrite && source.sourceType === "nfcore-cognitive-metrics-v1" ? (
                     <button
                       className="button"
@@ -527,6 +602,63 @@ export function SourceControlPanel({ products, sources, canWrite, supportedAdapt
                     </button>
                   ) : null}
                 </div>
+                {source.authoritativeDomain === "operational-usage" ? (
+                  <small>Consulta sob demanda, somente leitura. Nenhum dado é sincronizado para outra autoridade.</small>
+                ) : null}
+                {states[source.id]?.usageCoverageError ? (
+                  <small role="alert">{states[source.id]?.usageCoverageError}</small>
+                ) : null}
+                {states[source.id]?.usageCoverage ? (
+                  <div className="fmcc-source-coverage" role="region"
+                    aria-label={`Consumo operacional de ${source.name}`}>
+                    <div className="fmcc-source-coverage-heading">
+                      <strong>Consumo operacional — leitura atual</strong>
+                      <button type="button" className="fmcc-source-coverage-close"
+                        aria-label={`Fechar consumo operacional de ${source.name}`}
+                        onClick={() => closeCoverage(source.id, "operational")}>
+                        Fechar ×
+                      </button>
+                    </div>
+                    <small>Contrato: {states[source.id]?.usageCoverage?.contract}.</small>
+                    <small>Autoridade: {states[source.id]?.usageCoverage?.authority}.
+                      Retrato: {dataHora(states[source.id]?.usageCoverage?.asOf)}.
+                      Consultado: {dataHora(states[source.id]?.usageCoverage?.queriedAt)}.</small>
+                    {states[source.id]?.usageCoverage?.windowDays ? (
+                      <small>Janela: {states[source.id]?.usageCoverage?.windowDays} dias, desde
+                        {" "}{dataHora(states[source.id]?.usageCoverage?.windowStart ?? undefined)}.</small>
+                    ) : null}
+                    <ul className="fmcc-source-coverage-list">
+                      {states[source.id]?.usageCoverage?.summary.map(item => (
+                        <li key={item.code}>
+                          <span>{item.label}</span>
+                          <strong>{item.count.toLocaleString("pt-BR")}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    <details>
+                      <summary>Ver medições agregadas</summary>
+                      <ul className="fmcc-source-coverage-list">
+                        {states[source.id]?.usageCoverage?.groups.map((item, index) => (
+                          <li key={index}>
+                            <span>{item.label}</span>
+                            <strong>
+                              {item.measured === null ? "Não informado"
+                                : item.measured.toLocaleString("pt-BR")}
+                              {item.limit !== null ? ` / limite ${item.limit.toLocaleString("pt-BR")}` : ""}
+                              {item.missingMeasurements ? ` · ${item.missingMeasurements} sem medição` : ""}
+                            </strong>
+                          </li>
+                        ))}
+                      </ul>
+                      {states[source.id]?.usageCoverage?.truncated ? (
+                        <small>Lista parcial dos 40 primeiros grupos.</small>
+                      ) : null}
+                    </details>
+                    <small>Valores ausentes permanecem indisponíveis, não zero.
+                      Leitura sem identificação de tenants ou assinaturas individuais;
+                      não certifica reconciliação externa.</small>
+                  </div>
+                ) : null}
                 {states[source.id]?.cognitiveCoverageError ? (
                   <small role="alert">{states[source.id]?.cognitiveCoverageError}</small>
                 ) : null}

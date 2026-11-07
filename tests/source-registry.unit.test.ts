@@ -8,6 +8,8 @@ import { KordenaCommercialConnector } from "@/infrastructure/integration/kordena
 import { IronCommercialConnector } from "@/infrastructure/integration/iron-commercial-connector";
 import { NfcoreCognitiveConnector } from "@/infrastructure/integration/nfcore-cognitive-connector";
 import { NfcoreCommercialConnector } from "@/infrastructure/integration/nfcore-commercial-connector";
+import { IronUsageConnector } from "@/infrastructure/integration/iron-usage-connector";
+import { NfcoreOperationalUsageConnector } from "@/infrastructure/integration/nfcore-operational-usage-connector";
 import type { SourceRepository } from "@/domain/integration/contracts";
 import type { TenantContext } from "@/domain/security/tenant-context";
 
@@ -27,6 +29,7 @@ describe("F07 Source Registry", () => {
     const implementations = [
       new KordenaCommercialConnector(), new IronCommercialConnector(),
       new NfcoreCognitiveConnector(), new NfcoreCommercialConnector(),
+      new IronUsageConnector(), new NfcoreOperationalUsageConnector(),
     ];
     expect(SAAS_ADAPTER_PROFILES.map(p => p.sourceType).sort())
       .toEqual(implementations.map(c => c.sourceType).sort());

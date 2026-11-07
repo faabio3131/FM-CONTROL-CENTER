@@ -1,6 +1,8 @@
 import { NFCORE_COGNITIVE_SECRET_REF, NFCORE_COGNITIVE_SOURCE_TYPE } from "@/infrastructure/integration/nfcore-cognitive-connector";
 import { NFCORE_COMMERCIAL_SECRET_REF, NFCORE_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/nfcore-commercial-connector";
 import type { ConnectorSyncMode, SourceDefinition } from "@/domain/integration/contracts";
+import { IRON_USAGE_SECRET_REF, IRON_USAGE_SOURCE_TYPE } from "@/infrastructure/integration/iron-usage-connector";
+import { NFCORE_OPERATIONAL_USAGE_SECRET_REF, NFCORE_OPERATIONAL_USAGE_SOURCE_TYPE } from "@/infrastructure/integration/nfcore-operational-usage-connector";
 import { KORDENA_COMMERCIAL_SECRET_REF, KORDENA_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/kordena-commercial-connector";
 import { IRON_COMMERCIAL_SECRET_REF, IRON_COMMERCIAL_SOURCE_TYPE } from "@/infrastructure/integration/iron-commercial-connector";
 
@@ -14,7 +16,7 @@ export interface SaasAdapterProfile {
   readonly name: string;
   readonly sourceType: string;
   readonly mappingVersion: string;
-  readonly authoritativeDomain: "commercial" | "cognitive";
+  readonly authoritativeDomain: "commercial" | "cognitive" | "operational-usage";
   readonly syncMode: ConnectorSyncMode;
   readonly secretRef: string; // reference only, never credential material
   readonly urlLabel: string;
@@ -72,6 +74,30 @@ export const SAAS_ADAPTER_PROFILES: readonly SaasAdapterProfile[] = Object.freez
     secretRef: IRON_COMMERCIAL_SECRET_REF,
     urlLabel: "URL HTTPS do backend IRON",
     placeholder: "https://seu-iron.exemplo.com",
+  }),
+  Object.freeze({
+    productSlug: "iron",
+    title: "Conectar consumo operacional IRON",
+    name: "IRON FIT CORE AI Usage",
+    sourceType: IRON_USAGE_SOURCE_TYPE,
+    mappingVersion: IRON_USAGE_SOURCE_TYPE,
+    authoritativeDomain: "operational-usage",
+    syncMode: "pull",
+    secretRef: IRON_USAGE_SECRET_REF,
+    urlLabel: "URL HTTPS do backend IRON",
+    placeholder: "https://api.ironfitcore.com.br",
+  }),
+  Object.freeze({
+    productSlug: "nfcore",
+    title: "Conectar consumo operacional NFCore",
+    name: "NFCore Operational Quota Usage",
+    sourceType: NFCORE_OPERATIONAL_USAGE_SOURCE_TYPE,
+    mappingVersion: NFCORE_OPERATIONAL_USAGE_SOURCE_TYPE,
+    authoritativeDomain: "operational-usage",
+    syncMode: "pull",
+    secretRef: NFCORE_OPERATIONAL_USAGE_SECRET_REF,
+    urlLabel: "URL HTTPS do NFCore",
+    placeholder: "https://api.nfcore.com.br",
   }),
 ]);
 export function profileForSourceType(
