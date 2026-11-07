@@ -21,6 +21,9 @@ import {
   type IronSecretResolver,
 } from "@/infrastructure/integration/iron-commercial-connector";
 
+import { IronUsageConnector } from "@/infrastructure/integration/iron-usage-connector";
+import { NfcoreOperationalUsageConnector } from "@/infrastructure/integration/nfcore-operational-usage-connector";
+
 export function buildConnectorRuntime(input?: {
   resolveSecret?: SecretResolver & IronSecretResolver & NfcoreSecretResolver & NfcoreCommercialSecretResolver;
   fetcher?: typeof fetch;
@@ -39,7 +42,7 @@ export function buildConnectorRuntime(input?: {
     new PostgresSourceRepository(),
     new PostgresSyncRepository(),
     new PostgresCanonicalFactRepository(),
-    [connector, ironConnector, nfcoreConnector, nfcoreCommercialConnector],
+    [connector, ironConnector, nfcoreConnector, nfcoreCommercialConnector, new IronUsageConnector(), new NfcoreOperationalUsageConnector()],
   );
 }
 
@@ -76,3 +79,6 @@ export function buildNfcoreCommercialConnector(input?: {
 }) {
   return new NfcoreCommercialConnector(input?.resolveSecret, input?.fetcher);
 }
+
+export function buildIronUsageConnector() { return new IronUsageConnector(); }
+export function buildNfcoreOperationalUsageConnector() { return new NfcoreOperationalUsageConnector(); }
