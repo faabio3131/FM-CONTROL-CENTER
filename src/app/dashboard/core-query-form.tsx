@@ -336,7 +336,7 @@ export function CoreQueryForm({
       {state.answer && (
         <div className={state.status === "error" ? "core-answer error" : "core-answer"} role="status" aria-live="polite">
           <strong>{state.status === "error" ? "Indisponível" : "Resposta"}</strong>
-          <p>{state.answer}</p>
+          <p style={{ whiteSpace: "pre-line" }}>{state.answer}</p>
           {state.evidence?.length ? (
             <small className="core-evidence">
               Proveniência: {state.evidence
