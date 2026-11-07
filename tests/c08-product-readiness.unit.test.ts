@@ -64,6 +64,33 @@ describe("C08 product integration readiness - evidence is not homologation", () 
     }
   });
 
+  it("valida cada fonte contra seu próprio perfil quando o produto tem mais de um adaptador", () => {
+    // Regression: a product with two independent adapter profiles (one per
+    // authoritativeDomain, e.g. NFCore's cognitive + commercial sources)
+    // must validate each source against the profile that actually matches
+    // its sourceType, never a single profile picked for the whole product.
+    const cognitiveProfile = { ...SAAS_ADAPTER_PROFILES[0], productSlug: "dual", sourceType: "dual-cognitive-v1",
+      mappingVersion: "dual-cognitive-v1", authoritativeDomain: "cognitive" as const,
+      secretRef: "env:FMCC_DUAL_COGNITIVE_TOKEN" };
+    const commercialProfile = { ...SAAS_ADAPTER_PROFILES[0], productSlug: "dual", sourceType: "dual-commercial-v1",
+      mappingVersion: "dual-commercial-v1", authoritativeDomain: "commercial" as const,
+      secretRef: "env:FMCC_DUAL_COMMERCIAL_TOKEN" };
+    const dualProduct = { id: "p-dual", tenantId: "fm", slug: "dual", name: "Dual", status: "active" as const };
+    const cognitiveSource = { ...s("dual-cog-source", "p-dual"), sourceType: "dual-cognitive-v1",
+      mappingVersion: "dual-cognitive-v1", authoritativeDomain: "cognitive" as const,
+      secretRef: "env:FMCC_DUAL_COGNITIVE_TOKEN" };
+    const commercialSource = { ...s("dual-com-source", "p-dual"), sourceType: "dual-commercial-v1",
+      mappingVersion: "dual-commercial-v1", authoritativeDomain: "commercial" as const,
+      secretRef: "env:FMCC_DUAL_COMMERCIAL_TOKEN" };
+    const report = buildSaasAdapterPreflight(
+      "fm", [dualProduct], [cognitiveSource, commercialSource],
+      [cognitiveProfile, commercialProfile],
+    );
+    const byId = (id: string) => report.rows.find(row => row.sourceId === id)?.status;
+    expect(byId("dual-cog-source")).toBe("local_contract_ready");
+    expect(byId("dual-com-source")).toBe("local_contract_ready");
+  });
+
   it("prova extensibilidade em fixture sem registrar integração externa", () => {
     const profile = { ...SAAS_ADAPTER_PROFILES[0], productSlug:"future", sourceType:"future-v1",
       mappingVersion:"future-v1", secretRef:"env:FMCC_FUTURE_TOKEN" };

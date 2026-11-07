@@ -1,7 +1,7 @@
 import type { ProductDefinition } from "@/domain/products/contracts";
 import type { SourceDefinition } from "@/domain/integration/contracts";
 import {
-  SAAS_ADAPTER_PROFILES, profileForProductSlug, sourceMatchesAdapter,
+  SAAS_ADAPTER_PROFILES, sourceMatchesAdapter,
   type SaasAdapterProfile,
 } from "@/application/integration/saas-adapter-profiles";
 
@@ -50,10 +50,16 @@ export function buildSaasAdapterPreflight(
     .filter(product => product.tenantId === tenantId && product.status === "active")
     .sort((a, b) => a.id.localeCompare(b.id))
     .flatMap<SaasAdapterPreflightRow>(product => {
-      const profile = profileForProductSlug(product.slug, profiles);
+      // A product can have more than one adapter profile (e.g. NFCore has
+      // both a cognitive and a commercial profile, each its own
+      // authoritativeDomain). Picking a single profile per product and
+      // reusing it for every source silently mismarks the second source as
+      // binding_mismatch. Each source must be checked against the profile
+      // that actually shares its sourceType.
+      const productProfiles = profiles.filter(profile => profile.productSlug === product.slug);
       const matches = scopedSources.filter(source => source.productId === product.id)
         .sort((a, b) => a.id.localeCompare(b.id));
-      if (!profile) return [{
+      if (!productProfiles.length) return [{
         productId: product.id, productSlug: product.slug, sourceId: null,
         status: "adapter_missing", authenticatedSaasE2eCertified: false,
       }];
@@ -61,12 +67,15 @@ export function buildSaasAdapterPreflight(
         productId: product.id, productSlug: product.slug, sourceId: null,
         status: "source_missing", authenticatedSaasE2eCertified: false,
       }];
-      return matches.map(source => ({
-        productId: product.id, productSlug: product.slug, sourceId: source.id,
-        status: sourceMatchesAdapter(source, profile)
-          ? "local_contract_ready" as const : "binding_mismatch" as const,
-        authenticatedSaasE2eCertified: false as const,
-      }));
+      return matches.map(source => {
+        const profile = productProfiles.find(candidate => candidate.sourceType === source.sourceType);
+        return {
+          productId: product.id, productSlug: product.slug, sourceId: source.id,
+          status: profile && sourceMatchesAdapter(source, profile)
+            ? "local_contract_ready" as const : "binding_mismatch" as const,
+          authenticatedSaasE2eCertified: false as const,
+        };
+      });
     });
   return {
     contractVersion: "fmcc.c08.adapter-preflight.v1",

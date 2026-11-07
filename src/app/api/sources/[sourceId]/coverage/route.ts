@@ -5,6 +5,7 @@ import { projectCommercialCoverage } from "@/application/integration/commercial-
 import {
   buildIronCommercialConnector,
   buildKordenaCommercialConnector,
+  buildNfcoreCommercialConnector,
 } from "@/application/integration/connector-composition";
 import { profileForSourceType, sourceMatchesAdapter } from "@/application/integration/saas-adapter-profiles";
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
@@ -38,7 +39,7 @@ export async function GET(
     const source = await new PostgresSourceRepository().findById(context.tenantId, sourceId);
     const type = source?.sourceType;
     if (!source || source.tenantId !== context.tenantId ||
-        (type !== "kordena-commercial-v1" && type !== "iron-commercial-v1")) {
+        (type !== "kordena-commercial-v1" && type !== "iron-commercial-v1" && type !== "nfcore-commercial-v1")) {
       return NextResponse.json({ error: "integration.coverage_source_not_found" },
         { status: 404, headers: responseHeaders });
     }
@@ -62,7 +63,9 @@ export async function GET(
     };
     const coverage = type === "kordena-commercial-v1"
       ? projectCommercialCoverage(type, await buildKordenaCommercialConnector().snapshot(scoped, source))
-      : projectCommercialCoverage(type, await buildIronCommercialConnector().snapshot(scoped, source));
+      : type === "iron-commercial-v1"
+        ? projectCommercialCoverage(type, await buildIronCommercialConnector().snapshot(scoped, source))
+        : projectCommercialCoverage(type, await buildNfcoreCommercialConnector().snapshot(scoped, source));
 
     await recordAuditEvent(context, {
       action: "integration.commercial_coverage.read",

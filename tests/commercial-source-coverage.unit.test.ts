@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { projectCommercialCoverage } from "@/application/integration/commercial-source-coverage";
 import type { KordenaCommercialSnapshot } from "@/infrastructure/integration/kordena-commercial-connector";
 import type { IronCommercialSnapshot } from "@/infrastructure/integration/iron-commercial-connector";
+import type { NfcoreCommercialSnapshot } from "@/infrastructure/integration/nfcore-commercial-connector";
 
 function kordena(): KordenaCommercialSnapshot {
   return {
@@ -49,6 +50,31 @@ function iron(): IronCommercialSnapshot {
     coverage:{billing_transactions:"FM_COMMAND_AUTHORITY"},
   };
 }
+function nfcore(): NfcoreCommercialSnapshot {
+  return {
+    schema_version: "nfcore.fmcc.commercial.v1", product_code: "NFCORE",
+    as_of: "2026-11-06T19:00:00Z",
+    customers: [{ tenant_id: "tenant-private" }],
+    product_accounts: [{ account_id: "account-private" }],
+    trials: [{ subscription_id: "sub-private" }],
+    subscriptions: [
+      { subscription_id: "sub-private", status: "trial" },
+      { subscription_id: "sub-private-2", status: "active" },
+    ],
+    billing_transactions: [{ purchase_id: "purchase-private" }],
+    entitlements: [{ entitlement_id: "ent-private" }],
+    catalog: [{ plan_id: "plan-private" }],
+    summary: {
+      customers: 1, trial_subscriptions: 1, active_subscriptions: 1,
+      grace_subscriptions: 0, suspended_subscriptions: 0, canceled_subscriptions: 0,
+    },
+    coverage: { billing_transactions: "FM_COMMAND_AUTHORITY" },
+    facts: [
+      { external_id: "nfcore-commercial-v1:abc", fact_type: "nfcore.commercial.snapshot",
+        payload: { active_subscriptions: 1 }, source_timestamp: "2026-11-06T19:00:00Z" },
+    ],
+  };
+}
 describe("C08 commercial coverage — truthful facts vs business collections",()=>{
   it("Kordena has two facts but seven independent snapshot collections",()=>{
     const x=projectCommercialCoverage("kordena-commercial-v1",kordena());
@@ -77,8 +103,25 @@ describe("C08 commercial coverage — truthful facts vs business collections",()
     expect(JSON.stringify(x)).not.toContain("PRIVATE");
     expect(JSON.stringify(x)).not.toContain("SECRET");
   });
+  it("NFCore reuses the generic contract without a second billing authority",()=>{
+    const x=projectCommercialCoverage("nfcore-commercial-v1",nfcore());
+    expect(x.snapshotFactCount).toBe(1);
+    expect(x.collections).toHaveLength(7);
+    expect(x.collections.find(c=>c.code==="billing_transactions")).toMatchObject({
+      reportedRecords:1,authority:"fm-command",
+    });
+    expect(x.billingFromFmCommand).toBe(true);
+    expect(x.summary.find(c=>c.code==="active_subscriptions")?.count).toBe(1);
+    expect(x.summary.find(c=>c.code==="trial_subscriptions")?.count).toBe(1);
+    expect(x.additionalTelemetry).toBe("not_in_this_snapshot");
+    expect(x.completeIntegrationCertified).toBe(false);
+    for(const secret of ["tenant-private","account-private","sub-private","purchase-private","ent-private","plan-private"]){
+      expect(JSON.stringify(x)).not.toContain(secret);
+    }
+  });
   it("rejects mismatched provider contract and impossible negative/NaN summary",()=>{
     expect(()=>projectCommercialCoverage("kordena-commercial-v1",iron())).toThrow("integration.commercial_coverage_contract_mismatch");
+    expect(()=>projectCommercialCoverage("nfcore-commercial-v1",kordena())).toThrow("integration.commercial_coverage_contract_mismatch");
     const x=kordena();
     const bad={...x,summary:{...x.summary,customers:-3}};
     expect(()=>projectCommercialCoverage("kordena-commercial-v1",bad)).toThrow("integration.commercial_coverage_count_invalid");
