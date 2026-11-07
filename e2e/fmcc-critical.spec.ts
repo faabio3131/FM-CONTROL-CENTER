@@ -338,3 +338,32 @@ test("operações F14: os cartões abrem diagnóstico real e fecham sem perder a
   );
   expect(hasOverflow).toBe(false);
 });
+
+
+test("menu principal do Command abre todas as rotas autorizadas sem tela vazia", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signUpAndCreateOrganization(page, "sidebar-navigation");
+  const entries = await page.locator(".command-sidebar nav a").evaluateAll((anchors) =>
+    anchors.map(anchor => ({
+      href: anchor.getAttribute("href") ?? "",
+      label: anchor.textContent?.trim() ?? "",
+    })),
+  );
+  expect(entries.length).toBeGreaterThanOrEqual(14);
+  for (const { href, label } of entries) {
+    expect(href, `Link vazio no menu ${label}`).toBeTruthy();
+    await page.locator(".command-sidebar nav a").evaluateAll(
+      (anchors, target) => {
+        const found = anchors.find(anchor => anchor.getAttribute("href") === target) as HTMLElement | undefined;
+        found?.click();
+      },
+      href,
+    );
+    const expected = new URL(href, "http://127.0.0.1").pathname;
+    await expect.poll(() => new URL(page.url()).pathname, { message: `Navegação ${label}` })
+      .toBe(expected);
+    await expect(page.locator("main").first(), `Conteúdo ausente em ${label}`).toBeVisible();
+    await expect(page.locator("main h1").first(), `Título ausente em ${label}`).toBeVisible();
+    await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
+  }
+});
