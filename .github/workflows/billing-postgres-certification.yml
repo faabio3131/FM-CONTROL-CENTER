@@ -97,5 +97,6 @@ jobs:
           BETTER_AUTH_SECRET: "ci-ephemeral-iron-cakto-auth-secret-20261109"
         run: npx vitest run tests/cakto-iron-product-billing.integration.test.ts
       - name: Certify Cakto provider, commerce and S2S worker
-        run: npx vitest run tests/cakto-payment-provider.test.ts tests/iron-commerce-provisioning.test.ts tests/iron-entitlement-outbox-worker.test.ts      - name: TypeScript
+        run: npx vitest run tests/cakto-payment-provider.test.ts tests/iron-commerce-provisioning.test.ts tests/iron-entitlement-outbox-worker.test.ts
+      - name: TypeScript
         run: npm run typecheck
