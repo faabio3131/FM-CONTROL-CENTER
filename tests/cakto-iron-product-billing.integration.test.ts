@@ -62,8 +62,9 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
       FMCC_IRON_BILLING_TENANT_ID: tenant, FMCC_IRON_PRODUCT_ID: productId,
       FMCC_CAKTO_WEBHOOK_SECRET: secret,
       FMCC_CAKTO_CHECKOUTS_JSON: JSON.stringify([
-        { offerId: "offer_month", productId: "iron_product", checkoutUrl: "https://pay.cakto.com.br/offer_month", amountMinor: 26900, interval: "month" },
-        { offerId: "offer_year", productId: "iron_product", checkoutUrl: "https://pay.cakto.com.br/offer_year", amountMinor: 26900, interval: "year" },
+        { offerId: "offer_month", productId: "iron_product", planCode: "IRON_PRO", checkoutUrl: "https://pay.cakto.com.br/offer_month", amountMinor: 26900, interval: "month" },
+        { offerId: "offer_year", productId: "iron_product", planCode: "IRON_PRO", checkoutUrl: "https://pay.cakto.com.br/offer_year", amountMinor: 26900, interval: "year" },
+        { offerId: "offer_other", productId: "iron_product", planCode: "IRON_OTHER", checkoutUrl: "https://pay.cakto.com.br/offer_other", amountMinor: 26900, interval: "month" },
       ]),
     };
     const billing = new CaktoIronProductBilling(cfg);
@@ -71,6 +72,8 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     expect(checkout).toContain("sck="+invoiceId);
     const wrongInterval = notification("purchase_approved", "order_wrong_interval", "paid", 269, "offer_year");
     expect(await billing.handleWebhook(wrongInterval.headers, wrongInterval.raw)).toBe("ignored");
+    const wrongPlan = notification("purchase_approved", "order_wrong_plan", "paid", 269, "offer_other");
+    expect(await billing.handleWebhook(wrongPlan.headers, wrongPlan.raw)).toBe("ignored");
 
     const first = notification("purchase_approved", order1, "paid");
     expect(await billing.handleWebhook(first.headers, first.raw)).toBe("applied");
