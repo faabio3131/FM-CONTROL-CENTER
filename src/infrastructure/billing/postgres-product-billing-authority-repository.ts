@@ -19,7 +19,7 @@ import {
   billingSubscriptions,
 } from "@/infrastructure/db/billing-schema";
 import { productDefinitions, sourceDefinitions } from "@/infrastructure/db/platform-schema";
-import { resolveIronPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
+import { readIronPlanMappings, resolveIronPlanMapping, type IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 
 function asInterval(value: string): "monthly" | "yearly" {
   if (value === "monthly" || value === "yearly") return value;
@@ -37,6 +37,27 @@ function asEnvironment(value: string): "sandbox" | "production" {
 }
 
 export class PostgresProductBillingAuthorityRepository implements ProductBillingAuthorityRepository {
+  /**
+   * Read-only, scoped, fail-closed commercial -> canonical IRON version bindings.
+   * A pricing tier can have distinct monthly/yearly commercial codes that both
+   * map to the same immutable IRON plan/version. Never infer this from the name.
+   */
+  async listIronCommerceMappings(tenantId: string, productId: string): Promise<readonly IronVersionedPlanMapping[]> {
+    const sources = await db.select({
+      config: sourceDefinitions.config,
+      name: sourceDefinitions.name,
+      domain: sourceDefinitions.authoritativeDomain,
+    }).from(sourceDefinitions).where(and(
+      eq(sourceDefinitions.tenantId, tenantId),
+      eq(sourceDefinitions.productId, productId),
+      eq(sourceDefinitions.sourceType, "iron-commercial-v1"),
+    ));
+    if (sources.length !== 1 || sources[0].name !== "IRON FIT CORE Commercial" ||
+        sources[0].domain !== "commercial")
+      throw new Error("billing.iron_plan_mapping_source_missing");
+    return readIronPlanMappings(sources[0].config);
+  }
+
   async listPlans(tenantId: string, productId: string): Promise<readonly BillingProductPlanView[]> {
     const rows = await db.select().from(billingProductPlans).where(and(
       eq(billingProductPlans.tenantId, tenantId),
