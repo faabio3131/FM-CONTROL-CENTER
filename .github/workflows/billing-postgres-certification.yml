@@ -10,6 +10,9 @@ on:
       - "src/application/billing/**"
       - "src/domain/billing/**"
       - "tests/billing-*.test.ts"
+      - "tests/cakto-*.test.ts"
+      - "tests/iron-commerce-provisioning.test.ts"
+      - "tests/iron-entitlement-outbox-worker.test.ts"
       - "tests/iron-asaas-atomic-reconciliation*.test.ts"
       - "tests/iron-commercial-plan-activation-postgres.test.ts"
       - "src/app/api/billing/products/**"
@@ -88,5 +91,11 @@ jobs:
         env:
           FMCC_IRON_ACTIVATION_PG_TEST: "YES"
           BETTER_AUTH_SECRET: "ci-only-iron-activation-secret-000000000000000000000000"
-      - name: TypeScript
+      - name: Certify Cakto IRON real PostgreSQL recurring payments and entitlement outbox
+        env:
+          FMCC_CAKTO_DB_CERTIFICATION: "1"
+          BETTER_AUTH_SECRET: "ci-ephemeral-iron-cakto-auth-secret-20261109"
+        run: npx vitest run tests/cakto-iron-product-billing.integration.test.ts
+      - name: Certify Cakto provider, commerce and S2S worker
+        run: npx vitest run tests/cakto-payment-provider.test.ts tests/iron-commerce-provisioning.test.ts tests/iron-entitlement-outbox-worker.test.ts      - name: TypeScript
         run: npm run typecheck
