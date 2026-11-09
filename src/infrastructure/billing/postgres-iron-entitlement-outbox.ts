@@ -136,6 +136,7 @@ export class PostgresIronEntitlementOutbox {
         WITH candidate AS (
           SELECT id FROM fmcc_billing_iron_entitlement_outbox
           WHERE tenant_id=$1 AND product_id=$2 AND attempts < 12
+            AND idempotency_key NOT LIKE 'cakto:%'
             AND ((status IN ('pending','retry') AND available_at <= now())
               OR (status='processing' AND lease_until < now()))
             AND NOT EXISTS (
