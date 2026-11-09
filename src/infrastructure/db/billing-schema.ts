@@ -87,6 +87,7 @@ export const billingSubscriptions = pgTable("fmcc_billing_subscription", {
   customerId: uuid("customer_id").notNull(),
   planCode: text("plan_code").notNull(),
   status: text("status").notNull().default("pending"),
+  paidThrough: timestamp("paid_through", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   uniqueIndex("fmcc_billing_subscription_scope_uq").on(t.tenantId, t.id, t.productId, t.customerId),
@@ -104,6 +105,7 @@ export const billingInvoices = pgTable("fmcc_billing_invoice", {
   gatewayAccountId: uuid("gateway_account_id").notNull(),
   currency: text("currency").notNull().default("BRL"),
   amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+  periodEnd: timestamp("period_end", { withTimezone: true }),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [

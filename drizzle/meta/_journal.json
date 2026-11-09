@@ -148,6 +148,13 @@
       "when": 1792561733336,
       "tag": "0020_vende_reactivation_target",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794229500000,
+      "tag": "0021_iron_cakto_paid_period",
+      "breakpoints": true
     }
   ]
 }
