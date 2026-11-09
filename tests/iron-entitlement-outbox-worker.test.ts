@@ -7,7 +7,7 @@ const ironSubscription = "0592a749-ab6c-4cbc-94d9-bdc5fca927b0";
 const invoice = "33804d46-6da3-4273-803f-cefcf73b74d4";
 const outbox = "98c06e68-96ba-46c0-9e75-2eaecf613f24";
 const token = "test-only-control-plane-abcdefghijklmnopqrstuvwxyz";
-const env = { FMCC_IRON_CONTROL_PLANE_URL: "https://api.ironfitcore.com.br/api/v1/control-plane/fmcc", FMCC_IRON_CONTROL_PLANE_TOKEN: token };
+const env = { FMCC_IRON_BILLING_TENANT_ID: "fm-tenant", FMCC_IRON_PRODUCT_ID: "999f0dd5-0f3b-4c46-93b5-b5c18f53a073", FMCC_IRON_CONTROL_PLANE_URL: "https://api.ironfitcore.com.br/api/v1/control-plane/fmcc", FMCC_IRON_CONTROL_PLANE_TOKEN: token };
 
 describe("IRON canonical entitlement delivery contract", () => {
   it("selects only a unique scoped current IRON subscription", () => {
@@ -57,6 +57,8 @@ describe("IRON canonical entitlement delivery contract", () => {
     expect(h.get("idempotency-key")).toBe("fmcc-cakto-license-" + outbox);
     expect(h.get("authorization")).toBe("Bearer " + token);
     expect(sqls.some(x => x.includes("status='delivered'"))).toBe(true);
+    expect(sqls.some(x => x.includes("candidate.idempotency_key LIKE 'cakto:%'"))).toBe(true);
+    expect(sqls.some(x => x.includes("candidate.tenant_id=$2 AND candidate.product_id=$3"))).toBe(true);
   });
 
   it("retains a retryable DB job on transient S2S failure, without marking it delivered", async () => {
