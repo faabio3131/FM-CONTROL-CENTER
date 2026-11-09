@@ -70,7 +70,7 @@ export class IronCommerceProvisioning {
     const provider = new CaktoPaymentProvider(this.env);
     const plans = await this.provider.listPlans(conf.tenantId, conf.productId);
     return plans.filter(p => p.status === "active" && published.has(p.planCode) &&
-      provider.hasExactlyOneOffer(p.amountMinor, p.interval === "monthly" ? "month" : "year"))
+      provider.hasExactlyOneOffer(p.amountMinor, p.interval === "monthly" ? "month" : "year", p.planCode))
       .map(p => ({ planCode:p.planCode, name:p.name, interval:p.interval,
         amountMinor:p.amountMinor, currency: "BRL" as const }));
   }
