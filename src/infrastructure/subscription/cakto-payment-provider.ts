@@ -111,6 +111,6 @@ export class CaktoPaymentProvider implements PaymentProvider {
     // Two payment-success events for the same order are one cycle, never two.
     const tag = type === "payment_confirmed" ? "pay" : type === "payment_overdue" ? "late" : type === "payment_refunded" ? "refund" : "cancel";
     return {eventId: tag + ":" + data.id, type, subscriptionRef: data.sck as string,
-      paymentRef: data.id, amount: type === "payment_confirmed" ? { amountMinor: monetary!, currency: "BRL" } : null, occurredAt};
+      paymentRef: data.id, amount: type === "payment_confirmed" ? { amountMinor: monetary!, currency: "BRL" } : null, occurredAt, offerInterval: matched.interval};
   }
 }
