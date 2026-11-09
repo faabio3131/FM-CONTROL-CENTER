@@ -113,8 +113,13 @@ export class IronEntitlementOutboxWorker {
         !b.paid_through || !b.invoice_period_end ||
         b.paid_through < b.invoice_period_end || b.paid_through.getTime() <= Date.now()))
       throw new Error("iron.delivery_invoice_not_paid");
-    if (!paid && !["refunded", "paid"].includes(b.invoice_status))
-      throw new Error("iron.delivery_invoice_state_invalid");
+    if (!paid) {
+      if (!["refunded", "paid"].includes(b.invoice_status) ||
+          (job.event_type === "LICENSE_SUSPEND" && b.subscription_status !== "past_due") ||
+          (job.event_type === "LICENSE_CANCEL" && b.subscription_status !== "cancelled") ||
+          (b.paid_through && b.invoice_period_end && b.paid_through.getTime() > b.invoice_period_end.getTime()))
+        throw new Error("iron.delivery_invoice_state_invalid");
+    }
     return b;
   }
 
