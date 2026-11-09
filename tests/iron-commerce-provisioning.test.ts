@@ -11,7 +11,7 @@ const env={
   FMCC_IRON_CONTROL_PLANE_URL:"https://api.ironfitcore.com.br/api/v1/control-plane/fmcc",
   FMCC_IRON_CONTROL_PLANE_TOKEN:token,
   FMCC_CAKTO_WEBHOOK_SECRET: "ci-webhook-"+ "a".repeat(35),
-  FMCC_CAKTO_CHECKOUTS_JSON:JSON.stringify([{offerId:"offer_ci",productId:"product_ci",
+  FMCC_CAKTO_CHECKOUTS_JSON:JSON.stringify([{offerId:"offer_ci",productId:"product_ci",planCode:"IRON_PRO",
     checkoutUrl:"https://pay.cakto.com.br/offer_ci",amountMinor:26900,interval:"month"}]),
 };
 const req={gymId:gym,expectedSubscriptionId:sub,planCode:"IRON_PRO",idempotencyKey:"iron-ct-test-ref-01"};
