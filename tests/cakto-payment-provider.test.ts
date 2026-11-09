@@ -7,8 +7,8 @@ const secret = "test-only-secret-1234567890-test-secret";
 const config = {
   FMCC_CAKTO_WEBHOOK_SECRET: secret,
   FMCC_CAKTO_CHECKOUTS_JSON: JSON.stringify([
-    { offerId: "offer_month", productId: "iron_product", checkoutUrl: "https://pay.cakto.com.br/offer_month", amountMinor: 26900, interval: "month" },
-    { offerId: "offer_year", productId: "iron_product", checkoutUrl: "https://pay.cakto.com.br/offer_year", amountMinor: 269000, interval: "year" },
+    { offerId: "offer_month", productId: "iron_product", planCode: "IRON_PRO", checkoutUrl: "https://pay.cakto.com.br/offer_month", amountMinor: 26900, interval: "month" },
+    { offerId: "offer_year", productId: "iron_product", planCode: "IRON_YEAR", checkoutUrl: "https://pay.cakto.com.br/offer_year", amountMinor: 269000, interval: "year" },
   ]),
 };
 const now = new Date("2026-11-09T12:00:00Z");
@@ -33,7 +33,7 @@ describe("Cakto hosted checkout and authenticated webhook", () => {
     const p = provider();
     expect(await p.createCustomer({ name: "Maria", email: "maria@example.com", taxId: null, externalReference: ID })).toEqual({ customerRef: ID });
     const r = await p.createSubscription({ customerRef: ID, externalReference: ID,
-      price: { amountMinor: 26900, currency: "BRL" }, interval: "month", description: "IRON", firstDueDate: "2026-11-09" });
+      price: { amountMinor: 26900, currency: "BRL" }, interval: "month", planCode: "IRON_PRO", description: "IRON", firstDueDate: "2026-11-09" });
     expect(r).toEqual({ subscriptionRef: ID, checkoutUrl: "https://pay.cakto.com.br/offer_month?sck=" + ID });
     await expect(p.findSubscriptionByReference(ID)).resolves.toBeNull();
     await expect(p.cancelSubscription(ID)).rejects.toThrow("cakto.cancel_requires_provider_confirmation");
@@ -66,9 +66,14 @@ describe("Cakto hosted checkout and authenticated webhook", () => {
   });
   it("refuses ambiguous price mappings and unsafe checkout targets", async () => {
     expect(() => new CaktoPaymentProvider({ ...config, FMCC_CAKTO_CHECKOUTS_JSON: JSON.stringify([
-      { offerId: "a12", productId: "p12", checkoutUrl: "https://attacker.example/pay", amountMinor: 26900, interval: "month" },
+      { offerId: "a12", productId: "p12", planCode: "IRON_PRO", checkoutUrl: "https://attacker.example/pay", amountMinor: 26900, interval: "month" },
     ]) })).toThrow("cakto.checkout_config_invalid");
+    expect(provider().hasExactlyOneOffer(26900, "month", "IRON_PRO")).toBe(true);
+    expect(provider().hasExactlyOneOffer(26900, "month", "IRON_OTHER")).toBe(false);
     await expect(provider().createSubscription({ customerRef: ID, externalReference: ID,
-      price: { amountMinor: 1, currency: "BRL" }, interval: "month", description: "IRON", firstDueDate: "2026-11-09" })).rejects.toThrow("cakto.offer_not_configured_or_ambiguous");
+      price: { amountMinor: 26900, currency: "BRL" }, interval: "month", planCode: "IRON_OTHER",
+      description: "IRON", firstDueDate: "2026-11-09" })).rejects.toThrow("cakto.offer_not_configured_or_ambiguous");
+    await expect(provider().createSubscription({ customerRef: ID, externalReference: ID,
+      price: { amountMinor: 1, currency: "BRL" }, interval: "month", planCode: "IRON_PRO", description: "IRON", firstDueDate: "2026-11-09" })).rejects.toThrow("cakto.offer_not_configured_or_ambiguous");
   });
 });
