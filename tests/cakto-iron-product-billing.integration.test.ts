@@ -91,6 +91,7 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
       return new Response(JSON.stringify({ result: { entitlementStatus: "ACTIVE" } }), { status: 201 });
     }) as typeof fetch;
     const worker = new IronEntitlementOutboxWorker(pool, {
+      FMCC_IRON_BILLING_TENANT_ID: tenant, FMCC_IRON_PRODUCT_ID: productId,
       FMCC_IRON_CONTROL_PLANE_URL: "https://api.ironfitcore.com.br/api/v1/control-plane/fmcc",
       FMCC_IRON_CONTROL_PLANE_TOKEN: "ci-only-" + "t".repeat(40),
     }, mockFetch);
