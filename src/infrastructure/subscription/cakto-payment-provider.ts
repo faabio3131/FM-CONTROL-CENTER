@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { PaymentProviderError, WebhookRejectedError, type CreateSubscriptionInput, type CustomerInput, type PaymentEvent, type PaymentProvider, type ProviderCapabilities, type ProviderSubscription } from "@/domain/billing/cakto-payment-provider-contract";
 
-type Offer = { offerId: string; productId: string; checkoutUrl: string; amountMinor: number; interval: "month" | "year" };
+type Offer = { offerId: string; productId: string; planCode: string; checkoutUrl: string; amountMinor: number; interval: "month" | "year" };
 const REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -26,19 +26,20 @@ export class CaktoPaymentProvider implements PaymentProvider {
       const a = item as Partial<Offer>;
       if (!a || typeof a.offerId !== "string" || !/^[A-Za-z0-9_-]{3,90}$/.test(a.offerId) ||
           typeof a.productId !== "string" || !/^[A-Za-z0-9_-]{3,90}$/.test(a.productId) ||
+          typeof a.planCode !== "string" || !/^[A-Z][A-Z0-9_]{1,63}$/.test(a.planCode) ||
           !Number.isSafeInteger(a.amountMinor) || (a.amountMinor ?? 0) < 500 ||
           !["month", "year"].includes(a.interval ?? "") || typeof a.checkoutUrl !== "string") throw new Error("cakto.checkout_config_invalid");
       let url: URL;
       try { url = new URL(a.checkoutUrl); } catch { throw new Error("cakto.checkout_config_invalid"); }
       if (url.protocol !== "https:" || url.hostname !== "pay.cakto.com.br" || url.username || url.password ||
           url.searchParams.has("sck") || url.hash) throw new Error("cakto.checkout_config_invalid");
-      return {offerId: a.offerId, productId: a.productId, amountMinor: a.amountMinor!, interval: a.interval!, checkoutUrl: url.toString()};
+      return {offerId: a.offerId, productId: a.productId, planCode: a.planCode, amountMinor: a.amountMinor!, interval: a.interval!, checkoutUrl: url.toString()};
     });
     if (new Set(this.offers.map(x => x.offerId)).size !== this.offers.length) throw new Error("cakto.checkout_config_duplicate");
   }
 
-  hasExactlyOneOffer(amountMinor: number, interval: "month" | "year"): boolean {
-    return this.offers.filter(x => x.amountMinor === amountMinor && x.interval === interval).length === 1;
+  hasExactlyOneOffer(amountMinor: number, interval: "month" | "year", planCode: string): boolean {
+    return this.offers.filter(x => x.amountMinor === amountMinor && x.interval === interval && x.planCode === planCode).length === 1;
   }
 
   async createCustomer(input: CustomerInput): Promise<{ customerRef: string }> {
@@ -49,7 +50,7 @@ export class CaktoPaymentProvider implements PaymentProvider {
 
   async createSubscription(input: CreateSubscriptionInput): Promise<ProviderSubscription> {
     if (!REF.test(input.externalReference) || input.price.currency !== "BRL") throw new PaymentProviderError("cakto.reference_invalid", "rejected");
-    const matches = this.offers.filter(x => x.amountMinor === input.price.amountMinor && x.interval === input.interval);
+    const matches = this.offers.filter(x => x.amountMinor === input.price.amountMinor && x.interval === input.interval && x.planCode === input.planCode);
     if (matches.length !== 1) throw new PaymentProviderError("cakto.offer_not_configured_or_ambiguous", "rejected");
     const url = new URL(matches[0].checkoutUrl);
     url.searchParams.set("sck", input.externalReference);
@@ -111,6 +112,6 @@ export class CaktoPaymentProvider implements PaymentProvider {
     // Two payment-success events for the same order are one cycle, never two.
     const tag = type === "payment_confirmed" ? "pay" : type === "payment_overdue" ? "late" : type === "payment_refunded" ? "refund" : "cancel";
     return {eventId: tag + ":" + data.id, type, subscriptionRef: data.sck as string,
-      paymentRef: data.id, amount: type === "payment_confirmed" ? { amountMinor: monetary!, currency: "BRL" } : null, occurredAt, offerInterval: matched.interval};
+      paymentRef: data.id, amount: type === "payment_confirmed" ? { amountMinor: monetary!, currency: "BRL" } : null, occurredAt, offerInterval: matched.interval, offerPlanCode: matched.planCode};
   }
 }
