@@ -87,6 +87,8 @@ export class CaktoIronProductBilling {
     let binding: Awaited<ReturnType<typeof this.boundInvoice>>;
     try { binding = await this.boundInvoice(event.subscriptionRef); }
     catch { return "unmatched"; } // No trust in email/CPF/redirect/unknown invoice.
+    const planInterval = binding.plan.interval === "monthly" ? "month" : binding.plan.interval === "yearly" ? "year" : null;
+    if (!planInterval || event.offerInterval !== planInterval) return "ignored";
     if (event.type === "payment_confirmed" && (!event.amount ||
       event.amount.currency !== "BRL" || event.amount.amountMinor !== binding.invoice.amountMinor)) return "ignored";
 
