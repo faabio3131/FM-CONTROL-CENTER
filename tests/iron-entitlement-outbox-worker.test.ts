@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { IronEntitlementOutboxWorker, ironLicenseCommand, selectIronSubscription } from "@/application/billing/iron-entitlement-outbox-worker";
 import type { Pool } from "pg";
 
@@ -10,6 +11,11 @@ const token = "test-only-control-plane-abcdefghijklmnopqrstuvwxyz";
 const env = { FMCC_IRON_BILLING_TENANT_ID: "fm-tenant", FMCC_IRON_PRODUCT_ID: "999f0dd5-0f3b-4c46-93b5-b5c18f53a073", FMCC_IRON_CONTROL_PLANE_URL: "https://api.ironfitcore.com.br/api/v1/control-plane/fmcc", FMCC_IRON_CONTROL_PLANE_TOKEN: token };
 
 describe("IRON canonical entitlement delivery contract", () => {
+  it("keeps the established V1 dispatcher separate from the Cakto outbox scheduler", () => {
+    const existing = readFileSync(new URL("../src/infrastructure/billing/postgres-iron-entitlement-outbox.ts", import.meta.url), "utf8");
+    expect(existing).toContain("idempotency_key NOT LIKE 'cakto:%'");
+  });
+
   it("selects only a unique scoped current IRON subscription", () => {
     const snapshot = { subscriptions: [
       { tenant_id: gym, plan_code: "IRON_PRO", external_id: ironSubscription, status: "ACTIVE" },
