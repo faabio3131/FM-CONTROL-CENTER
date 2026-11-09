@@ -67,7 +67,7 @@ export class CaktoIronProductBilling {
     const result = await this.provider.createSubscription({
       customerRef: r.invoice.customerId, externalReference: invoiceId,
       price: { amountMinor: r.invoice.amountMinor, currency: "BRL" },
-      interval, description: "IRON FIT CORE - " + r.plan.planCode,
+      interval, planCode: r.plan.planCode, description: "IRON FIT CORE - " + r.plan.planCode,
       firstDueDate: new Date().toISOString().slice(0, 10),
     });
     if (!result.checkoutUrl) throw new Error("cakto.checkout_not_available");
@@ -88,7 +88,7 @@ export class CaktoIronProductBilling {
     try { binding = await this.boundInvoice(event.subscriptionRef); }
     catch { return "unmatched"; } // No trust in email/CPF/redirect/unknown invoice.
     const planInterval = binding.plan.interval === "monthly" ? "month" : binding.plan.interval === "yearly" ? "year" : null;
-    if (!planInterval || event.offerInterval !== planInterval) return "ignored";
+    if (!planInterval || event.offerInterval !== planInterval || event.offerPlanCode !== binding.plan.planCode) return "ignored";
     if (event.type === "payment_confirmed" && (!event.amount ||
       event.amount.currency !== "BRL" || event.amount.amountMinor !== binding.invoice.amountMinor)) return "ignored";
 
