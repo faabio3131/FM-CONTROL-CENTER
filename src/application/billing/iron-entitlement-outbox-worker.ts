@@ -75,18 +75,35 @@ export class IronEntitlementOutboxWorker {
   }
 
   private async claim(): Promise<Pending | null> {
+    // Global platform Cakto credentials have exactly one authoritative billing scope.
+    // Do not consume unrelated Asaas/other FM platform license jobs in this scheduler.
+    const tenantId = this.env.FMCC_IRON_BILLING_TENANT_ID ?? "";
+    const productId = this.env.FMCC_IRON_PRODUCT_ID ?? "";
+    if (!/^[A-Za-z0-9._:-]{3,128}$/.test(tenantId) || !UUID.test(productId))
+      throw new Error("iron.delivery_scope_not_configured");
     const result = await this.pool.query(`
       UPDATE fmcc_billing_iron_entitlement_outbox SET
         status='processing', claim_token=$1, lease_until=now()+interval '90 seconds',
         attempts=attempts+1, updated_at=now()
       WHERE id=(
-        SELECT id FROM fmcc_billing_iron_entitlement_outbox
-        WHERE (status IN ('pending','retry') AND available_at<=now())
-          OR (status='processing' AND lease_until<now())
-        ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
+        SELECT candidate.id FROM fmcc_billing_iron_entitlement_outbox candidate
+        WHERE candidate.tenant_id=$2 AND candidate.product_id=$3
+          AND candidate.idempotency_key LIKE 'cakto:%'
+          AND candidate.attempts < 12
+          AND ((candidate.status IN ('pending','retry') AND candidate.available_at<=now())
+            OR (candidate.status='processing' AND candidate.lease_until<now()))
+          AND NOT EXISTS (
+            SELECT 1 FROM fmcc_billing_iron_entitlement_outbox older
+            WHERE older.tenant_id=candidate.tenant_id
+              AND older.product_id=candidate.product_id
+              AND older.subscription_id=candidate.subscription_id
+              AND (older.created_at, older.id) < (candidate.created_at, candidate.id)
+              AND older.status IN ('pending','retry','processing')
+          )
+        ORDER BY candidate.created_at, candidate.id LIMIT 1 FOR UPDATE SKIP LOCKED
       )
       RETURNING id, tenant_id, product_id, invoice_id, subscription_id, event_type, attempts, claim_token
-    `, [randomUUID()]);
+    `, [randomUUID(), tenantId, productId]);
     return (result.rows[0] ?? null) as Pending | null;
   }
 
@@ -186,6 +203,8 @@ export class IronEntitlementOutboxWorker {
   }
 
   async processOne(): Promise<WorkerResult> {
+    // Configuration errors must not claim and dead-letter a valid payment entitlement.
+    this.config();
     const job = await this.claim();
     if (!job) return "idle";
     try {
