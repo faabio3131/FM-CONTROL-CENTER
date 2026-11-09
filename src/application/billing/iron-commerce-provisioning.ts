@@ -64,14 +64,24 @@ export class IronCommerceProvisioning {
     if (!Array.isArray(catalog?.plans)) throw new Error("iron.commerce_plan_catalog_invalid");
     const published = new Set(catalog.plans
       .filter((v: unknown) => v && typeof v === "object" && !Array.isArray(v))
-      .map((v: unknown) => (v as { plan_code?: unknown }).plan_code)
-      .filter((v: unknown): v is string => typeof v === "string"));
+      .map((v: unknown) => {
+        const p = v as { plan_code?: unknown; version?: unknown };
+        return typeof p.plan_code === "string" && Number.isSafeInteger(p.version)
+          ? p.plan_code + ":" + p.version : null;
+      }).filter((key: unknown): key is string => typeof key === "string"));
+    // Each immutable commercial offer (including monthly/yearly variants) must
+    // map to an independently published canonical IRON plan/version.
+    const bindings = await this.provider.listIronCommerceMappings(conf.tenantId, conf.productId);
+    const mapped = new Map(bindings.map(b => [b.commercialPlanCode, b]));
     // Construction validates the Cakto seller's hosted offer URLs and IDs at startup.
     const provider = new CaktoPaymentProvider(this.env);
     const plans = await this.provider.listPlans(conf.tenantId, conf.productId);
-    return plans.filter(p => p.status === "active" && published.has(p.planCode) &&
-      provider.hasExactlyOneOffer(p.amountMinor, p.interval === "monthly" ? "month" : "year", p.planCode))
-      .map(p => ({ planCode:p.planCode, name:p.name, interval:p.interval,
+    return plans.filter(p => {
+      const binding = mapped.get(p.planCode);
+      return p.status === "active" && !!binding &&
+        published.has(binding.ironPlanCode + ":" + binding.ironPlanVersion) &&
+        provider.hasExactlyOneOffer(p.amountMinor, p.interval === "monthly" ? "month" : "year", p.planCode);
+    }).map(p => ({ planCode:p.planCode, name:p.name, interval:p.interval,
         amountMinor:p.amountMinor, currency: "BRL" as const }));
   }
 
@@ -80,9 +90,10 @@ export class IronCommerceProvisioning {
         !CODE.test(input.planCode) || !IDEM.test(input.idempotencyKey))
       throw new Error("iron.commerce_input_invalid");
     const conf = this.config();
-    const [snapshot, planList] = await Promise.all([
+    const [snapshot, planList, bindings] = await Promise.all([
       this.fetchControl(conf.base + "/snapshot", conf.token),
       this.fetchControl(conf.base + "/plan-versions", conf.token),
+      this.provider.listIronCommerceMappings(conf.tenantId, conf.productId),
     ]);
     if (!snapshot || typeof snapshot !== "object" || !planList || typeof planList !== "object")
       throw new Error("iron.commerce_control_plane_invalid_response");
@@ -97,8 +108,12 @@ export class IronCommerceProvisioning {
         v.status === "ACTIVE";
     });
     if (owned.length !== 1) throw new Error("iron.commerce_subscription_invalid");
+    const matches = bindings.filter(b => b.commercialPlanCode === input.planCode);
+    if (matches.length !== 1) throw new Error("iron.commerce_plan_mapping_unavailable");
+    const binding = matches[0];
     const published = plans.some((s: unknown) => s && typeof s === "object" && !Array.isArray(s) &&
-      (s as Record<string, unknown>).plan_code === input.planCode);
+      (s as Record<string, unknown>).plan_code === binding.ironPlanCode &&
+      (s as Record<string, unknown>).version === binding.ironPlanVersion);
     if (!published) throw new Error("iron.commerce_plan_not_published");
     const hash = createHash("sha256").update(JSON.stringify({
       productId: conf.productId, externalTenantId: input.gymId, planCode: input.planCode,
