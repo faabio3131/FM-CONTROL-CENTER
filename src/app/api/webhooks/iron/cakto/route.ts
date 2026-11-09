@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { BodyTooLargeError, readLimitedBody } from "@/infrastructure/http/read-limited-body";
-import { WebhookRejectedError } from "@/domain/subscription/payment-provider";
+import { WebhookRejectedError } from "@/domain/billing/cakto-payment-provider-contract";
 import { CaktoIronProductBilling } from "@/application/billing/cakto-iron-product-billing";
 
 export const dynamic = "force-dynamic";
