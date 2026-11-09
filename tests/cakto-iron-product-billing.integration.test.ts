@@ -30,11 +30,11 @@ async function prepare() {
   return { accountId, subscriptionId: sub.rows[0].id };
 }
 
-function notification(event: string, orderId: string, status: string, amount = 269) {
+function notification(event: string, orderId: string, status: string, amount = 269, offerId = "offer_month") {
   const body = JSON.stringify({
     event, data: { id: orderId, offer_type: "main", sck: invoiceId, status, amount,
       currency: "BRL", paidAt: new Date().toISOString(),
-      offer: { id: "offer_month" }, product: { id: "iron_product" } },
+      offer: { id: offerId }, product: { id: "iron_product" } },
   });
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = "v1=" + createHmac("sha256", secret).update(timestamp + "." + body).digest("hex");
@@ -63,11 +63,14 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
       FMCC_CAKTO_WEBHOOK_SECRET: secret,
       FMCC_CAKTO_CHECKOUTS_JSON: JSON.stringify([
         { offerId: "offer_month", productId: "iron_product", checkoutUrl: "https://pay.cakto.com.br/offer_month", amountMinor: 26900, interval: "month" },
+        { offerId: "offer_year", productId: "iron_product", checkoutUrl: "https://pay.cakto.com.br/offer_year", amountMinor: 26900, interval: "year" },
       ]),
     };
     const billing = new CaktoIronProductBilling(cfg);
     const checkout = await billing.checkoutUrl(invoiceId);
     expect(checkout).toContain("sck="+invoiceId);
+    const wrongInterval = notification("purchase_approved", "order_wrong_interval", "paid", 269, "offer_year");
+    expect(await billing.handleWebhook(wrongInterval.headers, wrongInterval.raw)).toBe("ignored");
 
     const first = notification("purchase_approved", order1, "paid");
     expect(await billing.handleWebhook(first.headers, first.raw)).toBe("applied");
