@@ -1,7 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { CaktoPaymentProvider } from "@/infrastructure/subscription/cakto-payment-provider";
-import { defaultProviderRegistry } from "@/infrastructure/subscription/provider-registry";
 
 const ID = "fa9c7a11-5725-4495-bc16-f09a86c52d3e";
 const secret = "test-only-secret-1234567890-test-secret";
@@ -27,8 +26,8 @@ const order = (changes: Record<string, unknown> = {}) => ({
 });
 describe("Cakto hosted checkout and authenticated webhook", () => {
   it("is not enabled without seller config", () => {
-    expect(defaultProviderRegistry({ NODE_ENV: "production" }).get("cakto")).toBeNull();
-    expect(defaultProviderRegistry({ NODE_ENV: "production", ...config }).get("cakto")).not.toBeNull();
+    expect(() => new CaktoPaymentProvider({ NODE_ENV: "production" })).toThrow("cakto.webhook_secret_required");
+    expect(() => new CaktoPaymentProvider({ NODE_ENV: "production", ...config })).not.toThrow();
   });
   it("creates no remote charge; returns opaque tenant-bound callback URL", async () => {
     const p = provider();
