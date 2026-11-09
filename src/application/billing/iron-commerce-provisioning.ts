@@ -66,7 +66,7 @@ export class IronCommerceProvisioning {
       .filter((v: unknown) => v && typeof v === "object" && !Array.isArray(v))
       .map((v: unknown) => {
         const p = v as { plan_code?: unknown; version?: unknown };
-        return typeof p.plan_code === "string" && Number.isSafeInteger(p.version)
+        return typeof p.plan_code === "string" && typeof p.version === "number" && Number.isSafeInteger(p.version)
           ? p.plan_code + ":" + p.version : null;
       }).filter((key: unknown): key is string => typeof key === "string"));
     // Each immutable commercial offer (including monthly/yearly variants) must
