@@ -73,6 +73,18 @@ describe("IRON canonical entitlement delivery contract", () => {
     expect(queries.some(x => x.sql.includes("status='delivered'"))).toBe(false);
   });
 
+  it("rejects a stale suspension from an older paid cycle without calling IRON", async () => {
+    const pool = { query: async (sql: string) => {
+      if (sql.includes("RETURNING id, tenant_id")) return { rows: [{ id: outbox, tenant_id: "fm-tenant", product_id: "iron-product", invoice_id: invoice, subscription_id: "billing-sub", event_type: "LICENSE_SUSPEND", attempts: 1, claim_token: "lease" }] };
+      if (sql.includes("SELECT b.external_tenant_id")) return { rows: [{ gym_id: gym, plan_code: "IRON_PRO", invoice_status: "paid", subscription_status: "active", paid_through: new Date(Date.now() + 60 * 86_400_000), invoice_period_end: new Date(Date.now() + 30 * 86_400_000) }] };
+      return { rows: [], rowCount: 1 };
+    }} as unknown as Pick<Pool, "query">;
+    let called = false;
+    const mocked = (async () => { called = true; throw new Error("must_not_send"); }) as typeof fetch;
+    expect(await new IronEntitlementOutboxWorker(pool, env, mocked).processOne()).toBe("blocked");
+    expect(called).toBe(false);
+  });
+
   it("does not deliver a license for unpaid or missing canonical invoice binding", async () => {
     const pool = { query: async (sql: string, _params?: unknown[]) => {
       if (sql.includes("RETURNING id, tenant_id")) return { rows: [{ id: outbox, tenant_id: "fm-tenant", product_id: "iron-product", invoice_id: invoice, subscription_id: "billing-sub", event_type: "LICENSE_ACTIVATE", attempts: 1, claim_token: "lease" }] };
