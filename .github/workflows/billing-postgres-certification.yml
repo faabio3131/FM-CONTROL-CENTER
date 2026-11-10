@@ -106,5 +106,10 @@ jobs:
         run: npx vitest run tests/cakto-payment-provider.test.ts tests/iron-commerce-provisioning.test.ts tests/iron-entitlement-outbox-worker.test.ts
       - name: IRON signed one-time packs, refund, replay and S2S delivery
         run: npx vitest run tests/iron-ai-credit-billing.integration.test.ts tests/iron-ai-credit-checkout.unit.test.ts tests/iron-ai-credit-outbox.unit.test.ts
+      - name: IRON credit concurrent purchase and signed settlement on PostgreSQL 18
+        env:
+          FMCC_IRON_CREDITS_DB_CERTIFICATION: "YES"
+          BETTER_AUTH_SECRET: "ci-ephemeral-iron-credit-pg-secret-20261110"
+        run: npx vitest run tests/iron-ai-credit-live-postgres.test.ts
       - name: TypeScript
         run: npm run typecheck
