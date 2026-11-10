@@ -11,6 +11,10 @@ on:
       - "src/domain/billing/**"
       - "tests/billing-*.test.ts"
       - "tests/cakto-*.test.ts"
+      - "tests/iron-ai-credit-*.test.ts"
+      - "src/app/api/webhooks/iron/cakto/**"
+      - "src/app/api/internal/iron/ai-credits/**"
+      - "src/app/api/internal/automation/iron/ai-credits/**"
       - "tests/iron-commerce-provisioning.test.ts"
       - "tests/iron-entitlement-outbox-worker.test.ts"
       - "tests/iron-asaas-atomic-reconciliation*.test.ts"
@@ -100,5 +104,7 @@ jobs:
         env:
           BETTER_AUTH_SECRET: "ci-ephemeral-iron-cakto-auth-secret-20261109"
         run: npx vitest run tests/cakto-payment-provider.test.ts tests/iron-commerce-provisioning.test.ts tests/iron-entitlement-outbox-worker.test.ts
+      - name: IRON signed one-time packs, refund, replay and S2S delivery
+        run: npx vitest run tests/iron-ai-credit-billing.integration.test.ts tests/iron-ai-credit-checkout.unit.test.ts tests/iron-ai-credit-outbox.unit.test.ts
       - name: TypeScript
         run: npm run typecheck
