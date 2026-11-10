@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { PaymentProviderError, WebhookRejectedError, type CreateSubscriptionInput, type CustomerInput, type PaymentEvent, type PaymentProvider, type ProviderCapabilities, type ProviderSubscription } from "@/domain/billing/cakto-payment-provider-contract";
 
-type Offer = { offerId: string; productId: string; planCode: string; checkoutUrl: string; amountMinor: number; interval: "month" | "year" };
+type Offer = { offerId: string; productId: string; planCode: string; checkoutUrl: string; amountMinor: number; interval: "month" | "year" | "one_time" };
 const REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -28,7 +28,7 @@ export class CaktoPaymentProvider implements PaymentProvider {
           typeof a.productId !== "string" || !/^[A-Za-z0-9_-]{3,90}$/.test(a.productId) ||
           typeof a.planCode !== "string" || !/^[A-Z][A-Z0-9_]{1,63}$/.test(a.planCode) ||
           !Number.isSafeInteger(a.amountMinor) || (a.amountMinor ?? 0) < 500 ||
-          !["month", "year"].includes(a.interval ?? "") || typeof a.checkoutUrl !== "string") throw new Error("cakto.checkout_config_invalid");
+          !["month", "year", "one_time"].includes(a.interval ?? "") || typeof a.checkoutUrl !== "string") throw new Error("cakto.checkout_config_invalid");
       let url: URL;
       try { url = new URL(a.checkoutUrl); } catch { throw new Error("cakto.checkout_config_invalid"); }
       if (url.protocol !== "https:" || url.hostname !== "pay.cakto.com.br" || url.username || url.password ||
@@ -56,6 +56,34 @@ export class CaktoPaymentProvider implements PaymentProvider {
     url.searchParams.set("sck", input.externalReference);
     // Idempotent: no provider mutation; reissuing an identical checkout URL is safe.
     return { subscriptionRef: input.externalReference, checkoutUrl: url.toString() };
+  }
+
+  /** Fixed one-time credit offer; never reuse a recurring plan, provider is FM Command. */
+  oneTimeCheckout(reference: string, amountMinor: number, packageCode: string): string {
+    if (!REF.test(reference) || !Number.isSafeInteger(amountMinor) || amountMinor <= 0)
+      throw new PaymentProviderError("cakto.credits_reference_invalid", "rejected");
+    const matches = this.offers.filter(x => x.interval === "one_time" &&
+      x.amountMinor === amountMinor && x.planCode === packageCode);
+    if (matches.length !== 1)
+      throw new PaymentProviderError("cakto.credits_offer_not_configured_or_ambiguous", "rejected");
+    const url = new URL(matches[0].checkoutUrl);
+    url.searchParams.set("sck", reference);
+    return url.toString();
+  }
+
+  /** Signed main-item payment + immutable offer/product/plan binding. */
+  verifyOneTimeWebhook(headers: Headers, raw: string): PaymentEvent | null {
+    const event = this.verifyWebhook(headers, raw);
+    if (!event || event.offerInterval !== "one_time") return null;
+    let body: {data?: unknown};
+    try { body = JSON.parse(raw) as {data?: unknown}; } catch { return null; }
+    const record = Array.isArray(body.data) ? (body.data.length === 1 ? body.data[0] : null) : body.data;
+    if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+    const item = record as {offer?: {id?: unknown}; product?: {id?: unknown}};
+    if (!this.offers.some(o => o.interval === "one_time" &&
+      o.planCode === event.offerPlanCode && o.offerId === item.offer?.id &&
+      o.productId === item.product?.id)) return null;
+    return event;
   }
 
   async findSubscriptionByReference(reference: string): Promise<ProviderSubscription | null> {
