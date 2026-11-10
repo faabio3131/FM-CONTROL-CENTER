@@ -159,4 +159,16 @@ describe("IRON credit purchase commercial ledger and signed settlement",()=>{
     expect(store.orders.get(order.invoiceId)?.status).toBe("refunded");
     expect(await app.handleWebhook(pay.headers,pay.raw)).toBe("ignored");
   });
+  it("signed refund received BEFORE paid event permanently blocks later grant",async()=>{
+    const app=new IronAiCreditBilling(env);
+    const order=await app.prepareCheckout(gym,"IRON_AI_WORKOUT_100","refund-before-paid-00001");
+    const early=signed(order.invoiceId,"refund");
+    expect(await app.handleWebhook(early.headers,early.raw)).toBe("applied");
+    expect(store.orders.get(order.invoiceId)?.status).toBe("refunded");
+    expect(store.deliveries).toHaveLength(0);
+    const late=signed(order.invoiceId,"purchase_approved");
+    expect(await app.handleWebhook(late.headers,late.raw)).toBe("ignored");
+    expect(store.deliveries).toHaveLength(0);
+  });
+
 });
