@@ -148,8 +148,12 @@ export class IronAiCreditBilling {
         await client.query("COMMIT");
         return "duplicate";
       }
+      // A provider-confirmed refund may arrive before its matching PAID webhook.
+      // Tombstone the pending order so a late payment event can never resurrect credits.
+      // For an already-paid order, however, the original payment reference must match.
       if ((isPaid && order.status !== "pending") ||
-        (!isPaid && (order.status !== "paid" || order.payment_ref !== event.paymentRef))) {
+        (!isPaid && (order.status !== "paid" && order.status !== "pending")) ||
+        (!isPaid && order.status === "paid" && order.payment_ref !== event.paymentRef)) {
         await client.query("COMMIT");
         return "ignored";
       }
@@ -163,10 +167,14 @@ export class IronAiCreditBilling {
         WHERE id=$1
       `, [order.id,next, event.paymentRef]);
       if (update.rowCount !== 1) throw new Error("iron.credits_order_update_failed");
-      await client.query(`
-        INSERT INTO fmcc_iron_ai_credit_outbox(order_id,event_type,status)
-        VALUES($1,$2,'pending') ON CONFLICT (order_id,event_type) DO NOTHING
-      `, [order.id,isPaid ? "GRANT" : "REVOKE"]);
+      // A pending order refunded before payment never had granted credits:
+      // preserve the revocation tombstone without creating unnecessary S2S work.
+      if (isPaid || order.status === "paid") {
+        await client.query(`
+          INSERT INTO fmcc_iron_ai_credit_outbox(order_id,event_type,status)
+          VALUES($1,$2,'pending') ON CONFLICT (order_id,event_type) DO NOTHING
+        `, [order.id,isPaid ? "GRANT" : "REVOKE"]);
+      }
       await client.query("COMMIT");
       return "applied";
     } catch (error) {
