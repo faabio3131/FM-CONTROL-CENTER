@@ -72,7 +72,21 @@ describe("FM Command -> IRON durable credit delivery",()=>{
         subscription_status:"active",paid_through:new Date(Date.now()+86400000)}],rowCount:1}} as never,
       {...env,FMCC_IRON_CONTROL_PLANE_URL:"https://evil.example/api/v1/control-plane/fmcc"},
       vi.fn() as unknown as typeof fetch);
-    expect(await fake.processOne()).toBe("blocked");
+    await expect(fake.processOne()).rejects.toThrow("iron.credits_delivery_host_invalid");
     expect(calls).toHaveLength(0);
   });
+});
+
+it("never claims a paid credit while the real delivery credential is missing",async()=>{
+  const query=vi.fn();
+  const worker=new IronAiCreditOutboxWorker({query} as never,
+    {FMCC_IRON_CONTROL_PLANE_URL:env.FMCC_IRON_CONTROL_PLANE_URL},vi.fn() as unknown as typeof fetch);
+  await expect(worker.processOne()).rejects.toThrow("iron.credits_delivery_config_missing");
+  expect(query).not.toHaveBeenCalled();
+});
+
+it("enforces a finite retry ceiling before selecting a durable credit outbox row",async()=>{
+  const {worker,query}=harness("GRANT");
+  expect(await worker.processOne()).toBe("delivered");
+  expect(String(query.mock.calls[0]?.[0])).toContain("attempts<12");
 });
