@@ -157,6 +157,9 @@ export class IronAiCreditBilling {
         await client.query("COMMIT");
         return "ignored";
       }
+      // Capture prior canonical state before UPDATE; the outbox decision must reflect
+      // whether a GRANT could already exist, not the new refunded status.
+      const previouslyPaid = order.status === "paid";
       const fingerprint = createHash("sha256").update(raw).digest("hex");
       await client.query(`
         INSERT INTO fmcc_iron_ai_credit_provider_event(order_id,payment_ref,event_type,fingerprint)
@@ -169,7 +172,7 @@ export class IronAiCreditBilling {
       if (update.rowCount !== 1) throw new Error("iron.credits_order_update_failed");
       // A pending order refunded before payment never had granted credits:
       // preserve the revocation tombstone without creating unnecessary S2S work.
-      if (isPaid || order.status === "paid") {
+      if (isPaid || previouslyPaid) {
         await client.query(`
           INSERT INTO fmcc_iron_ai_credit_outbox(order_id,event_type,status)
           VALUES($1,$2,'pending') ON CONFLICT (order_id,event_type) DO NOTHING
