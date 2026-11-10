@@ -31,8 +31,8 @@ export class IronAiCreditOutboxWorker {
         attempts=attempts+1, updated_at=now()
       WHERE id=(
         SELECT id FROM fmcc_iron_ai_credit_outbox
-        WHERE (status IN ('pending','retry') AND available_at<=now())
-          OR (status='processing' AND lease_until<now())
+        WHERE attempts<12 AND ((status IN ('pending','retry') AND available_at<=now())
+          OR (status='processing' AND lease_until<now()))
         ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED
       )
       RETURNING id,order_id,event_type,attempts,claim_token
@@ -97,6 +97,8 @@ export class IronAiCreditOutboxWorker {
   }
 
   async processOne(): Promise<CreditDeliveryResult> {
+    // Missing/malformed S2S config is an operator blocker, never a reason to consume or dead-letter an invoice.
+    this.config();
     const job = await this.claim();
     if (!job) return "idle";
     try {
