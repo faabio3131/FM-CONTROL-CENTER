@@ -165,7 +165,7 @@ export default async function ProductPage({
           </strong>
           <small>
             {cockpit.coverage.pendingSemantics} semânticas pendentes ·{" "}
-            {cockpit.coverage.unavailable} fontes indisponíveis
+            {cockpit.coverage.unavailable} indicadores sem valor confirmado
           </small>
         </article>
 
