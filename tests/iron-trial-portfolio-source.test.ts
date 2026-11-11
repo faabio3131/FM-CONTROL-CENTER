@@ -142,11 +142,11 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
     expect(new Set([...page1.academies,...page2.academies].map(x=>x.gymId)).size).toBe(53);
   });
 
-  it("denies roles without commercial:read before reading any source",async()=>{
+  it("allows the existing member role only within its verified FM tenant and source",async()=>{
     const {reader,readSnapshot}=service();
-    const contextBad={...context,role:"member" as const};
-    // Members have commercial:read; product confidentiality is further scoped by tenant.
-    expect((await reader.read(contextBad)).state).toBe("ready");
+    const memberContext={...context,role:"member" as const};
+    expect((await reader.read(memberContext)).state).toBe("ready");
+    expect((await reader.read({...memberContext,tenantId:other})).state).toBe("not_applicable");
     expect(readSnapshot).toHaveBeenCalledOnce();
   });
 });
