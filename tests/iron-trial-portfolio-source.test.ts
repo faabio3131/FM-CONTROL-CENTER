@@ -73,6 +73,9 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
     expect(value.state).toBe("ready");
     if(value.state!=="ready")throw Error("Expected authoritative source");
     expect(value.total).toBe(2);
+    expect(value.registeredAcademies).toBe(2);
+    expect(value.activeTrialCount).toBe(1);
+    expect(value.expiredTrialCount).toBe(1);
     expect(value.academies.map(x=>x.academyName)).toEqual(["Academia B","Academia A"]);
     expect(value.academies[0].subscriptionStatus).toBe("SUSPENDED");
     expect(value.sourceAuthority).toBe("IRON_CANONICAL");
@@ -113,7 +116,7 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
   it("distinguishes unavailable upstream from genuine empty trial source",async()=>{
     const empty=snapshot();empty.customers=[];empty.trials=[];empty.subscriptions=[];
     expect(await service({snapshot:empty}).reader.read(context)).toMatchObject({
-      state:"ready",total:0,academies:[],pages:1,
+      state:"ready",total:0,registeredAcademies:0,activeTrialCount:0,expiredTrialCount:0,academies:[],pages:1,
     });
     const notAvailable=service({onSnapshot:vi.fn(async()=>{throw Error("upstream down")})});
     expect(await notAvailable.reader.read(context)).toEqual({state:"unavailable"});
@@ -137,6 +140,10 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
     const page1=projectIronTrialPortfolio(batch,source.id);
     const page2=projectIronTrialPortfolio(batch,source.id,2);
     expect(page1.total).toBe(53);
+    expect(page1.registeredAcademies).toBe(53);
+    expect(page1.activeTrialCount).toBe(53);
+    expect(page1.expiredTrialCount).toBe(0);
+    expect(page2.activeTrialCount).toBe(53);
     expect(page1.academies).toHaveLength(50);
     expect(page2.academies).toHaveLength(3);
     expect(new Set([...page1.academies,...page2.academies].map(x=>x.gymId)).size).toBe(53);
