@@ -407,6 +407,11 @@ export class IronCommercialConnector implements Connector {
     try {
       const response = await this.fetcher(baseUrl(source, this.allowedOrigins()) + path, {
         ...init,
+        // Never follow upstream redirects from the authenticated S2S boundary:
+        // only the explicitly allowlisted canonical IRON origin may receive
+        // this request, including reads and financial commands.
+        redirect: "error",
+        cache: "no-store",
         headers,
         signal: controller.signal,
       });

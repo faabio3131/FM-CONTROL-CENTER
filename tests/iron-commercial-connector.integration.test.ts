@@ -65,7 +65,10 @@ describe("IRON commercial connector", () => {
       }),
     );
     const calls = fetcher.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit | undefined]>;
-    const headers = calls[0]?.[1]?.headers as Headers;
+    const request = calls[0]?.[1];
+    const headers = request?.headers as Headers;
+    expect(request?.redirect).toBe("error");
+    expect(request?.cache).toBe("no-store");
     expect(headers.get("authorization")).toBe("Bearer " + "x".repeat(40));
     expect(headers.get("x-correlation-id")).toBe("corr-iron-1");
   });
@@ -107,6 +110,8 @@ describe("IRON commercial connector", () => {
     const request = calls[0]?.[1];
     const headers = request?.headers as Headers;
     expect(headers.get("idempotency-key")).toBe("invoice-1:payment-1");
+    expect(request?.redirect).toBe("error");
+    expect(request?.cache).toBe("no-store");
     expect(String(request?.body)).not.toContain("gatewayAccountId");
   });
 
