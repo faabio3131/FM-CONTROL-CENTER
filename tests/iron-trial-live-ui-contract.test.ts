@@ -24,6 +24,14 @@ describe("Live FM Command IRON trial roster",()=>{
     expect(page).not.toContain("academy.cnpj");
     expect(page).not.toContain("academy.email");
   });
+  it("does not claim IRON source disconnected when authenticated trial snapshot is available",()=>{
+    expect(page).toContain("Período da métrica F11");
+    expect(page).toContain("Origem da métrica F11");
+    expect(page).toContain('ironTrials.state === "ready"');
+    expect(page).toContain("Fonte comercial IRON conectada; métrica F11 ainda não materializada");
+    expect(page).toContain("Origem da métrica F11 não confirmada");
+    expect(page).not.toContain("Indisponível — fonte ainda não conectada");
+  });
   it("paginates source-backed academies within the authorized IRON product",()=>{
     expect(page).toContain("selectedProduct?.id, requestedPage");
     expect(page).toContain("ironTrials.pages");

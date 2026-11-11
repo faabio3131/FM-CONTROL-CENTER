@@ -73,6 +73,9 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
     expect(value.state).toBe("ready");
     if(value.state!=="ready")throw Error("Expected authoritative source");
     expect(value.total).toBe(2);
+    expect(value.registeredAcademies).toBe(2);
+    expect(value.activeTrialCount).toBe(1);
+    expect(value.expiredTrialCount).toBe(1);
     expect(value.academies.map(x=>x.academyName)).toEqual(["Academia B","Academia A"]);
     expect(value.academies[0].subscriptionStatus).toBe("SUSPENDED");
     expect(value.sourceAuthority).toBe("IRON_CANONICAL");
@@ -82,6 +85,19 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
     expect(readSnapshot).toHaveBeenCalledWith({
       tenantId:t,correlationId:context.correlationId,timeoutMs:8000,
     },source);
+  });
+
+  it("distinguishes academies cadastradas de trials provisionados sem criar assinatura inexistente", () => {
+    const payload=snapshot();
+    payload.customers.push({
+      tenant_id:"11111111-2222-4333-8444-555555555555",
+      name:"Academia sem trial",active:true,created_at:"2026-11-11T15:00:00.000Z",
+    });
+    const result=projectIronTrialPortfolio(payload,source.id);
+    expect(result.registeredAcademies).toBe(3);
+    expect(result.total).toBe(2);
+    expect(result.activeTrialCount).toBe(1);
+    expect(result.expiredTrialCount).toBe(1);
   });
 
   it("never accesses another FM tenant's IRON source or another product",async()=>{
@@ -113,7 +129,7 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
   it("distinguishes unavailable upstream from genuine empty trial source",async()=>{
     const empty=snapshot();empty.customers=[];empty.trials=[];empty.subscriptions=[];
     expect(await service({snapshot:empty}).reader.read(context)).toMatchObject({
-      state:"ready",total:0,academies:[],pages:1,
+      state:"ready",total:0,registeredAcademies:0,activeTrialCount:0,expiredTrialCount:0,academies:[],pages:1,
     });
     const notAvailable=service({onSnapshot:vi.fn(async()=>{throw Error("upstream down")})});
     expect(await notAvailable.reader.read(context)).toEqual({state:"unavailable"});
@@ -137,6 +153,10 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
     const page1=projectIronTrialPortfolio(batch,source.id);
     const page2=projectIronTrialPortfolio(batch,source.id,2);
     expect(page1.total).toBe(53);
+    expect(page1.registeredAcademies).toBe(53);
+    expect(page1.activeTrialCount).toBe(53);
+    expect(page1.expiredTrialCount).toBe(0);
+    expect(page2.activeTrialCount).toBe(53);
     expect(page1.academies).toHaveLength(50);
     expect(page2.academies).toHaveLength(3);
     expect(new Set([...page1.academies,...page2.academies].map(x=>x.gymId)).size).toBe(53);
