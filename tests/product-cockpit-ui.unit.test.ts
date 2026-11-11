@@ -44,6 +44,8 @@ describe("R5 Product Cockpit UI/API contract", () => {
     expect(page).toContain('href="/dashboard/sources"');
     expect(page).toContain("/dashboard/trials?productId=");
     expect(page).toContain("independentes da matriz F11");
+    expect(page).toContain("indicadores sem valor confirmado");
+    expect(page).not.toContain("fontes indisponíveis");
     expect(projection).toContain("registeredAcademies: customers.size");
     expect(projection).toContain('academies.filter(a => a.trialStatus === "active").length');
     expect(projection).toContain('academies.filter(a => a.trialStatus === "expired").length');
