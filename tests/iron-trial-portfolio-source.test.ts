@@ -87,6 +87,19 @@ describe("IRON real Command trial portfolio, source-owned and isolated",()=>{
     },source);
   });
 
+  it("distinguishes academies cadastradas de trials provisionados sem criar assinatura inexistente", () => {
+    const payload=snapshot();
+    payload.customers.push({
+      tenant_id:"11111111-2222-4333-8444-555555555555",
+      name:"Academia sem trial",active:true,created_at:"2026-11-11T15:00:00.000Z",
+    });
+    const result=projectIronTrialPortfolio(payload,source.id);
+    expect(result.registeredAcademies).toBe(3);
+    expect(result.total).toBe(2);
+    expect(result.activeTrialCount).toBe(1);
+    expect(result.expiredTrialCount).toBe(1);
+  });
+
   it("never accesses another FM tenant's IRON source or another product",async()=>{
     const {reader,readSnapshot}=service();
     expect((await reader.read({...context,tenantId:other})).state).toBe("not_applicable");
