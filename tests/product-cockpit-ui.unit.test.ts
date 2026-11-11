@@ -26,6 +26,32 @@ describe("R5 Product Cockpit UI/API contract", () => {
     expect(source).not.toContain("product.performance.score");
   });
 
+  it("exibe dados comerciais canônicos do IRON sem falsificar métricas F11 ou pagamentos", () => {
+    const page = readFileSync(
+      resolve(process.cwd(), "src/app/dashboard/products/[productId]/page.tsx"), "utf8",
+    );
+    const projection = readFileSync(
+      resolve(process.cwd(), "src/application/customer/iron-trial-portfolio-service.ts"), "utf8",
+    );
+    expect(page).toContain('cockpit.product.slug === FMCC_IRON_PRODUCT_SLUG');
+    expect(page).toContain("new IronTrialPortfolioService(");
+    expect(page).toContain(".read(context, productId)");
+    expect(page).toContain("ironPortfolio.registeredAcademies");
+    expect(page).toContain("ironPortfolio.activeTrialCount");
+    expect(page).toContain("ironPortfolio.expiredTrialCount");
+    expect(page).toContain('ironPortfolio.state === "ready"');
+    expect(page).toContain("Dados ausentes");
+    expect(page).toContain('href="/dashboard/sources"');
+    expect(page).toContain("/dashboard/trials?productId=");
+    expect(page).toContain("independentes da matriz F11");
+    expect(projection).toContain("registeredAcademies: customers.size");
+    expect(projection).toContain('academies.filter(a => a.trialStatus === "active").length');
+    expect(projection).toContain('academies.filter(a => a.trialStatus === "expired").length');
+    expect(page).not.toContain("ironPortfolio.billingTransactions");
+    expect(page).not.toContain("ironPortfolio.customerEmails");
+    expect(page).not.toContain("process.env.FMCC_IRON_CONTROL_PLANE_TOKEN");
+  });
+
   it("Core contextual envia scope explícito e a API cognitiva valida o campo", () => {
     const form = readFileSync(
       resolve(process.cwd(), "src/app/dashboard/core-query-form.tsx"),
