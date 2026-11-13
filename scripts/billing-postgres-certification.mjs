@@ -44,6 +44,26 @@ try {
     );
     assert.equal(result.rowCount,1,"Missing central billing authority index "+indexName);
   }
+
+  for (const tableName of [
+    "fmcc_iron_ai_credit_order",
+    "fmcc_iron_ai_credit_outbox",
+    "fmcc_iron_ai_credit_provider_event",
+  ]) {
+    const table = await client.query(
+      "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=$1",
+      [tableName],
+    );
+    assert.equal(table.rowCount,1,"Missing durable IRON one-time credit ledger "+tableName);
+  }
+  const creditConstraints = await client.query(
+    "SELECT conname FROM pg_constraint WHERE conname = ANY($1::text[])",
+    [[
+      "fmcc_iron_ai_order_price","fmcc_iron_ai_order_idempotency",
+      "fmcc_iron_ai_order_subscription_fk","fmcc_iron_ai_outbox_once",
+    ]],
+  );
+  assert.equal(creditConstraints.rowCount,4,"IRON credit price, idempotency or paid binding constraints absent");
   // Verify that a real PostgreSQL transaction rolls back on failure.
   await client.query("BEGIN");
   await client.query("INSERT INTO fmcc_billing_customer (tenant_id, external_customer_id) VALUES ($1,$2)", ["homologation", "ci-rollback-probe"]);
