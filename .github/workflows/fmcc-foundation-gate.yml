@@ -114,7 +114,10 @@ jobs:
       - name: Build
         run: npm run build
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        # The hosted Ubuntu runner already has Chromium runtime libraries; apt
+        # mirror DNS has caused deterministic unrelated CI failures.
+        # Browser E2E below must still launch and pass with real Chromium.
+        run: npx playwright install chromium
       - name: Browser E2E
         run: npm run test:e2e
       - name: Runtime smoke
