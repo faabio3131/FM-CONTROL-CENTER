@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
+import { IronTrialPortfolioService } from "@/application/customer/iron-trial-portfolio-service";
+import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
+import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { MetricView } from "@/application/metrics/metric-service";
@@ -92,6 +95,18 @@ export default async function ProductPage({
     throw error;
   }
 
+  // Independent read-only canonical IRON commercial projection. It does not
+  // claim that any F11 fact-metric was computed or that a payment occurred.
+  const ironPortfolio = cockpit.product.slug === FMCC_IRON_PRODUCT_SLUG
+    ? await new IronTrialPortfolioService(
+        new PostgresProductRepository(), new PostgresSourceRepository(),
+      ).read(context, productId)
+    : null;
+  const ironPortfolioUpdatedAt = ironPortfolio?.state === "ready"
+    ? new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
+      }).format(new Date(ironPortfolio.asOf))
+    : null;
   const hasHealth = cockpit.health.services.length > 0;
   const operatingResult = cockpit.finance.operatingResult;
 
@@ -150,7 +165,7 @@ export default async function ProductPage({
           </strong>
           <small>
             {cockpit.coverage.pendingSemantics} semânticas pendentes ·{" "}
-            {cockpit.coverage.unavailable} fontes indisponíveis
+            {cockpit.coverage.unavailable} indicadores sem valor confirmado
           </small>
         </article>
 
@@ -191,6 +206,65 @@ export default async function ProductPage({
           </small>
         </article>
       </section>
+
+      {ironPortfolio && (
+        <section className="executive-section" aria-labelledby="iron-canonical-trials-title">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">IRON · Fonte comercial oficial</span>
+              <h2 id="iron-canonical-trials-title">Academias e testes gratuitos</h2>
+            </div>
+            <div className="command-quick-actions">
+              <Link href={`/dashboard/trials?productId=${encodeURIComponent(productId)}`}>Ver academias em Trials</Link>
+              <Link href="/dashboard/sources">Ver integrações</Link>
+            </div>
+          </div>
+          <p>
+            Leitura direta do cadastro e dos períodos gratuitos na API canônica do IRON.
+            Estes números são independentes da matriz F11 e não representam conversão,
+            faturamento nem assinaturas pagas.
+          </p>
+          {ironPortfolio.state === "ready" ? (
+            <>
+              <div className="metric-grid" aria-label="Dados comerciais canônicos do IRON">
+                <article className="metric-card">
+                  <span className="metric-label">Academias cadastradas no IRON</span>
+                  <strong>{ironPortfolio.registeredAcademies}</strong>
+                  <small>Cadastros do produto, incluindo academias sem trial</small>
+                </article>
+                <article className="metric-card">
+                  <span className="metric-label">Períodos gratuitos iniciados</span>
+                  <strong>{ironPortfolio.total}</strong>
+                  <small>Provisionamentos reais, não matrículas de alunos</small>
+                </article>
+                <article className="metric-card">
+                  <span className="metric-label">Períodos gratuitos vigentes</span>
+                  <strong>{ironPortfolio.activeTrialCount}</strong>
+                  <small>Prazo vigente conforme a fonte IRON</small>
+                </article>
+                <article className="metric-card">
+                  <span className="metric-label">Períodos gratuitos encerrados</span>
+                  <strong>{ironPortfolio.expiredTrialCount}</strong>
+                  <small>Prazo encerrado não equivale a cancelamento ou pagamento</small>
+                </article>
+              </div>
+              <p className="metric-provenance" role="status">
+                Fonte: IRON FIT CORE · snapshot autenticado · consultado em {ironPortfolioUpdatedAt}.
+                O Cockpit F11 requer cálculo e proveniência de métricas separados.
+              </p>
+            </>
+          ) : (
+            <div className="panel" role="status">
+              <strong>Dados comerciais do IRON indisponíveis</strong>
+              <p>
+                Não foi possível validar uma fonte comercial IRON ativa e única no
+                escopo autorizado, ou a leitura autenticada falhou. Dados ausentes
+                não significam zero academias. Confira a fonte em Integrações.
+              </p>
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="executive-section">
         <div className="section-heading">

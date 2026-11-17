@@ -32,6 +32,9 @@ export type IronTrialPortfolio =
       asOf: string;
       sourceId: string;
       total: number;
+      registeredAcademies: number;
+      activeTrialCount: number;
+      expiredTrialCount: number;
       page: number;
       pages: number;
       academies: IronTrialAcademy[];
@@ -106,7 +109,11 @@ export function projectIronTrialPortfolio(snapshot: unknown, sourceId: string, p
   const selectedPage = Math.min(Number.isSafeInteger(page) && page > 0 ? page : 1, pages);
   return {
     state: "ready", sourceAuthority: "IRON_CANONICAL", asOf, sourceId,
-    total: academies.length, pages, page: selectedPage,
+    total: academies.length,
+    registeredAcademies: customers.size,
+    activeTrialCount: academies.filter(a => a.trialStatus === "active").length,
+    expiredTrialCount: academies.filter(a => a.trialStatus === "expired").length,
+    pages, page: selectedPage,
     academies: academies.slice((selectedPage - 1) * PAGE_SIZE, selectedPage * PAGE_SIZE),
   };
 }

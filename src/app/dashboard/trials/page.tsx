@@ -125,15 +125,17 @@ export default async function TrialsPage({
             <span>{selectedProduct?.name ?? "Consolidado autorizado"}</span>
           </article>
           <article>
-            <strong>Período</strong>
+            <strong>Período da métrica F11</strong>
             <span>{temporalLabel(started)}</span>
           </article>
           <article>
-            <strong>Origem</strong>
+            <strong>Origem da métrica F11</strong>
             <span>
               {authority
                 ? rotuloAutoridadeFonte(authority)
-                : "Indisponível — fonte ainda não conectada"}
+                : ironTrials.state === "ready"
+                  ? "Fonte comercial IRON conectada; métrica F11 ainda não materializada"
+                  : "Origem da métrica F11 não confirmada"}
             </span>
           </article>
           <article>
