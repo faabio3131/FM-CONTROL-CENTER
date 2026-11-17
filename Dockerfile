@@ -1,6 +1,8 @@
 FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+# npm ci resolves the pinned, audited local security backport; retain it in the deps stage.
+COPY vendor/picomatch-v4 ./vendor/picomatch-v4
 RUN npm ci
 
 FROM node:24-alpine AS builder
