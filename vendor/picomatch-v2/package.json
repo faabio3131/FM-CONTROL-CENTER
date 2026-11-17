@@ -1,0 +1,13 @@
+{
+  "name": "picomatch",
+  "version": "2.3.3-iron.0",
+  "description": "FM internal security-patched copy of picomatch; not an upstream release",
+  "main": "index.js",
+  "license": "MIT",
+  "engines": {
+    "node": ">=8.6"
+  },
+  "private": true,
+  "ironUpstreamSha": "f03bec2c02e46f063fbfdc161aae1d0f854b2565",
+  "ironSecurityReference": "https://github.com/micromatch/picomatch/pull/246"
+}
