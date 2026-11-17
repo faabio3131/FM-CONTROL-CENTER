@@ -17,7 +17,8 @@
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
     "test:runtime-smoke": "node scripts/runtime-smoke.mjs",
     "security:secrets": "node scripts/secret-scan.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "security:glob": "node --test tests/picomatch-security.test.mjs"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.12",
