@@ -43,13 +43,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - name: Temporary P3 offline lockfile regeneration evidence
-        run: |
-          timeout 150s npm install --package-lock-only --ignore-scripts --no-audit --no-fund --fetch-retries=1 --fetch-timeout=30000
-          echo "P3_LOCK_START_7A80"
-          base64 --wrap=76 package-lock.json
-          echo
-          echo "P3_LOCK_END_7A80"
       - name: Install reproducibly
         run: |
           npm ci --include=optional
