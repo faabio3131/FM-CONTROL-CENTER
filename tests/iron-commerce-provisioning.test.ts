@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IronCommerceProvisioning, verifyIronCommerceBearer } from "@/application/billing/iron-commerce-provisioning";
+import { IronCommerceProvisioning, verifyIronCommerceBearer, eligibleIronCheckoutSubscription } from "@/application/billing/iron-commerce-provisioning";
 
 const gym="d29f0dd5-0f3b-4c46-93b5-b5c18f53a073";
 const sub="0592a749-ab6c-4cbc-94d9-bdc5fca927b0";
@@ -57,6 +57,23 @@ function create(overrides: { snapshot?: unknown; plans?: unknown; bindings?: Arr
   return new IronCommerceProvisioning(env,transport,provider as never);
 }
 describe("IRON commerce S2S purchase boundary",()=>{
+  it("permits ONLY uniquely proven expired trials, never arbitrary suspended customers", () => {
+    const ended="2025-11-17T00:00:00.000Z";
+    const now=Date.parse("2026-11-17T00:00:00.000Z");
+    const base={ tenant_id:gym,external_id:sub,status:"SUSPENDED",effective_until:ended };
+    const valid=[{tenant_id:gym,subscription_id:sub,status:"expired",ends_at:ended}];
+    expect(eligibleIronCheckoutSubscription(base,valid,gym,sub,now)).toBe(true);
+    expect(eligibleIronCheckoutSubscription({...base,status:"ACTIVE"},[],gym,sub,now)).toBe(true);
+    expect(eligibleIronCheckoutSubscription({...base,status:"CANCELED"},valid,gym,sub,now)).toBe(false);
+    expect(eligibleIronCheckoutSubscription(base,[],gym,sub,now)).toBe(false);
+    expect(eligibleIronCheckoutSubscription(base,[...valid,...valid],gym,sub,now)).toBe(false);
+    expect(eligibleIronCheckoutSubscription(base,[{...valid[0],subscription_id:"other"}],gym,sub,now)).toBe(false);
+    expect(eligibleIronCheckoutSubscription(base,[{...valid[0],tenant_id:"other"}],gym,sub,now)).toBe(false);
+    expect(eligibleIronCheckoutSubscription(base,[{...valid[0],status:"active"}],gym,sub,now)).toBe(false);
+    expect(eligibleIronCheckoutSubscription({...base,effective_until:"2099-01-01T00:00:00.000Z"},
+      [{...valid[0],ends_at:"2099-01-01T00:00:00.000Z"}],gym,sub,now)).toBe(false);
+    expect(eligibleIronCheckoutSubscription({...base,tenant_id:"other"},valid,gym,sub,now)).toBe(false);
+  });
   it("returns canonical tenant-scoped subscription status without declaring settlement",async()=>{
     const current = await create().current({ gymId:gym,expectedSubscriptionId:sub });
     expect(current.authority).toBe("FM_COMMAND");

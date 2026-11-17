@@ -433,7 +433,11 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         eq(billingSubscriptions.tenantId, input.tenantId),
         eq(billingSubscriptions.productId, input.productId),
         eq(billingSubscriptions.customerId, binding.customerId),
-        inArray(billingSubscriptions.status, ["pending", "active", "past_due"]),
+        // IRON must never create a second paid subscription if a prior
+        // commercial subscription is suspended and needs recovery instead.
+        inArray(billingSubscriptions.status, product.slug === FMCC_IRON_PRODUCT_SLUG
+          ? ["pending", "active", "past_due", "suspended"]
+          : ["pending", "active", "past_due"]),
       )).limit(1);
       if (live) throw new Error("billing.subscription_exists");
 
