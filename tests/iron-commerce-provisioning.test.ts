@@ -29,6 +29,15 @@ function create(overrides: { snapshot?: unknown; plans?: unknown; bindings?: Arr
       {commercialPlanCode:"IRON_PRO_YEARLY",ironPlanCode:"IRON_PRO",ironPlanVersion:1},
     ],
     getRoute: async()=>({provider:"cakto",environment:"production",status:"enabled"}),
+    readIronCommerceCustomer: async (tenantId:string,productId:string,gymId:string) => {
+      expect(tenantId).toBe("fm-ci-tenant");
+      expect(productId).toBe(product);
+      expect(gymId).toBe(gym);
+      return {
+        subscription: { id:invoice,planCode:"IRON_PRO_MONTHLY",status:"pending",paidThrough:null },
+        invoices: [{ invoiceId:invoice,status:"pending",amountMinor:26900,currency:"BRL",recordedPaymentStatus:null }],
+      };
+    },
     listPlans: async()=>[
       {planCode:"IRON_PRO_MONTHLY",name:"Pro Mensal",interval:"monthly",amountMinor:26900,status:"active"},
       {planCode:"IRON_PRO_YEARLY",name:"Pro Anual",interval:"yearly",amountMinor:269000,status:"active"},
@@ -48,6 +57,22 @@ function create(overrides: { snapshot?: unknown; plans?: unknown; bindings?: Arr
   return new IronCommerceProvisioning(env,transport,provider as never);
 }
 describe("IRON commerce S2S purchase boundary",()=>{
+  it("returns canonical tenant-scoped subscription status without declaring settlement",async()=>{
+    const current = await create().current({ gymId:gym,expectedSubscriptionId:sub });
+    expect(current.authority).toBe("FM_COMMAND");
+    expect(current.source).toBe("FM_COMMAND_CANONICAL");
+    expect(current.gymId).toBe(gym);
+    expect(current.subscription?.status).toBe("pending");
+    expect(current.invoices[0]?.amountMinor).toBe(26900);
+    expect(current.settlementConfirmedByThisView).toBe(false);
+    expect(current).not.toHaveProperty("accessToken");
+  });
+  it("fails closed before invoice readback when cross-gym identity is forged",async()=>{
+    await expect(create({ snapshot:{subscriptions:[{tenant_id:"another-gym",external_id:sub,status:"ACTIVE"}]} })
+      .current({gymId:gym,expectedSubscriptionId:sub})).rejects.toThrow("iron.commerce_subscription_invalid");
+    await expect(create().current({gymId:"forged",expectedSubscriptionId:sub}))
+      .rejects.toThrow("iron.commerce_input_invalid");
+  });
   it("refuses invalid machine bearer",()=>{
     expect(verifyIronCommerceBearer("Bearer "+token,token)).toBe(true);
     expect(verifyIronCommerceBearer("Bearer "+token+"x",token)).toBe(false);
