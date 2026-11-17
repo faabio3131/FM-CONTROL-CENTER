@@ -135,10 +135,31 @@ export class IronCommerceProvisioning {
     const owned = subscriptions.filter((s: unknown) => {
       if (!s || typeof s !== "object" || Array.isArray(s)) return false;
       const v = s as Record<string, unknown>;
-      return v.tenant_id === input.gymId && v.external_id === input.expectedSubscriptionId &&
-        v.status === "ACTIVE";
+      return v.tenant_id === input.gymId && v.external_id === input.expectedSubscriptionId;
     });
     if (owned.length !== 1) throw new Error("iron.commerce_subscription_invalid");
+    const current = owned[0] as Record<string, unknown>;
+    // A suspended subscription can represent an expired original IRON trial.
+    // It is not a blanket authorization for fraud, administrative or billing
+    // suspensions. Require independent time-bound proof from the control plane;
+    // the IRON backend has already verified its trial-expiration audit event.
+    const expiredTrial = current.status === "SUSPENDED" &&
+      typeof current.effective_until === "string" &&
+      Number.isFinite(Date.parse(current.effective_until)) &&
+      Date.parse(current.effective_until) <= Date.now() &&
+      Array.isArray((snapshot as { trials?: unknown }).trials) &&
+      (snapshot as { trials: unknown[] }).trials.filter((trial: unknown) => {
+        if (!trial || typeof trial !== "object" || Array.isArray(trial)) return false;
+        const v = trial as Record<string, unknown>;
+        return v.tenant_id === input.gymId &&
+          v.subscription_id === input.expectedSubscriptionId &&
+          v.status === "expired" &&
+          v.ends_at === current.effective_until &&
+          typeof v.ends_at === "string" && Number.isFinite(Date.parse(v.ends_at)) &&
+          Date.parse(v.ends_at) <= Date.now();
+      }).length === 1;
+    if (current.status !== "ACTIVE" && !expiredTrial)
+      throw new Error("iron.commerce_subscription_invalid");
     const matches = bindings.filter(b => b.commercialPlanCode === input.planCode);
     if (matches.length !== 1) throw new Error("iron.commerce_plan_mapping_unavailable");
     const binding = matches[0];
