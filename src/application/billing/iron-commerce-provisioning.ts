@@ -15,6 +15,33 @@ export function verifyIronCommerceBearer(authorization: string | null, expected:
   return timingSafeEqual(digest(received), digest(expected));
 }
 
+/**
+ * Commercial eligibility is independent of operational entitlement.
+ * SUSPENDED is allowed only for a uniquely proven, already-expired original
+ * trial; all unknown/admin/finance suspensions remain blocked.
+ */
+export function eligibleIronCheckoutSubscription(
+  subscription: Record<string, unknown>,
+  trials: unknown, gymId: string, expectedSubscriptionId: string, now = Date.now(),
+): boolean {
+  if (subscription.tenant_id !== gymId || subscription.external_id !== expectedSubscriptionId)
+    return false;
+  if (subscription.status === "ACTIVE") return true;
+  if (subscription.status !== "SUSPENDED" ||
+      typeof subscription.effective_until !== "string" ||
+      !Number.isFinite(Date.parse(subscription.effective_until)) ||
+      Date.parse(subscription.effective_until) > now ||
+      !Array.isArray(trials)) return false;
+  return trials.filter((trial: unknown) => {
+    if (!trial || typeof trial !== "object" || Array.isArray(trial)) return false;
+    const v = trial as Record<string, unknown>;
+    return v.tenant_id === gymId && v.subscription_id === expectedSubscriptionId &&
+      v.status === "expired" && v.ends_at === subscription.effective_until &&
+      typeof v.ends_at === "string" && Number.isFinite(Date.parse(v.ends_at)) &&
+      Date.parse(v.ends_at) <= now;
+  }).length === 1;
+}
+
 export interface IronCommerceRequest {
   gymId: string;
   expectedSubscriptionId: string;
@@ -139,27 +166,9 @@ export class IronCommerceProvisioning {
     });
     if (owned.length !== 1) throw new Error("iron.commerce_subscription_invalid");
     const current = owned[0] as Record<string, unknown>;
-    // A suspended subscription can represent an expired original IRON trial.
-    // It is not a blanket authorization for fraud, administrative or billing
-    // suspensions. Require independent time-bound proof from the control plane;
-    // the IRON backend has already verified its trial-expiration audit event.
-    const expiredTrial = current.status === "SUSPENDED" &&
-      typeof current.effective_until === "string" &&
-      Number.isFinite(Date.parse(current.effective_until)) &&
-      Date.parse(current.effective_until) <= Date.now() &&
-      Array.isArray((snapshot as { trials?: unknown }).trials) &&
-      (snapshot as { trials: unknown[] }).trials.filter((trial: unknown) => {
-        if (!trial || typeof trial !== "object" || Array.isArray(trial)) return false;
-        const v = trial as Record<string, unknown>;
-        return v.tenant_id === input.gymId &&
-          v.subscription_id === input.expectedSubscriptionId &&
-          v.status === "expired" &&
-          v.ends_at === current.effective_until &&
-          typeof v.ends_at === "string" && Number.isFinite(Date.parse(v.ends_at)) &&
-          Date.parse(v.ends_at) <= Date.now();
-      }).length === 1;
-    if (current.status !== "ACTIVE" && !expiredTrial)
-      throw new Error("iron.commerce_subscription_invalid");
+    if (!eligibleIronCheckoutSubscription(
+      current, (snapshot as { trials?: unknown }).trials, input.gymId, input.expectedSubscriptionId,
+    )) throw new Error("iron.commerce_subscription_invalid");
     const matches = bindings.filter(b => b.commercialPlanCode === input.planCode);
     if (matches.length !== 1) throw new Error("iron.commerce_plan_mapping_unavailable");
     const binding = matches[0];
