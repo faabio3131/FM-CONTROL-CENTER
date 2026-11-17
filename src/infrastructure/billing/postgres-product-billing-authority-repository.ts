@@ -50,6 +50,8 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       subscriptionId: billingSubscriptions.id,
       customerId: billingSubscriptions.customerId,
       planCode: billingSubscriptions.planCode,
+      planName: billingProductPlans.name,
+      interval: billingProductPlans.interval,
       status: billingSubscriptions.status,
       paidThrough: billingSubscriptions.paidThrough,
       createdAt: billingSubscriptions.createdAt,
@@ -57,6 +59,10 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       eq(billingCustomerBindings.tenantId, billingSubscriptions.tenantId),
       eq(billingCustomerBindings.productId, billingSubscriptions.productId),
       eq(billingCustomerBindings.customerId, billingSubscriptions.customerId),
+    )).leftJoin(billingProductPlans, and(
+      eq(billingProductPlans.tenantId, billingSubscriptions.tenantId),
+      eq(billingProductPlans.productId, billingSubscriptions.productId),
+      eq(billingProductPlans.planCode, billingSubscriptions.planCode),
     )).where(and(
       eq(billingSubscriptions.tenantId, tenantId),
       eq(billingSubscriptions.productId, productId),
@@ -88,6 +94,8 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       subscription: {
         id: subscription.subscriptionId,
         planCode: subscription.planCode,
+        planName: subscription.planName,
+        interval: subscription.interval,
         status: subscription.status,
         paidThrough: subscription.paidThrough,
         createdAt: subscription.createdAt,
