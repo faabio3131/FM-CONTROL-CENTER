@@ -448,14 +448,14 @@ export class IronCommercialConnector implements Connector {
 
   async governPlan(
     context: ConnectorContext, source: SourceDefinition,
-    action: "createPlan" | "createVersion" | "setEntitlement" | "publishVersion",
+    action: "createPlan" | "createVersion" | "setEntitlement" | "publishVersion" | "retireVersion",
     planId: string | undefined, version: number | undefined, body: Record<string, unknown> = {},
   ): Promise<void> {
     const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (action !== "createPlan" && (!planId || !idPattern.test(planId))) {
       throw new IronCommercialConnectorError("integration.iron_governance_plan_id_invalid");
     }
-    if ((action === "setEntitlement" || action === "publishVersion") &&
+    if ((action === "setEntitlement" || action === "publishVersion" || action === "retireVersion") &&
         (!Number.isSafeInteger(version) || (version ?? 0) < 1)) {
       throw new IronCommercialConnectorError("integration.iron_governance_version_invalid");
     }
@@ -463,11 +463,11 @@ export class IronCommercialConnector implements Connector {
     const path = action === "createPlan" ? prefix :
       action === "createVersion" ? prefix + "/" + planId + "/versions" :
       action === "setEntitlement" ? prefix + "/" + planId + "/versions/" + version + "/entitlements" :
-      prefix + "/" + planId + "/versions/" + version + "/publish";
+      prefix + "/" + planId + "/versions/" + version + (action === "retireVersion" ? "/retire" : "/publish");
     const response = await this.request(context, source, path, {
       method: action === "setEntitlement" ? "PUT" : "POST",
       headers: { "content-type": "application/json" },
-      body: action === "publishVersion" ? "{}" : JSON.stringify(body),
+      body: action === "publishVersion" || action === "retireVersion" ? "{}" : JSON.stringify(body),
     }, "plan-governance");
     if (!response.ok) {
       throw new IronCommercialConnectorError("integration.iron_governance_write_rejected");
