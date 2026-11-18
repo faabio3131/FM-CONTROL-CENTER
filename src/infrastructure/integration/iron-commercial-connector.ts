@@ -89,6 +89,84 @@ export function parseIronPublishedPlanCatalog(value: unknown): IronPublishedPlan
   return { plans, asOf: data.as_of, truncated: data.truncated };
 }
 
+/** Canonical plan-write source of truth is IRON, not FM billing price records. */
+export interface IronPlanGovernanceCatalog {
+  readonly plans: readonly {
+    readonly id: string;
+    readonly code: string;
+    readonly name: string;
+    readonly versions: readonly {
+      readonly version: number;
+      readonly status: "DRAFT" | "PUBLISHED" | "RETIRED";
+      readonly entitlements: readonly {
+        readonly featureKey: string;
+        readonly kind: "FEATURE" | "LIMIT" | "POLICY";
+        readonly featureEnabled: boolean | null;
+        readonly limitValue: number | null;
+        readonly policyValues: readonly string[] | null;
+      }[];
+    }[];
+  }[];
+  readonly capabilities: readonly {
+    readonly key: string;
+    readonly kind: "FEATURE" | "LIMIT" | "POLICY";
+    readonly status: "ACTIVE" | "RETIRED";
+    readonly description: string;
+    readonly domain: string;
+    readonly allowedPolicyValues: readonly string[] | null;
+  }[];
+}
+
+export function parseIronPlanGovernanceCatalog(input: unknown): IronPlanGovernanceCatalog {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new IronCommercialConnectorError("integration.iron_governance_invalid");
+  const catalog = input as Record<string, unknown>;
+  if (catalog.schema_version !== "iron.fmcc.plan-governance.v1" ||
+      catalog.product_code !== "IRON_FIT_CORE" ||
+      !Array.isArray(catalog.plans) || catalog.plans.length > 256 ||
+      !Array.isArray(catalog.capabilities) || catalog.capabilities.length > 512) {
+    throw new IronCommercialConnectorError("integration.iron_governance_invalid");
+  }
+  const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const code = /^[A-Z][A-Z0-9_]{1,63}$/;
+  const key = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
+  const kinds = new Set(["FEATURE", "LIMIT", "POLICY"]);
+  const statuses = new Set(["DRAFT", "PUBLISHED", "RETIRED"]);
+  const capabilities = catalog.capabilities as Record<string, unknown>[];
+  const plans = catalog.plans as Record<string, unknown>[];
+  if (!capabilities.every(c => c && typeof c === "object" && !Array.isArray(c) &&
+    typeof c.key === "string" && key.test(c.key) && kinds.has(String(c.kind)) &&
+    (c.status === "ACTIVE" || c.status === "RETIRED") &&
+    typeof c.description === "string" && typeof c.domain === "string" &&
+    (c.allowedPolicyValues === null || Array.isArray(c.allowedPolicyValues) &&
+      c.allowedPolicyValues.every(v => typeof v === "string" && code.test(v))))) {
+    throw new IronCommercialConnectorError("integration.iron_governance_capability_invalid");
+  }
+  if (new Set(capabilities.map(c=>c.key)).size !== capabilities.length) throw new IronCommercialConnectorError("integration.iron_governance_duplicate");
+  if (!plans.every(p => p && typeof p === "object" && !Array.isArray(p) &&
+    typeof p.id === "string" && id.test(p.id) && typeof p.code === "string" &&
+    code.test(p.code) && typeof p.name === "string" && p.name.length >= 2 &&
+    Array.isArray(p.versions) && p.versions.length <= 64 &&
+    p.versions.every((v: Record<string,unknown>) => v && Number.isSafeInteger(v.version) &&
+      (v.version as number) >= 1 && statuses.has(String(v.status)) &&
+      Array.isArray(v.entitlements) && v.entitlements.length <= 512 &&
+      v.entitlements.every((e: Record<string,unknown>) => e &&
+        typeof e.featureKey === "string" && key.test(e.featureKey) &&
+        kinds.has(String(e.kind)) &&
+        (e.featureEnabled === null || typeof e.featureEnabled === "boolean") &&
+        (e.limitValue === null || Number.isSafeInteger(e.limitValue) && (e.limitValue as number) >= 0) &&
+        (e.policyValues === null || Array.isArray(e.policyValues) &&
+          e.policyValues.every(x => typeof x === "string")))))) {
+    throw new IronCommercialConnectorError("integration.iron_governance_plan_invalid");
+  }
+  if (new Set(plans.map(p=>p.code)).size !== plans.length ||
+      new Set(plans.map(p=>p.id)).size !== plans.length ||
+      plans.some(p=>new Set((p.versions as Record<string,unknown>[]).map(v=>v.version)).size !== (p.versions as unknown[]).length)) {
+    throw new IronCommercialConnectorError("integration.iron_governance_duplicate");
+  }
+  return { plans: plans as unknown as IronPlanGovernanceCatalog["plans"],
+    capabilities: capabilities as unknown as IronPlanGovernanceCatalog["capabilities"] };
+}
+
 export interface IronAiUsageReport {
   readonly schema_version: "iron.fmcc.ai-usage.v1";
   readonly product_code: "IRON_FIT_CORE";
@@ -306,6 +384,42 @@ export class IronCommercialConnector implements Connector {
     return parseIronPublishedPlanCatalog(await response.json());
   }
 
+  /** Separate authority from the readback/subscription-control credential. */
+  async governanceCatalog(context: ConnectorContext, source: SourceDefinition): Promise<IronPlanGovernanceCatalog> {
+    const response = await this.request(context, source,
+      "/api/v1/control-plane/fmcc/plan-governance/catalog", {}, "plan-governance");
+    if (!response.ok) throw new IronCommercialConnectorError("integration.iron_governance_unavailable");
+    return parseIronPlanGovernanceCatalog(await response.json());
+  }
+
+  async governPlan(
+    context: ConnectorContext, source: SourceDefinition,
+    action: "createPlan" | "createVersion" | "setEntitlement" | "publishVersion",
+    planId: string | undefined, version: number | undefined, body: Record<string, unknown> = {},
+  ): Promise<void> {
+    const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (action !== "createPlan" && (!planId || !idPattern.test(planId))) {
+      throw new IronCommercialConnectorError("integration.iron_governance_plan_id_invalid");
+    }
+    if ((action === "setEntitlement" || action === "publishVersion") &&
+        (!Number.isSafeInteger(version) || (version ?? 0) < 1)) {
+      throw new IronCommercialConnectorError("integration.iron_governance_version_invalid");
+    }
+    const prefix = "/api/v1/control-plane/fmcc/plan-governance/plans";
+    const path = action === "createPlan" ? prefix :
+      action === "createVersion" ? prefix + "/" + planId + "/versions" :
+      action === "setEntitlement" ? prefix + "/" + planId + "/versions/" + version + "/entitlements" :
+      prefix + "/" + planId + "/versions/" + version + "/publish";
+    const response = await this.request(context, source, path, {
+      method: action === "setEntitlement" ? "PUT" : "POST",
+      headers: { "content-type": "application/json" },
+      body: action === "publishVersion" ? "{}" : JSON.stringify(body),
+    }, "plan-governance");
+    if (!response.ok) {
+      throw new IronCommercialConnectorError("integration.iron_governance_write_rejected");
+    }
+  }
+
   async aiUsage(
     context: ConnectorContext,
     source: SourceDefinition,
@@ -376,6 +490,7 @@ export class IronCommercialConnector implements Connector {
     source: SourceDefinition,
     path: string,
     init: RequestInit = {},
+    authority: "commercial" | "plan-governance" = "commercial",
   ): Promise<Response> {
     const allowedTenant = this.controlTenantId();
     if (!allowedTenant || context.tenantId !== allowedTenant) {
@@ -395,7 +510,16 @@ export class IronCommercialConnector implements Connector {
     }
 
     const headers = new Headers(init.headers);
-    headers.set("authorization", "Bearer " + token(source, this.resolveSecret));
+    const commercialToken = token(source, this.resolveSecret);
+    const governanceToken = authority === "plan-governance"
+      ? this.resolveSecret("env:FMCC_IRON_PLAN_GOVERNANCE_TOKEN")?.trim()
+      : undefined;
+    if (authority === "plan-governance" &&
+        (!governanceToken || governanceToken.length < 32 || governanceToken === commercialToken)) {
+      throw new IronCommercialConnectorError("integration.iron_plan_governance_secret_unavailable");
+    }
+    headers.set("authorization", "Bearer " +
+      (authority === "plan-governance" ? governanceToken : commercialToken));
     headers.set("x-correlation-id", context.correlationId);
 
     const controller = new AbortController();
