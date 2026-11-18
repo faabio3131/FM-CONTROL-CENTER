@@ -65,3 +65,18 @@ describe("IRON governed legacy LIMIT contract",()=>{
     expect(panel).not.toContain("localStorage");
   });
 });
+
+describe("IRON plan retirement prevents stale-binding and reports only confirmed writes",()=>{
+  it("requires source-row serialization, rejects bound versions and repeats publication check under lock",()=>{
+    const repository=readFileSync("src/infrastructure/billing/postgres-iron-plan-mapping-repository.ts","utf8");
+    const mapping=readFileSync("src/app/api/billing/products/[productId]/iron-plan-mappings/route.ts","utf8");
+    const route=readFileSync("src/app/api/billing/products/[productId]/iron-entitlements/route.ts","utf8");
+    expect(repository).toContain("retireUnboundVersion");
+    expect(repository).toContain('billing.iron_retirement_bound_version');
+    expect(repository).toContain('if (verifyPublished) await verifyPublished()');
+    expect(mapping).toContain("Revalidate under the shared source row lock");
+    expect(route).toContain("RETIRAR_VERSAO_NAO_VINCULADA");
+    expect(route).toContain("iron_governance_readback_unconfirmed");
+    expect(route).toContain('changedVersion?.status==="RETIRED"');
+  });
+});
