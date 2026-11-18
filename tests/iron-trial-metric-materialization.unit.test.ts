@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { ConnectorRuntime } from "@/application/integration/connector-runtime";
+import type { Connector, SourceDefinition, SourceRepository, SyncRepository, CanonicalFactRepository } from "@/domain/integration/contracts";
+import type { TenantContext } from "@/domain/security/tenant-context";
+
 import { projectIronTrialStarts, type IronTrialCanonicalFact } from "@/domain/metrics/iron-trial-starts";
 
 const gymA = "e92886be-3254-41be-8492-bc00f959b359";
@@ -81,5 +85,60 @@ describe("IRON canonical trial starts materialization (F11)", () => {
     expect(dbSource).toContain("tx.insert(metricValues)");
     expect(run.indexOf("await this.afterCanonicalSync(context, source)")).toBeLessThan(run.indexOf("await this.syncs.complete({"));
     expect(comp).toContain("new IronTrialStartsMaterializer().materialize({");
+  });
+});
+
+describe("IRON source sync materializes trial start facts before committing sync state", () => {
+  it("does not mark source sync complete when materialization fails; retries are safe", async () => {
+    const source: SourceDefinition = {
+      id:"8ca3defb-b2dd-4c2c-b109-e5e43c15e1d8",
+      tenantId:"tenant-fm",productId:"e8f48ad8-608a-4e9f-8e43-9ce8b695b8c4",
+      name:"IRON FIT CORE Commercial",sourceType:"iron-commercial-v1",
+      authoritativeDomain:"commercial",status:"healthy",syncMode:"pull",
+      mappingVersion:"iron-commercial-v1",
+      config:{baseUrl:"https://iron.example.test"},
+    };
+    const context: TenantContext = {tenantId:source.tenantId,userId:"operator",
+      role:"owner",correlationId:"trial-f11-interop"};
+    const sources: SourceRepository = {
+      findById: async (tenant,id)=>tenant===source.tenantId && id===source.id ? source : null,
+      list:async ()=>[source],
+      create:async ()=>{throw new Error("not needed");},
+    };
+    let failed = false;
+    let completed = 0;
+    let ingested = 0;
+    let materialized = 0;
+    const syncs: SyncRepository = {
+      begin: async ()=>({id:"exec-1",state:failed ? "restarted" as const:"started" as const}),
+      complete:async ()=>{completed++;},
+      fail:async ()=>{failed=true;},
+    };
+    const facts: CanonicalFactRepository = {ingest:async ()=>{ingested++;return 1;}};
+    const connector: Connector = {
+      sourceType:"iron-commercial-v1",capabilities:["commercial.read"],
+      health:async ()=>"healthy",
+      pull:async ()=>({facts:[{
+        externalId:"trial:request-1",factType:"iron.trial",payload:{},
+        sourceTimestamp:new Date("2026-11-18T00:00:00Z"),
+      }]}),
+    };
+    const runtime = new ConnectorRuntime(sources,syncs,facts,[connector],500,1,0,
+      async (ctx,s)=> {
+        expect(ctx.tenantId).toBe(source.tenantId);
+        expect(s.id).toBe(source.id);
+        materialized++;
+        if(materialized===1)throw new Error("metrics.iron_trial_projection_failure");
+      });
+    await expect(runtime.syncPull(context,{sourceId:source.id,idempotencyKey:"same"}))
+      .rejects.toThrow("metrics.iron_trial_projection_failure");
+    expect(completed).toBe(0);
+    expect(failed).toBe(true);
+    expect(ingested).toBe(1);
+    const result=await runtime.syncPull(context,{sourceId:source.id,idempotencyKey:"same"});
+    expect(result.status).toBe("completed");
+    expect(completed).toBe(1);
+    expect(materialized).toBe(2);
+    expect(ingested).toBe(2);
   });
 });
