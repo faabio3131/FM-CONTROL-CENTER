@@ -81,6 +81,9 @@ describe("IRON canonical trial starts materialization (F11)", () => {
     expect(dbSource).toContain('eq(canonicalFacts.sourceId, input.sourceId)');
     expect(dbSource).toContain('eq(canonicalFacts.factType, "iron.trial")');
     expect(dbSource).toContain("pg_advisory_xact_lock");
+    expect(dbSource.indexOf("pg_advisory_xact_lock")).toBeLessThan(dbSource.indexOf("const rows = await tx.select"));
+    expect(dbSource).toContain('isolationLevel: "read committed"');
+    expect(dbSource).not.toContain("const rows = await db.select");
     expect(dbSource).toContain("tx.update(metricValues)");
     expect(dbSource).toContain("tx.insert(metricValues)");
     expect(run.indexOf("await this.afterCanonicalSync(context, source)")).toBeLessThan(run.indexOf("await this.syncs.complete({"));
