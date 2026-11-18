@@ -17,28 +17,28 @@ export class IronTrialStartsMaterializer {
         input.mappingVersion !== "iron-commercial-v1") {
       throw new Error("metrics.iron_trial_source_not_authorized");
     }
-    const rows = await db.select({
-      id: canonicalFacts.id,
-      externalId: canonicalFacts.externalId,
-      payload: canonicalFacts.payload,
-      sourceTimestamp: canonicalFacts.sourceTimestamp,
-    }).from(canonicalFacts).where(and(
-      eq(canonicalFacts.tenantId, input.tenantId),
-      eq(canonicalFacts.productId, input.productId),
-      eq(canonicalFacts.sourceId, input.sourceId),
-      eq(canonicalFacts.mappingVersion, input.mappingVersion),
-      eq(canonicalFacts.factType, "iron.trial"),
-    )).limit(100_001);
+    // Lock before reading, not only before writing: a delayed materializer
+    // must not overwrite a newer projection with an earlier fact snapshot.
+    const lockKey = [input.tenantId, input.productId, METRIC_ID].join(":");
+    return db.transaction(async tx => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+      const rows = await tx.select({
+        id: canonicalFacts.id,
+        externalId: canonicalFacts.externalId,
+        payload: canonicalFacts.payload,
+        sourceTimestamp: canonicalFacts.sourceTimestamp,
+      }).from(canonicalFacts).where(and(
+        eq(canonicalFacts.tenantId, input.tenantId),
+        eq(canonicalFacts.productId, input.productId),
+        eq(canonicalFacts.sourceId, input.sourceId),
+        eq(canonicalFacts.mappingVersion, input.mappingVersion),
+        eq(canonicalFacts.factType, "iron.trial"),
+      )).orderBy(canonicalFacts.id).limit(100_001);
 
-    // Absence of trusted observed trial events is UNKNOWN, not zero.
-    const asOf = new Date();
-    const months = projectIronTrialStarts(rows, asOf);
-    for (const month of months) {
-      const lockKey = [input.tenantId, input.productId, METRIC_ID, month.periodStart.toISOString()].join(":");
-      await db.transaction(async tx => {
-        // Transaction-scoped Postgres advisory lock serializes competing
-        // instances without a new billing authority or duplicate metric rows.
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+      // Absence of trusted observed trial events is UNKNOWN, not zero.
+      const asOf = new Date();
+      const months = projectIronTrialStarts(rows, asOf);
+      for (const month of months) {
         const existing = await tx.select({ id: metricValues.id })
           .from(metricValues).where(and(
             eq(metricValues.tenantId, input.tenantId),
@@ -72,8 +72,8 @@ export class IronTrialStartsMaterializer {
             sourceAuthority: AUTHORITY, currency: null, ...values,
           });
         }
-      });
-    }
-    return { materializedMonths: months.length };
+      }
+      return { materializedMonths: months.length };
+    }, { isolationLevel: "read committed" });
   }
 }
