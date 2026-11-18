@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { IronPlanGovernanceCatalog } from "@/infrastructure/integration/iron-commercial-connector";
 
-type Mode = "createPlan" | "createVersion" | "setEntitlement" | "publishVersion";
+type Mode = "createPlan" | "createVersion" | "setEntitlement" | "publishVersion" | "retireVersion";
 
 export function IronEntitlementsGovernancePanel({
   productId, canWrite,
@@ -50,6 +50,7 @@ export function IronEntitlementsGovernancePanel({
   const maxVersion = Math.max(0, ...(chosenPlan?.versions.map(v => v.version) ?? []));
   const versionNumber = Number(draftVersion);
   const chosenDraft = chosenPlan?.versions.find(v => v.version === versionNumber && v.status === "DRAFT");
+  const chosenPublished = chosenPlan?.versions.find(v => v.version === versionNumber && v.status === "PUBLISHED");
   const capabilities = catalog?.capabilities.filter(c => c.status === "ACTIVE") ?? [];
   const capability = capabilities.find(c => c.key === featureKey);
   const policy = policyValues.split(",").map(x => x.trim()).filter(Boolean);
@@ -68,11 +69,11 @@ export function IronEntitlementsGovernancePanel({
           Number.isSafeInteger(Number(limit)) && Number(limit) >= 0 && limit.trim() !== "" ||
           capability.kind === "POLICY" && policy.length > 0 &&
           new Set(policy).size === policy.length && policy.every(v => capability.allowedPolicyValues?.includes(v)))
-    : !!chosenDraft && chosenDraft.entitlements.length > 0;
+    : mode === "retireVersion" ? !!chosenPublished : !!chosenDraft && chosenDraft.entitlements.length > 0;
   const fingerprint = JSON.stringify({
     mode, planId, version: mode === "createVersion" ? maxVersion + 1 : versionNumber,
     newCode, newName, ...((mode === "setEntitlement") ? entitlementInput : {}),
-    count: chosenDraft?.entitlements.length,
+    count: chosenDraft?.entitlements.length ?? chosenPublished?.entitlements.length,
   });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -89,7 +90,7 @@ export function IronEntitlementsGovernancePanel({
       ? { action: mode, planId, version: maxVersion + 1 }
       : mode === "setEntitlement"
       ? { action: mode, planId, version: versionNumber, ...entitlementInput }
-      : { action: mode, planId, version: versionNumber, confirm: "PUBLICAR_VERSAO_IMUTAVEL" };
+      : { action: mode, planId, version: versionNumber, confirm: mode === "retireVersion" ? "RETIRAR_VERSAO_NAO_VINCULADA" : "PUBLICAR_VERSAO_IMUTAVEL" };
     try {
       const response = await fetch(endpoint, {
         method: "POST", cache: "no-store",
@@ -99,6 +100,7 @@ export function IronEntitlementsGovernancePanel({
       if (!response.ok) {
         setMessage(response.status === 403 ? "Reautenticação ou permissão negada." :
           response.status === 400 ? "Dados inválidos para o plano canônico." :
+          response.status === 409 ? "A versão está vinculada ou o catálogo mudou. Revise antes de prosseguir." :
           "Operação não confirmada pelo IRON. Nenhuma alteração deve ser presumida.");
         return;
       }
@@ -135,6 +137,7 @@ export function IronEntitlementsGovernancePanel({
               <option value="createVersion">Criar versão de rascunho</option>
               <option value="setEntitlement">Configurar direito ou limite no rascunho</option>
               <option value="publishVersion">Publicar versão imutável</option>
+              <option value="retireVersion">Retirar versão sem vínculos</option>
             </select>
           </label>
           {mode === "createPlan" ? <>
@@ -152,10 +155,10 @@ export function IronEntitlementsGovernancePanel({
               </select>
             </label>
             {mode === "createVersion" ? <p>Próxima versão: {maxVersion + 1}. Ela nasce em rascunho e não altera assinaturas existentes.</p> :
-              <label>Versão em rascunho
+              <label>{mode === "retireVersion" ? "Versão publicada" : "Versão em rascunho"}
                 <select value={draftVersion} onChange={e => { setDraftVersion(e.target.value); setPreview(""); }} disabled={busy} required>
-                  <option value="">Selecione uma versão em rascunho</option>
-                  {chosenPlan?.versions.filter(v => v.status === "DRAFT").map(v =>
+                  <option value="">Selecione uma versão</option>
+                  {chosenPlan?.versions.filter(v => v.status === (mode === "retireVersion" ? "PUBLISHED" : "DRAFT")).map(v =>
                     <option key={v.version} value={String(v.version)}>v{v.version} · {v.entitlements.length} recursos</option>)}
                 </select>
               </label>
@@ -178,9 +181,10 @@ export function IronEntitlementsGovernancePanel({
             </label> : null}
           </> : null}
           {mode === "publishVersion" ? <p>A publicação é definitiva para esta versão. Modificações posteriores exigem uma nova versão; não concede novas licenças automaticamente.</p> : null}
+          {mode === "retireVersion" ? <p>Somente versões sem vínculo comercial, preços, contratos ou Launch Matrix podem ser retiradas. A retirada é definitiva e não cancela assinaturas.</p> : null}
           {valid ? <div role="status"><strong>Prévia:</strong> {mode === "createPlan" ? newCode :
             chosenPlan?.code + " v" + (mode === "createVersion" ? maxVersion + 1 : versionNumber)} ·
-            {mode === "setEntitlement" ? " " + featureKey : mode === "publishVersion" ? " publicação imutável" : " cadastro governado"}</div> : null}
+            {mode === "setEntitlement" ? " " + featureKey : mode === "publishVersion" ? " publicação imutável" : mode === "retireVersion" ? " retirada irreversível, condicionada à ausência de vínculos" : " cadastro governado"}</div> : null}
           <button type="button" className="button" disabled={!valid || busy} onClick={() => { setPreview(fingerprint); setMessage("Prévia confirmada. Informe sua senha administrativa para executar."); }}>
             Confirmar prévia
           </button>
