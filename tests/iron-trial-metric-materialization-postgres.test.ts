@@ -46,8 +46,8 @@ describe.skipIf(process.env.FMCC_IRON_TRIAL_PG_TEST !== "YES")(
           value:"1",unit:"count",qualityStatus:"reconciled",
           freshnessStatus:"unknown",metricVersion:1,
         });
-        expect(values[0]?.periodStart.toISOString()).toBe("2026-11-01T00:00:00.000Z");
-        expect(values[0]?.periodEnd.toISOString()).toBe("2026-12-01T00:00:00.000Z");
+        expect(values[0]?.periodStart?.toISOString()).toBe("2026-11-01T00:00:00.000Z");
+        expect(values[0]?.periodEnd?.toISOString()).toBe("2026-12-01T00:00:00.000Z");
         expect(values[0]?.provenanceRefs[0]).toMatch(/^iron\.trial:sha256:[0-9a-f]{64}$/);
 
         const requestTwo="trial-e2e-"+randomUUID();
