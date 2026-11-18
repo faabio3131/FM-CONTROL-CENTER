@@ -1,6 +1,7 @@
 import {
   RetryableConnectorError,
   type CanonicalFactRepository,
+  type SourceDefinition,
   type Connector,
   type SourceRepository,
   type SourceStatusWriter,
@@ -75,6 +76,7 @@ export class ConnectorRuntime {
     private readonly timeoutMs = 8_000,
     private readonly maxAttempts = 3,
     private readonly retryDelayMs = 100,
+    private readonly afterCanonicalSync?: (context: TenantContext, source: SourceDefinition) => Promise<void>,
   ) {
     for (const connector of connectors) {
       this.connectors.set(connector.sourceType, connector);
@@ -211,6 +213,12 @@ export class ConnectorRuntime {
         } else {
           throw new Error("integration.canonical_fact_insert_count_invalid");
         }
+      }
+      // A failed projection is retryable via this sync ledger: source facts were
+      // ingested idempotently and the materializer upserts by period. Never
+      // mark a sync complete when its governed trial metric was not updated.
+      if (source.sourceType === "iron-commercial-v1" && this.afterCanonicalSync) {
+        await this.afterCanonicalSync(context, source);
       }
       await this.syncs.complete({
         id: executionId,

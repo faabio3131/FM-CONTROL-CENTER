@@ -7,6 +7,7 @@ import {
   type NfcoreCommercialSecretResolver,
 } from "@/infrastructure/integration/nfcore-commercial-connector";
 import { ConnectorRuntime } from "@/application/integration/connector-runtime";
+import { IronTrialStartsMaterializer } from "@/infrastructure/metrics/iron-trial-starts-materializer";
 import {
   PostgresCanonicalFactRepository,
   PostgresSourceRepository,
@@ -43,6 +44,18 @@ export function buildConnectorRuntime(input?: {
     new PostgresSyncRepository(),
     new PostgresCanonicalFactRepository(),
     [connector, ironConnector, nfcoreConnector, nfcoreCommercialConnector, new IronUsageConnector(), new NfcoreOperationalUsageConnector()],
+    8_000, 3, 100,
+    async (context, source) => {
+      if (!source.productId || source.mappingVersion !== "iron-commercial-v1") {
+        throw new Error("metrics.iron_trial_source_not_authorized");
+      }
+      await new IronTrialStartsMaterializer().materialize({
+        tenantId: context.tenantId,
+        productId: source.productId,
+        sourceId: source.id,
+        mappingVersion: source.mappingVersion,
+      });
+    },
   );
 }
 

@@ -293,6 +293,11 @@ export default async function ProductPage({
                 {metricStateLabel(status, value)}
               </strong>
               <div className="metric-meta">
+                {value?.periodStart ? <span>
+                  Período de referência (UTC): {new Intl.DateTimeFormat("pt-BR", {
+                    timeZone: "UTC", month: "long", year: "numeric",
+                  }).format(new Date(value.periodStart))}
+                </span> : null}
                 <span>
                   {value
                     ? `Atualidade: ${rotuloAtualidade(value.freshnessStatus)}`
