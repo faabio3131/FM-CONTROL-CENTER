@@ -5,7 +5,7 @@ import { ProductNotFoundError, ProductRegistryService } from "@/application/prod
 import { resolveTenantContext } from "@/application/security/resolve-tenant-context";
 import { StepUpRequiredError, verifyPasswordStepUp } from "@/application/security/password-step-up";
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
-import { requirePermission } from "@/domain/security/tenant-context";
+import { requirePermission, AuthenticationRequiredError, PermissionDeniedError, TenantScopeRequiredError } from "@/domain/security/tenant-context";
 import {
   IRON_COMMERCIAL_SECRET_REF, IRON_COMMERCIAL_SOURCE_TYPE,
   IronCommercialConnector, environmentIronControlTenantId,
@@ -52,6 +52,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json(await new IronCommercialConnector().governanceCatalog(contextFor(context), source),
       { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: "auth.required" }, { status: 401 });
+    if (error instanceof TenantScopeRequiredError || error instanceof PermissionDeniedError)
+      return NextResponse.json({ error: "billing.iron_governance_forbidden" }, { status: 403 });
     if (error instanceof ProductNotFoundError) return NextResponse.json({ error: "not_found" }, { status: 404 });
     return NextResponse.json({ error: "billing.iron_governance_unavailable" }, { status: 503 });
   }
@@ -141,9 +144,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       resourceType: "iron_product_plan", result: "failure",
       metadata: { errorType: error instanceof Error ? error.name : "unknown" },
     }).catch(() => undefined);
-    if (error instanceof StepUpRequiredError) {
-      return NextResponse.json({ error: "security.step_up_required" }, { status: 403 });
-    }
+    if (error instanceof AuthenticationRequiredError)
+      return NextResponse.json({ error: "auth.required" }, { status: 401 });
+    if (error instanceof StepUpRequiredError || error instanceof TenantScopeRequiredError ||
+        error instanceof PermissionDeniedError)
+      return NextResponse.json({ error: "billing.iron_governance_forbidden" }, { status: 403 });
     return NextResponse.json({ error: "billing.iron_governance_write_unavailable" }, { status: 503 });
   }
 }
