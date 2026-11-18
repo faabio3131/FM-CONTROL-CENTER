@@ -53,7 +53,7 @@ export class IronTrialStartsMaterializer {
           throw new Error("metrics.iron_trial_duplicate_materialization");
         }
         const values = {
-          value: String(month.count), unit: "count", computedAt: asOf,
+          value: String(month.count), unit: "count", computedAt: new Date(),
           asOf, sourceTimestamp: month.sourceTimestamp,
           freshnessStatus: "unknown", qualityStatus: "reconciled",
           provenanceRefs: [...month.provenanceRefs],
