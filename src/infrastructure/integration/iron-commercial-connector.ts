@@ -90,6 +90,60 @@ export function parseIronPublishedPlanCatalog(value: unknown): IronPublishedPlan
 }
 
 /** Canonical plan-write source of truth is IRON, not FM billing price records. */
+export const IRON_PLAN_GOVERNANCE_SECRET_REF = "env:FMCC_IRON_PLAN_GOVERNANCE_TOKEN";
+const GOVERNANCE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const GOVERNANCE_FEATURE = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
+export interface IronLegacyLimit {
+  configurationId: string;
+  featureKey: string;
+  legacyLimit: number | null;
+  effectiveLimit: number | null;
+  planLimit: number | null;
+  subscriptionId: string | null;
+  planCode: string | null;
+  planVersion: number | null;
+  status: "REVIEW_REQUIRED" | "BLOCKED";
+  reason: string | null;
+}
+export interface IronLegacyLimitApproval {
+  configurationId: string;
+  subscriptionId: string;
+  planCode: string;
+  planVersion: number;
+  legacyLimit: number;
+  planLimit: number;
+  confirm: "ALINHAR_AO_LIMITE_DO_PLANO";
+  reason: string;
+}
+export function parseIronLegacyLimits(raw: unknown, gymId: string): readonly IronLegacyLimit[] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new IronCommercialConnectorError("integration.iron_legacy_limit_invalid");
+  const data = raw as Record<string, unknown>;
+  if (data.schema_version !== "iron.fmcc.legacy-limits.v1" || data.product_code !== "IRON_FIT_CORE" ||
+      data.gymId !== gymId || !Array.isArray(data.limits) || data.limits.length > 512)
+    throw new IronCommercialConnectorError("integration.iron_legacy_limit_invalid");
+  const count = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) <= 2147483647;
+  const nullableCount = (value: unknown) => value === null || count(value);
+  const uuid = (value: unknown) => typeof value === "string" && GOVERNANCE_UUID.test(value);
+  const seen = new Set<string>();
+  for (const row of data.limits) {
+    if (!row || typeof row !== "object" || !uuid(row.configurationId) ||
+      typeof row.featureKey !== "string" || !GOVERNANCE_FEATURE.test(row.featureKey) || seen.has(row.featureKey) ||
+      !nullableCount(row.legacyLimit) || !nullableCount(row.effectiveLimit) || !nullableCount(row.planLimit) ||
+      !(row.subscriptionId === null || uuid(row.subscriptionId)) ||
+      !(row.planCode === null || typeof row.planCode === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(row.planCode)) ||
+      !(row.planVersion === null || count(row.planVersion) && row.planVersion > 0) ||
+      !(row.reason === null || typeof row.reason === "string") ||
+      (row.status !== "BLOCKED" && row.status !== "REVIEW_REQUIRED"))
+      throw new IronCommercialConnectorError("integration.iron_legacy_limit_invalid");
+    if (row.status === "REVIEW_REQUIRED" && (!uuid(row.subscriptionId) || !row.planCode || !row.planVersion ||
+      !count(row.legacyLimit) || !count(row.effectiveLimit) || !count(row.planLimit) ||
+      row.legacyLimit !== row.effectiveLimit || row.legacyLimit > row.planLimit || row.reason !== null))
+      throw new IronCommercialConnectorError("integration.iron_legacy_limit_invalid");
+    seen.add(row.featureKey);
+  }
+  return data.limits as IronLegacyLimit[];
+}
+
 export interface IronPlanGovernanceCatalog {
   readonly plans: readonly {
     readonly id: string;
@@ -420,6 +474,27 @@ export class IronCommercialConnector implements Connector {
     }
   }
 
+  async legacyLimits(context: ConnectorContext, source: SourceDefinition, gymId: string): Promise<readonly IronLegacyLimit[]> {
+    if (!GOVERNANCE_UUID.test(gymId)) throw new IronCommercialConnectorError("integration.iron_legacy_gym_invalid");
+    const response = await this.request(context, source, "/api/v1/control-plane/fmcc/legacy-limits/" + gymId, {}, "plan-governance");
+    if (!response.ok) throw new IronCommercialConnectorError("integration.iron_legacy_limit_unavailable");
+    return parseIronLegacyLimits(await response.json(), gymId);
+  }
+
+  async alignLegacyLimit(context: ConnectorContext, source: SourceDefinition, gymId: string,
+    featureKey: string, approval: IronLegacyLimitApproval): Promise<void> {
+    if (!GOVERNANCE_UUID.test(gymId) || !GOVERNANCE_FEATURE.test(featureKey) ||
+      approval.confirm !== "ALINHAR_AO_LIMITE_DO_PLANO")
+      throw new IronCommercialConnectorError("integration.iron_legacy_limit_invalid");
+    const response = await this.request(context, source,
+      "/api/v1/control-plane/fmcc/legacy-limits/" + gymId + "/" + encodeURIComponent(featureKey) + "/align",
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(approval) }, "plan-governance");
+    if (!response.ok) throw new IronCommercialConnectorError("integration.iron_legacy_limit_rejected");
+    const result = await response.json() as Record<string, unknown>;
+    if (result.removed !== true || result.featureKey !== featureKey || result.effectiveLimit !== approval.planLimit)
+      throw new IronCommercialConnectorError("integration.iron_legacy_limit_response_invalid");
+  }
+
   async aiUsage(
     context: ConnectorContext,
     source: SourceDefinition,
@@ -512,7 +587,7 @@ export class IronCommercialConnector implements Connector {
     const headers = new Headers(init.headers);
     const commercialToken = token(source, this.resolveSecret);
     const governanceToken = authority === "plan-governance"
-      ? this.resolveSecret("env:FMCC_IRON_PLAN_GOVERNANCE_TOKEN")?.trim()
+      ? this.resolveSecret(IRON_PLAN_GOVERNANCE_SECRET_REF)?.trim()
       : undefined;
     if (authority === "plan-governance" &&
         (!governanceToken || governanceToken.length < 32 || governanceToken === commercialToken)) {
