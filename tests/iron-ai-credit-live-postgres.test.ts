@@ -2,6 +2,8 @@ import { createHmac, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { pool } from "@/infrastructure/db/client";
 import { IronAiCreditBilling } from "@/application/billing/iron-ai-credit-billing";
+import { recoverBlockedIronAiCredit } from "@/application/billing/recover-blocked-iron-ai-credit";
+import type { TenantContext } from "@/domain/security/tenant-context";
 
 const enabled = process.env.FMCC_IRON_CREDITS_DB_CERTIFICATION === "YES" &&
   process.env.DATABASE_URL?.includes("/fmcc_billing_ci");
@@ -13,8 +15,8 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
     const gym = randomUUID();
     const secret = "ci-only-credits-iron-" + "x".repeat(40);
     const product = await pool.query<{id:string}>(
-      "INSERT INTO fmcc_product_definition(tenant_id,slug,name) VALUES($1,$2,'IRON credit CI') RETURNING id",
-      [tenant, "iron-credit-" + randomUUID().slice(0, 10)],
+      "INSERT INTO fmcc_product_definition(tenant_id,slug,name,status) VALUES($1,$2,'IRON credit CI','active') RETURNING id",
+      [tenant, "iron"],
     );
     const productId=product.rows[0].id;
     const customer=await pool.query<{id:string}>(
@@ -80,6 +82,18 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
     expect(outcomes.rows).toEqual([{event_type:"GRANT",n:1},{event_type:"REVOKE",n:1}]);
     const st=await pool.query<{status:string}>("SELECT status FROM fmcc_iron_ai_credit_order WHERE id=$1",[orderId]);
     expect(st.rows[0].status).toBe("refunded");
+    const blocked=await pool.query<{id:string}>(
+      "UPDATE fmcc_iron_ai_credit_outbox SET status='blocked',attempts=12 WHERE order_id=$1 AND event_type='REVOKE' RETURNING id",[orderId]);
+    const context={tenantId:tenant,userId:"ci-owner",role:"owner",correlationId:"ci-credit-recovery",
+      permissions:["billing:write"]} as unknown as TenantContext;
+    const outboxId=blocked.rows[0].id;
+    await expect(recoverBlockedIronAiCredit({...context,tenantId:tenant+"-foreign"},productId,outboxId)).rejects.toThrow("iron.credits_recovery_scope_denied");
+    expect(await recoverBlockedIronAiCredit(context,productId,outboxId)).toEqual({
+      status:"retry",outboxId,previousAttempts:12,deliveryExecuted:false,
+    });
+    await expect(recoverBlockedIronAiCredit(context,productId,outboxId)).rejects.toThrow("iron.credits_recovery_not_ready");
+    const recovered=await pool.query("SELECT status,attempts FROM fmcc_iron_ai_credit_outbox WHERE id=$1",[outboxId]);
+    expect(recovered.rows[0]).toEqual({status:"retry",attempts:0});
     const foreign=await pool.query<{n:number}>(
       "SELECT count(*)::int n FROM fmcc_iron_ai_credit_order WHERE gym_id=$1 AND tenant_id<>$2",
       [gym,tenant]);
