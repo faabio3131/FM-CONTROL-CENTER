@@ -62,7 +62,7 @@ export async function POST(request:Request,{params}:{params:Promise<{productId:s
     const code=error instanceof Error?error.message:"";
     const allowed=["billing.iron_rollout_gateway_not_ready","billing.iron_rollout_version_not_published",
       "billing.iron_rollout_cakto_offer_missing","billing.iron_rollout_immutable_price_conflict",
-      "billing.iron_rollout_catalog_unverifiable","billing.iron_plan_mapping_immutable",
+      "billing.iron_rollout_catalog_unverifiable","billing.iron_publication_busy","billing.iron_plan_mapping_immutable",
       "billing.iron_mapping_requires_inactive_draft"];
     return NextResponse.json({error:allowed.includes(code)?code:"billing.iron_rollout_unavailable"},{status:409});
   }

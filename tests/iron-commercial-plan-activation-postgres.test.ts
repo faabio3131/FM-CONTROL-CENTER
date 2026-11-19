@@ -93,7 +93,22 @@ describe.skipIf(!enabled)("IRON FM commercial activation: disposable PostgreSQL"
     await expect(mappingRepo.publishFourTiers(context,productId,sourceId,catalog,(_a,_i,code)=>code!=="IRON_ENTERPRISE_Y_2026")).rejects.toThrow("billing.iron_rollout_cakto_offer_missing");
     expect(await generic.listPlans(tenantId,productId)).toHaveLength(1);
     expect(await mappingRepo.list(tenantId,productId,sourceId)).toHaveLength(0);
-    const outcome=await mappingRepo.publishFourTiers(context,productId,sourceId,catalog,()=>true);
+    // The external verifier must run without an open SQL transaction/row lock.
+    // A competing retirement cannot overtake the snapshot while the fence is held.
+    const outcome=await mappingRepo.publishFourTiers(context,productId,sourceId,async()=>{
+      const other=await pool.connect();
+      try {
+        await other.query("BEGIN");
+        await other.query("SELECT id FROM fmcc_source_definition WHERE id=$1 FOR UPDATE NOWAIT",[sourceId]);
+        await other.query("ROLLBACK");
+      } finally {other.release();}
+      let retired=false;
+      await expect(mappingRepo.retireUnboundVersion(tenantId,productId,sourceId,
+        versions[0].planCode,versions[0].version,async()=>{retired=true;}))
+        .rejects.toThrow("billing.iron_publication_busy");
+      expect(retired).toBe(false);
+      return versions;
+    },()=>true);
     expect(outcome.changed).toBe(8);
     expect(outcome.offers).toHaveLength(8);
     expect(outcome.paymentExecuted).toBe(false);

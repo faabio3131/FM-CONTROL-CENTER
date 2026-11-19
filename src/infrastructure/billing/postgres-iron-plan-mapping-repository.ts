@@ -1,6 +1,7 @@
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { and, eq, sql } from "drizzle-orm";
-import { db } from "@/infrastructure/db/client";
+import { db, pool } from "@/infrastructure/db/client";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { billingProductPlans, billingProductRoutes, billingGatewayAccounts } from "@/infrastructure/db/billing-schema";
 import { auditEvents } from "@/infrastructure/db/foundation-schema";
 import { IRON_FOUR_TIER_OFFERS, IRON_FOUR_TIER_REVIEW_VERSION } from "@/domain/billing/iron-four-tier-offers";
@@ -10,6 +11,34 @@ import { appendIronPlanMapping, assertIronPlanMappingRegistrationState, readIron
 import { assertIronCommercialPlanActivation, type IronCommercialPlanActivationInput } from "@/domain/billing/iron-commercial-plan-activation";
 import { resolveIronPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 import type { IronPublishedPlanVersion } from "@/infrastructure/integration/iron-commercial-connector";
+
+// One pinned connection for the session fence and its subsequent short SQL
+// transaction. No row/transaction lock is acquired while reading the remote
+// published catalog. Retirement uses the same fence to prevent stale bindings.
+async function withPublicationFence<T>(tenantId: string, productId: string, sourceId: string,
+  work: (connection: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  const key = JSON.stringify(["fmcc.billing.plan-publication.v1",tenantId,productId,sourceId]);
+  let locked = false;
+  let discard = false;
+  try {
+    const acquired = await client.query<{ acquired: boolean }>(
+      "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired", [key]);
+    locked = acquired.rows[0]?.acquired === true;
+    if (!locked) throw new Error("billing.iron_publication_busy");
+    return await work(drizzle(client));
+  } finally {
+    if (locked) {
+      try {
+        const result = await client.query<{ released: boolean }>(
+          "SELECT pg_advisory_unlock(hashtextextended($1,0)) AS released",[key]);
+        discard = result.rows[0]?.released !== true;
+      } catch { discard = true; }
+    }
+    // Never return a connection with a possibly held session lock.
+    client.release(discard);
+  }
+}
 
 export class PostgresIronPlanMappingRepository {
   /**
@@ -23,7 +52,18 @@ export class PostgresIronPlanMappingRepository {
     verifyOffer: (amountMinor:number, interval:"month"|"year", planCode:string) => boolean,
   ) {
     const tenantId=context.tenantId;
-    return db.transaction(async tx=>{
+    return withPublicationFence(tenantId,productId,sourceId,async connection=>{
+      const published=await verifyPublished();
+      // Prove all eight terms before creating a single price.
+      for(const offer of IRON_FOUR_TIER_OFFERS){
+        if(published.filter(p=>p.planCode===offer.ironPlanCode&&p.version===offer.ironPlanVersion).length!==1)
+          throw new Error("billing.iron_rollout_version_not_published");
+        if(!verifyOffer(offer.amountMinor,offer.interval==="monthly"?"month":"year",offer.commercialPlanCode))
+          throw new Error("billing.iron_rollout_cakto_offer_missing");
+      }
+      const verifiedAt=Date.now();
+      return connection.transaction(async tx=>{
+      await tx.execute(sql`SET LOCAL lock_timeout = '5s'`);
       for(const offer of [...IRON_FOUR_TIER_OFFERS].sort((a,b)=>a.commercialPlanCode.localeCompare(b.commercialPlanCode))){
         const key=["fmcc.billing.plan-map.v1",tenantId,productId,offer.commercialPlanCode].join(":");
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key},0))`);
@@ -51,14 +91,7 @@ export class PostgresIronPlanMappingRepository {
       if(!route||route.provider!=="cakto"||route.environment!=="production"||
         route.accountStatus!=="enabled"||route.routeStatus!=="enabled")
         throw new Error("billing.iron_rollout_gateway_not_ready");
-      const published=await verifyPublished();
-      // Prove all eight terms before creating a single price.
-      for(const offer of IRON_FOUR_TIER_OFFERS){
-        if(published.filter(p=>p.planCode===offer.ironPlanCode&&p.version===offer.ironPlanVersion).length!==1)
-          throw new Error("billing.iron_rollout_version_not_published");
-        if(!verifyOffer(offer.amountMinor,offer.interval==="monthly"?"month":"year",offer.commercialPlanCode))
-          throw new Error("billing.iron_rollout_cakto_offer_missing");
-      }
+      if (Date.now() - verifiedAt > 30_000) throw new Error("billing.iron_rollout_catalog_unverifiable");
       let config=source.config;
       let changed=0;
       const result:{planCode:string;mappingRevision:number;status:"active"}[]=[];
@@ -102,6 +135,7 @@ export class PostgresIronPlanMappingRepository {
         result:"success",correlationId:context.correlationId,
         metadata:{proposal:IRON_FOUR_TIER_REVIEW_VERSION,changed,offers:result.map(x=>x.planCode)}});
       return {changed,offers:result,providerConfigurationVerified:true as const,paymentExecuted:false as const};
+      });
     });
   }
 
@@ -189,7 +223,7 @@ export class PostgresIronPlanMappingRepository {
    * retirement cannot race with binding a new commercial price. */
   async retireUnboundVersion(tenantId: string, productId: string, sourceId: string,
     planCode: string, version: number, retire: () => Promise<void>): Promise<void> {
-    await db.transaction(async tx => {
+    await withPublicationFence(tenantId,productId,sourceId,async connection => connection.transaction(async tx => {
       const [source] = await tx.select({
         config: sourceDefinitions.config, name: sourceDefinitions.name,
         sourceType: sourceDefinitions.sourceType, secretRef: sourceDefinitions.secretRef,
@@ -213,7 +247,7 @@ export class PostgresIronPlanMappingRepository {
       // Only the IRON canonical engine can retire; it also refuses launch,
       // price and subscription dependencies in its own SERIALIZABLE transaction.
       await retire();
-    });
+    }));
   }
 
   /**
