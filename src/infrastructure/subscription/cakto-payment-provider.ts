@@ -1,8 +1,56 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { PaymentProviderError, WebhookRejectedError, type CreateSubscriptionInput, type CustomerInput, type PaymentEvent, type PaymentProvider, type ProviderCapabilities, type ProviderSubscription } from "@/domain/billing/cakto-payment-provider-contract";
 
 type Offer = { offerId: string; productId: string; planCode: string; checkoutUrl: string; amountMinor: number; interval: "month" | "year" | "one_time" };
 const REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type OAuthToken = { value: string; refreshAt: number };
+// Cache survives short-lived adapter instances, but never crosses transport or
+// credential/purpose boundaries. No token/credential is persisted or logged.
+const oauthCaches = new WeakMap<typeof fetch, Map<string, OAuthToken>>();
+const oauthPending = new WeakMap<typeof fetch, Map<string, Promise<OAuthToken>>>();
+function oauthKey(purpose: "read" | "receipt", clientId: string, clientSecret: string) {
+  return createHash("sha256").update(JSON.stringify([purpose, clientId, clientSecret])).digest("hex");
+}
+async function getOAuthToken(transport: typeof fetch, key: string,
+  acquire: () => Promise<Record<string, unknown>>): Promise<string> {
+  let cache = oauthCaches.get(transport);
+  if (!cache) { cache = new Map(); oauthCaches.set(transport, cache); }
+  let pending = oauthPending.get(transport);
+  if (!pending) { pending = new Map(); oauthPending.set(transport, pending); }
+  const cached = cache.get(key);
+  if (cached && Date.now() < cached.refreshAt) return cached.value;
+  cache.delete(key);
+  const existing = pending.get(key);
+  if (existing) return (await existing).value;
+  const requestedAt = Date.now();
+  const work = (async () => {
+    const auth = await acquire();
+    if (typeof auth.access_token !== "string" || auth.access_token.length < 16 ||
+        auth.access_token.length > 8192 || !/^[A-Za-z0-9._~+\/-]+={0,2}$/.test(auth.access_token) ||
+        String(auth.token_type).toLowerCase() !== "bearer")
+      throw new Error("cakto.oauth_invalid");
+    // Missing/invalid expiry is never cached. The documented TTL is 36000s.
+    // Cap any unexpectedly long TTL and refresh early even for short TTLs.
+    const ttl = typeof auth.expires_in === "number" && Number.isSafeInteger(auth.expires_in)
+      && auth.expires_in > 0 ? Math.min(auth.expires_in, 36000) : 0;
+    const margin = Math.min(300, Math.ceil(ttl / 10));
+    const token = { value: auth.access_token, refreshAt: requestedAt + (ttl - margin) * 1000 };
+    if (token.refreshAt > Date.now()) {
+      // Bound memory even when credentials are rotated.
+      if (cache.size >= 32) cache.delete(cache.keys().next().value!);
+      cache.set(key, token);
+    }
+    return token;
+  })();
+  pending.set(key, work);
+  try { return (await work).value; }
+  finally { if (pending.get(key) === work) pending.delete(key); }
+}
+function invalidateOAuthToken(transport: typeof fetch, key: string, token: string | undefined) {
+  const cache = oauthCaches.get(transport);
+  if (token && cache?.get(key)?.value === token) cache.delete(key);
+}
 
 /**
  * Cakto hosted-checkout adapter. The checkout is created in the seller's account.
@@ -105,6 +153,8 @@ export class CaktoPaymentProvider implements PaymentProvider {
       x.amountMinor === input.amountMinor && x.interval === input.interval);
     if (offers.length !== 1) throw new Error("cakto.schedule_offer_invalid");
     const offer = offers[0];
+    const key = oauthKey("read", clientId, clientSecret);
+    let token: string | undefined;
     const base = "https://api.cakto.com.br/public_api/";
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8_000);
@@ -112,6 +162,7 @@ export class CaktoPaymentProvider implements PaymentProvider {
       const response = await transport(base + path, {
         ...init, redirect: "error", cache: "no-store", signal: controller.signal,
       });
+      if (response.status === 401) invalidateOAuthToken(transport, key, token);
       if (!response.ok || !response.body) throw new Error("cakto.schedule_http_failure");
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -132,15 +183,11 @@ export class CaktoPaymentProvider implements PaymentProvider {
       return parsed as Record<string, unknown>;
     };
     try {
-      const auth = await data("token/", {
+      token = await getOAuthToken(transport, key, () => data("token/", {
         method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret }),
-      });
-      if (typeof auth.access_token !== "string" || auth.access_token.length < 16 ||
-          auth.access_token.length > 8192 || !/^[A-Za-z0-9._~+\/-]+={0,2}$/.test(auth.access_token) ||
-          String(auth.token_type).toLowerCase() !== "bearer")
-        throw new Error("cakto.schedule_auth_invalid");
-      const headers = { authorization: "Bearer " + auth.access_token };
+      }));
+      const headers = { authorization: "Bearer " + token };
       const order = await data("orders/" + input.paymentId + "/", { method: "GET", headers });
       const product = order.product as { id?: unknown } | null;
       if (order.id !== input.paymentId || order.sck !== input.invoiceId ||
@@ -173,12 +220,15 @@ export class CaktoPaymentProvider implements PaymentProvider {
     const clientSecret = this.env.FMCC_CAKTO_RECEIPT_CLIENT_SECRET;
     if (!clientId || !clientSecret || !REF.test(paymentId))
       throw new Error("cakto.receipt_unavailable");
+    const key = oauthKey("receipt", clientId, clientSecret);
+    let token: string | undefined;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8_000);
     async function json(path: string, init: RequestInit) {
       const response = await transport("https://api.cakto.com.br/public_api/" + path, {
         ...init, redirect: "error", cache: "no-store", signal: controller.signal,
       });
+      if (response.status === 401) invalidateOAuthToken(transport, key, token);
       if (!response.ok || !response.body) throw new Error("cakto.receipt_unavailable");
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -199,15 +249,11 @@ export class CaktoPaymentProvider implements PaymentProvider {
       return parsed as Record<string,unknown>;
     }
     try {
-      const auth = await json("token/", {method:"POST",
+      token = await getOAuthToken(transport, key, () => json("token/", {method:"POST",
         headers:{"content-type":"application/x-www-form-urlencoded"},
-        body:new URLSearchParams({client_id:clientId,client_secret:clientSecret})});
-      if (typeof auth.access_token !== "string" || auth.access_token.length < 16 ||
-          auth.access_token.length > 8192 || !/^[A-Za-z0-9._~+\/-]+={0,2}$/.test(auth.access_token) ||
-          String(auth.token_type).toLowerCase() !== "bearer")
-        throw new Error("cakto.receipt_unavailable");
+        body:new URLSearchParams({client_id:clientId,client_secret:clientSecret})}));
       const result = await json("orders/" + paymentId + "/resend_approved_email/", {
-        method:"POST", headers:{authorization:"Bearer " + auth.access_token},
+        method:"POST", headers:{authorization:"Bearer " + token},
       });
       if (typeof result.detail !== "string" || !result.detail.trim())
         throw new Error("cakto.receipt_unavailable");
@@ -243,9 +289,9 @@ export class CaktoPaymentProvider implements PaymentProvider {
       if (typeof envelope.secret !== "string" || typeof envelope.event !== "string" ||
           !["pix_gerado", "boleto_gerado", "checkout_abandonment"].includes(envelope.event))
         throw new WebhookRejectedError("webhook.signature_invalid");
-      const received = Buffer.from(envelope.secret, "utf8");
-      const configured = Buffer.from(secret, "utf8");
-      if (received.length !== configured.length || !timingSafeEqual(received, configured))
+      const received = createHash("sha256").update(envelope.secret, "utf8").digest();
+      const configured = createHash("sha256").update(secret, "utf8").digest();
+      if (!timingSafeEqual(received, configured))
         throw new WebhookRejectedError("webhook.signature_invalid");
       // Deliberately do not return a PaymentEvent, even if fixture data says paid.
       return null;

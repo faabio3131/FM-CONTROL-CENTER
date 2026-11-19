@@ -35,7 +35,14 @@ export async function POST(request: Request) {
       request.headers.get("idempotency-key") ?? "",
     );
     return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
-  } catch {
-    return NextResponse.json({ error: "iron.credits_checkout_unavailable" }, { status: 409 });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "";
+    // Only known domain errors cross the HTTP boundary, never SQL or secrets.
+    if (["iron.credits_request_invalid", "iron.credits_package_invalid"].includes(code))
+      return NextResponse.json({ error: code }, { status: 400 });
+    if (["iron.credits_sales_not_authorized", "iron.credits_idempotency_conflict",
+      "iron.credits_subscription_not_active_or_ambiguous"].includes(code))
+      return NextResponse.json({ error: code }, { status: 409 });
+    return NextResponse.json({ error: "iron.credits_checkout_unavailable" }, { status: 503 });
   }
 }

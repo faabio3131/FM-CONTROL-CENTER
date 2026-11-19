@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CaktoPaymentProvider } from "@/infrastructure/subscription/cakto-payment-provider";
 
 const ID = "fa9c7a11-5725-4495-bc16-f09a86c52d3e";
@@ -181,5 +181,50 @@ describe("Cakto body-secret connectivity notifications (no financial authority)"
     expect(provider().verifyWebhook(new Headers({
       "x-cakto-timestamp":ts,"x-cakto-signature":sig(ts)
     }),raw)).toBeNull();
+  });
+});
+
+
+describe("Cakto OAuth cache", () => {
+  it("shares tokens across instances, deduplicates concurrent acquisition, refreshes before expiry, and isolates receipt credentials", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(now);
+      const cfg = {...config, FMCC_CAKTO_RECEIPT_CLIENT_ID:"ci-client", FMCC_CAKTO_RECEIPT_CLIENT_SECRET:"ci-secret",
+        FMCC_CAKTO_READ_CLIENT_ID:"ci-client", FMCC_CAKTO_READ_CLIENT_SECRET:"ci-secret"};
+      let authCalls=0;
+      let fail=false;
+      const transport=(async(url:string|URL|Request, init?:RequestInit)=>{
+        const path=new URL(String(url)).pathname;
+        if(path.endsWith("/token/")){
+          authCalls++;
+          return new Response(JSON.stringify({access_token:"test-token-"+String(authCalls).padStart(20,"0"),token_type:"Bearer",expires_in:36000}));
+        }
+        expect(new Headers(init?.headers).get("authorization")).toMatch(/^Bearer test-token-/);
+        if(fail) return new Response("",{status:401});
+        if(path.endsWith("/resend_approved_email/"))return new Response(JSON.stringify({detail:"ok"}));
+        if(path.includes("/orders/"))return new Response(JSON.stringify({id:ID,sck:ID,type:"subscription",offer_type:"main",currency:"BRL",product:{id:"iron_product"},subscription:ID}));
+        return new Response(JSON.stringify({id:ID,parent_order:ID,product:"iron_product",offer:"offer_month",status:"active",next_payment_date:null}));
+      }) as typeof fetch;
+      const receipt=()=>new CaktoPaymentProvider(cfg).resendApprovedEmail(ID,transport);
+      const schedule=()=>new CaktoPaymentProvider(cfg).readSubscriptionSchedule({invoiceId:ID,paymentId:ID,planCode:"IRON_PRO",amountMinor:26900,interval:"month"},transport);
+      await Promise.all([receipt(),receipt(),receipt()]);
+      expect(authCalls).toBe(1);
+      await schedule();
+      expect(authCalls).toBe(2);
+      await receipt();
+      expect(authCalls).toBe(2);
+      vi.setSystemTime(now.getTime()+35700*1000);
+      await receipt();
+      expect(authCalls).toBe(3);
+      fail=true;
+      await expect(receipt()).rejects.toThrow("cakto.receipt_unavailable");
+      expect(authCalls).toBe(3);
+      fail=false;
+      await receipt();
+      expect(authCalls).toBe(4);
+      await new CaktoPaymentProvider({...cfg,FMCC_CAKTO_RECEIPT_CLIENT_SECRET:"rotated"}).resendApprovedEmail(ID,transport);
+      expect(authCalls).toBe(5);
+    } finally {vi.useRealTimers();}
   });
 });
