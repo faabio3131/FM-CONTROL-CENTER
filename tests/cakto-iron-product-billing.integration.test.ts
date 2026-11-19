@@ -4,6 +4,7 @@ const readback=caktoReadbackFixture();
 import { afterAll, describe, expect, it } from "vitest";
 import { pool } from "@/infrastructure/db/client";
 import { CaktoIronProductBilling } from "@/application/billing/cakto-iron-product-billing";
+import { CaktoIronReadbackInbox } from "@/application/billing/cakto-iron-readback-inbox";
 import { IronEntitlementOutboxWorker } from "@/application/billing/iron-entitlement-outbox-worker";
 import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
 
@@ -47,6 +48,7 @@ function notification(event: string, orderId: string, status: string, amount = 2
 
 afterAll(async () => {
   if (!enabled) return;
+  await pool.query("DELETE FROM fmcc_iron_cakto_readback_inbox WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_audit_event WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_iron_entitlement_outbox WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_gateway_event WHERE tenant_id=$1", [tenant]);
@@ -74,6 +76,7 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
       ]),
     };
     const billing = new CaktoIronProductBilling(cfg,readback.transport);
+    const inbox=new CaktoIronReadbackInbox(cfg,readback.transport);
     const checkout = await billing.checkoutUrl(invoiceId);
     expect(checkout).toContain("sck="+invoiceId);
     const wrongInterval = notification("purchase_approved", "order_wrong_interval", "paid", 269, "offer_year");
@@ -82,11 +85,17 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     expect(await billing.handleWebhook(wrongPlan.headers, wrongPlan.raw)).toBe("ignored");
 
     const first = notification("purchase_approved", order1, "paid");
+    const n=readback.reads();
+    expect(await inbox.accept("recurring",first.headers,first.raw)).toBe("queued");
+    expect(await inbox.accept("recurring",first.headers,first.raw)).toBe("duplicate");
+    expect(readback.reads()).toBe(n);
     readback.setFailure(503);
-    await expect(billing.handleWebhook(first.headers,first.raw)).rejects.toThrow("cakto.readback_unavailable");
+    expect(await inbox.processOne()).toBe("retry");
     expect((await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",[invoiceId])).rows[0].status).toBe("pending");
     readback.setFailure(null);
-    expect(await billing.handleWebhook(first.headers, first.raw)).toBe("applied");
+    await pool.query("UPDATE fmcc_iron_cakto_readback_inbox SET available_at=now() WHERE invoice_id=$1",[invoiceId]);
+    expect(await new CaktoIronReadbackInbox(cfg,readback.transport).processOne()).toBe("applied");
+    expect(await inbox.processOne()).toBe("idle");
     expect(await billing.handleWebhook(first.headers, first.raw)).toBe("duplicate");
     const state1 = await pool.query("SELECT status,paid_through FROM fmcc_billing_subscription WHERE id=$1", [subscriptionId]);
     expect(state1.rows[0].status).toBe("active");
