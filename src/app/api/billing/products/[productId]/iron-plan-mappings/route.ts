@@ -89,6 +89,17 @@ export async function POST(
         ironPlanCode: input.ironPlanCode,
         ironPlanVersion: input.ironPlanVersion,
       },
+      async () => {
+        // Revalidate under the shared source row lock. Retirement and a
+        // stale catalog read may not create a new mapping for a retired plan.
+        const current = await new IronCommercialConnector().publishedPlanVersions({
+          tenantId: context!.tenantId, correlationId: context!.correlationId, timeoutMs: 8000,
+        }, source);
+        if (current.truncated || !current.plans.some(plan =>
+          plan.planCode === input.ironPlanCode && plan.version === input.ironPlanVersion)) {
+          throw new Error("billing.iron_plan_version_unverified");
+        }
+      },
     );
     await recordAuditEvent(context, {
       action: "billing.iron_plan_mapping.register",

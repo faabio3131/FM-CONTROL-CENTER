@@ -140,6 +140,41 @@ describe.skipIf(!enabled)("IRON FM commercial activation: disposable PostgreSQL"
     expect(await status()).toBe("active");
   });
 
+  it("refuses retirement of any historically bound commercial version", async () => {
+    await seed();
+    let called=false;
+    await expect(mappingRepo.retireUnboundVersion(tenantId,productId,sourceId,
+      published.planCode,published.version,async()=>{called=true;}))
+      .rejects.toThrow("billing.iron_retirement_bound_version");
+    expect(called).toBe(false);
+    expect(await status()).toBe("inactive");
+  });
+
+  it("serializes a new binding against retirement and rejects a stale published catalog under lock", async () => {
+    await seed(false);
+    let markRetirement!:()=>void;
+    let finishRetirement!:()=>void;
+    const locked=new Promise<void>(resolve=>{markRetirement=resolve;});
+    const release=new Promise<void>(resolve=>{finishRetirement=resolve;});
+    let canonicalPublished=true;
+    const retired=mappingRepo.retireUnboundVersion(tenantId,productId,sourceId,
+      published.planCode,published.version,async()=>{
+        markRetirement(); await release; canonicalPublished=false;
+      });
+    await locked;
+    const registration=mappingRepo.register(tenantId,productId,sourceId,{
+      commercialPlanCode:code,ironPlanCode:published.planCode,ironPlanVersion:published.version,
+    },async()=>{
+      if(!canonicalPublished) throw new Error("billing.iron_plan_version_unverified");
+    });
+    const observed=expect(registration).rejects.toThrow("billing.iron_plan_version_unverified");
+    finishRetirement();
+    await retired;
+    await observed;
+    expect(await mappingRepo.list(tenantId,productId,sourceId)).toEqual([]);
+    expect(await status()).toBe("inactive");
+  });
+
   it("rejects generic direct creation of an active IRON price", async () => {
     await seed(false);
     const generic = new PostgresProductBillingAuthorityRepository();

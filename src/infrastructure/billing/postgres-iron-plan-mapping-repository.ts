@@ -32,6 +32,7 @@ export class PostgresIronPlanMappingRepository {
   async register(
     tenantId: string, productId: string, sourceId: string,
     input: { commercialPlanCode: string; ironPlanCode: string; ironPlanVersion: number },
+    verifyPublished?: () => Promise<void>,
   ): Promise<{ mapping: IronVersionedPlanMapping; created: boolean }> {
     return db.transaction(async (tx) => {
       // Order mapping registration against invoice preparation for the same plan.
@@ -78,6 +79,7 @@ export class PostgresIronPlanMappingRepository {
       const result = appendIronPlanMapping(source.config, input);
       assertIronPlanMappingRegistrationState(plan.status, result.created);
       if (result.created) {
+        if (verifyPublished) await verifyPublished();
         await tx.update(sourceDefinitions).set({ config: result.config, updatedAt: new Date() }).where(and(
           eq(sourceDefinitions.tenantId, tenantId),
           eq(sourceDefinitions.productId, productId),
@@ -87,6 +89,37 @@ export class PostgresIronPlanMappingRepository {
       return { mapping: result.mapping, created: result.created };
     });
   }
+  /** Lock the same canonical source row as registration so a reviewed
+   * retirement cannot race with binding a new commercial price. */
+  async retireUnboundVersion(tenantId: string, productId: string, sourceId: string,
+    planCode: string, version: number, retire: () => Promise<void>): Promise<void> {
+    await db.transaction(async tx => {
+      const [source] = await tx.select({
+        config: sourceDefinitions.config, name: sourceDefinitions.name,
+        sourceType: sourceDefinitions.sourceType, secretRef: sourceDefinitions.secretRef,
+        authoritativeDomain: sourceDefinitions.authoritativeDomain, productSlug: productDefinitions.slug,
+      }).from(sourceDefinitions).innerJoin(productDefinitions, and(
+        eq(productDefinitions.tenantId, sourceDefinitions.tenantId),
+        eq(productDefinitions.id, sourceDefinitions.productId),
+        eq(productDefinitions.status, "active"),
+      )).where(and(
+        eq(sourceDefinitions.tenantId, tenantId),
+        eq(sourceDefinitions.productId, productId),
+        eq(sourceDefinitions.id, sourceId),
+      )).for("update", { of: sourceDefinitions }).limit(1);
+      if (!source || source.productSlug !== FMCC_IRON_PRODUCT_SLUG ||
+        source.name !== "IRON FIT CORE Commercial" || source.sourceType !== "iron-commercial-v1" ||
+        source.secretRef !== "env:FMCC_IRON_CONTROL_PLANE_TOKEN" || source.authoritativeDomain !== "commercial")
+        throw new Error("billing.iron_mapping_source_scope_denied");
+      if (readIronPlanMappings(source.config).some(mapping =>
+        mapping.ironPlanCode === planCode && mapping.ironPlanVersion === version))
+        throw new Error("billing.iron_retirement_bound_version");
+      // Only the IRON canonical engine can retire; it also refuses launch,
+      // price and subscription dependencies in its own SERIALIZABLE transaction.
+      await retire();
+    });
+  }
+
   /**
    * Makes a reviewed FM price selectable. This does not issue an invoice,
    * contact a provider or grant rights within the IRON SaaS.

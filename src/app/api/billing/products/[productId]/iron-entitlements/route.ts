@@ -12,6 +12,7 @@ import {
 } from "@/infrastructure/integration/iron-commercial-connector";
 import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-repositories";
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
+import { PostgresIronPlanMappingRepository } from "@/infrastructure/billing/postgres-iron-plan-mapping-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     if (typeof data.password !== "string" || !data.password.trim()) return inputError();
     if (typeof data.action !== "string") return inputError();
     action = data.action;
-    if (!["createPlan", "createVersion", "setEntitlement", "publishVersion"].includes(action)) return inputError();
+    if (!["createPlan", "createVersion", "setEntitlement", "publishVersion", "retireVersion"].includes(action)) return inputError();
 
     // Reject unused/unknown fields rather than accidentally forwarding domain
     // authority from browser to S2S. Sensitive data never enters audit metadata.
@@ -88,6 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       createVersion: ["action", "password", "planId", "version"],
       setEntitlement: ["action", "password", "planId", "version", "featureKey", "featureEnabled", "limitValue", "policyValues"],
       publishVersion: ["action", "password", "planId", "version", "confirm"],
+      retireVersion: ["action", "password", "planId", "version", "confirm"],
     };
     if (Object.keys(data).some(key => !actionFields[action].includes(key))) return inputError();
     const planId = typeof data.planId === "string" && ID.test(data.planId) ? data.planId : undefined;
@@ -114,6 +116,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
         new Set(data.policyValues).size !== data.policyValues.length)) return inputError();
     }
     if (action === "publishVersion" && data.confirm !== "PUBLICAR_VERSAO_IMUTAVEL") return inputError();
+    if (action === "retireVersion" && data.confirm !== "RETIRAR_VERSAO_NAO_VINCULADA") return inputError();
 
     const stepUp = await verifyPasswordStepUp(requestHeaders, data.password);
     if (stepUp.userId !== context.userId) throw new StepUpRequiredError();
@@ -128,8 +131,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
         ...(data.limitValue === undefined ? {} : { limitValue: data.limitValue }),
         ...(data.policyValues === undefined ? {} : { policyValues: data.policyValues }),
       } : {};
-    await new IronCommercialConnector().governPlan(contextFor(context), source,
-      action as "createPlan" | "createVersion" | "setEntitlement" | "publishVersion", planId, version, payload);
+    const connector = new IronCommercialConnector();
+    const connection = contextFor(context);
+    if (action === "retireVersion") {
+      const catalog = await connector.governanceCatalog(connection, source);
+      const plan = catalog.plans.find(item => item.id === planId);
+      if (!plan || !version || !plan.versions.some(item => item.version === version && item.status === "PUBLISHED"))
+        return NextResponse.json({ error: "billing.iron_retirement_version_unavailable" }, {status:409});
+      await new PostgresIronPlanMappingRepository().retireUnboundVersion(
+        context.tenantId,productId,source.id,plan.code,version,
+        ()=>connector.governPlan(connection,source,"retireVersion",planId,version),
+      );
+    } else {
+      await connector.governPlan(connection, source,
+        action as "createPlan" | "createVersion" | "setEntitlement" | "publishVersion", planId, version, payload);
+    }
+    // A successful transport is not a proof of the requested mutation.
+    const readback = await connector.governanceCatalog(connection,source);
+    const changedPlan = readback.plans.find(p=>action==="createPlan"?p.code===data.code:p.id===planId);
+    const changedVersion = changedPlan?.versions.find(v=>v.version===version);
+    const entitlement = changedVersion?.entitlements.find(e=>e.featureKey===data.featureKey);
+    const confirmed = action==="createPlan" ? changedPlan?.name===data.name :
+      action==="createVersion" ? changedVersion?.status==="DRAFT" :
+      action==="publishVersion" ? changedVersion?.status==="PUBLISHED" :
+      action==="retireVersion" ? changedVersion?.status==="RETIRED" :
+      changedVersion?.status==="DRAFT" && !!entitlement &&
+        (data.featureEnabled!==undefined?entitlement.featureEnabled===data.featureEnabled:
+          data.limitValue!==undefined?entitlement.limitValue===data.limitValue:
+          JSON.stringify([...(entitlement.policyValues??[])].sort())===JSON.stringify([...(data.policyValues as string[])].sort()));
+    if (!confirmed) throw new Error("billing.iron_governance_readback_unconfirmed");
     await recordAuditEvent(context, {
       action: "billing.iron_plan_governance." + action,
       resourceType: "iron_product_plan", resourceId: planId,
@@ -144,6 +174,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       resourceType: "iron_product_plan", result: "failure",
       metadata: { errorType: error instanceof Error ? error.name : "unknown" },
     }).catch(() => undefined);
+    if (error instanceof Error && error.message === "billing.iron_retirement_bound_version")
+      return NextResponse.json({ error: "billing.iron_retirement_bound_version" }, { status: 409 });
     if (error instanceof AuthenticationRequiredError)
       return NextResponse.json({ error: "auth.required" }, { status: 401 });
     if (error instanceof StepUpRequiredError || error instanceof TenantScopeRequiredError ||
