@@ -231,6 +231,25 @@ export class CaktoPaymentProvider implements PaymentProvider {
   verifyWebhook(headers: Headers, rawBody: string): PaymentEvent | null {
     const secret = this.env.FMCC_CAKTO_WEBHOOK_SECRET;
     if (!secret || secret.length < 24) throw new WebhookRejectedError("webhook.not_configured");
+    // The dashboard's connectivity fixtures can use the documented body secret.
+    // Only notifications with NO financial effect can use this compatibility path.
+    // A partial/invalid/stale HMAC is never eligible for body-secret fallback.
+    if (!headers.has("x-cakto-timestamp") && !headers.has("x-cakto-signature")) {
+      let body: unknown;
+      try { body = JSON.parse(rawBody); } catch { throw new WebhookRejectedError("webhook.signature_invalid"); }
+      if (!body || typeof body !== "object" || Array.isArray(body))
+        throw new WebhookRejectedError("webhook.signature_invalid");
+      const envelope = body as Record<string, unknown>;
+      if (typeof envelope.secret !== "string" || typeof envelope.event !== "string" ||
+          !["pix_gerado", "boleto_gerado", "checkout_abandonment"].includes(envelope.event))
+        throw new WebhookRejectedError("webhook.signature_invalid");
+      const received = Buffer.from(envelope.secret, "utf8");
+      const configured = Buffer.from(secret, "utf8");
+      if (received.length !== configured.length || !timingSafeEqual(received, configured))
+        throw new WebhookRejectedError("webhook.signature_invalid");
+      // Deliberately do not return a PaymentEvent, even if fixture data says paid.
+      return null;
+    }
     const timestamp = headers.get("x-cakto-timestamp") ?? "";
     const signature = headers.get("x-cakto-signature") ?? "";
     if (!/^\d{10}$/.test(timestamp) || !/^v1=[0-9a-f]{64}$/i.test(signature) ||

@@ -137,3 +137,49 @@ describe("official Cakto receipt resend",()=>{
     expect(requests.length).toBe(2);
   });
 });
+
+
+describe("Cakto body-secret connectivity notifications (no financial authority)", () => {
+  const body = (event: string, value: unknown = secret) =>
+    JSON.stringify({ event, secret: value, data: order() });
+
+  it.each(["pix_gerado", "boleto_gerado", "checkout_abandonment"])(
+    "authenticates %s without HMAC but never produces a PaymentEvent", (event) => {
+      expect(provider().verifyWebhook(new Headers(), body(event))).toBeNull();
+    });
+
+  it("rejects missing, incorrect and non-string body secrets", () => {
+    for (const value of ["", "x".repeat(secret.length), null, 123, {value: secret}])
+      expect(() => provider().verifyWebhook(new Headers(), body("pix_gerado", value)))
+        .toThrow("webhook.signature_invalid");
+    for (const raw of ["{}", "null", "[]", "{", JSON.stringify({event:"pix_gerado",data:order()})])
+      expect(() => provider().verifyWebhook(new Headers(), raw))
+        .toThrow("webhook.signature_invalid");
+  });
+
+  it.each(["purchase_approved", "subscription_renewed", "subscription_late_recovered",
+    "subscription_late", "subscription_renewal_refused", "refund", "chargeback",
+    "subscription_canceled", "unknown"])(
+    "does not authorize %s with a body secret alone", (event) => {
+      expect(() => provider().verifyWebhook(new Headers(), body(event)))
+        .toThrow("webhook.signature_invalid");
+    });
+
+  it("never downgrades partial, stale or invalid HMAC even with a correct body secret", () => {
+    const raw = body("boleto_gerado");
+    const ts = String(Math.floor(now.getTime()/1000));
+    const sig = (t: string) => "v1=" + createHmac("sha256",secret).update(t+"."+raw).digest("hex");
+    const old = String(Number(ts)-301);
+    for (const headers of [
+      new Headers({"x-cakto-timestamp":ts}),
+      new Headers({"x-cakto-signature":sig(ts)}),
+      new Headers({"x-cakto-timestamp":ts,"x-cakto-signature":"v1="+"0".repeat(64)}),
+      new Headers({"x-cakto-timestamp":old,"x-cakto-signature":sig(old)}),
+      new Headers({"x-cakto-timestamp":"","x-cakto-signature":""}),
+    ])
+      expect(() => provider().verifyWebhook(headers,raw)).toThrow("webhook.signature_invalid");
+    expect(provider().verifyWebhook(new Headers({
+      "x-cakto-timestamp":ts,"x-cakto-signature":sig(ts)
+    }),raw)).toBeNull();
+  });
+});
