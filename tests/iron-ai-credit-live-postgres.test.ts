@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { pool } from "@/infrastructure/db/client";
+import { IronBillingLedgerMaterializer } from "@/infrastructure/metrics/iron-billing-ledger-materializer";
 import { IronAiCreditBilling } from "@/application/billing/iron-ai-credit-billing";
 import { recoverBlockedIronAiCredit } from "@/application/billing/recover-blocked-iron-ai-credit";
 import type { TenantContext } from "@/domain/security/tenant-context";
@@ -19,6 +20,12 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
       [tenant, "iron"],
     );
     const productId=product.rows[0].id;
+    const source=await pool.query<{id:string}>(
+      "INSERT INTO fmcc_source_definition(tenant_id,product_id,name,source_type,authoritative_domain,sync_mode,secret_ref,mapping_version,config) VALUES($1,$2,'IRON FIT CORE Commercial','iron-commercial-v1','commercial','pull','env:FMCC_IRON_CONTROL_PLANE_TOKEN','iron-commercial-v1','{}'::jsonb) RETURNING id",
+      [tenant,productId]);
+    const metricScope={tenantId:tenant,productId,sourceId:source.rows[0].id,mappingVersion:"iron-commercial-v1"};
+    const metric=new IronBillingLedgerMaterializer({FMCC_IRON_BILLING_TENANT_ID:tenant,FMCC_IRON_PRODUCT_ID:productId});
+    const metrics=async()=>Object.fromEntries((await pool.query("SELECT metric_id,value FROM fmcc_metric_value WHERE tenant_id=$1 AND product_id=$2",[tenant,productId])).rows.map(x=>[x.metric_id,x.value]));
     const customer=await pool.query<{id:string}>(
       "INSERT INTO fmcc_billing_customer(tenant_id,external_customer_id) VALUES($1,$2) RETURNING id",
       [tenant,"credit-ci-"+randomUUID()],
@@ -58,6 +65,8 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
     const counted=await pool.query<{n:number}>(
       "SELECT count(*)::int n FROM fmcc_iron_ai_credit_order WHERE tenant_id=$1 AND gym_id=$2",[tenant,gym]);
     expect(counted.rows[0].n).toBe(1);
+    expect(await metric.materialize(metricScope)).toEqual({materialized:2});
+    expect(await metrics()).toEqual({"subscription.active.count":"0","billing.gross_billed":"19.90"});
     const signed=(event:string,amount=19.9,payment="paid-credit-"+randomUUID().slice(0,8))=>{
       const raw=JSON.stringify({event,data:{
         id:payment,offer_type:"main",sck:orderId,status:event==="purchase_approved"?"paid":"refunded",
@@ -82,6 +91,14 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
     expect(outcomes.rows).toEqual([{event_type:"GRANT",n:1},{event_type:"REVOKE",n:1}]);
     const st=await pool.query<{status:string}>("SELECT status FROM fmcc_iron_ai_credit_order WHERE id=$1",[orderId]);
     expect(st.rows[0].status).toBe("refunded");
+    // Add a prior-period order and a recurring face value. Refunds do not net
+    // gross billed, and neither a credit nor its payment activates a subscription.
+    const prior=await billing.prepareCheckout(gym,"IRON_AI_WORKOUT_100","ci-prior-"+randomUUID());
+    await pool.query("UPDATE fmcc_iron_ai_credit_order SET created_at=date_trunc('month',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' - interval '1 day' WHERE id=$1",[prior.invoiceId]);
+    await pool.query("INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status) SELECT tenant_id,product_id,customer_id,id,$2,14700,'pending' FROM fmcc_billing_subscription WHERE tenant_id=$1",[tenant,gatewayId]);
+    await Promise.all([metric.materialize(metricScope),metric.materialize(metricScope)]);
+    expect(await metrics()).toEqual({"subscription.active.count":"0","billing.gross_billed":"166.90"});
+    expect(await metric.materialize({...metricScope,tenantId:tenant+"-foreign"})).toEqual({materialized:0});
     const blocked=await pool.query<{id:string}>(
       "UPDATE fmcc_iron_ai_credit_outbox SET status='blocked',attempts=12 WHERE order_id=$1 AND event_type='REVOKE' RETURNING id",[orderId]);
     const context={tenantId:tenant,userId:"ci-owner",role:"owner",correlationId:"ci-credit-recovery",

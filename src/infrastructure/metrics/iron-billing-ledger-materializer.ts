@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, gte, lt, sql, isNull } from "drizzle-orm";
 import { db } from "@/infrastructure/db/client";
 import { metricValues, productDefinitions, sourceDefinitions } from "@/infrastructure/db/platform-schema";
-import { billingSubscriptions, billingCustomerBindings, billingInvoices, billingProviderPayments } from "@/infrastructure/db/billing-schema";
+
 
 const AUTHORITY = "FM_COMMAND_IRON_PRODUCT_LEDGER";
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -44,43 +44,70 @@ export class IronBillingLedgerMaterializer {
       // Read after the projection lock in a SINGLE statement. Read-committed
       // obtains the snapshot after lock acquisition, while joins keep
       // subscription, invoice and payment facts on that same snapshot.
-      const rows = await tx.select({
-        subscriptionId:billingSubscriptions.id,subscriptionStatus:billingSubscriptions.status,
-        paidThrough:billingSubscriptions.paidThrough,gymId:billingCustomerBindings.externalTenantId,
-        invoiceId:billingInvoices.id,invoiceStatus:billingInvoices.status,amountMinor:billingInvoices.amountMinor,
-        currency:billingInvoices.currency,periodEnd:billingInvoices.periodEnd,createdAt:billingInvoices.createdAt,
-        recordedPaymentStatus:billingProviderPayments.status,
-      }).from(billingSubscriptions).leftJoin(billingCustomerBindings,and(
-        eq(billingCustomerBindings.tenantId,billingSubscriptions.tenantId),
-        eq(billingCustomerBindings.productId,billingSubscriptions.productId),
-        eq(billingCustomerBindings.customerId,billingSubscriptions.customerId)))
-      .leftJoin(billingInvoices,and(eq(billingInvoices.tenantId,billingSubscriptions.tenantId),
-        eq(billingInvoices.productId,billingSubscriptions.productId),
-        eq(billingInvoices.customerId,billingSubscriptions.customerId),
-        eq(billingInvoices.subscriptionId,billingSubscriptions.id)))
-      .leftJoin(billingProviderPayments,and(eq(billingProviderPayments.tenantId,billingInvoices.tenantId),
-        eq(billingProviderPayments.invoiceId,billingInvoices.id),
-        eq(billingProviderPayments.gatewayAccountId,billingInvoices.gatewayAccountId)))
-      .where(and(eq(billingSubscriptions.tenantId,input.tenantId),eq(billingSubscriptions.productId,input.productId)))
-      .orderBy(billingSubscriptions.id,billingInvoices.id).limit(100001);
+      // Both ledgers share one MVCC statement snapshot. One-time orders
+      // contribute to gross billed only; they can never establish paid coverage.
+      type LedgerRow = {kind:"recurring"|"credit";subscriptionId:string;subscriptionStatus:string;
+        paidThrough:Date|null;gymId:string|null;invoiceId:string|null;invoiceStatus:string|null;
+        amountMinor:string|null;currency:string|null;periodEnd:Date|null;createdAt:Date|null;
+        recordedPaymentStatus:string|null;creditGymId:string|null};
+      const result = await tx.execute<LedgerRow>(sql`
+        SELECT 'recurring'::text AS kind,s.id AS "subscriptionId",s.status AS "subscriptionStatus",
+          s.paid_through AS "paidThrough",b.external_tenant_id AS "gymId",i.id AS "invoiceId",
+          i.status AS "invoiceStatus",i.amount_minor::text AS "amountMinor",i.currency,
+          i.period_end AS "periodEnd",i.created_at AS "createdAt",p.status AS "recordedPaymentStatus",
+          NULL::text AS "creditGymId"
+        FROM fmcc_billing_subscription s
+        LEFT JOIN fmcc_billing_customer_binding b ON b.tenant_id=s.tenant_id
+          AND b.product_id=s.product_id AND b.customer_id=s.customer_id
+        LEFT JOIN fmcc_billing_invoice i ON i.tenant_id=s.tenant_id
+          AND i.product_id=s.product_id AND i.customer_id=s.customer_id AND i.subscription_id=s.id
+        LEFT JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id
+          AND p.invoice_id=i.id AND p.gateway_account_id=i.gateway_account_id
+        WHERE s.tenant_id=${input.tenantId} AND s.product_id=${input.productId}
+        UNION ALL
+        SELECT 'credit'::text,s.id,s.status,s.paid_through,b.external_tenant_id,o.id,o.status,
+          o.amount_minor::text,o.currency,NULL::timestamptz,o.created_at,NULL::text,o.gym_id::text
+        FROM fmcc_iron_ai_credit_order o
+        JOIN fmcc_billing_subscription s ON s.tenant_id=o.tenant_id AND s.id=o.subscription_id
+          AND s.product_id=o.product_id AND s.customer_id=o.customer_id
+        LEFT JOIN fmcc_billing_customer_binding b ON b.tenant_id=o.tenant_id
+          AND b.product_id=o.product_id AND b.customer_id=o.customer_id
+        WHERE o.tenant_id=${input.tenantId} AND o.product_id=${input.productId}
+        ORDER BY kind,"subscriptionId","invoiceId"
+        LIMIT 100001
+      `);
+      const rows=result.rows;
       if(rows.length>100000) throw new Error("metrics.iron_billing_snapshot_limit");
       if(!rows.length) return {materialized:0}; // unobserved, NOT zero
       const subscriptions = new Map<string,{id:string,status:string,paidThrough:Date|null,gymId:string}>();
       const invoices: {id:string,subscriptionId:string,status:string,amountMinor:number,
         currency:string,periodEnd:Date|null,createdAt:Date,recordedPaymentStatus:string|null}[]=[];
+      const creditOrders: {id:string,status:string,amountMinor:number,currency:string,createdAt:Date}[]=[];
       const invoiceIds=new Set<string>();
+      const creditIds=new Set<string>();
       for(const row of rows){
         if(!row.gymId||!UUID.test(row.gymId)||!SUPPORTED_STATUS.has(row.subscriptionStatus))
           throw new Error("metrics.iron_billing_subscription_scope_inconsistent");
+        if(row.kind==="credit"){
+          const amount=Number(row.amountMinor);
+          if(!row.invoiceId||creditIds.has(row.invoiceId)||row.creditGymId!==row.gymId||
+            !row.invoiceStatus||!VALID_INVOICE.has(row.invoiceStatus)||!Number.isSafeInteger(amount)||
+            amount<=0||row.currency!=="BRL"||!row.createdAt||!Number.isFinite(row.createdAt.getTime()))
+            throw new Error("metrics.iron_credit_order_inconsistent");
+          creditIds.add(row.invoiceId);
+          creditOrders.push({id:row.invoiceId,status:row.invoiceStatus,amountMinor:amount,currency:row.currency,createdAt:row.createdAt});
+          continue;
+        }
         subscriptions.set(row.subscriptionId,{id:row.subscriptionId,status:row.subscriptionStatus,
           paidThrough:row.paidThrough,gymId:row.gymId});
         if(row.invoiceId===null) continue;
-        if(invoiceIds.has(row.invoiceId)||!row.invoiceStatus||typeof row.amountMinor!=="number"||
-          !Number.isSafeInteger(row.amountMinor)||row.amountMinor<=0||row.currency!=="BRL"||!row.createdAt)
+        const amount=Number(row.amountMinor);
+        if(invoiceIds.has(row.invoiceId)||!row.invoiceStatus||
+          !Number.isSafeInteger(amount)||amount<=0||row.currency!=="BRL"||!row.createdAt||!Number.isFinite(row.createdAt.getTime()))
           throw new Error("metrics.iron_billing_invoice_inconsistent");
         invoiceIds.add(row.invoiceId);
         invoices.push({id:row.invoiceId,subscriptionId:row.subscriptionId,status:row.invoiceStatus,
-          amountMinor:row.amountMinor,currency:row.currency,periodEnd:row.periodEnd,createdAt:row.createdAt,
+          amountMinor:amount,currency:row.currency,periodEnd:row.periodEnd,createdAt:row.createdAt,
           recordedPaymentStatus:row.recordedPaymentStatus});
       }
       const subs=[...subscriptions.values()];
@@ -115,7 +142,10 @@ export class IronBillingLedgerMaterializer {
       // Invoice face value at issuance, NOT cash received. Refunds are not
       // netted against gross billed. Unknown/draft/void records are excluded;
       // nothing is fabricated when no valid invoice has been observed.
-      const valid=invoices.filter(x=>VALID_INVOICE.has(x.status));
+      const valid=[
+        ...invoices.filter(x=>VALID_INVOICE.has(x.status)).map(x=>({...x,ledger:"recurring" as const})),
+        ...creditOrders.map(x=>({...x,ledger:"ai_credit" as const})),
+      ];
       if(valid.length){
         const current=valid.filter(x=>x.createdAt>=month&&x.createdAt<nextMonth);
         const minor=current.reduce((sum,x)=>sum+BigInt(x.amountMinor),0n);
