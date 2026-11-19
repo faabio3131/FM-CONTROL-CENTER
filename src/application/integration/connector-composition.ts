@@ -8,6 +8,7 @@ import {
 } from "@/infrastructure/integration/nfcore-commercial-connector";
 import { ConnectorRuntime } from "@/application/integration/connector-runtime";
 import { IronTrialStartsMaterializer } from "@/infrastructure/metrics/iron-trial-starts-materializer";
+import { IronBillingLedgerMaterializer } from "@/infrastructure/metrics/iron-billing-ledger-materializer";
 import {
   PostgresCanonicalFactRepository,
   PostgresSourceRepository,
@@ -54,6 +55,9 @@ export function buildConnectorRuntime(input?: {
         productId: source.productId,
         sourceId: source.id,
         mappingVersion: source.mappingVersion,
+      });
+      await new IronBillingLedgerMaterializer().materialize({
+        tenantId:context.tenantId,productId:source.productId,sourceId:source.id,mappingVersion:source.mappingVersion,
       });
     },
   );

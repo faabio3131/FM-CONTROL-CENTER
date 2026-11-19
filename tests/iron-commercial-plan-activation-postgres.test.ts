@@ -2,7 +2,8 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "@/infrastructure/db/client";
-import { productDefinitions, sourceDefinitions } from "@/infrastructure/db/platform-schema";
+import { productDefinitions, sourceDefinitions, metricValues } from "@/infrastructure/db/platform-schema";
+import { IronBillingLedgerMaterializer } from "@/infrastructure/metrics/iron-billing-ledger-materializer";
 import { billingProductPlans } from "@/infrastructure/db/billing-schema";
 import { PostgresIronPlanMappingRepository } from "@/infrastructure/billing/postgres-iron-plan-mapping-repository";
 import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
@@ -27,7 +28,7 @@ async function seed(withBinding = true) {
   const [source] = await db.insert(sourceDefinitions).values({
     tenantId, productId, name: "IRON FIT CORE Commercial",
     sourceType: "iron-commercial-v1", authoritativeDomain: "commercial",
-    syncMode: "pull", secretRef: "env:FMCC_IRON_CONTROL_PLANE_TOKEN",
+    syncMode: "pull", secretRef: "env:FMCC_IRON_CONTROL_PLANE_TOKEN", mappingVersion:"iron-commercial-v1",
     config: { baseUrl: "https://ci.invalid" },
   }).returning();
   sourceId = source.id;
@@ -58,6 +59,7 @@ afterEach(async () => {
     "fmcc_billing_subscription", "fmcc_billing_customer_binding", "fmcc_billing_product_route",
     "fmcc_billing_gateway_account", "fmcc_billing_customer",
   ]) await pool.query("DELETE FROM " + table + " WHERE tenant_id=$1", [tenantId]);
+  await db.delete(metricValues).where(eq(metricValues.tenantId,tenantId));
   await db.delete(billingProductPlans).where(eq(billingProductPlans.tenantId, tenantId));
   await db.delete(sourceDefinitions).where(eq(sourceDefinitions.tenantId, tenantId));
   await db.delete(productDefinitions).where(eq(productDefinitions.tenantId, tenantId));
@@ -196,12 +198,22 @@ describe.skipIf(!enabled)("IRON FM commercial activation: disposable PostgreSQL"
     await generic.configureRoute(tenantId, productId, gateway.rows[0].id);
     const gymId = randomUUID();
     const input = {tenantId, productId, externalTenantId:gymId, planCode:code, payloadHash:"ci-same-payload"};
+    const materializer = new IronBillingLedgerMaterializer({FMCC_IRON_PRODUCT_ID:productId,FMCC_IRON_BILLING_TENANT_ID:tenantId});
+    const scope={tenantId,productId,sourceId,mappingVersion:"iron-commercial-v1"};
+    expect(await materializer.materialize(scope)).toEqual({materialized:0});
     const first = await generic.prepareSubscriptionInvoice({...input,idempotencyKey:randomUUID()});
     const results = await Promise.all([generic.prepareSubscriptionInvoice({...input,idempotencyKey:randomUUID()}),
       generic.prepareSubscriptionInvoice({...input,idempotencyKey:randomUUID()})]);
     expect(results.every(x => x.invoiceId===first.invoiceId && x.subscriptionId===first.subscriptionId && x.idempotentReplay)).toBe(true);
     const counts = await pool.query("SELECT count(*)::int AS n FROM fmcc_billing_invoice WHERE tenant_id=$1", [tenantId]);
     expect(counts.rows[0].n).toBe(1);
+    expect(await materializer.materialize(scope)).toEqual({materialized:2});
+    const metrics=await db.select().from(metricValues).where(eq(metricValues.tenantId,tenantId));
+    expect(metrics.find(x=>x.metricId==="subscription.active.count")?.value).toBe("0");
+    expect(metrics.find(x=>x.metricId==="billing.gross_billed")?.value).toBe("199.90");
+    expect(await materializer.materialize({...scope,tenantId:tenantId+"-foreign"})).toEqual({materialized:0});
+    expect(await materializer.materialize(scope)).toEqual({materialized:2});
+    expect(await db.select().from(metricValues).where(eq(metricValues.tenantId,tenantId))).toHaveLength(2);
     await pool.query("UPDATE fmcc_billing_invoice SET amount_minor=amount_minor+1 WHERE id=$1", [first.invoiceId]);
     await expect(generic.prepareSubscriptionInvoice({...input,idempotencyKey:randomUUID()})).rejects.toThrow("billing.subscription_exists");
     await pool.query("UPDATE fmcc_billing_invoice SET amount_minor=amount_minor-1 WHERE id=$1", [first.invoiceId]);
