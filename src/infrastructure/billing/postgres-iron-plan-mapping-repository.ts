@@ -1,7 +1,7 @@
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { and, eq, sql } from "drizzle-orm";
 import { db, pool } from "@/infrastructure/db/client";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { billingProductPlans, billingProductRoutes, billingGatewayAccounts } from "@/infrastructure/db/billing-schema";
 import { auditEvents } from "@/infrastructure/db/foundation-schema";
 import { IRON_FOUR_TIER_OFFERS, IRON_FOUR_TIER_REVIEW_VERSION } from "@/domain/billing/iron-four-tier-offers";
@@ -16,7 +16,7 @@ import type { IronPublishedPlanVersion } from "@/infrastructure/integration/iron
 // transaction. No row/transaction lock is acquired while reading the remote
 // published catalog. Retirement uses the same fence to prevent stale bindings.
 async function withPublicationFence<T>(tenantId: string, productId: string, sourceId: string,
-  work: (connection: ReturnType<typeof drizzle>) => Promise<T>): Promise<T> {
+  work: (connection: NodePgDatabase<Record<string, unknown>>) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   const key = JSON.stringify(["fmcc.billing.plan-publication.v1",tenantId,productId,sourceId]);
   let locked = false;
