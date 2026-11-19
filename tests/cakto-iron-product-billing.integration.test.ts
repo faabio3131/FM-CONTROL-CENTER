@@ -1,4 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { caktoReadbackFixture, ciCaktoReadEnv } from "./fixtures/cakto-readback-fixture";
+const readback=caktoReadbackFixture();
 import { afterAll, describe, expect, it } from "vitest";
 import { pool } from "@/infrastructure/db/client";
 import { CaktoIronProductBilling } from "@/application/billing/cakto-iron-product-billing";
@@ -37,6 +39,7 @@ function notification(event: string, orderId: string, status: string, amount = 2
       currency: "BRL", paidAt: new Date().toISOString(),
       offer: { id: offerId }, product: { id: "iron_product" } },
   });
+  if (/^[0-9a-f-]{36}$/.test(orderId)) readback.register(body);
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = "v1=" + createHmac("sha256", secret).update(timestamp + "." + body).digest("hex");
   return { raw: body, headers: new Headers({ "x-cakto-timestamp": timestamp, "x-cakto-signature": signature }) };
@@ -61,6 +64,7 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
   dbIt("confirms first payment, records recurring cycle, isolates old refund, and suspends refunded current cycle", async () => {
     const { subscriptionId } = await prepare();
     const cfg = {
+      ...ciCaktoReadEnv,
       FMCC_IRON_BILLING_TENANT_ID: tenant, FMCC_IRON_PRODUCT_ID: productId,
       FMCC_CAKTO_WEBHOOK_SECRET: secret,
       FMCC_CAKTO_CHECKOUTS_JSON: JSON.stringify([
@@ -69,7 +73,7 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
         { offerId: "offer_other", productId: "iron_product", planCode: "IRON_OTHER", checkoutUrl: "https://pay.cakto.com.br/offer_other", amountMinor: 26900, interval: "month" },
       ]),
     };
-    const billing = new CaktoIronProductBilling(cfg);
+    const billing = new CaktoIronProductBilling(cfg,readback.transport);
     const checkout = await billing.checkoutUrl(invoiceId);
     expect(checkout).toContain("sck="+invoiceId);
     const wrongInterval = notification("purchase_approved", "order_wrong_interval", "paid", 269, "offer_year");
@@ -78,6 +82,10 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     expect(await billing.handleWebhook(wrongPlan.headers, wrongPlan.raw)).toBe("ignored");
 
     const first = notification("purchase_approved", order1, "paid");
+    readback.setFailure(503);
+    await expect(billing.handleWebhook(first.headers,first.raw)).rejects.toThrow("cakto.readback_unavailable");
+    expect((await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",[invoiceId])).rows[0].status).toBe("pending");
+    readback.setFailure(null);
     expect(await billing.handleWebhook(first.headers, first.raw)).toBe("applied");
     expect(await billing.handleWebhook(first.headers, first.raw)).toBe("duplicate");
     const state1 = await pool.query("SELECT status,paid_through FROM fmcc_billing_subscription WHERE id=$1", [subscriptionId]);

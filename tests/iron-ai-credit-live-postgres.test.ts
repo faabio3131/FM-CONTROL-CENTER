@@ -1,4 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { caktoReadbackFixture, ciCaktoReadEnv } from "./fixtures/cakto-readback-fixture";
+import { CaktoIronReadbackInbox } from "@/application/billing/cakto-iron-readback-inbox";
 import { describe, expect, it } from "vitest";
 import { pool } from "@/infrastructure/db/client";
 import { IronBillingLedgerMaterializer } from "@/infrastructure/metrics/iron-billing-ledger-materializer";
@@ -43,7 +45,9 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
       "INSERT INTO fmcc_billing_subscription(tenant_id,product_id,customer_id,plan_code,status,paid_through) VALUES($1,$2,$3,'IRON_START_M_2026','active',now()+interval '30 days')",
       [tenant,productId,customerId],
     );
+    const readback=caktoReadbackFixture();
     const env={
+      ...ciCaktoReadEnv,
       FMCC_IRON_COMMERCIAL_SALES_ENABLED:"true",
       FMCC_IRON_BILLING_TENANT_ID:tenant,
       FMCC_IRON_PRODUCT_ID:productId,
@@ -54,7 +58,8 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
           amountMinor:1990,interval:"one_time"},
       ]),
     };
-    const billing=new IronAiCreditBilling(env);
+    const billing=new IronAiCreditBilling(env,readback.transport);
+    const inbox=new CaktoIronReadbackInbox(env,readback.transport);
     const idem="ci-credit-"+randomUUID();
     const [first, replay] = await Promise.all([
       billing.prepareCheckout(gym,"IRON_AI_WORKOUT_100",idem),
@@ -67,25 +72,40 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
     expect(counted.rows[0].n).toBe(1);
     expect(await metric.materialize(metricScope)).toEqual({materialized:2});
     expect(await metrics()).toEqual({"subscription.active.count":"0","billing.gross_billed":"19.90"});
-    const signed=(event:string,amount=19.9,payment="paid-credit-"+randomUUID().slice(0,8))=>{
+    const signed=(event:string,amount=19.9,payment=randomUUID())=>{
       const raw=JSON.stringify({event,data:{
         id:payment,offer_type:"main",sck:orderId,status:event==="purchase_approved"?"paid":"refunded",
         amount,currency:"BRL",offer:{id:"iron_ai100_official_ci"},product:{id:"iron_ai_ci"},
         paidAt:new Date().toISOString(),
       }});
+      readback.register(raw);
       const stamp=String(Math.floor(Date.now()/1000));
       return {raw,headers:new Headers({"x-cakto-timestamp":stamp,
         "x-cakto-signature":"v1="+createHmac("sha256",secret).update(stamp+"."+raw).digest("hex")})};
     };
-    const payment="purchase_credit_ci_001";
+    const payment=randomUUID();
     const wrong=signed("purchase_approved",1,payment);
     expect(await billing.handleWebhook(wrong.headers,wrong.raw)).toBe("ignored");
     const paid=signed("purchase_approved",19.9,payment);
-    expect(await billing.handleWebhook(paid.headers,paid.raw)).toBe("applied");
-    expect(await billing.handleWebhook(paid.headers,paid.raw)).toBe("duplicate");
+    const readCount=readback.reads();
+    expect(await inbox.accept("ai_credits",paid.headers,paid.raw)).toBe("queued");
+    expect(await inbox.accept("ai_credits",paid.headers,paid.raw)).toBe("duplicate");
+    expect(readback.reads()).toBe(readCount);
+    expect((await pool.query("SELECT status FROM fmcc_iron_ai_credit_order WHERE id=$1",[orderId])).rows[0].status).toBe("pending");
+    readback.setFailure(429);
+    expect(await inbox.processOne()).toBe("retry");
+    expect((await pool.query("SELECT status FROM fmcc_iron_ai_credit_order WHERE id=$1",[orderId])).rows[0].status).toBe("pending");
+    readback.setFailure(null);
+    await pool.query("UPDATE fmcc_iron_cakto_readback_inbox SET available_at=now() WHERE invoice_id=$1",[orderId]);
+    expect(await new CaktoIronReadbackInbox(env,readback.transport).processOne()).toBe("applied");
+    expect(await inbox.processOne()).toBe("idle");
     const refund=signed("refund",19.9,payment);
-    expect(await billing.handleWebhook(refund.headers,refund.raw)).toBe("applied");
-    expect(await billing.handleWebhook(refund.headers,refund.raw)).toBe("duplicate");
+    expect(await inbox.accept("ai_credits",refund.headers,refund.raw)).toBe("queued");
+    expect(await inbox.accept("ai_credits",refund.headers,refund.raw)).toBe("duplicate");
+    expect(await inbox.processOne()).toBe("applied");
+    const observed=await pool.query("SELECT status,observation FROM fmcc_iron_cakto_readback_inbox WHERE invoice_id=$1",[orderId]);
+    expect(observed.rows).toHaveLength(2);
+    expect(observed.rows.every(x=>x.status==="applied"&&!Object.hasOwn(x.observation,"secret")&&!Object.hasOwn(x.observation,"customer"))).toBe(true);
     const outcomes=await pool.query<{event_type:string,n:number}>(
       "SELECT event_type,count(*)::int n FROM fmcc_iron_ai_credit_outbox WHERE order_id=$1 GROUP BY event_type ORDER BY event_type",[orderId]);
     expect(outcomes.rows).toEqual([{event_type:"GRANT",n:1},{event_type:"REVOKE",n:1}]);

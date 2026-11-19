@@ -1,4 +1,6 @@
 import { createHmac } from "node:crypto";
+import { caktoReadbackFixture, ciCaktoReadEnv } from "./fixtures/cakto-readback-fixture";
+const readback=caktoReadbackFixture();
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WebhookRejectedError } from "@/domain/billing/cakto-payment-provider-contract";
 
@@ -69,6 +71,7 @@ const product="ab046dd7-626a-4296-9af0-c44144bb8d65";
 const gym="00d4727a-03d4-4d5a-915f-b2a3e45f6dc0";
 const secret="test-credit-webhook-private-secret-123456";
 const env={
+  ...ciCaktoReadEnv,
   FMCC_IRON_COMMERCIAL_SALES_ENABLED:"true",
   FMCC_IRON_BILLING_TENANT_ID:tenant,
   FMCC_IRON_PRODUCT_ID:product,
@@ -80,10 +83,11 @@ const env={
 };
 function signed(invoice: string, type: "purchase_approved" | "refund" | "chargeback", changes: Record<string,unknown>={}) {
   const raw=JSON.stringify({event:type,data:{
-    id:"purchase_credit_0001",offer_type:"main",sck:invoice,status:type==="purchase_approved"?"paid":"refunded",
+    id:"498ff831-9d4c-42a1-ab8d-c2a618a82911",offer_type:"main",sck:invoice,status:type==="purchase_approved"?"paid":"refunded",
     amount:19.9,currency:"BRL",offer:{id:"iron_ai100"},product:{id:"iron_ai"},
     paidAt:new Date().toISOString(),...changes,
   }});
+  readback.register(raw);
   const ts=String(Math.floor(Date.now()/1000));
   return {raw,headers:new Headers({"x-cakto-timestamp":ts,"x-cakto-signature":
     "v1="+createHmac("sha256",secret).update(ts+"."+raw).digest("hex")})};
@@ -104,7 +108,7 @@ describe("IRON credit purchase commercial ledger and signed settlement",()=>{
       .rejects.toThrow("iron.credits_sales_not_authorized");
   });
   it("prepares one bound order and replays same idempotency without new invoice",async()=>{
-    const app=new IronAiCreditBilling(env);
+    const app=new IronAiCreditBilling(env,readback.transport);
     const a=await app.prepareCheckout(gym,"IRON_AI_WORKOUT_100","same-request-000001");
     expect(a).toMatchObject({amountMinor:1990,units:100,status:"pending",idempotent:false});
     expect(a.checkoutUrl).toBe("https://pay.cakto.com.br/ai100?sck="+a.invoiceId);
@@ -116,13 +120,13 @@ describe("IRON credit purchase commercial ledger and signed settlement",()=>{
   });
   it("fails closed without active and uniquely bound paid subscription",async()=>{
     store.invalidScope=true;
-    await expect(new IronAiCreditBilling(env).prepareCheckout(gym,"IRON_AI_WORKOUT_100","attempt-00001"))
+    await expect(new IronAiCreditBilling(env,readback.transport).prepareCheckout(gym,"IRON_AI_WORKOUT_100","attempt-00001"))
       .rejects.toThrow("iron.credits_subscription_not_active_or_ambiguous");
     expect(store.orders.size).toBe(0);
     expect(store.rollbacks).toBe(1);
   });
   it("only signed exact-price PAID checkout grants, duplicate event has zero extra effects",async()=>{
-    const app=new IronAiCreditBilling(env);
+    const app=new IronAiCreditBilling(env,readback.transport);
     const order=await app.prepareCheckout(gym,"IRON_AI_WORKOUT_100","attempt-00002");
     const receipt=signed(order.invoiceId,"purchase_approved");
     expect(await app.handleWebhook(receipt.headers,receipt.raw)).toBe("applied");
@@ -132,7 +136,7 @@ describe("IRON credit purchase commercial ledger and signed settlement",()=>{
     expect(store.deliveries).toHaveLength(1);
   });
   it("wrong amount, unknown invoice and invalid signature never issue credits",async()=>{
-    const app=new IronAiCreditBilling(env);
+    const app=new IronAiCreditBilling(env,readback.transport);
     const order=await app.prepareCheckout(gym,"IRON_AI_WORKOUT_100","attempt-00003");
     const altered=signed(order.invoiceId,"purchase_approved",{amount:1});
     expect(await app.handleWebhook(altered.headers,altered.raw)).toBe("ignored");
@@ -144,11 +148,11 @@ describe("IRON credit purchase commercial ledger and signed settlement",()=>{
     expect(store.deliveries).toHaveLength(0);
   });
   it("refund requires the exact original payment and queues one compensating revocation",async()=>{
-    const app=new IronAiCreditBilling(env);
+    const app=new IronAiCreditBilling(env,readback.transport);
     const order=await app.prepareCheckout(gym,"IRON_AI_WORKOUT_100","attempt-00004");
     const pay=signed(order.invoiceId,"purchase_approved");
     await app.handleWebhook(pay.headers,pay.raw);
-    const wrong=signed(order.invoiceId,"refund",{id:"other_credit_0009"});
+    const wrong=signed(order.invoiceId,"refund",{id:"498ff831-9d4c-42a1-ab8d-c2a618a82912"});
     expect(await app.handleWebhook(wrong.headers,wrong.raw)).toBe("ignored");
     const refund=signed(order.invoiceId,"refund");
     expect(await app.handleWebhook(refund.headers,refund.raw)).toBe("applied");
@@ -160,7 +164,7 @@ describe("IRON credit purchase commercial ledger and signed settlement",()=>{
     expect(await app.handleWebhook(pay.headers,pay.raw)).toBe("ignored");
   });
   it("signed refund received BEFORE paid event permanently blocks later grant",async()=>{
-    const app=new IronAiCreditBilling(env);
+    const app=new IronAiCreditBilling(env,readback.transport);
     const order=await app.prepareCheckout(gym,"IRON_AI_WORKOUT_100","refund-before-paid-00001");
     const early=signed(order.invoiceId,"refund");
     expect(await app.handleWebhook(early.headers,early.raw)).toBe("applied");
