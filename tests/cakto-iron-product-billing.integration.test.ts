@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { pool } from "@/infrastructure/db/client";
 import { CaktoIronProductBilling } from "@/application/billing/cakto-iron-product-billing";
 import { IronEntitlementOutboxWorker } from "@/application/billing/iron-entitlement-outbox-worker";
+import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
 
 const enabled = process.env.FMCC_CAKTO_DB_CERTIFICATION === "1" && process.env.DATABASE_URL?.includes("fmcc_billing_ci");
 const dbIt = enabled ? it : it.skip;
@@ -128,6 +129,14 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     expect(suspended.rows[0].status).toBe("past_due");
     expect(await worker.processOne()).toBe("delivered");
     expect(called.some(x => x.init.method === "POST" && JSON.parse(x.init.body as string).entitlementStatus === "SUSPENDED")).toBe(true);
+
+    const history = await new PostgresProductBillingAuthorityRepository().readIronCommerceCustomer(tenant, productId, gym);
+    expect(history.historyTruncated).toBe(false);
+    expect(history.invoices).toHaveLength(2);
+    expect(history.invoices.every(row => row.recordedPaymentStatus === "refunded" && row.paymentRecordedAt instanceof Date)).toBe(true);
+    expect(history.invoices.every(row => !Object.hasOwn(row, "externalPaymentId"))).toBe(true);
+    const foreign = await new PostgresProductBillingAuthorityRepository().readIronCommerceCustomer(tenant, productId, randomUUID());
+    expect(foreign).toEqual({ subscription: null, invoices: [], historyTruncated: false });
 
     const tampered = notification("purchase_approved", "order_forged", "paid");
     await expect(billing.handleWebhook(tampered.headers, tampered.raw.replace('"amount":269', '"amount":1'))).rejects.toThrow("webhook.signature_invalid");

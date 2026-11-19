@@ -70,7 +70,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       eq(billingCustomerBindings.productId, productId),
       eq(billingCustomerBindings.externalTenantId, gymId),
     )).orderBy(desc(billingSubscriptions.createdAt), desc(billingSubscriptions.id)).limit(1);
-    if (!subscription) return { subscription: null, invoices: [] };
+    if (!subscription) return { subscription: null, invoices: [], historyTruncated: false };
 
     const invoices = await db.select({
       invoiceId: billingInvoices.id,
@@ -80,6 +80,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       periodEnd: billingInvoices.periodEnd,
       createdAt: billingInvoices.createdAt,
       recordedPaymentStatus: billingProviderPayments.status,
+      paymentRecordedAt: billingProviderPayments.createdAt,
     }).from(billingInvoices).leftJoin(billingProviderPayments, and(
       eq(billingProviderPayments.tenantId, billingInvoices.tenantId),
       eq(billingProviderPayments.invoiceId, billingInvoices.id),
@@ -88,8 +89,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       eq(billingInvoices.tenantId, tenantId),
       eq(billingInvoices.productId, productId),
       eq(billingInvoices.customerId, subscription.customerId),
-      eq(billingInvoices.subscriptionId, subscription.subscriptionId),
-    )).orderBy(desc(billingInvoices.createdAt), desc(billingInvoices.id)).limit(24);
+    )).orderBy(desc(billingInvoices.createdAt), desc(billingInvoices.id)).limit(25);
     return {
       subscription: {
         id: subscription.subscriptionId,
@@ -100,7 +100,8 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         paidThrough: subscription.paidThrough,
         createdAt: subscription.createdAt,
       },
-      invoices,
+      invoices: invoices.slice(0, 24),
+      historyTruncated: invoices.length > 24,
     };
   }
 
@@ -429,7 +430,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         binding = { customerId: customer.id };
       }
 
-      const [live] = await tx.select({ id: billingSubscriptions.id }).from(billingSubscriptions).where(and(
+      const liveRows = await tx.select({ id: billingSubscriptions.id, status: billingSubscriptions.status, planCode: billingSubscriptions.planCode }).from(billingSubscriptions).where(and(
         eq(billingSubscriptions.tenantId, input.tenantId),
         eq(billingSubscriptions.productId, input.productId),
         eq(billingSubscriptions.customerId, binding.customerId),
@@ -438,8 +439,41 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         inArray(billingSubscriptions.status, product.slug === FMCC_IRON_PRODUCT_SLUG
           ? ["pending", "active", "past_due", "suspended"]
           : ["pending", "active", "past_due"]),
-      )).limit(1);
-      if (live) throw new Error("billing.subscription_exists");
+      )).limit(2);
+      if (liveRows.length) {
+        const live = liveRows[0];
+        // Reopen exactly the original pending checkout after a reload or lost
+        // idempotency key. Never create a second subscription or reprice an invoice.
+        if (product.slug !== FMCC_IRON_PRODUCT_SLUG || liveRows.length !== 1 ||
+            live.status !== "pending" || live.planCode !== plan.planCode ||
+            route.provider !== "cakto" || route.environment !== "production")
+          throw new Error("billing.subscription_exists");
+        const pending = await tx.select().from(billingInvoices).where(and(
+          eq(billingInvoices.tenantId, input.tenantId),
+          eq(billingInvoices.productId, input.productId),
+          eq(billingInvoices.customerId, binding.customerId),
+          eq(billingInvoices.subscriptionId, live.id),
+        )).limit(2);
+        const existing = pending[0];
+        if (pending.length !== 1 || existing.status !== "pending" ||
+            existing.gatewayAccountId !== route.gatewayAccountId ||
+            existing.amountMinor !== plan.amountMinor || existing.currency !== "BRL" ||
+            existing.periodEnd !== null)
+          throw new Error("billing.subscription_exists");
+        await tx.insert(billingCommandRequests).values({
+          tenantId: input.tenantId, productId: input.productId,
+          idempotencyKey: input.idempotencyKey, action: "prepare_subscription_invoice",
+          payloadHash: input.payloadHash, resultInvoiceId: existing.id,
+        });
+        return {
+          productId: input.productId, externalTenantId: input.externalTenantId,
+          customerId: binding.customerId, subscriptionId: live.id,
+          invoiceId: existing.id, planCode: live.planCode, amountMinor: existing.amountMinor,
+          currency: "BRL", gatewayAccountId: route.gatewayAccountId,
+          gatewayProvider: route.provider, gatewayEnvironment: asEnvironment(route.environment),
+          invoiceStatus: existing.status, idempotentReplay: true,
+        };
+      }
 
       const [subscription] = await tx.insert(billingSubscriptions).values({
         tenantId: input.tenantId,

@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { IronAiCreditBilling } from "@/application/billing/iron-ai-credit-billing";
+import { BodyTooLargeError, readLimitedBody } from "@/infrastructure/http/read-limited-body";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,12 @@ export async function POST(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: "iron.credits_unauthorized" }, { status: 401 });
   let input: Record<string, unknown>;
   try {
-    if (Number(request.headers.get("content-length") ?? 0) > 4096)
+    input = JSON.parse(await readLimitedBody(request, 4096)) as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof BodyTooLargeError)
       return NextResponse.json({ error: "iron.credits_body_too_large" }, { status: 413 });
-    input = await request.json() as Record<string, unknown>;
-  } catch { return NextResponse.json({ error: "iron.credits_input_invalid" }, { status: 400 }); }
+    return NextResponse.json({ error: "iron.credits_input_invalid" }, { status: 400 });
+  }
   if (!input || typeof input !== "object" || Array.isArray(input))
     return NextResponse.json({ error: "iron.credits_input_invalid" }, { status: 400 });
   try {

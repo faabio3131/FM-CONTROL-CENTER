@@ -139,6 +139,7 @@ export class IronCommerceProvisioning {
       checkedAt: new Date().toISOString(),
       subscription: data.subscription,
       invoices: data.invoices,
+      historyTruncated: data.historyTruncated,
       settlementConfirmedByThisView: false as const,
     };
   }

@@ -25,6 +25,12 @@ export class IronAiCreditOutboxWorker {
   }
 
   private async claim(): Promise<Job | null> {
+    await this.pool.query(`
+      UPDATE fmcc_iron_ai_credit_outbox SET status='blocked',
+        lease_until=NULL,claim_token=NULL,last_error_code='iron.credits_delivery_attempts_exhausted',
+        updated_at=now()
+      WHERE attempts>=12 AND status='processing' AND lease_until<now()
+    `);
     const result = await this.pool.query(`
       UPDATE fmcc_iron_ai_credit_outbox SET
         status='processing', claim_token=$1, lease_until=now()+interval '90 seconds',

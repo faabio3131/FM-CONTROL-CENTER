@@ -15,6 +15,7 @@ function harness(event:"GRANT"|"REVOKE", order:"paid"|"refunded"="paid", status=
   const query=vi.fn(async (sql:string, values:unknown[]=[])=>{
     const q=sql.toLowerCase();
     statements.push(q);
+    if(q.includes("iron.credits_delivery_attempts_exhausted")) return {rows:[],rowCount:0};
     if(q.includes("returning id,order_id,event_type,attempts,claim_token"))
       return {rows:[{id:jobId,order_id:invoice,event_type:event,attempts:1,claim_token:invoice}],rowCount:1};
     if(q.includes("select o.gym_id"))
@@ -88,5 +89,8 @@ it("never claims a paid credit while the real delivery credential is missing",as
 it("enforces a finite retry ceiling before selecting a durable credit outbox row",async()=>{
   const {worker,query}=harness("GRANT");
   expect(await worker.processOne()).toBe("delivered");
-  expect(String(query.mock.calls[0]?.[0])).toContain("attempts<12");
+  const sql = query.mock.calls.map(call => String(call[0]));
+  expect(sql.some(statement => statement.includes("attempts<12"))).toBe(true);
+  expect(sql.some(statement => statement.includes("attempts>=12") && statement.includes("status='blocked'") &&
+    statement.includes("lease_until<now()"))).toBe(true);
 });
