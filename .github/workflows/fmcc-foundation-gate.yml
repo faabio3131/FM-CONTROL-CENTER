@@ -52,6 +52,8 @@ jobs:
             ROLLDOWN_VERSION="$(node -p "require('./package-lock.json').packages['node_modules/rolldown'].version")"
             npm install --no-save --ignore-scripts --no-package-lock "@rolldown/binding-linux-x64-gnu@${ROLLDOWN_VERSION}"
           fi
+      - name: Verify patched glob matcher resolution and ReDoS regression
+        run: npm run security:glob
       - name: Lint
         run: npm run lint
       - name: Typecheck

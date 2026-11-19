@@ -17,6 +17,8 @@ import { KordenaBillingControlService } from "@/application/integration/kordena-
 import { BillingControlPanel } from "./billing-control-panel";
 import { IronPayerEnrollmentPanel } from "./iron-payer-enrollment-panel";
 import { IronCommercialPlansPanel } from "./iron-commercial-plans-panel";
+import { IronEntitlementsGovernancePanel } from "./iron-entitlements-governance-panel";
+import { IronLegacyLimitsPanel } from "./iron-legacy-limits-panel";
 import { ProductBillingAuthorityService, type BillingProductPlanView } from "@/application/billing/product-billing-authority-service";
 import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
 import { PostgresIronPlanMappingRepository } from "@/infrastructure/billing/postgres-iron-plan-mapping-repository";
@@ -197,6 +199,15 @@ export default async function ProductBillingPage({
           </section>
         )
       ) : null}
+
+      {isIron ? <IronEntitlementsGovernancePanel
+        productId={product.id}
+        canWrite={roleHasPermission(context.role,"billing:write") &&
+          (context.role==="owner" || context.role==="admin")}
+      /> : null}
+      {isIron ? <IronLegacyLimitsPanel productId={product.id}
+        canWrite={roleHasPermission(context.role,"billing:write") &&
+          (context.role==="owner" || context.role==="admin")} /> : null}
 
       {isIron ? (
         ironSources.length!==1 || ironUnavailable ? (

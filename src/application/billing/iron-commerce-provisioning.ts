@@ -15,6 +15,33 @@ export function verifyIronCommerceBearer(authorization: string | null, expected:
   return timingSafeEqual(digest(received), digest(expected));
 }
 
+/**
+ * Commercial eligibility is independent of operational entitlement.
+ * SUSPENDED is allowed only for a uniquely proven, already-expired original
+ * trial; all unknown/admin/finance suspensions remain blocked.
+ */
+export function eligibleIronCheckoutSubscription(
+  subscription: Record<string, unknown>,
+  trials: unknown, gymId: string, expectedSubscriptionId: string, now = Date.now(),
+): boolean {
+  if (subscription.tenant_id !== gymId || subscription.external_id !== expectedSubscriptionId)
+    return false;
+  if (subscription.status === "ACTIVE") return true;
+  if (subscription.status !== "SUSPENDED" ||
+      typeof subscription.effective_until !== "string" ||
+      !Number.isFinite(Date.parse(subscription.effective_until)) ||
+      Date.parse(subscription.effective_until) > now ||
+      !Array.isArray(trials)) return false;
+  return trials.filter((trial: unknown) => {
+    if (!trial || typeof trial !== "object" || Array.isArray(trial)) return false;
+    const v = trial as Record<string, unknown>;
+    return v.tenant_id === gymId && v.subscription_id === expectedSubscriptionId &&
+      v.status === "expired" && v.ends_at === subscription.effective_until &&
+      typeof v.ends_at === "string" && Number.isFinite(Date.parse(v.ends_at)) &&
+      Date.parse(v.ends_at) <= now;
+  }).length === 1;
+}
+
 export interface IronCommerceRequest {
   gymId: string;
   expectedSubscriptionId: string;
@@ -85,6 +112,37 @@ export class IronCommerceProvisioning {
         amountMinor:p.amountMinor, currency: "BRL" as const }));
   }
 
+  /**
+   * Read-only client status. Verify the signed IRON control-plane ownership
+   * before looking up any FMCC customer binding. Never infer paid/active
+   * status from a checkout redirect or provider payment record.
+   */
+  async current(input: Pick<IronCommerceRequest, "gymId" | "expectedSubscriptionId">) {
+    if (!UUID.test(input.gymId) || !UUID.test(input.expectedSubscriptionId))
+      throw new Error("iron.commerce_input_invalid");
+    const conf = this.config();
+    const snapshot = await this.fetchControl(conf.base + "/snapshot", conf.token);
+    const subscriptions = (snapshot as { subscriptions?: unknown } | null)?.subscriptions;
+    if (!Array.isArray(subscriptions)) throw new Error("iron.commerce_control_plane_invalid_response");
+    const owned = subscriptions.filter((s: unknown) => {
+      if (!s || typeof s !== "object" || Array.isArray(s)) return false;
+      const v = s as Record<string, unknown>;
+      return v.tenant_id === input.gymId && v.external_id === input.expectedSubscriptionId;
+    });
+    if (owned.length !== 1) throw new Error("iron.commerce_subscription_invalid");
+    const data = await this.provider.readIronCommerceCustomer(conf.tenantId, conf.productId, input.gymId);
+    return {
+      authority: "FM_COMMAND" as const,
+      productCode: "IRON_FIT_CORE" as const,
+      gymId: input.gymId,
+      source: "FM_COMMAND_CANONICAL" as const,
+      checkedAt: new Date().toISOString(),
+      subscription: data.subscription,
+      invoices: data.invoices,
+      settlementConfirmedByThisView: false as const,
+    };
+  }
+
   async prepare(input: IronCommerceRequest): Promise<{ checkoutUrl: string; invoiceId: string; productCode: "IRON_FIT_CORE" }> {
     if (!UUID.test(input.gymId) || !UUID.test(input.expectedSubscriptionId) ||
         !CODE.test(input.planCode) || !IDEM.test(input.idempotencyKey))
@@ -104,10 +162,13 @@ export class IronCommerceProvisioning {
     const owned = subscriptions.filter((s: unknown) => {
       if (!s || typeof s !== "object" || Array.isArray(s)) return false;
       const v = s as Record<string, unknown>;
-      return v.tenant_id === input.gymId && v.external_id === input.expectedSubscriptionId &&
-        v.status === "ACTIVE";
+      return v.tenant_id === input.gymId && v.external_id === input.expectedSubscriptionId;
     });
     if (owned.length !== 1) throw new Error("iron.commerce_subscription_invalid");
+    const current = owned[0] as Record<string, unknown>;
+    if (!eligibleIronCheckoutSubscription(
+      current, (snapshot as { trials?: unknown }).trials, input.gymId, input.expectedSubscriptionId,
+    )) throw new Error("iron.commerce_subscription_invalid");
     const matches = bindings.filter(b => b.commercialPlanCode === input.planCode);
     if (matches.length !== 1) throw new Error("iron.commerce_plan_mapping_unavailable");
     const binding = matches[0];

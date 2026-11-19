@@ -6,6 +6,11 @@ on:
   pull_request:
     paths:
       - "src/infrastructure/db/**"
+      - "src/infrastructure/metrics/**"
+      - "src/domain/metrics/**"
+      - "src/application/integration/connector-runtime.ts"
+      - "src/application/integration/connector-composition.ts"
+      - "tests/iron-trial-metric-materialization-*.test.ts"
       - "src/infrastructure/billing/**"
       - "src/application/billing/**"
       - "src/domain/billing/**"
@@ -62,6 +67,11 @@ jobs:
         run: npm ci
       - name: Execute Drizzle migrations in disposable PostgreSQL
         run: npm run db:migrate
+      - name: F11 IRON canonical trial source materialization in disposable PostgreSQL
+        env:
+          FMCC_IRON_TRIAL_PG_TEST: "YES"
+          BETTER_AUTH_SECRET: "ci-only-iron-trial-metric-ephemeral-secret-20261118"
+        run: npx vitest run tests/iron-trial-metric-materialization-postgres.test.ts
       - name: Certify migrated PostgreSQL 18 schema and rollback
         run: node scripts/billing-postgres-certification.mjs
       - name: Certify real Pix pilot persistent PostgreSQL claims

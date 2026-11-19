@@ -1,6 +1,6 @@
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type {
   BillingPreparationView,
   BillingProductPlanView,
@@ -14,6 +14,7 @@ import {
   billingCustomers,
   billingGatewayAccounts,
   billingInvoices,
+  billingProviderPayments,
   billingProductPlans,
   billingProductRoutes,
   billingSubscriptions,
@@ -37,6 +38,72 @@ function asEnvironment(value: string): "sandbox" | "production" {
 }
 
 export class PostgresProductBillingAuthorityRepository implements ProductBillingAuthorityRepository {
+  /**
+   * Canonical client-facing readback for exactly one FM product + IRON gym.
+   * Never list subscriptions by an unscoped customer/tenant identifier.
+   * Payment rows are recorded evidence, NOT proof of external settlement.
+   */
+  async readIronCommerceCustomer(tenantId: string, productId: string, gymId: string) {
+    if (!tenantId.trim() || !/^[0-9a-f-]{36}$/i.test(productId) ||
+        !/^[0-9a-f-]{36}$/i.test(gymId)) throw new Error("iron.commerce_input_invalid");
+    const [subscription] = await db.select({
+      subscriptionId: billingSubscriptions.id,
+      customerId: billingSubscriptions.customerId,
+      planCode: billingSubscriptions.planCode,
+      planName: billingProductPlans.name,
+      interval: billingProductPlans.interval,
+      status: billingSubscriptions.status,
+      paidThrough: billingSubscriptions.paidThrough,
+      createdAt: billingSubscriptions.createdAt,
+    }).from(billingSubscriptions).innerJoin(billingCustomerBindings, and(
+      eq(billingCustomerBindings.tenantId, billingSubscriptions.tenantId),
+      eq(billingCustomerBindings.productId, billingSubscriptions.productId),
+      eq(billingCustomerBindings.customerId, billingSubscriptions.customerId),
+    )).leftJoin(billingProductPlans, and(
+      eq(billingProductPlans.tenantId, billingSubscriptions.tenantId),
+      eq(billingProductPlans.productId, billingSubscriptions.productId),
+      eq(billingProductPlans.planCode, billingSubscriptions.planCode),
+    )).where(and(
+      eq(billingSubscriptions.tenantId, tenantId),
+      eq(billingSubscriptions.productId, productId),
+      eq(billingCustomerBindings.tenantId, tenantId),
+      eq(billingCustomerBindings.productId, productId),
+      eq(billingCustomerBindings.externalTenantId, gymId),
+    )).orderBy(desc(billingSubscriptions.createdAt), desc(billingSubscriptions.id)).limit(1);
+    if (!subscription) return { subscription: null, invoices: [] };
+
+    const invoices = await db.select({
+      invoiceId: billingInvoices.id,
+      status: billingInvoices.status,
+      amountMinor: billingInvoices.amountMinor,
+      currency: billingInvoices.currency,
+      periodEnd: billingInvoices.periodEnd,
+      createdAt: billingInvoices.createdAt,
+      recordedPaymentStatus: billingProviderPayments.status,
+    }).from(billingInvoices).leftJoin(billingProviderPayments, and(
+      eq(billingProviderPayments.tenantId, billingInvoices.tenantId),
+      eq(billingProviderPayments.invoiceId, billingInvoices.id),
+      eq(billingProviderPayments.gatewayAccountId, billingInvoices.gatewayAccountId),
+    )).where(and(
+      eq(billingInvoices.tenantId, tenantId),
+      eq(billingInvoices.productId, productId),
+      eq(billingInvoices.customerId, subscription.customerId),
+      eq(billingInvoices.subscriptionId, subscription.subscriptionId),
+    )).orderBy(desc(billingInvoices.createdAt), desc(billingInvoices.id)).limit(24);
+    return {
+      subscription: {
+        id: subscription.subscriptionId,
+        planCode: subscription.planCode,
+        planName: subscription.planName,
+        interval: subscription.interval,
+        status: subscription.status,
+        paidThrough: subscription.paidThrough,
+        createdAt: subscription.createdAt,
+      },
+      invoices,
+    };
+  }
+
   /**
    * Read-only, scoped, fail-closed commercial -> canonical IRON version bindings.
    * A pricing tier can have distinct monthly/yearly commercial codes that both
@@ -366,7 +433,11 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         eq(billingSubscriptions.tenantId, input.tenantId),
         eq(billingSubscriptions.productId, input.productId),
         eq(billingSubscriptions.customerId, binding.customerId),
-        inArray(billingSubscriptions.status, ["pending", "active", "past_due"]),
+        // IRON must never create a second paid subscription if a prior
+        // commercial subscription is suspended and needs recovery instead.
+        inArray(billingSubscriptions.status, product.slug === FMCC_IRON_PRODUCT_SLUG
+          ? ["pending", "active", "past_due", "suspended"]
+          : ["pending", "active", "past_due"]),
       )).limit(1);
       if (live) throw new Error("billing.subscription_exists");
 

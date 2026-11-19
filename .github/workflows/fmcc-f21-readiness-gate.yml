@@ -51,6 +51,8 @@ jobs:
           node-version: 24
       - name: Install reproducibly
         run: npm ci
+      - name: Verify patched glob matcher resolution and ReDoS regression
+        run: npm run security:glob
       - name: Apply versioned migrations
         run: npm run db:migrate
       - name: Operational readiness contract
