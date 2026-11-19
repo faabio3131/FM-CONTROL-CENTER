@@ -221,6 +221,17 @@ describe.skipIf(!enabled)("IRON FM commercial activation: disposable PostgreSQL"
     await expect(generic.prepareSubscriptionInvoice({...input,idempotencyKey:randomUUID()})).rejects.toThrow("billing.subscription_exists");
     const second = await generic.prepareSubscriptionInvoice({...input,externalTenantId:randomUUID(),idempotencyKey:randomUUID()});
     expect(second.invoiceId).not.toBe(first.invoiceId);
+    // ACTIVE status alone (including trial-like fixtures) is insufficient.
+    const coverage=new Date(Date.now()+86400000);
+    await pool.query("UPDATE fmcc_billing_subscription SET paid_through=$2 WHERE id=$1",[first.subscriptionId,coverage]);
+    await pool.query("UPDATE fmcc_billing_invoice SET status='paid',period_end=$2 WHERE id=$1",[first.invoiceId,coverage]);
+    await pool.query("INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES($1,$2,$3,$4,'received')",
+      [tenantId,first.invoiceId,gateway.rows[0].id,randomUUID()]);
+    await Promise.all([materializer.materialize(scope),materializer.materialize(scope)]);
+    const paidMetrics=await db.select().from(metricValues).where(eq(metricValues.tenantId,tenantId));
+    expect(paidMetrics).toHaveLength(2);
+    expect(paidMetrics.find(x=>x.metricId==="subscription.active.count")?.value).toBe("1");
+    expect(paidMetrics.find(x=>x.metricId==="billing.gross_billed")?.value).toBe("399.80");
   });
 
   it("rejects generic direct creation of an active IRON price", async () => {

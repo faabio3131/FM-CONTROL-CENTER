@@ -41,31 +41,49 @@ export class IronBillingLedgerMaterializer {
       const nextDay = new Date(day.getTime()+86400000);
       const month = new Date(Date.UTC(asOf.getUTCFullYear(),asOf.getUTCMonth(),1));
       const nextMonth = new Date(Date.UTC(asOf.getUTCFullYear(),asOf.getUTCMonth()+1,1));
-      const scope = and(eq(billingSubscriptions.tenantId,input.tenantId),eq(billingSubscriptions.productId,input.productId));
-      const subs = await tx.select({id:billingSubscriptions.id,status:billingSubscriptions.status,
-        paidThrough:billingSubscriptions.paidThrough,gymId:billingCustomerBindings.externalTenantId})
-        .from(billingSubscriptions).leftJoin(billingCustomerBindings,and(
-          eq(billingCustomerBindings.tenantId,billingSubscriptions.tenantId),
-          eq(billingCustomerBindings.productId,billingSubscriptions.productId),
-          eq(billingCustomerBindings.customerId,billingSubscriptions.customerId)))
-        .where(scope).orderBy(billingSubscriptions.id).limit(100001);
-      if (subs.length > 100000 || subs.some(x=>!x.gymId || !UUID.test(x.gymId) || !SUPPORTED_STATUS.has(x.status)))
-        throw new Error("metrics.iron_billing_subscription_scope_inconsistent");
-      const invoices = await tx.select({id:billingInvoices.id,subscriptionId:billingInvoices.subscriptionId,
-        status:billingInvoices.status,amountMinor:billingInvoices.amountMinor,currency:billingInvoices.currency,
-        periodEnd:billingInvoices.periodEnd,createdAt:billingInvoices.createdAt,
-        recordedPaymentStatus:billingProviderPayments.status})
-        .from(billingInvoices).leftJoin(billingProviderPayments,and(
-          eq(billingProviderPayments.tenantId,billingInvoices.tenantId),
-          eq(billingProviderPayments.invoiceId,billingInvoices.id),
-          eq(billingProviderPayments.gatewayAccountId,billingInvoices.gatewayAccountId)))
-        .where(and(eq(billingInvoices.tenantId,input.tenantId),eq(billingInvoices.productId,input.productId)))
-        .orderBy(billingInvoices.id).limit(100001);
-      if (invoices.length>100000 || invoices.some(x=>!Number.isSafeInteger(x.amountMinor)||x.amountMinor<=0||x.currency!=="BRL"))
-        throw new Error("metrics.iron_billing_invoice_inconsistent");
-      if (subs.length===0 && invoices.length===0) return { materialized:0 }; // unobserved, NOT zero
-      const subscriptionIds = new Set(subs.map(x=>x.id));
-      if (invoices.some(x=>!subscriptionIds.has(x.subscriptionId))) throw new Error("metrics.iron_billing_orphan_invoice");
+      // Read after the projection lock in a SINGLE statement. Read-committed
+      // obtains the snapshot after lock acquisition, while joins keep
+      // subscription, invoice and payment facts on that same snapshot.
+      const rows = await tx.select({
+        subscriptionId:billingSubscriptions.id,subscriptionStatus:billingSubscriptions.status,
+        paidThrough:billingSubscriptions.paidThrough,gymId:billingCustomerBindings.externalTenantId,
+        invoiceId:billingInvoices.id,invoiceStatus:billingInvoices.status,amountMinor:billingInvoices.amountMinor,
+        currency:billingInvoices.currency,periodEnd:billingInvoices.periodEnd,createdAt:billingInvoices.createdAt,
+        recordedPaymentStatus:billingProviderPayments.status,
+      }).from(billingSubscriptions).leftJoin(billingCustomerBindings,and(
+        eq(billingCustomerBindings.tenantId,billingSubscriptions.tenantId),
+        eq(billingCustomerBindings.productId,billingSubscriptions.productId),
+        eq(billingCustomerBindings.customerId,billingSubscriptions.customerId)))
+      .leftJoin(billingInvoices,and(eq(billingInvoices.tenantId,billingSubscriptions.tenantId),
+        eq(billingInvoices.productId,billingSubscriptions.productId),
+        eq(billingInvoices.customerId,billingSubscriptions.customerId),
+        eq(billingInvoices.subscriptionId,billingSubscriptions.id)))
+      .leftJoin(billingProviderPayments,and(eq(billingProviderPayments.tenantId,billingInvoices.tenantId),
+        eq(billingProviderPayments.invoiceId,billingInvoices.id),
+        eq(billingProviderPayments.gatewayAccountId,billingInvoices.gatewayAccountId)))
+      .where(and(eq(billingSubscriptions.tenantId,input.tenantId),eq(billingSubscriptions.productId,input.productId)))
+      .orderBy(billingSubscriptions.id,billingInvoices.id).limit(100001);
+      if(rows.length>100000) throw new Error("metrics.iron_billing_snapshot_limit");
+      if(!rows.length) return {materialized:0}; // unobserved, NOT zero
+      const subscriptions = new Map<string,{id:string,status:string,paidThrough:Date|null,gymId:string}>();
+      const invoices: {id:string,subscriptionId:string,status:string,amountMinor:number,
+        currency:string,periodEnd:Date|null,createdAt:Date,recordedPaymentStatus:string|null}[]=[];
+      const invoiceIds=new Set<string>();
+      for(const row of rows){
+        if(!row.gymId||!UUID.test(row.gymId)||!SUPPORTED_STATUS.has(row.subscriptionStatus))
+          throw new Error("metrics.iron_billing_subscription_scope_inconsistent");
+        subscriptions.set(row.subscriptionId,{id:row.subscriptionId,status:row.subscriptionStatus,
+          paidThrough:row.paidThrough,gymId:row.gymId});
+        if(row.invoiceId===null) continue;
+        if(invoiceIds.has(row.invoiceId)||!row.invoiceStatus||typeof row.amountMinor!=="number"||
+          !Number.isSafeInteger(row.amountMinor)||row.amountMinor<=0||row.currency!=="BRL"||!row.createdAt)
+          throw new Error("metrics.iron_billing_invoice_inconsistent");
+        invoiceIds.add(row.invoiceId);
+        invoices.push({id:row.invoiceId,subscriptionId:row.subscriptionId,status:row.invoiceStatus,
+          amountMinor:row.amountMinor,currency:row.currency,periodEnd:row.periodEnd,createdAt:row.createdAt,
+          recordedPaymentStatus:row.recordedPaymentStatus});
+      }
+      const subs=[...subscriptions.values()];
       const paidCycles = new Set(invoices.filter(x=>x.status==="paid"&&x.recordedPaymentStatus==="received"&&x.periodEnd)
         .map(x=>x.subscriptionId+":"+x.periodEnd!.toISOString()));
       // An active commercial subscription is not a free trial and must have
@@ -106,6 +124,6 @@ export class IronBillingLedgerMaterializer {
         materialized++;
       }
       return { materialized };
-    },{isolationLevel:"repeatable read"});
+    },{isolationLevel:"read committed"});
   }
 }
