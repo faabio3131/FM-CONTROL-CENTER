@@ -1,6 +1,7 @@
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type {
   BillingPreparationView,
   BillingProductPlanView,
@@ -9,10 +10,12 @@ import type {
 } from "@/application/billing/product-billing-authority-service";
 import { db } from "@/infrastructure/db/client";
 import {
+  billingAuditEvents,
   billingCommandRequests,
   billingCustomerBindings,
   billingCustomers,
   billingGatewayAccounts,
+  billingGatewayEvents,
   billingInvoices,
   billingProviderPayments,
   billingProductPlans,
@@ -70,7 +73,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       eq(billingCustomerBindings.productId, productId),
       eq(billingCustomerBindings.externalTenantId, gymId),
     )).orderBy(desc(billingSubscriptions.createdAt), desc(billingSubscriptions.id)).limit(1);
-    if (!subscription) return { subscription: null, invoices: [] };
+    if (!subscription) return { subscription: null, invoices: [], historyTruncated: false, scheduleAnchor: null, caktoManagementAvailable: false };
 
     const invoices = await db.select({
       invoiceId: billingInvoices.id,
@@ -80,17 +83,65 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       periodEnd: billingInvoices.periodEnd,
       createdAt: billingInvoices.createdAt,
       recordedPaymentStatus: billingProviderPayments.status,
+      paymentRecordedAt: billingProviderPayments.createdAt,
+      gatewayProvider: billingGatewayAccounts.provider,
+      gatewayEnvironment: billingGatewayAccounts.environment,
+      gatewayStatus: billingGatewayAccounts.status,
     }).from(billingInvoices).leftJoin(billingProviderPayments, and(
       eq(billingProviderPayments.tenantId, billingInvoices.tenantId),
       eq(billingProviderPayments.invoiceId, billingInvoices.id),
       eq(billingProviderPayments.gatewayAccountId, billingInvoices.gatewayAccountId),
+    )).innerJoin(billingGatewayAccounts, and(
+      eq(billingGatewayAccounts.tenantId,billingInvoices.tenantId),
+      eq(billingGatewayAccounts.id,billingInvoices.gatewayAccountId),
+    )).where(and(
+      eq(billingInvoices.tenantId, tenantId),
+      eq(billingInvoices.productId, productId),
+      eq(billingInvoices.customerId, subscription.customerId),
+    )).orderBy(desc(billingInvoices.createdAt), desc(billingInvoices.id)).limit(25);
+    // Determine gateway from immutable invoices, not the product's current route.
+    const gateways = await db.selectDistinct({
+      provider: billingGatewayAccounts.provider, environment: billingGatewayAccounts.environment,
+    }).from(billingInvoices).innerJoin(billingGatewayAccounts, and(
+      eq(billingGatewayAccounts.tenantId, billingInvoices.tenantId),
+      eq(billingGatewayAccounts.id, billingInvoices.gatewayAccountId),
     )).where(and(
       eq(billingInvoices.tenantId, tenantId),
       eq(billingInvoices.productId, productId),
       eq(billingInvoices.customerId, subscription.customerId),
       eq(billingInvoices.subscriptionId, subscription.subscriptionId),
-    )).orderBy(desc(billingInvoices.createdAt), desc(billingInvoices.id)).limit(24);
+    )).limit(2);
+    const caktoManagementAvailable = gateways.length === 1 && gateways[0].provider === "cakto" &&
+      gateways[0].environment === "production";
+    // Only the original signed purchase (reference equals its invoice) can
+    // bootstrap a provider readback. Renewal invoices never substitute for it.
+    const anchors = caktoManagementAvailable && subscription.interval ? await db.select({
+      invoiceId: billingInvoices.id, paymentId: billingProviderPayments.externalPaymentId,
+      amountMinor: billingInvoices.amountMinor,
+    }).from(billingInvoices).innerJoin(billingProviderPayments, and(
+      eq(billingProviderPayments.tenantId, billingInvoices.tenantId),
+      eq(billingProviderPayments.invoiceId, billingInvoices.id),
+      eq(billingProviderPayments.gatewayAccountId, billingInvoices.gatewayAccountId),
+    )).innerJoin(billingGatewayEvents, and(
+      eq(billingGatewayEvents.tenantId, billingInvoices.tenantId),
+      eq(billingGatewayEvents.gatewayAccountId, billingInvoices.gatewayAccountId),
+      eq(billingGatewayEvents.externalPaymentId, billingProviderPayments.externalPaymentId),
+      eq(billingGatewayEvents.externalReference, sql<string>`${billingInvoices.id}::text`),
+      eq(billingGatewayEvents.eventType, "payment_confirmed"),
+      eq(billingGatewayEvents.status, "processed"),
+    )).where(and(
+      eq(billingInvoices.tenantId, tenantId),
+      eq(billingInvoices.productId, productId),
+      eq(billingInvoices.customerId, subscription.customerId),
+      eq(billingInvoices.subscriptionId, subscription.subscriptionId),
+    )).limit(2) : [];
+    const scheduleAnchor = anchors.length === 1 &&
+      (subscription.interval === "monthly" || subscription.interval === "yearly") ? {
+        ...anchors[0], planCode: subscription.planCode,
+        interval: subscription.interval === "monthly" ? "month" as const : "year" as const,
+      } : null;
     return {
+      scheduleAnchor, caktoManagementAvailable,
       subscription: {
         id: subscription.subscriptionId,
         planCode: subscription.planCode,
@@ -100,8 +151,65 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         paidThrough: subscription.paidThrough,
         createdAt: subscription.createdAt,
       },
-      invoices,
+      invoices: invoices.slice(0, 24),
+      historyTruncated: invoices.length > 24,
     };
+  }
+
+  /**
+   * Reserve a receipt email attempt under a per-academy lock. The provider
+   * order identity is retrieved ONLY from the paid ledger + verified event;
+   * renewal events must still point to the same original subscription anchor.
+   * Failed/uncertain requests consume the cooldown; no automatic resend.
+   */
+  async reserveIronReceipt(input: {tenantId:string;productId:string;gymId:string;invoiceId:string;actorId:string;requestId:string}) {
+    const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    if (!input.tenantId.trim() || ![input.productId,input.gymId,input.invoiceId,input.actorId,input.requestId].every(x=>uuid.test(x)))
+      throw new Error("iron.receipt_unavailable");
+    const anchor=alias(billingInvoices,"receipt_anchor");
+    return db.transaction(async tx=>{
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${["iron.receipt",input.tenantId,input.productId,input.gymId].join(":")},0))`);
+      const rows=await tx.select({paymentId:billingProviderPayments.externalPaymentId})
+        .from(billingInvoices).innerJoin(billingCustomerBindings,and(
+          eq(billingCustomerBindings.tenantId,billingInvoices.tenantId),
+          eq(billingCustomerBindings.productId,billingInvoices.productId),
+          eq(billingCustomerBindings.customerId,billingInvoices.customerId)))
+        .innerJoin(billingGatewayAccounts,and(eq(billingGatewayAccounts.tenantId,billingInvoices.tenantId),
+          eq(billingGatewayAccounts.id,billingInvoices.gatewayAccountId)))
+        .innerJoin(billingProviderPayments,and(eq(billingProviderPayments.tenantId,billingInvoices.tenantId),
+          eq(billingProviderPayments.invoiceId,billingInvoices.id),
+          eq(billingProviderPayments.gatewayAccountId,billingInvoices.gatewayAccountId)))
+        .innerJoin(billingGatewayEvents,and(eq(billingGatewayEvents.tenantId,billingInvoices.tenantId),
+          eq(billingGatewayEvents.gatewayAccountId,billingInvoices.gatewayAccountId),
+          eq(billingGatewayEvents.externalPaymentId,billingProviderPayments.externalPaymentId)))
+        .innerJoin(anchor,and(eq(anchor.tenantId,billingInvoices.tenantId),
+          eq(anchor.productId,billingInvoices.productId),eq(anchor.customerId,billingInvoices.customerId),
+          eq(anchor.subscriptionId,billingInvoices.subscriptionId),eq(anchor.gatewayAccountId,billingInvoices.gatewayAccountId),
+          eq(billingGatewayEvents.externalReference,sql<string>`${anchor.id}::text`)))
+        .where(and(eq(billingInvoices.tenantId,input.tenantId),eq(billingInvoices.productId,input.productId),
+          eq(billingCustomerBindings.externalTenantId,input.gymId),eq(billingInvoices.id,input.invoiceId),
+          eq(billingInvoices.status,"paid"),eq(billingProviderPayments.status,"received"),
+          eq(billingGatewayAccounts.provider,"cakto"),eq(billingGatewayAccounts.environment,"production"),
+          eq(billingGatewayAccounts.status,"enabled"),eq(billingGatewayEvents.eventType,"payment_confirmed"),
+          eq(billingGatewayEvents.status,"processed"))).limit(2);
+      if(rows.length!==1 || !uuid.test(rows[0].paymentId)) throw new Error("iron.receipt_unavailable");
+      const action="iron.receipt.resend.requested";
+      const correlationId="iron-receipt:"+input.invoiceId+":"+input.requestId;
+      const previous=await tx.select({createdAt:billingAuditEvents.createdAt,correlationId:billingAuditEvents.correlationId})
+        .from(billingAuditEvents).where(and(eq(billingAuditEvents.tenantId,input.tenantId),
+          eq(billingAuditEvents.subjectId,input.gymId),eq(billingAuditEvents.action,action),
+          gte(billingAuditEvents.createdAt,new Date(Date.now()-3600000)))).orderBy(desc(billingAuditEvents.createdAt)).limit(5);
+      if(previous.length>=5 || previous.some(row=>row.correlationId===correlationId ||
+        row.createdAt.getTime()>Date.now()-120000)) throw new Error("iron.receipt_cooldown");
+      // Replays after cooldown still must not re-send an old request ID.
+      const replay=await tx.select({id:billingAuditEvents.id}).from(billingAuditEvents)
+        .where(and(eq(billingAuditEvents.tenantId,input.tenantId),eq(billingAuditEvents.subjectId,input.gymId),
+          eq(billingAuditEvents.action,action),eq(billingAuditEvents.correlationId,correlationId))).limit(1);
+      if(replay.length) throw new Error("iron.receipt_cooldown");
+      await tx.insert(billingAuditEvents).values({tenantId:input.tenantId,actorId:input.actorId,
+        action,subjectId:input.gymId,correlationId});
+      return rows[0].paymentId;
+    });
   }
 
   /**
@@ -208,6 +316,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       productId: billingProductRoutes.productId,
       gatewayAccountId: billingProductRoutes.gatewayAccountId,
       routeStatus: billingProductRoutes.status,
+      gatewayStatus: billingGatewayAccounts.status,
       provider: billingGatewayAccounts.provider,
       environment: billingGatewayAccounts.environment,
     }).from(billingProductRoutes).innerJoin(billingGatewayAccounts, and(
@@ -223,7 +332,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       gatewayAccountId: row.gatewayAccountId,
       provider: row.provider,
       environment: asEnvironment(row.environment),
-      status: row.routeStatus === "enabled" ? "enabled" : "disabled",
+      status: row.routeStatus === "enabled" && row.gatewayStatus === "enabled" ? "enabled" : "disabled",
     };
   }
 
@@ -429,7 +538,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         binding = { customerId: customer.id };
       }
 
-      const [live] = await tx.select({ id: billingSubscriptions.id }).from(billingSubscriptions).where(and(
+      const liveRows = await tx.select({ id: billingSubscriptions.id, status: billingSubscriptions.status, planCode: billingSubscriptions.planCode }).from(billingSubscriptions).where(and(
         eq(billingSubscriptions.tenantId, input.tenantId),
         eq(billingSubscriptions.productId, input.productId),
         eq(billingSubscriptions.customerId, binding.customerId),
@@ -438,8 +547,41 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         inArray(billingSubscriptions.status, product.slug === FMCC_IRON_PRODUCT_SLUG
           ? ["pending", "active", "past_due", "suspended"]
           : ["pending", "active", "past_due"]),
-      )).limit(1);
-      if (live) throw new Error("billing.subscription_exists");
+      )).for("update").limit(2);
+      if (liveRows.length) {
+        const live = liveRows[0];
+        // Reopen exactly the original pending checkout after a reload or lost
+        // idempotency key. Never create a second subscription or reprice an invoice.
+        if (product.slug !== FMCC_IRON_PRODUCT_SLUG || liveRows.length !== 1 ||
+            live.status !== "pending" || live.planCode !== plan.planCode ||
+            route.provider !== "cakto" || route.environment !== "production")
+          throw new Error("billing.subscription_exists");
+        const pending = await tx.select().from(billingInvoices).where(and(
+          eq(billingInvoices.tenantId, input.tenantId),
+          eq(billingInvoices.productId, input.productId),
+          eq(billingInvoices.customerId, binding.customerId),
+          eq(billingInvoices.subscriptionId, live.id),
+        )).for("update").limit(2);
+        const existing = pending[0];
+        if (pending.length !== 1 || existing.status !== "pending" ||
+            existing.gatewayAccountId !== route.gatewayAccountId ||
+            existing.amountMinor !== plan.amountMinor || existing.currency !== "BRL" ||
+            existing.periodEnd !== null)
+          throw new Error("billing.subscription_exists");
+        await tx.insert(billingCommandRequests).values({
+          tenantId: input.tenantId, productId: input.productId,
+          idempotencyKey: input.idempotencyKey, action: "prepare_subscription_invoice",
+          payloadHash: input.payloadHash, resultInvoiceId: existing.id,
+        });
+        return {
+          productId: input.productId, externalTenantId: input.externalTenantId,
+          customerId: binding.customerId, subscriptionId: live.id,
+          invoiceId: existing.id, planCode: live.planCode, amountMinor: existing.amountMinor,
+          currency: "BRL", gatewayAccountId: route.gatewayAccountId,
+          gatewayProvider: route.provider, gatewayEnvironment: asEnvironment(route.environment),
+          invoiceStatus: existing.status, idempotentReplay: true,
+        };
+      }
 
       const [subscription] = await tx.insert(billingSubscriptions).values({
         tenantId: input.tenantId,

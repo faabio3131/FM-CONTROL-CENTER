@@ -1,3 +1,4 @@
+import type { PaymentEvent } from "@/domain/billing/cakto-payment-provider-contract";
 import { createHash } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { CaktoPaymentProvider } from "@/infrastructure/subscription/cakto-payment-provider";
@@ -23,7 +24,8 @@ export class CaktoIronProductBilling {
   private readonly productId: string;
   private readonly provider: CaktoPaymentProvider;
 
-  constructor(private readonly env: Record<string, string | undefined> = process.env) {
+  constructor(private readonly env: Record<string, string | undefined> = process.env,
+    private readonly readTransport: typeof fetch = fetch) {
     this.tenantId = env.FMCC_IRON_BILLING_TENANT_ID ?? "";
     this.productId = env.FMCC_IRON_PRODUCT_ID ?? "";
     if (!/^[A-Za-z0-9._:-]{3,128}$/.test(this.tenantId) ||
@@ -77,21 +79,30 @@ export class CaktoIronProductBilling {
   /** Authenticates raw signed notification, reconciles one invoice/cycle and enqueues license changes atomically. */
   async handleWebhook(headers: Headers, raw: string): Promise<"applied" | "duplicate" | "ignored" | "unmatched"> {
     const event = this.provider.verifyWebhook(headers, raw);
-    const paymentRef = event?.paymentRef;
-    if (!event || !paymentRef || !/^[A-Za-z0-9_-]{6,128}$/.test(paymentRef)) return "ignored";
-    // Provider-specific event remains inside the verified provider boundary.
-    const sourceEvent = (JSON.parse(raw) as { event?: string }).event;
+    if(!event)return "ignored";
+    return this.reconcile(event,String((JSON.parse(raw) as {event?:unknown}).event??""),createHash("sha256").update(raw).digest("hex"));
+  }
+
+  /** Internal processor only: READ confirmation is mandatory even for queued observations. */
+  async reconcile(observation: PaymentEvent, sourceEvent: string, fingerprint: string): Promise<"applied"|"duplicate"|"ignored"|"unmatched"> {
+    const paymentRef=observation.paymentRef;
+    if(!paymentRef||observation.offerInterval==="one_time")return "ignored";
+    let event=observation;
     const accepted = ["purchase_approved", "subscription_renewed", "subscription_late_recovered", "refund", "chargeback",
       "subscription_canceled", "subscription_late", "subscription_renewal_refused"];
     if (!sourceEvent || !accepted.includes(sourceEvent)) return "ignored";
     let binding: Awaited<ReturnType<typeof this.boundInvoice>>;
     try { binding = await this.boundInvoice(event.subscriptionRef); }
-    catch { return "unmatched"; } // No trust in email/CPF/redirect/unknown invoice.
+    catch { return "unmatched"; } // Worker retains and retries this observation, never acknowledges settlement.
     const planInterval = binding.plan.interval === "monthly" ? "month" : binding.plan.interval === "yearly" ? "year" : null;
     if (!planInterval || event.offerInterval !== planInterval || event.offerPlanCode !== binding.plan.planCode) return "ignored";
     if (event.type === "payment_confirmed" && (!event.amount ||
       event.amount.currency !== "BRL" || event.amount.amountMinor !== binding.invoice.amountMinor)) return "ignored";
 
+    const proof=await this.provider.confirmFinancialEvent(event,sourceEvent,this.readTransport);
+    if(!proof)return "ignored";
+    event=proof.event;
+    const verifiedFingerprint=createHash("sha256").update(fingerprint+":"+proof.evidence).digest("hex");
     return db.transaction(async (tx) => {
       // Anchor is the FIRST, pre-authorized checkout invoice ID from Cakto's sck.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${event.subscriptionRef}, 0))`);
@@ -114,8 +125,14 @@ export class CaktoIronProductBilling {
       const isRefund = event.type === "payment_refunded";
       const isLate = event.type === "payment_overdue";
       const isCancel = event.type === "subscription_cancelled";
-      if (isPayment && subscription.status === "cancelled")
-        throw new Error("cakto.cancelled_subscription_cannot_reactivate");
+      if (isPayment && subscription.status === "cancelled") return "ignored" as const;
+      if(isPayment){
+        const priorReversal=await tx.select({id:billingGatewayEvents.id}).from(billingGatewayEvents).where(and(
+          eq(billingGatewayEvents.tenantId,this.tenantId),eq(billingGatewayEvents.gatewayAccountId,binding.gateway.id),
+          eq(billingGatewayEvents.externalEventId,"cakto:payment_refunded:"+paymentRef),
+          eq(billingGatewayEvents.externalReference,event.subscriptionRef))).limit(1);
+        if(priorReversal.length)return "ignored" as const;
+      }
       if (isPayment && sourceEvent === "purchase_approved" && !(anchor.status === "pending" && subscription.status === "pending"))
         return "duplicate" as const;
       if (isPayment && (sourceEvent === "subscription_renewed" || sourceEvent === "subscription_late_recovered") &&
@@ -128,7 +145,7 @@ export class CaktoIronProductBilling {
         externalEventId: "cakto:" + event.type + ":" + paymentRef,
         status: "processed", eventType: event.type, externalPaymentId: paymentRef,
         externalReference: event.subscriptionRef,
-        payloadFingerprint: createHash("sha256").update(raw).digest("hex"),
+        payloadFingerprint: verifiedFingerprint,
         processedAt: new Date(),
       }).onConflictDoNothing().returning({ id: billingGatewayEvents.id });
       if (!receipt) return "duplicate" as const;
@@ -171,7 +188,19 @@ export class CaktoIronProductBilling {
           eq(billingProviderPayments.gatewayAccountId, binding.gateway.id),
           eq(billingProviderPayments.externalPaymentId, paymentRef),
         )).for("update").limit(1);
-        if (!payment || payment.status !== "received") throw new Error("cakto.refund_payment_not_found");
+        if(!payment){
+          // Provider-confirmed refund before the original payment observation.
+          // The immutable reversal receipt prevents a late PAID for this order.
+          // Do not invent a received payment or a paid coverage cycle.
+          if(anchor.status==="pending"&&subscription.status==="pending"){
+            await tx.update(billingInvoices).set({status:"refunded"}).where(and(
+              eq(billingInvoices.tenantId,this.tenantId),eq(billingInvoices.id,anchor.id)));
+            await tx.update(billingSubscriptions).set({status:"cancelled"}).where(and(
+              eq(billingSubscriptions.tenantId,this.tenantId),eq(billingSubscriptions.id,subscription.id)));
+          }
+          return "applied" as const;
+        }
+        if (payment.status !== "received") throw new Error("cakto.refund_payment_not_found");
         const [affected] = await tx.select().from(billingInvoices).where(and(
           eq(billingInvoices.tenantId, this.tenantId),
           eq(billingInvoices.id, payment.invoiceId),

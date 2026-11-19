@@ -1,14 +1,146 @@
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { and, eq, sql } from "drizzle-orm";
-import { db } from "@/infrastructure/db/client";
-import { billingProductPlans } from "@/infrastructure/db/billing-schema";
+import { db, pool } from "@/infrastructure/db/client";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { billingProductPlans, billingProductRoutes, billingGatewayAccounts } from "@/infrastructure/db/billing-schema";
+import { auditEvents } from "@/infrastructure/db/foundation-schema";
+import { IRON_FOUR_TIER_OFFERS, IRON_FOUR_TIER_REVIEW_VERSION } from "@/domain/billing/iron-four-tier-offers";
+import type { TenantContext } from "@/domain/security/tenant-context";
 import { productDefinitions, sourceDefinitions } from "@/infrastructure/db/platform-schema";
 import { appendIronPlanMapping, assertIronPlanMappingRegistrationState, readIronPlanMappings, type IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 import { assertIronCommercialPlanActivation, type IronCommercialPlanActivationInput } from "@/domain/billing/iron-commercial-plan-activation";
 import { resolveIronPlanMapping } from "@/domain/billing/iron-versioned-plan-mapping";
 import type { IronPublishedPlanVersion } from "@/infrastructure/integration/iron-commercial-connector";
 
+// One pinned connection for the session fence and its subsequent short SQL
+// transaction. No row/transaction lock is acquired while reading the remote
+// published catalog. Retirement uses the same fence to prevent stale bindings.
+async function withPublicationFence<T>(tenantId: string, productId: string, sourceId: string,
+  work: (connection: NodePgDatabase<Record<string, unknown>>) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  const key = JSON.stringify(["fmcc.billing.plan-publication.v1",tenantId,productId,sourceId]);
+  let locked = false;
+  // Discard if acquisition itself fails: the server could have taken the lock.
+  let discard = true;
+  try {
+    const acquired = await client.query<{ acquired: boolean }>(
+      "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired", [key]);
+    locked = acquired.rows[0]?.acquired === true;
+    discard = false;
+    if (!locked) throw new Error("billing.iron_publication_busy");
+    return await work(drizzle(client));
+  } finally {
+    if (locked) {
+      try {
+        const result = await client.query<{ released: boolean }>(
+          "SELECT pg_advisory_unlock(hashtextextended($1,0)) AS released",[key]);
+        discard = result.rows[0]?.released !== true;
+      } catch { discard = true; }
+    }
+    // Never return a connection with a possibly held session lock.
+    client.release(discard);
+  }
+}
+
 export class PostgresIronPlanMappingRepository {
+  /**
+   * One reviewed eight-offer rollout. Reuses the exact mapping lock and immutable
+   * pricing/activation invariants of the existing per-plan operations.
+   * Any collision or unavailable provider/catalog rolls back the ENTIRE set.
+   */
+  async publishFourTiers(
+    context: TenantContext, productId: string, sourceId: string,
+    verifyPublished: () => Promise<readonly IronPublishedPlanVersion[]>,
+    verifyOffer: (amountMinor:number, interval:"month"|"year", planCode:string) => boolean,
+  ) {
+    const tenantId=context.tenantId;
+    return withPublicationFence(tenantId,productId,sourceId,async connection=>{
+      const published=await verifyPublished();
+      // Prove all eight terms before creating a single price.
+      for(const offer of IRON_FOUR_TIER_OFFERS){
+        if(published.filter(p=>p.planCode===offer.ironPlanCode&&p.version===offer.ironPlanVersion).length!==1)
+          throw new Error("billing.iron_rollout_version_not_published");
+        if(!verifyOffer(offer.amountMinor,offer.interval==="monthly"?"month":"year",offer.commercialPlanCode))
+          throw new Error("billing.iron_rollout_cakto_offer_missing");
+      }
+      const verifiedAt=Date.now();
+      return connection.transaction(async tx=>{
+      await tx.execute(sql`SET LOCAL lock_timeout = '5s'`);
+      for(const offer of [...IRON_FOUR_TIER_OFFERS].sort((a,b)=>a.commercialPlanCode.localeCompare(b.commercialPlanCode))){
+        const key=["fmcc.billing.plan-map.v1",tenantId,productId,offer.commercialPlanCode].join(":");
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key},0))`);
+      }
+      const [source]=await tx.select({
+        config:sourceDefinitions.config,name:sourceDefinitions.name,
+        sourceType:sourceDefinitions.sourceType,secretRef:sourceDefinitions.secretRef,
+        authority:sourceDefinitions.authoritativeDomain,slug:productDefinitions.slug,
+      }).from(sourceDefinitions).innerJoin(productDefinitions,and(
+        eq(productDefinitions.tenantId,sourceDefinitions.tenantId),
+        eq(productDefinitions.id,sourceDefinitions.productId),eq(productDefinitions.status,"active")))
+        .where(and(eq(sourceDefinitions.tenantId,tenantId),eq(sourceDefinitions.productId,productId),
+          eq(sourceDefinitions.id,sourceId))).for("update",{of:sourceDefinitions}).limit(1);
+      if(!source||source.slug!==FMCC_IRON_PRODUCT_SLUG||source.name!=="IRON FIT CORE Commercial"||
+        source.sourceType!=="iron-commercial-v1"||source.authority!=="commercial"||
+        source.secretRef!=="env:FMCC_IRON_CONTROL_PLANE_TOKEN")
+        throw new Error("billing.iron_activation_source_scope_denied");
+      const [route]=await tx.select({provider:billingGatewayAccounts.provider,
+        environment:billingGatewayAccounts.environment,accountStatus:billingGatewayAccounts.status,
+        routeStatus:billingProductRoutes.status}).from(billingProductRoutes)
+        .innerJoin(billingGatewayAccounts,and(eq(billingGatewayAccounts.tenantId,billingProductRoutes.tenantId),
+          eq(billingGatewayAccounts.id,billingProductRoutes.gatewayAccountId)))
+        .where(and(eq(billingProductRoutes.tenantId,tenantId),eq(billingProductRoutes.productId,productId)))
+        .for("update",{of:[billingProductRoutes,billingGatewayAccounts]}).limit(1);
+      if(!route||route.provider!=="cakto"||route.environment!=="production"||
+        route.accountStatus!=="enabled"||route.routeStatus!=="enabled")
+        throw new Error("billing.iron_rollout_gateway_not_ready");
+      if (Date.now() - verifiedAt > 30_000) throw new Error("billing.iron_rollout_catalog_unverifiable");
+      let config=source.config;
+      let changed=0;
+      const result:{planCode:string;mappingRevision:number;status:"active"}[]=[];
+      for(const offer of IRON_FOUR_TIER_OFFERS){
+        const where=and(eq(billingProductPlans.tenantId,tenantId),eq(billingProductPlans.productId,productId),
+          eq(billingProductPlans.planCode,offer.commercialPlanCode));
+        let [plan]=await tx.select().from(billingProductPlans).where(where).for("update").limit(1);
+        if(!plan){
+          // Competing ordinary draft creation can win: never update or reprice it.
+          const inserted=await tx.insert(billingProductPlans).values({tenantId,productId,
+            planCode:offer.commercialPlanCode,name:offer.name,interval:offer.interval,
+            amountMinor:offer.amountMinor,currency:"BRL",status:"inactive"})
+            .onConflictDoNothing().returning();
+          if(!inserted[0]) throw new Error("billing.iron_rollout_concurrent_draft");
+          plan=inserted[0];
+        }
+        if(plan.amountMinor!==offer.amountMinor||plan.interval!==offer.interval||plan.currency!=="BRL")
+          throw new Error("billing.iron_rollout_immutable_price_conflict");
+        const mappingResult=appendIronPlanMapping(config,offer);
+        assertIronPlanMappingRegistrationState(plan.status,mappingResult.created);
+        config=mappingResult.config;
+        const version=published.find(p=>p.planCode===offer.ironPlanCode&&p.version===offer.ironPlanVersion)!;
+        assertIronCommercialPlanActivation({
+          commercialPlanCode:offer.commercialPlanCode,expectedAmountMinor:offer.amountMinor,
+          expectedIronPlanCode:offer.ironPlanCode,expectedIronPlanVersion:offer.ironPlanVersion,
+          expectedMappingRevision:mappingResult.mapping.revision,
+        },plan,mappingResult.mapping,version);
+        if(plan.status==="inactive"){
+          const rows=await tx.update(billingProductPlans).set({status:"active",updatedAt:new Date()})
+            .where(and(where,eq(billingProductPlans.status,"inactive"))).returning({id:billingProductPlans.id});
+          if(rows.length!==1) throw new Error("billing.iron_activation_concurrent_state_changed");
+          changed++;
+        }
+        result.push({planCode:offer.commercialPlanCode,mappingRevision:mappingResult.mapping.revision,status:"active"});
+      }
+      await tx.update(sourceDefinitions).set({config,updatedAt:new Date()}).where(and(
+        eq(sourceDefinitions.id,sourceId),eq(sourceDefinitions.tenantId,tenantId),
+        eq(sourceDefinitions.productId,productId)));
+      await tx.insert(auditEvents).values({tenantId,actorId:context.userId,actorType:"user",
+        action:"billing.iron_four_tiers.publish",resourceType:"billing_product",resourceId:productId,
+        result:"success",correlationId:context.correlationId,
+        metadata:{proposal:IRON_FOUR_TIER_REVIEW_VERSION,changed,offers:result.map(x=>x.planCode)}});
+      return {changed,offers:result,providerConfigurationVerified:true as const,paymentExecuted:false as const};
+      });
+    });
+  }
+
   async list(tenantId: string, productId: string, sourceId: string): Promise<readonly IronVersionedPlanMapping[]> {
     const [source] = await db.select({
       config: sourceDefinitions.config,
@@ -93,7 +225,7 @@ export class PostgresIronPlanMappingRepository {
    * retirement cannot race with binding a new commercial price. */
   async retireUnboundVersion(tenantId: string, productId: string, sourceId: string,
     planCode: string, version: number, retire: () => Promise<void>): Promise<void> {
-    await db.transaction(async tx => {
+    await withPublicationFence(tenantId,productId,sourceId,async connection => connection.transaction(async tx => {
       const [source] = await tx.select({
         config: sourceDefinitions.config, name: sourceDefinitions.name,
         sourceType: sourceDefinitions.sourceType, secretRef: sourceDefinitions.secretRef,
@@ -117,7 +249,7 @@ export class PostgresIronPlanMappingRepository {
       // Only the IRON canonical engine can retire; it also refuses launch,
       // price and subscription dependencies in its own SERIALIZABLE transaction.
       await retire();
-    });
+    }));
   }
 
   /**

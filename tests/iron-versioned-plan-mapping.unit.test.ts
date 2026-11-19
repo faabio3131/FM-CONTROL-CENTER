@@ -70,10 +70,49 @@ describe("D11 immutable Command → IRON versioned entitlement mapping", () => {
 
   it("registers under the existing source lock and validates draft state before writing", async () => {
     const source = await readFile("src/infrastructure/billing/postgres-iron-plan-mapping-repository.ts", "utf8");
-    expect(source).toContain("assertIronPlanMappingRegistrationState(plan.status, result.created)");
-    expect(source.indexOf("assertIronPlanMappingRegistrationState(plan.status, result.created)"))
-      .toBeLessThan(source.indexOf("await tx.update(sourceDefinitions).set"));
-    expect(source).toContain('for("update", { of: sourceDefinitions })');
+    // Scope the ordering guard to register(): the batch publisher also writes
+    // sourceDefinitions, under its own lock and validation.
+    const register = source.slice(source.indexOf("  async register("), source.indexOf("  async retireUnboundVersion("));
+    const lock = register.indexOf('for("update", { of: sourceDefinitions })');
+    const assertion = register.indexOf("assertIronPlanMappingRegistrationState(plan.status, result.created)");
+    const write = register.indexOf("await tx.update(sourceDefinitions).set");
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(assertion).toBeGreaterThan(lock);
+    expect(write).toBeGreaterThan(assertion);
+  });
+
+  it("guards batch publication with the same mapping lock, draft check and activation check before writes", async () => {
+    const source = await readFile("src/infrastructure/billing/postgres-iron-plan-mapping-repository.ts", "utf8");
+    const batch = source.slice(source.indexOf("  async publishFourTiers("), source.indexOf("  async list("));
+    const lock = batch.indexOf('for("update",{of:sourceDefinitions})');
+    const provider = batch.indexOf("if(!verifyOffer(");
+    const assertion = batch.indexOf("assertIronPlanMappingRegistrationState(plan.status,mappingResult.created)");
+    const activation = batch.indexOf("assertIronCommercialPlanActivation({");
+    const planWrite = batch.indexOf("await tx.update(billingProductPlans)");
+    const mappingWrite = batch.indexOf("await tx.update(sourceDefinitions).set");
+    expect(batch).toContain("fmcc.billing.plan-map.v1");
+    expect(batch).toContain("pg_advisory_xact_lock");
+    expect(lock).toBeGreaterThanOrEqual(0);
+    // External catalog and offer checks must not hold transaction/row locks.
+    // The shared session fence prevents retirement overtaking the snapshot.
+    const fence = batch.indexOf("withPublicationFence(");
+    const catalog = batch.indexOf("await verifyPublished()");
+    const transaction = batch.indexOf("connection.transaction(");
+    const freshness = batch.indexOf("Date.now() - verifiedAt");
+    expect(fence).toBeGreaterThanOrEqual(0);
+    expect(catalog).toBeGreaterThan(fence);
+    expect(provider).toBeGreaterThan(catalog);
+    expect(transaction).toBeGreaterThan(provider);
+    expect(lock).toBeGreaterThan(transaction);
+    expect(freshness).toBeGreaterThan(lock);
+    expect(assertion).toBeGreaterThan(freshness);
+    const retirement = source.slice(source.indexOf("  async retireUnboundVersion("), source.indexOf("  async activateCommercialPlan("));
+    expect(retirement).toContain("withPublicationFence(");
+    expect(source).toContain("pg_try_advisory_lock");
+    expect(source).toContain("pg_advisory_unlock");
+    expect(activation).toBeGreaterThan(assertion);
+    expect(planWrite).toBeGreaterThan(activation);
+    expect(mappingWrite).toBeGreaterThan(planWrite);
   });
 
   it("binds mapping registration and invoice preparation through the same PostgreSQL lock", async () => {

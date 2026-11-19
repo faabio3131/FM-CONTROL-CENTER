@@ -1,8 +1,12 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { caktoReadbackFixture, ciCaktoReadEnv } from "./fixtures/cakto-readback-fixture";
+const readback=caktoReadbackFixture();
 import { afterAll, describe, expect, it } from "vitest";
 import { pool } from "@/infrastructure/db/client";
 import { CaktoIronProductBilling } from "@/application/billing/cakto-iron-product-billing";
+import { CaktoIronReadbackInbox } from "@/application/billing/cakto-iron-readback-inbox";
 import { IronEntitlementOutboxWorker } from "@/application/billing/iron-entitlement-outbox-worker";
+import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
 
 const enabled = process.env.FMCC_CAKTO_DB_CERTIFICATION === "1" && process.env.DATABASE_URL?.includes("fmcc_billing_ci");
 const dbIt = enabled ? it : it.skip;
@@ -10,8 +14,8 @@ const tenant = "ci-cakto-" + randomUUID().slice(0, 12);
 const gym = randomUUID();
 const ironSubscription = randomUUID();
 const secret = "ci-cakto-only-" + "x".repeat(40);
-const order1 = "order_initial_" + randomUUID().slice(0, 8);
-const order2 = "order_renewed_" + randomUUID().slice(0, 8);
+const order1 = randomUUID();
+const order2 = randomUUID();
 let productId = "";
 let invoiceId = "";
 
@@ -36,6 +40,7 @@ function notification(event: string, orderId: string, status: string, amount = 2
       currency: "BRL", paidAt: new Date().toISOString(),
       offer: { id: offerId }, product: { id: "iron_product" } },
   });
+  if (/^[0-9a-f-]{36}$/.test(orderId)) readback.register(body);
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = "v1=" + createHmac("sha256", secret).update(timestamp + "." + body).digest("hex");
   return { raw: body, headers: new Headers({ "x-cakto-timestamp": timestamp, "x-cakto-signature": signature }) };
@@ -43,6 +48,8 @@ function notification(event: string, orderId: string, status: string, amount = 2
 
 afterAll(async () => {
   if (!enabled) return;
+  await pool.query("DELETE FROM fmcc_iron_cakto_readback_inbox WHERE tenant_id=$1", [tenant]);
+  await pool.query("DELETE FROM fmcc_billing_audit_event WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_iron_entitlement_outbox WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_gateway_event WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_provider_payment WHERE tenant_id=$1", [tenant]);
@@ -59,6 +66,7 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
   dbIt("confirms first payment, records recurring cycle, isolates old refund, and suspends refunded current cycle", async () => {
     const { subscriptionId } = await prepare();
     const cfg = {
+      ...ciCaktoReadEnv,
       FMCC_IRON_BILLING_TENANT_ID: tenant, FMCC_IRON_PRODUCT_ID: productId,
       FMCC_CAKTO_WEBHOOK_SECRET: secret,
       FMCC_CAKTO_CHECKOUTS_JSON: JSON.stringify([
@@ -67,7 +75,8 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
         { offerId: "offer_other", productId: "iron_product", planCode: "IRON_OTHER", checkoutUrl: "https://pay.cakto.com.br/offer_other", amountMinor: 26900, interval: "month" },
       ]),
     };
-    const billing = new CaktoIronProductBilling(cfg);
+    const billing = new CaktoIronProductBilling(cfg,readback.transport);
+    const inbox=new CaktoIronReadbackInbox(cfg,readback.transport);
     const checkout = await billing.checkoutUrl(invoiceId);
     expect(checkout).toContain("sck="+invoiceId);
     const wrongInterval = notification("purchase_approved", "order_wrong_interval", "paid", 269, "offer_year");
@@ -76,7 +85,17 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     expect(await billing.handleWebhook(wrongPlan.headers, wrongPlan.raw)).toBe("ignored");
 
     const first = notification("purchase_approved", order1, "paid");
-    expect(await billing.handleWebhook(first.headers, first.raw)).toBe("applied");
+    const n=readback.reads();
+    expect(await inbox.accept("recurring",first.headers,first.raw)).toBe("queued");
+    expect(await inbox.accept("recurring",first.headers,first.raw)).toBe("duplicate");
+    expect(readback.reads()).toBe(n);
+    readback.setFailure(503);
+    expect(await inbox.processOne()).toBe("retry");
+    expect((await pool.query("SELECT status FROM fmcc_billing_invoice WHERE id=$1",[invoiceId])).rows[0].status).toBe("pending");
+    readback.setFailure(null);
+    await pool.query("UPDATE fmcc_iron_cakto_readback_inbox SET available_at=now() WHERE invoice_id=$1",[invoiceId]);
+    expect(await new CaktoIronReadbackInbox(cfg,readback.transport).processOne()).toBe("applied");
+    expect(await inbox.processOne()).toBe("idle");
     expect(await billing.handleWebhook(first.headers, first.raw)).toBe("duplicate");
     const state1 = await pool.query("SELECT status,paid_through FROM fmcc_billing_subscription WHERE id=$1", [subscriptionId]);
     expect(state1.rows[0].status).toBe("active");
@@ -115,6 +134,14 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     expect(paidCycles.rowCount).toBe(2);
     expect(await worker.processOne()).toBe("delivered");
 
+    const receiptRepo = new PostgresProductBillingAuthorityRepository();
+    const receiptInput={tenantId:tenant,productId,gymId:gym,invoiceId,actorId:randomUUID(),requestId:randomUUID()};
+    await expect(receiptRepo.reserveIronReceipt({...receiptInput,gymId:randomUUID()})).rejects.toThrow("iron.receipt_unavailable");
+    const attempts=await Promise.allSettled([receiptRepo.reserveIronReceipt(receiptInput),
+      receiptRepo.reserveIronReceipt({...receiptInput,requestId:randomUUID()})]);
+    expect(attempts.filter(x=>x.status==="fulfilled")).toHaveLength(1);
+    expect(attempts.find(x=>x.status==="fulfilled")).toEqual({status:"fulfilled",value:order1});
+    expect(attempts.filter(x=>x.status==="rejected")).toHaveLength(1);
     const oldRefund = notification("refund", order1, "refunded");
     expect(await billing.handleWebhook(oldRefund.headers, oldRefund.raw)).toBe("applied");
     const stillActive = await pool.query("SELECT status FROM fmcc_billing_subscription WHERE id=$1", [subscriptionId]);
@@ -122,12 +149,23 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     const queueBefore = await pool.query("SELECT count(*)::int AS n FROM fmcc_billing_iron_entitlement_outbox WHERE tenant_id=$1 AND event_type='LICENSE_SUSPEND'", [tenant]);
     expect(queueBefore.rows[0].n).toBe(0);
 
+    await expect(receiptRepo.reserveIronReceipt({...receiptInput,requestId:randomUUID()})).rejects.toThrow("iron.receipt_unavailable");
     const currentRefund = notification("chargeback", order2, "refunded");
     expect(await billing.handleWebhook(currentRefund.headers, currentRefund.raw)).toBe("applied");
     const suspended = await pool.query("SELECT status FROM fmcc_billing_subscription WHERE id=$1", [subscriptionId]);
     expect(suspended.rows[0].status).toBe("past_due");
     expect(await worker.processOne()).toBe("delivered");
     expect(called.some(x => x.init.method === "POST" && JSON.parse(x.init.body as string).entitlementStatus === "SUSPENDED")).toBe(true);
+
+    const history = await new PostgresProductBillingAuthorityRepository().readIronCommerceCustomer(tenant, productId, gym);
+    expect(history.historyTruncated).toBe(false);
+    expect(history.invoices).toHaveLength(2);
+    expect(history.invoices.every(row => row.recordedPaymentStatus === "refunded" && row.paymentRecordedAt instanceof Date)).toBe(true);
+    expect(history.invoices.every(row => !Object.hasOwn(row, "externalPaymentId"))).toBe(true);
+    const foreign = await new PostgresProductBillingAuthorityRepository().readIronCommerceCustomer(tenant, productId, randomUUID());
+    expect(foreign).toEqual({ subscription: null, invoices: [], historyTruncated: false, scheduleAnchor: null, caktoManagementAvailable: false });
+    expect(history.caktoManagementAvailable).toBe(true);
+    expect(history.scheduleAnchor).toMatchObject({ invoiceId, paymentId: order1, amountMinor: 26900, planCode: "IRON_PRO", interval: "month" });
 
     const tampered = notification("purchase_approved", "order_forged", "paid");
     await expect(billing.handleWebhook(tampered.headers, tampered.raw.replace('"amount":269', '"amount":1'))).rejects.toThrow("webhook.signature_invalid");

@@ -1,0 +1,77 @@
+name: FMCC Cakto IRON Verified AI Credit Delivery
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fmcc-iron-cakto-verified-credit
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      FMCC_CAKTO_CREDITS_OUTBOX_ENABLED: ${{ vars.FMCC_CAKTO_CREDITS_OUTBOX_ENABLED }}
+      FMCC_AUTOMATION_BASE_URL: ${{ vars.FMCC_AUTOMATION_BASE_URL }}
+      FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET: ${{ secrets.FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET }}
+    steps:
+      - name: Enforce Cakto commercial activation gate
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$FMCC_CAKTO_CREDITS_OUTBOX_ENABLED" != "true" ]]; then
+            echo "::notice::Cakto credit worker remains disabled until the verified production seller, offers, signed webhook and IRON bindings are configured."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -z "$FMCC_AUTOMATION_BASE_URL" || -z "$FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET" ]]; then
+            echo "::error::Cakto credit delivery enabled but automation URL/secret missing."
+            exit 1
+          fi
+          case "$FMCC_AUTOMATION_BASE_URL" in
+            https://app.fmcommand.com.br|https://app.fmcommand.com.br/) ;;
+            *) echo "::error::Cakto worker URL must be the approved FM Command V1 HTTPS host."; exit 1 ;;
+          esac
+          echo "::add-mask::$FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Deliver canonical paid credit grants and refund revocations
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          correlation="fmcc-cakto-credit-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          status="$(curl --silent --show-error --max-time 35 --output "$response_file" --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $FMCC_ALERT_AUTOMATION_SCHEDULER_SECRET" \
+            --header "X-Correlation-ID: $correlation" \
+            "${FMCC_AUTOMATION_BASE_URL%/}/api/internal/automation/iron/ai-credits/drain")"
+          if [[ "$status" != "200" ]]; then
+            echo "::error::Cakto entitlement worker returned HTTP $status (body intentionally suppressed)."
+            exit 1
+          fi
+          python3 - "$response_file" <<'PY'
+          import json, sys
+          try:
+              with open(sys.argv[1], encoding="utf-8") as response:
+                  result = json.load(response)
+          except (OSError, ValueError):
+              sys.exit("Cakto worker response is not valid JSON")
+          required = ("delivered", "retry", "blocked", "idle")
+          if not isinstance(result, dict) or any(type(result.get(k)) is not int or not 0 <= result[k] <= 5 for k in required):
+              sys.exit("Cakto worker outcome is invalid")
+          if sum(result[k] for k in required) < 1 or sum(result[k] for k in required) > 5:
+              sys.exit("Cakto worker outcome count is invalid")
+          print("Cakto credit drain: delivered={delivered}, retry={retry}, blocked={blocked}, idle={idle}".format(**result))
+          if result["retry"] or result["blocked"]:
+              sys.exit("Cakto credit drain needs attention")
+          PY

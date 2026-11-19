@@ -39,10 +39,13 @@ describe("generic central billing product boundary", () => {
     const preparation = repository.slice(repository.indexOf("async prepareSubscriptionInvoice("));
     const lock = preparation.indexOf("pg_advisory_xact_lock(hashtextextended");
     const replay = preparation.indexOf("const [replay]");
-    const live = preparation.indexOf("const [live]");
+    const live = preparation.indexOf("const liveRows =");
     expect(lock).toBeGreaterThan(-1);
     expect(lock).toBeLessThan(replay);
     expect(replay).toBeLessThan(live);
+    expect(live).toBeLessThan(preparation.indexOf("const existing = pending[0]"));
+    expect(preparation).toContain('live.status !== "pending"');
+    expect(preparation).toContain("existing.gatewayAccountId !== route.gatewayAccountId");
     expect(preparation).toContain("input.tenantId,");
     expect(preparation).toContain("input.productId,");
     expect(preparation).toContain("input.externalTenantId,");
