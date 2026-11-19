@@ -93,8 +93,23 @@ describe("D11 immutable Command → IRON versioned entitlement mapping", () => {
     expect(batch).toContain("fmcc.billing.plan-map.v1");
     expect(batch).toContain("pg_advisory_xact_lock");
     expect(lock).toBeGreaterThanOrEqual(0);
-    expect(provider).toBeGreaterThan(lock);
-    expect(assertion).toBeGreaterThan(provider);
+    // External catalog and offer checks must not hold transaction/row locks.
+    // The shared session fence prevents retirement overtaking the snapshot.
+    const fence = batch.indexOf("withPublicationFence(");
+    const catalog = batch.indexOf("await verifyPublished()");
+    const transaction = batch.indexOf("connection.transaction(");
+    const freshness = batch.indexOf("Date.now() - verifiedAt");
+    expect(fence).toBeGreaterThanOrEqual(0);
+    expect(catalog).toBeGreaterThan(fence);
+    expect(provider).toBeGreaterThan(catalog);
+    expect(transaction).toBeGreaterThan(provider);
+    expect(lock).toBeGreaterThan(transaction);
+    expect(freshness).toBeGreaterThan(lock);
+    expect(assertion).toBeGreaterThan(freshness);
+    const retirement = source.slice(source.indexOf("  async retireUnboundVersion("), source.indexOf("  async activateCommercialPlan("));
+    expect(retirement).toContain("withPublicationFence(");
+    expect(source).toContain("pg_try_advisory_lock");
+    expect(source).toContain("pg_advisory_unlock");
     expect(activation).toBeGreaterThan(assertion);
     expect(planWrite).toBeGreaterThan(activation);
     expect(mappingWrite).toBeGreaterThan(planWrite);
