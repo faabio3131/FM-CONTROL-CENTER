@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { BodyTooLargeError, readLimitedBody } from "@/infrastructure/http/read-limited-body";
 import { WebhookRejectedError } from "@/domain/billing/cakto-payment-provider-contract";
-import { IronAiCreditBilling } from "@/application/billing/iron-ai-credit-billing";
+import { CaktoIronReadbackInbox } from "@/application/billing/cakto-iron-readback-inbox";
 
 export const dynamic = "force-dynamic";
 /** Dedicated signed provider boundary for one-time packs; recurring invoices remain untouched. */
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     );
   }
   try {
-    const result = await new IronAiCreditBilling().handleWebhook(request.headers, raw);
+    const result = await new CaktoIronReadbackInbox().accept("ai_credits",request.headers, raw);
     return NextResponse.json({ accepted: true, result }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof WebhookRejectedError) {
