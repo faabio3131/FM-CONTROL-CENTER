@@ -263,6 +263,117 @@ export class CaktoPaymentProvider implements PaymentProvider {
     finally { clearTimeout(timer); }
   }
 
+  /** Independent authenticated readback. Never persist/log the API body (buyer PII).
+   * A signed event is only an observation: current provider state must agree.
+   * A stale approval after a terminal reversal is never treated as a payment.
+   */
+  async confirmFinancialEvent(event: PaymentEvent, sourceEvent: string, transport: typeof fetch = fetch):
+    Promise<{ event: PaymentEvent; evidence: string } | null> {
+    const clientId=this.env.FMCC_CAKTO_READ_CLIENT_ID;
+    const clientSecret=this.env.FMCC_CAKTO_READ_CLIENT_SECRET;
+    if(!clientId||!clientSecret||!event.paymentRef||!REF.test(event.paymentRef)||!REF.test(event.subscriptionRef))
+      throw new Error("cakto.readback_unavailable");
+    const offers=this.offers.filter(o=>o.planCode===event.offerPlanCode&&o.interval===event.offerInterval);
+    if(offers.length!==1) throw new Error("cakto.readback_binding_invalid");
+    const offer=offers[0];
+    const key=oauthKey("read",clientId,clientSecret);
+    let token:string|undefined;
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),8000);
+    const read=async(path:string, init:RequestInit):Promise<Record<string,unknown>>=>{
+      const response=await transport("https://api.cakto.com.br/public_api/"+path,{
+        ...init,redirect:"error",cache:"no-store",signal:controller.signal});
+      if(response.status===401) invalidateOAuthToken(transport,key,token);
+      if(!response.ok||!response.body) throw new Error("cakto.readback_unavailable");
+      const reader=response.body.getReader();
+      const chunks:Uint8Array[]=[];let total=0;
+      for(;;){const {done,value}=await reader.read();if(done)break;
+        total+=value.byteLength;if(total>262144){await reader.cancel().catch(()=>undefined);throw new Error("cakto.readback_unavailable");}
+        chunks.push(value);}
+      const obj:unknown=JSON.parse(new TextDecoder().decode(Buffer.concat(chunks)));
+      if(!obj||typeof obj!=="object"||Array.isArray(obj))throw new Error("cakto.readback_unavailable");
+      return obj as Record<string,unknown>;
+    };
+    const money=(v:unknown)=>{
+      const text=typeof v==="number"||typeof v==="string"?String(v):"";
+      if(!/^\d{1,8}(?:\.\d{1,2})?$/.test(text))return null;
+      const [a,b=""]=text.split(".");return Number(a)*100+Number(b.padEnd(2,"0"));
+    };
+    const date=(v:unknown)=>{
+      if(typeof v!=="string"||!Number.isFinite(Date.parse(v))||Date.parse(v)>Date.now()+300000)
+        throw new Error("cakto.readback_timestamp_invalid");
+      return new Date(v);
+    };
+    try {
+      token=await getOAuthToken(transport,key,()=>read("token/",{method:"POST",
+        headers:{"content-type":"application/x-www-form-urlencoded"},
+        body:new URLSearchParams({client_id:clientId,client_secret:clientSecret})}));
+      const headers={authorization:"Bearer "+token};
+      const order=await read("orders/"+event.paymentRef+"/",{method:"GET",headers});
+      const product=order.product as {id?:unknown}|null;
+      if(order.id!==event.paymentRef||order.sck!==event.subscriptionRef||order.offer_type!=="main"||
+        order.currency!=="BRL"||product?.id!==offer.productId||
+        order.type!==(offer.interval==="one_time"?"unique":"subscription")||
+        money(order.amount)!==offer.amountMinor)
+        throw new Error("cakto.readback_binding_invalid");
+      // Order GET has checkoutUrl but does not guarantee an offer object.
+      // Bind the approved hosted checkout path, not arbitrary query parameters.
+      const url=typeof order.checkoutUrl==="string"?new URL(order.checkoutUrl):null;
+      const configured=new URL(offer.checkoutUrl);
+      if(!url||url.origin!==configured.origin||url.pathname!==configured.pathname||url.username||url.password||
+        this.offers.filter(o=>o.productId===offer.productId&&new URL(o.checkoutUrl).pathname===configured.pathname).length!==1)
+        throw new Error("cakto.readback_binding_invalid");
+      let subscriptionStatus:unknown=null;
+      let subscriptionId:unknown=null;
+      if(offer.interval!=="one_time"){
+        if(typeof order.subscription!=="string"||!REF.test(order.subscription))throw new Error("cakto.readback_binding_invalid");
+        const sub=await read("subscriptions/"+order.subscription+"/",{method:"GET",headers});
+        if(sub.id!==order.subscription||sub.product!==offer.productId||sub.offer!==offer.offerId||
+          typeof sub.parent_order!=="string"||!REF.test(sub.parent_order)||
+          (sub.parent_order!==event.paymentRef&&(!Array.isArray(sub.orders)||!sub.orders.includes(event.paymentRef)))||
+          (sourceEvent==="purchase_approved"&&sub.parent_order!==event.paymentRef))
+          throw new Error("cakto.readback_binding_invalid");
+        // For a renewal prove the original order is anchored to this invoice.
+        if(sub.parent_order!==event.paymentRef){
+          const parent=await read("orders/"+sub.parent_order+"/",{method:"GET",headers});
+          const parentProduct=parent.product as {id?:unknown}|null;
+          if(parent.id!==sub.parent_order||parent.sck!==event.subscriptionRef||
+            parent.subscription!==order.subscription||parentProduct?.id!==offer.productId)
+            throw new Error("cakto.readback_binding_invalid");
+        }
+        subscriptionId=sub.id;subscriptionStatus=sub.status;
+      }else if(order.subscription!==null) throw new Error("cakto.readback_binding_invalid");
+      let occurredAt:Date;
+      if(event.type==="payment_confirmed"){
+        if(["refunded","chargedback","canceled"].includes(String(order.status)))return null;
+        if(order.status!=="paid")throw new Error("cakto.readback_not_confirmed");
+        if(offer.interval!=="one_time"&&subscriptionStatus!=="active")
+          throw new Error("cakto.readback_not_confirmed");
+        occurredAt=date(order.paidAt);
+      }else if(event.type==="payment_refunded"){
+        if(order.status!==(sourceEvent==="chargeback"?"chargedback":"refunded"))
+          throw new Error("cakto.readback_not_confirmed");
+        occurredAt=date(sourceEvent==="chargeback"?order.chargedbackAt:order.refundedAt);
+      }else if(event.type==="payment_overdue"){
+        if(subscriptionStatus==="active"&&order.status==="paid")return null;
+        if(subscriptionStatus!=="late"||!["refused","blocked","waiting_payment","retrying","canceled"].includes(String(order.status)))
+          throw new Error("cakto.readback_not_confirmed");
+        occurredAt=date(order.createdAt);
+      }else {
+        if(subscriptionStatus!=="canceled")throw new Error("cakto.readback_not_confirmed");
+        occurredAt=date(order.createdAt);
+      }
+      const confirmed={...event,occurredAt};
+      const evidence=createHash("sha256").update(JSON.stringify([event.paymentRef,event.subscriptionRef,
+        offer.offerId,offer.productId,offer.amountMinor,order.status,subscriptionId,subscriptionStatus,
+        occurredAt.toISOString()])).digest("hex");
+      return {event:confirmed,evidence};
+    }catch(e){
+      if(e instanceof Error&&/^cakto\.readback_(binding_invalid|timestamp_invalid|not_confirmed|unavailable)$/.test(e.message))throw e;
+      throw new Error("cakto.readback_unavailable");
+    }finally{clearTimeout(timer);}
+  }
+
   async findSubscriptionByReference(reference: string): Promise<ProviderSubscription | null> {
     // This adapter never creates a remote subscription by POST. No remote recovery needed.
     void reference;

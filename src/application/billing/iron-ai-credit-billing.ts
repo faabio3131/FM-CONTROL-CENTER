@@ -1,3 +1,4 @@
+import type { PaymentEvent } from "@/domain/billing/cakto-payment-provider-contract";
 import { createHash, randomUUID } from "node:crypto";
 import { pool } from "@/infrastructure/db/client";
 import { CaktoPaymentProvider } from "@/infrastructure/subscription/cakto-payment-provider";
@@ -32,7 +33,8 @@ export class IronAiCreditBilling {
   private readonly tenantId: string;
   private readonly productId: string;
 
-  constructor(private readonly env: Record<string, string | undefined> = process.env) {
+  constructor(private readonly env: Record<string, string | undefined> = process.env,
+    private readonly readTransport: typeof fetch = fetch) {
     this.tenantId = env.FMCC_IRON_BILLING_TENANT_ID ?? "";
     this.productId = env.FMCC_IRON_PRODUCT_ID ?? "";
     if (!/^[A-Za-z0-9._:-]{3,128}$/.test(this.tenantId) || !UUID.test(this.productId))
@@ -111,13 +113,18 @@ export class IronAiCreditBilling {
   /** Only a provider-signed event for the exact pre-authorized offer/price can change the ledger. */
   async handleWebhook(headers: Headers, raw: string): Promise<"applied" | "duplicate" | "ignored" | "unmatched"> {
     const event = this.provider.verifyOneTimeWebhook(headers, raw);
-    if (!event || !event.paymentRef || !UUID.test(event.subscriptionRef)
-      || !/^[A-Za-z0-9_-]{6,128}$/.test(event.paymentRef)) return "ignored";
-    let source: string;
-    try { source = String((JSON.parse(raw) as { event?: unknown }).event ?? ""); }
-    catch { return "ignored"; }
+    if(!event)return "ignored";
+    return this.reconcile(event,String((JSON.parse(raw) as {event?:unknown}).event??""),createHash("sha256").update(raw).digest("hex"));
+  }
+
+  async reconcile(observation: PaymentEvent, source: string, inputFingerprint: string): Promise<"applied"|"duplicate"|"ignored"|"unmatched">{
+    if(!observation.paymentRef||observation.offerInterval!=="one_time"||!UUID.test(observation.subscriptionRef))return "ignored";
+    let event=observation;
     if (!["purchase_approved", "refund", "chargeback"].includes(source)) return "ignored";
     const isPaid = source === "purchase_approved";
+    const proof=await this.provider.confirmFinancialEvent(event,source,this.readTransport);
+    if(!proof)return "ignored";
+    event=proof.event;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -160,7 +167,7 @@ export class IronAiCreditBilling {
       // Capture prior canonical state before UPDATE; the outbox decision must reflect
       // whether a GRANT could already exist, not the new refunded status.
       const previouslyPaid = order.status === "paid";
-      const fingerprint = createHash("sha256").update(raw).digest("hex");
+      const fingerprint = createHash("sha256").update(inputFingerprint+":"+proof.evidence).digest("hex");
       await client.query(`
         INSERT INTO fmcc_iron_ai_credit_provider_event(order_id,payment_ref,event_type,fingerprint)
         VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING

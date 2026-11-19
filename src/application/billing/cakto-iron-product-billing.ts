@@ -1,3 +1,4 @@
+import type { PaymentEvent } from "@/domain/billing/cakto-payment-provider-contract";
 import { createHash } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { CaktoPaymentProvider } from "@/infrastructure/subscription/cakto-payment-provider";
@@ -23,7 +24,8 @@ export class CaktoIronProductBilling {
   private readonly productId: string;
   private readonly provider: CaktoPaymentProvider;
 
-  constructor(private readonly env: Record<string, string | undefined> = process.env) {
+  constructor(private readonly env: Record<string, string | undefined> = process.env,
+    private readonly readTransport: typeof fetch = fetch) {
     this.tenantId = env.FMCC_IRON_BILLING_TENANT_ID ?? "";
     this.productId = env.FMCC_IRON_PRODUCT_ID ?? "";
     if (!/^[A-Za-z0-9._:-]{3,128}$/.test(this.tenantId) ||
@@ -77,10 +79,15 @@ export class CaktoIronProductBilling {
   /** Authenticates raw signed notification, reconciles one invoice/cycle and enqueues license changes atomically. */
   async handleWebhook(headers: Headers, raw: string): Promise<"applied" | "duplicate" | "ignored" | "unmatched"> {
     const event = this.provider.verifyWebhook(headers, raw);
-    const paymentRef = event?.paymentRef;
-    if (!event || !paymentRef || !/^[A-Za-z0-9_-]{6,128}$/.test(paymentRef)) return "ignored";
-    // Provider-specific event remains inside the verified provider boundary.
-    const sourceEvent = (JSON.parse(raw) as { event?: string }).event;
+    if(!event)return "ignored";
+    return this.reconcile(event,String((JSON.parse(raw) as {event?:unknown}).event??""),createHash("sha256").update(raw).digest("hex"));
+  }
+
+  /** Internal processor only: READ confirmation is mandatory even for queued observations. */
+  async reconcile(observation: PaymentEvent, sourceEvent: string, fingerprint: string): Promise<"applied"|"duplicate"|"ignored"|"unmatched"> {
+    const paymentRef=observation.paymentRef;
+    if(!paymentRef||observation.offerInterval==="one_time")return "ignored";
+    let event=observation;
     const accepted = ["purchase_approved", "subscription_renewed", "subscription_late_recovered", "refund", "chargeback",
       "subscription_canceled", "subscription_late", "subscription_renewal_refused"];
     if (!sourceEvent || !accepted.includes(sourceEvent)) return "ignored";
@@ -92,6 +99,10 @@ export class CaktoIronProductBilling {
     if (event.type === "payment_confirmed" && (!event.amount ||
       event.amount.currency !== "BRL" || event.amount.amountMinor !== binding.invoice.amountMinor)) return "ignored";
 
+    const proof=await this.provider.confirmFinancialEvent(event,sourceEvent,this.readTransport);
+    if(!proof)return "ignored";
+    event=proof.event;
+    const verifiedFingerprint=createHash("sha256").update(fingerprint+":"+proof.evidence).digest("hex");
     return db.transaction(async (tx) => {
       // Anchor is the FIRST, pre-authorized checkout invoice ID from Cakto's sck.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${event.subscriptionRef}, 0))`);
@@ -128,7 +139,7 @@ export class CaktoIronProductBilling {
         externalEventId: "cakto:" + event.type + ":" + paymentRef,
         status: "processed", eventType: event.type, externalPaymentId: paymentRef,
         externalReference: event.subscriptionRef,
-        payloadFingerprint: createHash("sha256").update(raw).digest("hex"),
+        payloadFingerprint: verifiedFingerprint,
         processedAt: new Date(),
       }).onConflictDoNothing().returning({ id: billingGatewayEvents.id });
       if (!receipt) return "duplicate" as const;
