@@ -13,6 +13,7 @@ import {
   billingCustomerBindings,
   billingCustomers,
   billingGatewayAccounts,
+  billingGatewayEvents,
   billingInvoices,
   billingProviderPayments,
   billingProductPlans,
@@ -70,7 +71,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       eq(billingCustomerBindings.productId, productId),
       eq(billingCustomerBindings.externalTenantId, gymId),
     )).orderBy(desc(billingSubscriptions.createdAt), desc(billingSubscriptions.id)).limit(1);
-    if (!subscription) return { subscription: null, invoices: [], historyTruncated: false };
+    if (!subscription) return { subscription: null, invoices: [], historyTruncated: false, scheduleAnchor: null, caktoManagementAvailable: false };
 
     const invoices = await db.select({
       invoiceId: billingInvoices.id,
@@ -90,7 +91,49 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       eq(billingInvoices.productId, productId),
       eq(billingInvoices.customerId, subscription.customerId),
     )).orderBy(desc(billingInvoices.createdAt), desc(billingInvoices.id)).limit(25);
+    // Determine gateway from immutable invoices, not the product's current route.
+    const gateways = await db.selectDistinct({
+      provider: billingGatewayAccounts.provider, environment: billingGatewayAccounts.environment,
+    }).from(billingInvoices).innerJoin(billingGatewayAccounts, and(
+      eq(billingGatewayAccounts.tenantId, billingInvoices.tenantId),
+      eq(billingGatewayAccounts.id, billingInvoices.gatewayAccountId),
+    )).where(and(
+      eq(billingInvoices.tenantId, tenantId),
+      eq(billingInvoices.productId, productId),
+      eq(billingInvoices.customerId, subscription.customerId),
+      eq(billingInvoices.subscriptionId, subscription.subscriptionId),
+    )).limit(2);
+    const caktoManagementAvailable = gateways.length === 1 && gateways[0].provider === "cakto" &&
+      gateways[0].environment === "production";
+    // Only the original signed purchase (reference equals its invoice) can
+    // bootstrap a provider readback. Renewal invoices never substitute for it.
+    const anchors = caktoManagementAvailable && subscription.interval ? await db.select({
+      invoiceId: billingInvoices.id, paymentId: billingProviderPayments.externalPaymentId,
+      amountMinor: billingInvoices.amountMinor,
+    }).from(billingInvoices).innerJoin(billingProviderPayments, and(
+      eq(billingProviderPayments.tenantId, billingInvoices.tenantId),
+      eq(billingProviderPayments.invoiceId, billingInvoices.id),
+      eq(billingProviderPayments.gatewayAccountId, billingInvoices.gatewayAccountId),
+    )).innerJoin(billingGatewayEvents, and(
+      eq(billingGatewayEvents.tenantId, billingInvoices.tenantId),
+      eq(billingGatewayEvents.gatewayAccountId, billingInvoices.gatewayAccountId),
+      eq(billingGatewayEvents.externalPaymentId, billingProviderPayments.externalPaymentId),
+      eq(billingGatewayEvents.externalReference, sql<string>`${billingInvoices.id}::text`),
+      eq(billingGatewayEvents.eventType, "payment_confirmed"),
+      eq(billingGatewayEvents.status, "processed"),
+    )).where(and(
+      eq(billingInvoices.tenantId, tenantId),
+      eq(billingInvoices.productId, productId),
+      eq(billingInvoices.customerId, subscription.customerId),
+      eq(billingInvoices.subscriptionId, subscription.subscriptionId),
+    )).limit(2) : [];
+    const scheduleAnchor = anchors.length === 1 &&
+      (subscription.interval === "monthly" || subscription.interval === "yearly") ? {
+        ...anchors[0], planCode: subscription.planCode,
+        interval: subscription.interval === "monthly" ? "month" as const : "year" as const,
+      } : null;
     return {
+      scheduleAnchor, caktoManagementAvailable,
       subscription: {
         id: subscription.subscriptionId,
         planCode: subscription.planCode,

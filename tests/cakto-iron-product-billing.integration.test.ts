@@ -136,7 +136,9 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     expect(history.invoices.every(row => row.recordedPaymentStatus === "refunded" && row.paymentRecordedAt instanceof Date)).toBe(true);
     expect(history.invoices.every(row => !Object.hasOwn(row, "externalPaymentId"))).toBe(true);
     const foreign = await new PostgresProductBillingAuthorityRepository().readIronCommerceCustomer(tenant, productId, randomUUID());
-    expect(foreign).toEqual({ subscription: null, invoices: [], historyTruncated: false });
+    expect(foreign).toEqual({ subscription: null, invoices: [], historyTruncated: false, scheduleAnchor: null, caktoManagementAvailable: false });
+    expect(history.caktoManagementAvailable).toBe(true);
+    expect(history.scheduleAnchor).toMatchObject({ invoiceId, paymentId: order1, amountMinor: 26900, planCode: "IRON_PRO", interval: "month" });
 
     const tampered = notification("purchase_approved", "order_forged", "paid");
     await expect(billing.handleWebhook(tampered.headers, tampered.raw.replace('"amount":269', '"amount":1'))).rejects.toThrow("webhook.signature_invalid");

@@ -86,6 +86,86 @@ export class CaktoPaymentProvider implements PaymentProvider {
     return event;
   }
 
+  /**
+   * Read-only provider schedule. The caller supplies the original invoice and
+   * payment ID from the signed, tenant-scoped Command ledger, never from UI.
+   * Docs: https://docs.cakto.com.br/comece-aqui/primeira-chamada
+   * https://docs.cakto.com.br/api-reference/orders/retrieve
+   * https://docs.cakto.com.br/api-reference/subscriptions/retrieve
+   */
+  async readSubscriptionSchedule(input: {
+    invoiceId: string; paymentId: string; planCode: string; amountMinor: number;
+    interval: "month" | "year";
+  }, transport: typeof fetch = fetch): Promise<{ nextPaymentAt: string | null; observedAt: string }> {
+    const clientId = this.env.FMCC_CAKTO_READ_CLIENT_ID;
+    const clientSecret = this.env.FMCC_CAKTO_READ_CLIENT_SECRET;
+    if (!clientId || !clientSecret || !REF.test(input.invoiceId) || !REF.test(input.paymentId))
+      throw new Error("cakto.schedule_not_configured_or_bound");
+    const offers = this.offers.filter(x => x.planCode === input.planCode &&
+      x.amountMinor === input.amountMinor && x.interval === input.interval);
+    if (offers.length !== 1) throw new Error("cakto.schedule_offer_invalid");
+    const offer = offers[0];
+    const base = "https://api.cakto.com.br/public_api/";
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8_000);
+    const data = async (path: string, init: RequestInit): Promise<Record<string, unknown>> => {
+      const response = await transport(base + path, {
+        ...init, redirect: "error", cache: "no-store", signal: controller.signal,
+      });
+      if (!response.ok || !response.body) throw new Error("cakto.schedule_http_failure");
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > 262144) {
+          await reader.cancel().catch(() => undefined);
+          throw new Error("cakto.schedule_response_limit");
+        }
+        chunks.push(value);
+      }
+      const parsed: unknown = JSON.parse(new TextDecoder().decode(Buffer.concat(chunks)));
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+        throw new Error("cakto.schedule_response_invalid");
+      return parsed as Record<string, unknown>;
+    };
+    try {
+      const auth = await data("token/", {
+        method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret }),
+      });
+      if (typeof auth.access_token !== "string" || auth.access_token.length < 16 ||
+          auth.access_token.length > 8192 || !/^[A-Za-z0-9._~+\/-]+={0,2}$/.test(auth.access_token) ||
+          String(auth.token_type).toLowerCase() !== "bearer")
+        throw new Error("cakto.schedule_auth_invalid");
+      const headers = { authorization: "Bearer " + auth.access_token };
+      const order = await data("orders/" + input.paymentId + "/", { method: "GET", headers });
+      const product = order.product as { id?: unknown } | null;
+      if (order.id !== input.paymentId || order.sck !== input.invoiceId ||
+          order.type !== "subscription" || order.offer_type !== "main" ||
+          order.currency !== "BRL" || product?.id !== offer.productId ||
+          typeof order.subscription !== "string" || !REF.test(order.subscription))
+        throw new Error("cakto.schedule_order_binding_invalid");
+      const subscription = await data("subscriptions/" + order.subscription + "/", { method: "GET", headers });
+      if (subscription.id !== order.subscription || subscription.parent_order !== input.paymentId ||
+          subscription.product !== offer.productId || subscription.offer !== offer.offerId)
+        throw new Error("cakto.schedule_subscription_binding_invalid");
+      let nextPaymentAt: string | null = null;
+      const value = subscription.next_payment_date;
+      if (subscription.status === "active") {
+        if (value !== null && (typeof value !== "string" || !Number.isFinite(Date.parse(value))))
+          throw new Error("cakto.schedule_date_invalid");
+        if (typeof value === "string") nextPaymentAt = new Date(value).toISOString();
+      }
+      return { nextPaymentAt, observedAt: this.now().toISOString() };
+    } catch {
+      // Never propagate provider response, credentials or buyer PII to logs/UI.
+      throw new Error("cakto.schedule_unavailable");
+    } finally { clearTimeout(timer); }
+  }
+
   async findSubscriptionByReference(reference: string): Promise<ProviderSubscription | null> {
     // This adapter never creates a remote subscription by POST. No remote recovery needed.
     void reference;

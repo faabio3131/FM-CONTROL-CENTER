@@ -77,3 +77,41 @@ describe("Cakto hosted checkout and authenticated webhook", () => {
       price: { amountMinor: 1, currency: "BRL" }, interval: "month", planCode: "IRON_PRO", description: "IRON", firstDueDate: "2026-11-09" })).rejects.toThrow("cakto.offer_not_configured_or_ambiguous");
   });
 });
+
+
+describe("documented Cakto read-only subscription schedule", () => {
+  it("validates order, invoice, original subscription and offer; returns only schedule metadata", async () => {
+    const invoiceId = "fa9c7a11-5725-4495-bc16-f09a86c52d3e";
+    const paymentId = "a9c7a111-5725-4495-bc16-f09a86c52d3e";
+    const subscriptionId = "b9c7a111-5725-4495-bc16-f09a86c52d3e";
+    const cfg = { FMCC_CAKTO_WEBHOOK_SECRET: "ci-secret-"+"x".repeat(40),
+      FMCC_CAKTO_READ_CLIENT_ID: "ci-client", FMCC_CAKTO_READ_CLIENT_SECRET: "ci-secret",
+      FMCC_CAKTO_CHECKOUTS_JSON: JSON.stringify([{offerId:"offer_ci", productId:"product_ci",
+        planCode:"IRON_PRO", amountMinor:26900, interval:"month", checkoutUrl:"https://pay.cakto.com.br/official"}]) };
+    let foreign = false;
+    const transport = (async (url: string|URL|Request, init?: RequestInit) => {
+      const u = new URL(String(url));
+      expect(u.origin).toBe("https://api.cakto.com.br");
+      expect(init?.redirect).toBe("error");
+      if (u.pathname.endsWith("/token/")) return new Response(JSON.stringify({access_token:"ci-token-"+"a".repeat(40),token_type:"Bearer"}));
+      expect(new Headers(init?.headers).get("authorization")).toContain("Bearer ci-token-");
+      if (u.pathname.includes("/orders/")) return new Response(JSON.stringify({
+        id:paymentId,sck:invoiceId,type:"subscription",offer_type:"main",currency:"BRL",
+        product:{id:"product_ci"},subscription:subscriptionId,customer:{email:"not-returned@example.com"},
+      }));
+      return new Response(JSON.stringify({
+        id:subscriptionId,parent_order:foreign?"another-order":paymentId,product:"product_ci",
+        offer:"offer_ci",status:"active",next_payment_date:"2027-01-18T00:00:00Z",customer:"private",
+      }));
+    }) as typeof fetch;
+    const provider = new CaktoPaymentProvider(cfg);
+    const input = {invoiceId,paymentId,planCode:"IRON_PRO",amountMinor:26900,interval:"month" as const};
+    const result = await provider.readSubscriptionSchedule(input,transport);
+    expect(result.nextPaymentAt).toBe("2027-01-18T00:00:00.000Z");
+    expect(Object.keys(result).sort()).toEqual(["nextPaymentAt","observedAt"]);
+    foreign = true;
+    await expect(provider.readSubscriptionSchedule(input,transport)).rejects.toThrow("cakto.schedule_unavailable");
+    await expect(provider.readSubscriptionSchedule({...input,paymentId:"not-a-provider-order"},transport))
+      .rejects.toThrow("cakto.schedule_not_configured_or_bound");
+  });
+});

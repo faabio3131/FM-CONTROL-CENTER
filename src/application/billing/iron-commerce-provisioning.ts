@@ -131,13 +131,26 @@ export class IronCommerceProvisioning {
     });
     if (owned.length !== 1) throw new Error("iron.commerce_subscription_invalid");
     const data = await this.provider.readIronCommerceCustomer(conf.tenantId, conf.productId, input.gymId);
+    let schedule: { nextPaymentAt: string | null; observedAt: string } | null = null;
+    if (data.scheduleAnchor && data.subscription?.status === "active" &&
+        this.env.FMCC_CAKTO_READ_CLIENT_ID && this.env.FMCC_CAKTO_READ_CLIENT_SECRET) {
+      try {
+        schedule = await new CaktoPaymentProvider(this.env).readSubscriptionSchedule(data.scheduleAnchor, this.transport);
+      } catch {
+        // Canonical local history remains readable when the read-only provider is offline.
+      }
+    }
     return {
       authority: "FM_COMMAND" as const,
       productCode: "IRON_FIT_CORE" as const,
       gymId: input.gymId,
       source: "FM_COMMAND_CANONICAL" as const,
       checkedAt: new Date().toISOString(),
-      subscription: data.subscription,
+      subscription: data.subscription ? { ...data.subscription,
+        nextPaymentAt: schedule?.nextPaymentAt ?? null,
+        scheduleObservedAt: schedule?.observedAt ?? null,
+        caktoManagementAvailable: data.caktoManagementAvailable === true,
+      } : null,
       invoices: data.invoices,
       historyTruncated: data.historyTruncated,
       settlementConfirmedByThisView: false as const,
