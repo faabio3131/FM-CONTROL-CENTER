@@ -286,22 +286,29 @@ export class CaktoPaymentProvider implements PaymentProvider {
       if (!body || typeof body !== "object" || Array.isArray(body))
         throw new WebhookRejectedError("webhook.signature_invalid");
       const envelope = body as Record<string, unknown>;
-      if (typeof envelope.secret !== "string" || typeof envelope.event !== "string" ||
+      if (typeof envelope.event !== "string" ||
           !["pix_gerado", "boleto_gerado", "checkout_abandonment"].includes(envelope.event))
-        throw new WebhookRejectedError("webhook.signature_invalid");
+        throw new WebhookRejectedError("webhook.signature_invalid", "hmac_required");
+      if (typeof envelope.secret !== "string")
+        throw new WebhookRejectedError("webhook.signature_invalid", "body_secret_missing");
       const received = createHash("sha256").update(envelope.secret, "utf8").digest();
       const configured = createHash("sha256").update(secret, "utf8").digest();
       if (!timingSafeEqual(received, configured))
-        throw new WebhookRejectedError("webhook.signature_invalid");
+        throw new WebhookRejectedError("webhook.signature_invalid", "body_secret_mismatch");
       // Deliberately do not return a PaymentEvent, even if fixture data says paid.
       return null;
     }
     const timestamp = headers.get("x-cakto-timestamp") ?? "";
     const signature = headers.get("x-cakto-signature") ?? "";
-    if (!/^\d{10}$/.test(timestamp) || !/^v1=[0-9a-f]{64}$/i.test(signature) ||
-        Math.abs(this.now().getTime() / 1000 - Number(timestamp)) > 300) throw new WebhookRejectedError("webhook.signature_invalid");
+    if (!headers.has("x-cakto-timestamp") || !headers.has("x-cakto-signature"))
+      throw new WebhookRejectedError("webhook.signature_invalid", "partial_headers");
+    if (!/^\d{10}$/.test(timestamp) || !/^v1=[0-9a-f]{64}$/i.test(signature))
+      throw new WebhookRejectedError("webhook.signature_invalid", "header_format");
+    if (Math.abs(this.now().getTime() / 1000 - Number(timestamp)) > 300)
+      throw new WebhookRejectedError("webhook.signature_invalid", "timestamp_outside_window");
     const expected = "v1=" + createHmac("sha256", secret).update(timestamp + ".").update(rawBody).digest("hex");
-    if (!timingSafeEqual(Buffer.from(signature.toLowerCase()), Buffer.from(expected))) throw new WebhookRejectedError("webhook.signature_invalid");
+    if (!timingSafeEqual(Buffer.from(signature.toLowerCase()), Buffer.from(expected)))
+      throw new WebhookRejectedError("webhook.signature_invalid", "hmac_mismatch");
     let body: unknown;
     try { body = JSON.parse(rawBody); } catch { throw new WebhookRejectedError("webhook.body_invalid"); }
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new WebhookRejectedError("webhook.body_invalid");

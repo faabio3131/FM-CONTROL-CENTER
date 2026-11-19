@@ -228,3 +228,22 @@ describe("Cakto OAuth cache", () => {
     } finally {vi.useRealTimers();}
   });
 });
+
+it("classifies webhook rejection without putting credential values in the error",()=>{
+  const p=provider();
+  const x=webhook(order());
+  const bad=JSON.stringify({event:"pix_gerado",secret:"not-the-secret"});
+  const cases:[Headers,string,string][]=[
+    [new Headers(),bad,"body_secret_mismatch"],
+    [new Headers(),JSON.stringify({event:"boleto_gerado"}),"body_secret_missing"],
+    [new Headers(),JSON.stringify({event:"purchase_approved",secret}),"hmac_required"],
+    [new Headers({"x-cakto-timestamp":"123"}),x.body,"partial_headers"],
+    [new Headers({"x-cakto-timestamp":"123","x-cakto-signature":"garbage"}),x.body,"header_format"],
+    [new Headers({"x-cakto-timestamp":String(Math.floor(now.getTime()/1000)-301),"x-cakto-signature":"v1="+"1".repeat(64)}),x.body,"timestamp_outside_window"],
+    [x.headers,x.body+" ","hmac_mismatch"],
+  ];
+  for(const [headers,raw,reason] of cases){
+    try { p.verifyWebhook(headers,raw); throw new Error("expected rejection"); }
+    catch(error){ expect(error).toMatchObject({message:"webhook.signature_invalid",reason}); }
+  }
+});

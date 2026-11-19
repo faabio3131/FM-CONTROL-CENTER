@@ -2,8 +2,13 @@
 export class PaymentProviderError extends Error {
   constructor(readonly code: string, readonly kind: "transient" | "rejected" | "uncertain") { super(code); this.name = "PaymentProviderError"; }
 }
+export type WebhookRejectionReason = "unspecified" | "hmac_required" | "partial_headers" |
+  "header_format" | "timestamp_outside_window" | "hmac_mismatch" |
+  "body_secret_missing" | "body_secret_mismatch";
 export class WebhookRejectedError extends Error {
-  constructor(readonly code: string) { super(code); this.name = "WebhookRejectedError"; }
+  constructor(readonly code: string, readonly reason: WebhookRejectionReason = "unspecified") {
+    super(code); this.name = "WebhookRejectedError";
+  }
 }
 export type Money = { readonly amountMinor: number; readonly currency: string };
 export type CreateSubscriptionInput = { readonly customerRef: string; readonly price: Money; readonly interval: "month" | "year"; readonly planCode: string; readonly externalReference: string; readonly description: string; readonly firstDueDate: string };

@@ -18,8 +18,12 @@ export async function POST(request: Request) {
     const result = await new IronAiCreditBilling().handleWebhook(request.headers, raw);
     return NextResponse.json({ accepted: true, result }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    if (error instanceof WebhookRejectedError)
+    if (error instanceof WebhookRejectedError) {
+      console.warn("cakto.webhook_rejected", { scope:"ai_credits", reason:error.reason,
+        timestampPresent:request.headers.has("x-cakto-timestamp"),
+        signaturePresent:request.headers.has("x-cakto-signature") });
       return NextResponse.json({ error: error.code }, { status: 401 });
+    }
     return NextResponse.json({ error: "webhook.persistence_unavailable" }, { status: 503 });
   }
 }

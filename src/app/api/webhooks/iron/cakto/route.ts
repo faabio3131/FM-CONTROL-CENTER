@@ -16,7 +16,13 @@ export async function POST(request: Request) {
     const result = await new CaktoIronProductBilling().handleWebhook(request.headers, raw);
     return NextResponse.json({ accepted: true, result }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
-    if (e instanceof WebhookRejectedError) return NextResponse.json({ error: e.code }, { status: 401 });
+    if (e instanceof WebhookRejectedError) {
+      // Fixed enum only. Never log a header value, secret, signature, buyer or raw body.
+      console.warn("cakto.webhook_rejected", { scope:"recurring", reason:e.reason,
+        timestampPresent:request.headers.has("x-cakto-timestamp"),
+        signaturePresent:request.headers.has("x-cakto-signature") });
+      return NextResponse.json({ error: e.code }, { status: 401 });
+    }
     // Payment events are never acknowledged if canonical storage/entitlement outbox failed.
     return NextResponse.json({ error: "webhook.persistence_unavailable" }, { status: 503 });
   }

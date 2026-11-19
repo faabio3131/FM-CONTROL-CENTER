@@ -20,11 +20,13 @@ async function withPublicationFence<T>(tenantId: string, productId: string, sour
   const client = await pool.connect();
   const key = JSON.stringify(["fmcc.billing.plan-publication.v1",tenantId,productId,sourceId]);
   let locked = false;
-  let discard = false;
+  // Discard if acquisition itself fails: the server could have taken the lock.
+  let discard = true;
   try {
     const acquired = await client.query<{ acquired: boolean }>(
       "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired", [key]);
     locked = acquired.rows[0]?.acquired === true;
+    discard = false;
     if (!locked) throw new Error("billing.iron_publication_busy");
     return await work(drizzle(client));
   } finally {
