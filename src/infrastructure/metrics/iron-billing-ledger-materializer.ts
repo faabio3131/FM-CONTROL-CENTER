@@ -47,8 +47,8 @@ export class IronBillingLedgerMaterializer {
       // Both ledgers share one MVCC statement snapshot. One-time orders
       // contribute to gross billed only; they can never establish paid coverage.
       type LedgerRow = {kind:"recurring"|"credit";subscriptionId:string;subscriptionStatus:string;
-        paidThrough:Date|null;gymId:string|null;invoiceId:string|null;invoiceStatus:string|null;
-        amountMinor:string|null;currency:string|null;periodEnd:Date|null;createdAt:Date|null;
+        paidThrough:Date|string|null;gymId:string|null;invoiceId:string|null;invoiceStatus:string|null;
+        amountMinor:string|null;currency:string|null;periodEnd:Date|string|null;createdAt:Date|string|null;
         recordedPaymentStatus:string|null;creditGymId:string|null};
       const result = await tx.execute<LedgerRow>(sql`
         SELECT 'recurring'::text AS kind,s.id AS "subscriptionId",s.status AS "subscriptionStatus",
@@ -76,7 +76,14 @@ export class IronBillingLedgerMaterializer {
         ORDER BY kind,"subscriptionId","invoiceId"
         LIMIT 100001
       `);
-      const rows=result.rows;
+      function timestamp(value:Date|string|null):Date|null {
+        if(value===null) return null;
+        const date=new Date(value);
+        if(!Number.isFinite(date.getTime())) throw new Error("metrics.iron_billing_timestamp_invalid");
+        return date;
+      }
+      const rows=result.rows.map(row=>({...row,paidThrough:timestamp(row.paidThrough),
+        periodEnd:timestamp(row.periodEnd),createdAt:timestamp(row.createdAt)}));
       if(rows.length>100000) throw new Error("metrics.iron_billing_snapshot_limit");
       if(!rows.length) return {materialized:0}; // unobserved, NOT zero
       const subscriptions = new Map<string,{id:string,status:string,paidThrough:Date|null,gymId:string}>();
