@@ -2060,3 +2060,40 @@ form.card>label{margin-top:2px}
 }
 .fmcc-source-coverage-close:hover{background:rgba(251,191,113,.13)}
 .fmcc-source-coverage-close:focus-visible{outline:2px solid #fbbf71;outline-offset:3px}
+
+/* F14: summary metrics are real, accessible navigation to governed detail. */
+.fmcc-operational-card-link{
+  color:inherit;
+  text-decoration:none;
+  cursor:pointer;
+  transition:border-color .16s ease, background .16s ease;
+}
+.fmcc-operational-card-link:hover,
+.fmcc-operational-card-link[aria-expanded="true"]{
+  border-color:rgba(251,191,113,.68);
+  background:linear-gradient(180deg,rgba(26,20,13,.96),rgba(13,13,15,.96));
+}
+.fmcc-operational-card-link:focus-visible{
+  outline:2px solid #fbbf71;
+  outline-offset:3px;
+}
+.fmcc-operational-card-hint{
+  margin-top:auto;
+  color:#fbbf71;
+  font-size:.75rem;
+  font-weight:700;
+}
+.fmcc-operations-detail{
+  scroll-margin-top:90px;
+  border-color:rgba(251,191,113,.54);
+}
+.fmcc-operations-detail-head{
+  display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
+  flex-wrap:wrap;margin-bottom:12px;
+}
+.fmcc-operations-detail-head h2{margin:4px 0}
+.fmcc-operations-source-summary{margin-top:18px;display:grid;gap:8px}
+.fmcc-operations-source-summary .foundation-grid{margin:0}
+@media(max-width:680px){
+  .fmcc-operations-detail-head{align-items:stretch}
+}
