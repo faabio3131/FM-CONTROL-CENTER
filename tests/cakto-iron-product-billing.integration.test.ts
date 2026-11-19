@@ -11,8 +11,8 @@ const tenant = "ci-cakto-" + randomUUID().slice(0, 12);
 const gym = randomUUID();
 const ironSubscription = randomUUID();
 const secret = "ci-cakto-only-" + "x".repeat(40);
-const order1 = "order_initial_" + randomUUID().slice(0, 8);
-const order2 = "order_renewed_" + randomUUID().slice(0, 8);
+const order1 = randomUUID();
+const order2 = randomUUID();
 let productId = "";
 let invoiceId = "";
 
@@ -44,6 +44,7 @@ function notification(event: string, orderId: string, status: string, amount = 2
 
 afterAll(async () => {
   if (!enabled) return;
+  await pool.query("DELETE FROM fmcc_billing_audit_event WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_iron_entitlement_outbox WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_gateway_event WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_provider_payment WHERE tenant_id=$1", [tenant]);
@@ -116,6 +117,14 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     expect(paidCycles.rowCount).toBe(2);
     expect(await worker.processOne()).toBe("delivered");
 
+    const receiptRepo = new PostgresProductBillingAuthorityRepository();
+    const receiptInput={tenantId:tenant,productId,gymId:gym,invoiceId,actorId:randomUUID(),requestId:randomUUID()};
+    await expect(receiptRepo.reserveIronReceipt({...receiptInput,gymId:randomUUID()})).rejects.toThrow("iron.receipt_unavailable");
+    const attempts=await Promise.allSettled([receiptRepo.reserveIronReceipt(receiptInput),
+      receiptRepo.reserveIronReceipt({...receiptInput,requestId:randomUUID()})]);
+    expect(attempts.filter(x=>x.status==="fulfilled")).toHaveLength(1);
+    expect(attempts.find(x=>x.status==="fulfilled")).toEqual({status:"fulfilled",value:order1});
+    expect(attempts.filter(x=>x.status==="rejected")).toHaveLength(1);
     const oldRefund = notification("refund", order1, "refunded");
     expect(await billing.handleWebhook(oldRefund.headers, oldRefund.raw)).toBe("applied");
     const stillActive = await pool.query("SELECT status FROM fmcc_billing_subscription WHERE id=$1", [subscriptionId]);
@@ -123,6 +132,7 @@ describe("Cakto -> canonical IRON billing -> durable S2S (disposable PostgreSQL 
     const queueBefore = await pool.query("SELECT count(*)::int AS n FROM fmcc_billing_iron_entitlement_outbox WHERE tenant_id=$1 AND event_type='LICENSE_SUSPEND'", [tenant]);
     expect(queueBefore.rows[0].n).toBe(0);
 
+    await expect(receiptRepo.reserveIronReceipt({...receiptInput,requestId:randomUUID()})).rejects.toThrow("iron.receipt_unavailable");
     const currentRefund = notification("chargeback", order2, "refunded");
     expect(await billing.handleWebhook(currentRefund.headers, currentRefund.raw)).toBe("applied");
     const suspended = await pool.query("SELECT status FROM fmcc_billing_subscription WHERE id=$1", [subscriptionId]);

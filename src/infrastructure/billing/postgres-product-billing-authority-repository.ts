@@ -1,6 +1,7 @@
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type {
   BillingPreparationView,
   BillingProductPlanView,
@@ -9,6 +10,7 @@ import type {
 } from "@/application/billing/product-billing-authority-service";
 import { db } from "@/infrastructure/db/client";
 import {
+  billingAuditEvents,
   billingCommandRequests,
   billingCustomerBindings,
   billingCustomers,
@@ -82,10 +84,16 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       createdAt: billingInvoices.createdAt,
       recordedPaymentStatus: billingProviderPayments.status,
       paymentRecordedAt: billingProviderPayments.createdAt,
+      gatewayProvider: billingGatewayAccounts.provider,
+      gatewayEnvironment: billingGatewayAccounts.environment,
+      gatewayStatus: billingGatewayAccounts.status,
     }).from(billingInvoices).leftJoin(billingProviderPayments, and(
       eq(billingProviderPayments.tenantId, billingInvoices.tenantId),
       eq(billingProviderPayments.invoiceId, billingInvoices.id),
       eq(billingProviderPayments.gatewayAccountId, billingInvoices.gatewayAccountId),
+    )).innerJoin(billingGatewayAccounts, and(
+      eq(billingGatewayAccounts.tenantId,billingInvoices.tenantId),
+      eq(billingGatewayAccounts.id,billingInvoices.gatewayAccountId),
     )).where(and(
       eq(billingInvoices.tenantId, tenantId),
       eq(billingInvoices.productId, productId),
@@ -146,6 +154,62 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       invoices: invoices.slice(0, 24),
       historyTruncated: invoices.length > 24,
     };
+  }
+
+  /**
+   * Reserve a receipt email attempt under a per-academy lock. The provider
+   * order identity is retrieved ONLY from the paid ledger + verified event;
+   * renewal events must still point to the same original subscription anchor.
+   * Failed/uncertain requests consume the cooldown; no automatic resend.
+   */
+  async reserveIronReceipt(input: {tenantId:string;productId:string;gymId:string;invoiceId:string;actorId:string;requestId:string}) {
+    const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    if (!input.tenantId.trim() || ![input.productId,input.gymId,input.invoiceId,input.actorId,input.requestId].every(x=>uuid.test(x)))
+      throw new Error("iron.receipt_unavailable");
+    const anchor=alias(billingInvoices,"receipt_anchor");
+    return db.transaction(async tx=>{
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${["iron.receipt",input.tenantId,input.productId,input.gymId].join(":")},0))`);
+      const rows=await tx.select({paymentId:billingProviderPayments.externalPaymentId})
+        .from(billingInvoices).innerJoin(billingCustomerBindings,and(
+          eq(billingCustomerBindings.tenantId,billingInvoices.tenantId),
+          eq(billingCustomerBindings.productId,billingInvoices.productId),
+          eq(billingCustomerBindings.customerId,billingInvoices.customerId)))
+        .innerJoin(billingGatewayAccounts,and(eq(billingGatewayAccounts.tenantId,billingInvoices.tenantId),
+          eq(billingGatewayAccounts.id,billingInvoices.gatewayAccountId)))
+        .innerJoin(billingProviderPayments,and(eq(billingProviderPayments.tenantId,billingInvoices.tenantId),
+          eq(billingProviderPayments.invoiceId,billingInvoices.id),
+          eq(billingProviderPayments.gatewayAccountId,billingInvoices.gatewayAccountId)))
+        .innerJoin(billingGatewayEvents,and(eq(billingGatewayEvents.tenantId,billingInvoices.tenantId),
+          eq(billingGatewayEvents.gatewayAccountId,billingInvoices.gatewayAccountId),
+          eq(billingGatewayEvents.externalPaymentId,billingProviderPayments.externalPaymentId)))
+        .innerJoin(anchor,and(eq(anchor.tenantId,billingInvoices.tenantId),
+          eq(anchor.productId,billingInvoices.productId),eq(anchor.customerId,billingInvoices.customerId),
+          eq(anchor.subscriptionId,billingInvoices.subscriptionId),eq(anchor.gatewayAccountId,billingInvoices.gatewayAccountId),
+          eq(billingGatewayEvents.externalReference,sql<string>`${anchor.id}::text`)))
+        .where(and(eq(billingInvoices.tenantId,input.tenantId),eq(billingInvoices.productId,input.productId),
+          eq(billingCustomerBindings.externalTenantId,input.gymId),eq(billingInvoices.id,input.invoiceId),
+          eq(billingInvoices.status,"paid"),eq(billingProviderPayments.status,"received"),
+          eq(billingGatewayAccounts.provider,"cakto"),eq(billingGatewayAccounts.environment,"production"),
+          eq(billingGatewayAccounts.status,"enabled"),eq(billingGatewayEvents.eventType,"payment_confirmed"),
+          eq(billingGatewayEvents.status,"processed"))).limit(2);
+      if(rows.length!==1 || !uuid.test(rows[0].paymentId)) throw new Error("iron.receipt_unavailable");
+      const action="iron.receipt.resend.requested";
+      const correlationId="iron-receipt:"+input.invoiceId+":"+input.requestId;
+      const previous=await tx.select({createdAt:billingAuditEvents.createdAt,correlationId:billingAuditEvents.correlationId})
+        .from(billingAuditEvents).where(and(eq(billingAuditEvents.tenantId,input.tenantId),
+          eq(billingAuditEvents.subjectId,input.gymId),eq(billingAuditEvents.action,action),
+          gte(billingAuditEvents.createdAt,new Date(Date.now()-3600000)))).orderBy(desc(billingAuditEvents.createdAt)).limit(5);
+      if(previous.length>=5 || previous.some(row=>row.correlationId===correlationId ||
+        row.createdAt.getTime()>Date.now()-120000)) throw new Error("iron.receipt_cooldown");
+      // Replays after cooldown still must not re-send an old request ID.
+      const replay=await tx.select({id:billingAuditEvents.id}).from(billingAuditEvents)
+        .where(and(eq(billingAuditEvents.tenantId,input.tenantId),eq(billingAuditEvents.subjectId,input.gymId),
+          eq(billingAuditEvents.action,action),eq(billingAuditEvents.correlationId,correlationId))).limit(1);
+      if(replay.length) throw new Error("iron.receipt_cooldown");
+      await tx.insert(billingAuditEvents).values({tenantId:input.tenantId,actorId:input.actorId,
+        action,subjectId:input.gymId,correlationId});
+      return rows[0].paymentId;
+    });
   }
 
   /**

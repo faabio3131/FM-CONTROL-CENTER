@@ -151,10 +151,36 @@ export class IronCommerceProvisioning {
         scheduleObservedAt: schedule?.observedAt ?? null,
         caktoManagementAvailable: data.caktoManagementAvailable === true,
       } : null,
-      invoices: data.invoices,
+      invoices: data.invoices.map(({gatewayProvider,gatewayEnvironment,gatewayStatus,...invoice})=>({
+        ...invoice,receiptReference: invoice.status === "paid" && invoice.recordedPaymentStatus === "received" &&
+          gatewayProvider === "cakto" && gatewayEnvironment === "production" && gatewayStatus === "enabled" &&
+          this.env.FMCC_CAKTO_RECEIPT_CLIENT_ID && this.env.FMCC_CAKTO_RECEIPT_CLIENT_SECRET ? invoice.invoiceId : null,
+      })),
       historyTruncated: data.historyTruncated,
       settlementConfirmedByThisView: false as const,
     };
+  }
+
+  async resendReceipt(input: {gymId:string;expectedSubscriptionId:string;invoiceId:string;actorId:string;requestId:string}) {
+    if (![input.gymId,input.expectedSubscriptionId,input.invoiceId,input.actorId,input.requestId].every(x=>UUID.test(x)) ||
+        !this.env.FMCC_CAKTO_RECEIPT_CLIENT_ID || !this.env.FMCC_CAKTO_RECEIPT_CLIENT_SECRET)
+      throw new Error("iron.receipt_unavailable");
+    const conf=this.config();
+    const snapshot=await this.fetchControl(conf.base+"/snapshot",conf.token);
+    const subscriptions=(snapshot as {subscriptions?:unknown}|null)?.subscriptions;
+    if(!Array.isArray(subscriptions)||subscriptions.filter((s:unknown)=>{
+      if(!s||typeof s!=="object"||Array.isArray(s)) return false;
+      const row=s as Record<string,unknown>;
+      return row.tenant_id===input.gymId && row.external_id===input.expectedSubscriptionId;
+    }).length!==1) throw new Error("iron.receipt_unavailable");
+    const provider=new CaktoPaymentProvider(this.env);
+    const paymentId=await this.provider.reserveIronReceipt({
+      tenantId:conf.tenantId,productId:conf.productId,gymId:input.gymId,invoiceId:input.invoiceId,
+      actorId:input.actorId,requestId:input.requestId,
+    });
+    await provider.resendApprovedEmail(paymentId,this.transport);
+    return {productCode:"IRON_FIT_CORE" as const, provider:"CAKTO" as const,
+      status:"EMAIL_RESEND_ACCEPTED" as const,deliveryConfirmed:false as const};
   }
 
   async prepare(input: IronCommerceRequest): Promise<{ checkoutUrl: string; invoiceId: string; productCode: "IRON_FIT_CORE" }> {
@@ -190,6 +216,13 @@ export class IronCommerceProvisioning {
       (s as Record<string, unknown>).plan_code === binding.ironPlanCode &&
       (s as Record<string, unknown>).version === binding.ironPlanVersion);
     if (!published) throw new Error("iron.commerce_plan_not_published");
+    const route=await this.provider.getRoute(conf.tenantId,conf.productId);
+    const matchingPlans=(await this.provider.listPlans(conf.tenantId,conf.productId))
+      .filter(p=>p.planCode===input.planCode && p.status==="active" && p.currency==="BRL");
+    if (!route || route.provider!=="cakto" || route.environment!=="production" || route.status!=="enabled" ||
+        matchingPlans.length!==1 || !new CaktoPaymentProvider(this.env).hasExactlyOneOffer(
+          matchingPlans[0].amountMinor,matchingPlans[0].interval==="monthly"?"month":"year",input.planCode))
+      throw new Error("iron.commerce_offer_not_ready");
     const hash = createHash("sha256").update(JSON.stringify({
       productId: conf.productId, externalTenantId: input.gymId, planCode: input.planCode,
     })).digest("hex");

@@ -39,9 +39,9 @@ function create(overrides: { snapshot?: unknown; plans?: unknown; bindings?: Arr
       };
     },
     listPlans: async()=>[
-      {planCode:"IRON_PRO_MONTHLY",name:"Pro Mensal",interval:"monthly",amountMinor:26900,status:"active"},
-      {planCode:"IRON_PRO_YEARLY",name:"Pro Anual",interval:"yearly",amountMinor:269000,status:"active"},
-      {planCode:"IRON_FORGED",name:"Forjado",interval:"monthly",amountMinor:26900,status:"active"},
+      {planCode:"IRON_PRO_MONTHLY",name:"Pro Mensal",interval:"monthly",amountMinor:26900,currency:"BRL",status:"active"},
+      {planCode:"IRON_PRO_YEARLY",name:"Pro Anual",interval:"yearly",amountMinor:269000,currency:"BRL",status:"active"},
+      {planCode:"IRON_FORGED",name:"Forjado",interval:"monthly",amountMinor:26900,currency:"BRL",status:"active"},
     ],
     prepareSubscriptionInvoice: async (x: Record<string,unknown>)=> {
     expect(x.externalTenantId).toBe(gym);expect(x.planCode).toBe("IRON_PRO");

@@ -166,6 +166,57 @@ export class CaktoPaymentProvider implements PaymentProvider {
     } finally { clearTimeout(timer); }
   }
 
+  /** Re-send Cakto's own approved-payment email to the address stored on the
+   * paid order. Never accept a recipient, never resend access or charge. */
+  async resendApprovedEmail(paymentId: string, transport: typeof fetch = fetch): Promise<void> {
+    const clientId = this.env.FMCC_CAKTO_RECEIPT_CLIENT_ID;
+    const clientSecret = this.env.FMCC_CAKTO_RECEIPT_CLIENT_SECRET;
+    if (!clientId || !clientSecret || !REF.test(paymentId))
+      throw new Error("cakto.receipt_unavailable");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8_000);
+    async function json(path: string, init: RequestInit) {
+      const response = await transport("https://api.cakto.com.br/public_api/" + path, {
+        ...init, redirect: "error", cache: "no-store", signal: controller.signal,
+      });
+      if (!response.ok || !response.body) throw new Error("cakto.receipt_unavailable");
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let bytes = 0;
+      for (;;) {
+        const {done,value} = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 64 * 1024) {
+          await reader.cancel().catch(() => undefined);
+          throw new Error("cakto.receipt_unavailable");
+        }
+        chunks.push(value);
+      }
+      const parsed: unknown = JSON.parse(new TextDecoder().decode(Buffer.concat(chunks)));
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+        throw new Error("cakto.receipt_unavailable");
+      return parsed as Record<string,unknown>;
+    }
+    try {
+      const auth = await json("token/", {method:"POST",
+        headers:{"content-type":"application/x-www-form-urlencoded"},
+        body:new URLSearchParams({client_id:clientId,client_secret:clientSecret})});
+      if (typeof auth.access_token !== "string" || auth.access_token.length < 16 ||
+          auth.access_token.length > 8192 || !/^[A-Za-z0-9._~+\/-]+={0,2}$/.test(auth.access_token) ||
+          String(auth.token_type).toLowerCase() !== "bearer")
+        throw new Error("cakto.receipt_unavailable");
+      const result = await json("orders/" + paymentId + "/resend_approved_email/", {
+        method:"POST", headers:{authorization:"Bearer " + auth.access_token},
+      });
+      if (typeof result.detail !== "string" || !result.detail.trim())
+        throw new Error("cakto.receipt_unavailable");
+      // Only HTTP 2xx + the documented acknowledgement shape. This does NOT
+      // prove mail delivery, settle a payment, or change a subscription.
+    } catch { throw new Error("cakto.receipt_unavailable"); }
+    finally { clearTimeout(timer); }
+  }
+
   async findSubscriptionByReference(reference: string): Promise<ProviderSubscription | null> {
     // This adapter never creates a remote subscription by POST. No remote recovery needed.
     void reference;

@@ -115,3 +115,25 @@ describe("documented Cakto read-only subscription schedule", () => {
       .rejects.toThrow("cakto.schedule_not_configured_or_bound");
   });
 });
+
+
+describe("official Cakto receipt resend",()=>{
+  it("only posts to the paid order's original-recipient endpoint; never includes an address",async()=>{
+    const cfg={...config,FMCC_CAKTO_RECEIPT_CLIENT_ID:"ci-receipt",FMCC_CAKTO_RECEIPT_CLIENT_SECRET:"ci-only"};
+    const requests:{url:string,init?:RequestInit}[]=[];
+    const transport=(async(url:string|URL|Request,init?:RequestInit)=>{
+      requests.push({url:String(url),init});
+      if(String(url).endsWith("/token/"))return new Response(JSON.stringify({access_token:"ci-token-"+"x".repeat(40),token_type:"Bearer"}));
+      return new Response(JSON.stringify({detail:"Email reenviado com sucesso!"}));
+    }) as typeof fetch;
+    const p=new CaktoPaymentProvider(cfg);
+    await p.resendApprovedEmail(ID,transport);
+    expect(requests.length).toBe(2);
+    expect(requests[1].url).toBe("https://api.cakto.com.br/public_api/orders/"+ID+"/resend_approved_email/");
+    expect(requests[1].init?.method).toBe("POST");
+    expect(requests[1].init?.body).toBeUndefined();
+    expect(requests[1].init?.redirect).toBe("error");
+    await expect(p.resendApprovedEmail("../other",transport)).rejects.toThrow("cakto.receipt_unavailable");
+    expect(requests.length).toBe(2);
+  });
+});
