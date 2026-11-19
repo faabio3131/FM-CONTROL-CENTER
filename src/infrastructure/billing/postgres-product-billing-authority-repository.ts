@@ -316,6 +316,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       productId: billingProductRoutes.productId,
       gatewayAccountId: billingProductRoutes.gatewayAccountId,
       routeStatus: billingProductRoutes.status,
+      gatewayStatus: billingGatewayAccounts.status,
       provider: billingGatewayAccounts.provider,
       environment: billingGatewayAccounts.environment,
     }).from(billingProductRoutes).innerJoin(billingGatewayAccounts, and(
@@ -331,7 +332,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       gatewayAccountId: row.gatewayAccountId,
       provider: row.provider,
       environment: asEnvironment(row.environment),
-      status: row.routeStatus === "enabled" ? "enabled" : "disabled",
+      status: row.routeStatus === "enabled" && row.gatewayStatus === "enabled" ? "enabled" : "disabled",
     };
   }
 

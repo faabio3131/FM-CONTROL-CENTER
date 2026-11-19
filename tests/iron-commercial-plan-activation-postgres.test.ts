@@ -1,5 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
+import { IRON_FOUR_TIER_OFFERS } from "@/domain/billing/iron-four-tier-offers";
+import { auditEvents } from "@/infrastructure/db/foundation-schema";
+import type { TenantContext } from "@/domain/security/tenant-context";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "@/infrastructure/db/client";
 import { productDefinitions, sourceDefinitions, metricValues } from "@/infrastructure/db/platform-schema";
@@ -59,6 +62,7 @@ afterEach(async () => {
     "fmcc_billing_subscription", "fmcc_billing_customer_binding", "fmcc_billing_product_route",
     "fmcc_billing_gateway_account", "fmcc_billing_customer",
   ]) await pool.query("DELETE FROM " + table + " WHERE tenant_id=$1", [tenantId]);
+  await db.delete(auditEvents).where(eq(auditEvents.tenantId,tenantId));
   await db.delete(metricValues).where(eq(metricValues.tenantId,tenantId));
   await db.delete(billingProductPlans).where(eq(billingProductPlans.tenantId, tenantId));
   await db.delete(sourceDefinitions).where(eq(sourceDefinitions.tenantId, tenantId));
@@ -76,6 +80,27 @@ describe.skipIf(!enabled)("IRON FM commercial activation: disposable PostgreSQL"
         url.username !== "fmcc_restore_test") {
       throw new Error("iron_activation_requires_disposable_postgres");
     }
+  });
+
+  it("publishes exactly eight mapped offers atomically; missing offer and legacy price conflicts roll back",async()=>{
+    await seed(false);
+    const gateway=await pool.query("INSERT INTO fmcc_billing_gateway_account(tenant_id,provider,environment,label,secret_ref,status) VALUES($1,'cakto','production','ci','env://FMCC_CAKTO_WEBHOOK_SECRET','enabled') RETURNING id",[tenantId]);
+    const generic=new PostgresProductBillingAuthorityRepository();
+    await generic.configureRoute(tenantId,productId,gateway.rows[0].id);
+    const context={tenantId,userId:"ci-owner",role:"owner",correlationId:"ci-eight-offers"} as TenantContext;
+    const versions=[...new Set(IRON_FOUR_TIER_OFFERS.map(o=>o.ironPlanCode))].map(planCode=>({planCode,version:1,displayName:planCode,publishedAt:new Date().toISOString()}));
+    const catalog=async()=>versions;
+    await expect(mappingRepo.publishFourTiers(context,productId,sourceId,catalog,(_a,_i,code)=>code!=="IRON_ENTERPRISE_Y_2026")).rejects.toThrow("billing.iron_rollout_cakto_offer_missing");
+    expect(await generic.listPlans(tenantId,productId)).toHaveLength(1);
+    expect(await mappingRepo.list(tenantId,productId,sourceId)).toHaveLength(0);
+    const outcome=await mappingRepo.publishFourTiers(context,productId,sourceId,catalog,()=>true);
+    expect(outcome.changed).toBe(8);
+    expect(outcome.offers).toHaveLength(8);
+    expect(outcome.paymentExecuted).toBe(false);
+    expect((await generic.listPlans(tenantId,productId)).filter(p=>p.status==="active")).toHaveLength(8);
+    expect(await mappingRepo.list(tenantId,productId,sourceId)).toHaveLength(8);
+    expect((await mappingRepo.publishFourTiers(context,productId,sourceId,catalog,()=>true)).changed).toBe(0);
+    expect((await pool.query("SELECT count(*)::int AS n FROM fmcc_billing_invoice WHERE tenant_id=$1",[tenantId])).rows[0].n).toBe(0);
   });
 
   it("persists inactive -> active once; identical replay is idempotent", async () => {

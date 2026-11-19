@@ -5,6 +5,7 @@ import type { IronVersionedPlanMapping } from "@/domain/billing/iron-versioned-p
 import { IronCommercialPlanCreateForm } from "./iron-commercial-plan-create-form";
 import type { IronPublishedPlanVersion } from "@/infrastructure/integration/iron-commercial-connector";
 import { IronPlanVersionBindingForm } from "./iron-plan-version-binding-form";
+import { IronFourTierPublicationForm } from "./iron-four-tier-publication-form";
 import { IronCommercialPlanActivationForm } from "./iron-commercial-plan-activation-form";
 
 export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAvailable, canWrite, publishedIronPlans, publishedIronPlansAvailable }: {
@@ -21,6 +22,7 @@ export function IronCommercialPlansPanel({ productId, plans, mappings, mappingAv
       <div><span className="eyebrow">FM Tecnologia IA · Gestão comercial</span><h2>Planos e preços do IRON</h2></div>
       <p>O preço da licença IRON pertence à FM Tecnologia IA, separado das mensalidades dos alunos.</p>
     </div>
+    <IronFourTierPublicationForm productId={productId} canWrite={canWrite}/>
     <div className="panel">
       <h3>Planos comerciais</h3>
       {plans.length === 0 ? <p>Nenhum plano cadastrado.</p> : <div className="foundation-grid">
