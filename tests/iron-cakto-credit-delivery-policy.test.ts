@@ -19,3 +19,22 @@ describe("FM Command V1 signed one-time IRON Cakto credits delivery",()=>{
     expect(ledger).toContain("fmcc_iron_ai_credit_order");
   });
 });
+
+describe("Cakto financial READ mandatory production boundary",()=>{
+  it("queues authenticated observations before any external or financial effect",()=>{
+    for(const route of ["src/app/api/webhooks/iron/cakto/route.ts","src/app/api/webhooks/iron/cakto/ai-credits/route.ts"]){
+      const content=readFileSync(route,"utf8");
+      expect(content).toContain("CaktoIronReadbackInbox");
+      expect(content).toContain(".accept(");
+      expect(content).not.toContain(".handleWebhook(");
+    }
+    for(const ledger of ["src/application/billing/cakto-iron-product-billing.ts","src/application/billing/iron-ai-credit-billing.ts"])
+      expect(readFileSync(ledger,"utf8")).toContain("await this.provider.confirmFinancialEvent(");
+    const worker=readFileSync("src/app/api/internal/automation/iron/cakto-readback/drain/route.ts","utf8");
+    expect(worker).toContain('FMCC_CAKTO_READBACK_ENABLED!=="YES"');
+    expect(worker).toContain("verifyScheduledWorkerBearer");
+    const recovery=readFileSync("src/app/api/billing/products/[productId]/iron-cakto-readback/recover/route.ts","utf8");
+    expect(recovery).toContain("verifyPasswordStepUp");
+    expect(recovery).toContain(".requeue(context,body.inboxId)");
+  });
+});

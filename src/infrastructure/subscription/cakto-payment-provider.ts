@@ -273,6 +273,16 @@ export class CaktoPaymentProvider implements PaymentProvider {
     const clientSecret=this.env.FMCC_CAKTO_READ_CLIENT_SECRET;
     if(!clientId||!clientSecret||!event.paymentRef||!REF.test(event.paymentRef)||!REF.test(event.subscriptionRef))
       throw new Error("cakto.readback_unavailable");
+    const expectedType= ["purchase_approved","subscription_renewed","subscription_late_recovered"].includes(sourceEvent)?"payment_confirmed":
+      ["refund","chargeback"].includes(sourceEvent)?"payment_refunded":
+      ["subscription_late","subscription_renewal_refused"].includes(sourceEvent)?"payment_overdue":
+      sourceEvent==="subscription_canceled"?"subscription_cancelled":null;
+    if(expectedType!==event.type||(event.offerInterval==="one_time"&&!["purchase_approved","refund","chargeback"].includes(sourceEvent)))
+      throw new Error("cakto.readback_binding_invalid");
+    if(clientId===this.env.FMCC_CAKTO_RECEIPT_CLIENT_ID ||
+      clientSecret===this.env.FMCC_CAKTO_RECEIPT_CLIENT_SECRET ||
+      clientSecret===this.env.FMCC_CAKTO_WEBHOOK_SECRET)
+      throw new Error("cakto.readback_binding_invalid");
     const offers=this.offers.filter(o=>o.planCode===event.offerPlanCode&&o.interval===event.offerInterval);
     if(offers.length!==1) throw new Error("cakto.readback_binding_invalid");
     const offer=offers[0];
@@ -347,6 +357,7 @@ export class CaktoPaymentProvider implements PaymentProvider {
       if(event.type==="payment_confirmed"){
         if(["refunded","chargedback","canceled"].includes(String(order.status)))return null;
         if(order.status!=="paid")throw new Error("cakto.readback_not_confirmed");
+        if(offer.interval!=="one_time"&&subscriptionStatus==="canceled")return null;
         if(offer.interval!=="one_time"&&subscriptionStatus!=="active")
           throw new Error("cakto.readback_not_confirmed");
         occurredAt=date(order.paidAt);

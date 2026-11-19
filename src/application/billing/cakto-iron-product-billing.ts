@@ -93,7 +93,7 @@ export class CaktoIronProductBilling {
     if (!sourceEvent || !accepted.includes(sourceEvent)) return "ignored";
     let binding: Awaited<ReturnType<typeof this.boundInvoice>>;
     try { binding = await this.boundInvoice(event.subscriptionRef); }
-    catch { return "unmatched"; } // No trust in email/CPF/redirect/unknown invoice.
+    catch { return "unmatched"; } // Worker retains and retries this observation, never acknowledges settlement.
     const planInterval = binding.plan.interval === "monthly" ? "month" : binding.plan.interval === "yearly" ? "year" : null;
     if (!planInterval || event.offerInterval !== planInterval || event.offerPlanCode !== binding.plan.planCode) return "ignored";
     if (event.type === "payment_confirmed" && (!event.amount ||
@@ -125,8 +125,14 @@ export class CaktoIronProductBilling {
       const isRefund = event.type === "payment_refunded";
       const isLate = event.type === "payment_overdue";
       const isCancel = event.type === "subscription_cancelled";
-      if (isPayment && subscription.status === "cancelled")
-        throw new Error("cakto.cancelled_subscription_cannot_reactivate");
+      if (isPayment && subscription.status === "cancelled") return "ignored" as const;
+      if(isPayment){
+        const priorReversal=await tx.select({id:billingGatewayEvents.id}).from(billingGatewayEvents).where(and(
+          eq(billingGatewayEvents.tenantId,this.tenantId),eq(billingGatewayEvents.gatewayAccountId,binding.gateway.id),
+          eq(billingGatewayEvents.externalEventId,"cakto:payment_refunded:"+paymentRef),
+          eq(billingGatewayEvents.externalReference,event.subscriptionRef))).limit(1);
+        if(priorReversal.length)return "ignored" as const;
+      }
       if (isPayment && sourceEvent === "purchase_approved" && !(anchor.status === "pending" && subscription.status === "pending"))
         return "duplicate" as const;
       if (isPayment && (sourceEvent === "subscription_renewed" || sourceEvent === "subscription_late_recovered") &&
@@ -182,7 +188,19 @@ export class CaktoIronProductBilling {
           eq(billingProviderPayments.gatewayAccountId, binding.gateway.id),
           eq(billingProviderPayments.externalPaymentId, paymentRef),
         )).for("update").limit(1);
-        if (!payment || payment.status !== "received") throw new Error("cakto.refund_payment_not_found");
+        if(!payment){
+          // Provider-confirmed refund before the original payment observation.
+          // The immutable reversal receipt prevents a late PAID for this order.
+          // Do not invent a received payment or a paid coverage cycle.
+          if(anchor.status==="pending"&&subscription.status==="pending"){
+            await tx.update(billingInvoices).set({status:"refunded"}).where(and(
+              eq(billingInvoices.tenantId,this.tenantId),eq(billingInvoices.id,anchor.id)));
+            await tx.update(billingSubscriptions).set({status:"cancelled"}).where(and(
+              eq(billingSubscriptions.tenantId,this.tenantId),eq(billingSubscriptions.id,subscription.id)));
+          }
+          return "applied" as const;
+        }
+        if (payment.status !== "received") throw new Error("cakto.refund_payment_not_found");
         const [affected] = await tx.select().from(billingInvoices).where(and(
           eq(billingInvoices.tenantId, this.tenantId),
           eq(billingInvoices.id, payment.invoiceId),

@@ -87,6 +87,8 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
     const wrong=signed("purchase_approved",1,payment);
     expect(await billing.handleWebhook(wrong.headers,wrong.raw)).toBe("ignored");
     const paid=signed("purchase_approved",19.9,payment);
+    // Authenticated callback is insufficient: mismatch blocks the durable job,
+    // and only a scoped, audited retry after correction may resume it.
     const readCount=readback.reads();
     expect(await inbox.accept("ai_credits",paid.headers,paid.raw)).toBe("queued");
     expect(await inbox.accept("ai_credits",paid.headers,paid.raw)).toBe("duplicate");
@@ -97,6 +99,17 @@ describe("IRON paid AI credits V1 real isolated PostgreSQL, no external Cakto", 
     expect((await pool.query("SELECT status FROM fmcc_iron_ai_credit_order WHERE id=$1",[orderId])).rows[0].status).toBe("pending");
     readback.setFailure(null);
     await pool.query("UPDATE fmcc_iron_cakto_readback_inbox SET available_at=now() WHERE invoice_id=$1",[orderId]);
+    const actual=readback.orders.get(payment)!;
+    readback.orders.set(payment,{...actual,amount:"1.00"});
+    expect(await inbox.processOne()).toBe("blocked");
+    expect((await pool.query("SELECT status FROM fmcc_iron_ai_credit_order WHERE id=$1",[orderId])).rows[0].status).toBe("pending");
+    const owner:TenantContext={tenantId:tenant,userId:"ci-owner",role:"owner",correlationId:"ci-cakto-readback"};
+    const blockedJobs=await inbox.listBlocked(owner);
+    expect(blockedJobs).toHaveLength(1);
+    const jobId=String(blockedJobs[0].id);
+    await expect(inbox.requeue({...owner,tenantId:tenant+"-foreign"},jobId)).rejects.toThrow("cakto.readback_scope_denied");
+    expect(await inbox.requeue(owner,jobId)).toEqual({status:"retry",id:jobId});
+    readback.orders.set(payment,actual);
     expect(await new CaktoIronReadbackInbox(env,readback.transport).processOne()).toBe("applied");
     expect(await inbox.processOne()).toBe("idle");
     const refund=signed("refund",19.9,payment);

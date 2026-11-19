@@ -96,16 +96,18 @@ export class CaktoIronReadbackInbox {
       code=/^cakto\.readback_(binding_invalid|timestamp_invalid|not_confirmed|unavailable|unmatched|busy|lease_lost)$/.test(message)?
         message:"cakto.readback_processing_failed";
       state=job.attempts>=12||code==="cakto.readback_binding_invalid"?"blocked":"retry";
-    }finally{
-      if(locked){try{const x=await client.query<{ok:boolean}>("SELECT pg_advisory_unlock(hashtextextended($1,0)) AS ok",[key]);discard=x.rows[0]?.ok!==true;}catch{discard=true;}}
-      client.release(discard);
     }
-    const result=await pool.query(`UPDATE fmcc_iron_cakto_readback_inbox SET status=$3,
+    try{
+    const result=await client.query(`UPDATE fmcc_iron_cakto_readback_inbox SET status=$3,
       claim_token=NULL,lease_until=NULL,last_error_code=$4,
       available_at=now()+make_interval(secs=>$5),updated_at=now()
       WHERE id=$1 AND claim_token=$2 AND status='processing' AND tenant_id=$6 AND product_id=$7`,
       [job.id,job.claim_token,state,code,Math.min(3600,30*2**Math.min(job.attempts,7)),this.tenant,this.product]);
     return result.rowCount===1?state:"retry";
+    }finally{
+      if(locked){try{const x=await client.query<{ok:boolean}>("SELECT pg_advisory_unlock(hashtextextended($1,0)) AS ok",[key]);discard=x.rows[0]?.ok!==true;}catch{discard=true;}}
+      client.release(discard);
+    }
   }
 
   async listBlocked(context:TenantContext){

@@ -33,7 +33,7 @@ export async function POST(request:Request,{params}:{params:Promise<{productId:s
     const proof=await verifyPasswordStepUp(h,body.password);
     if(proof.userId!==context.userId)
       return NextResponse.json({error:"security.step_up_required"},{status:403});
-    const result=await recoverBlockedIronAiCredit(context,productId,body.outboxId);
+    const result=await new CaktoIronReadbackInbox().requeue(context,body.inboxId);
     return NextResponse.json(result,{headers:{"cache-control":"no-store"}});
   }catch(e){
     if(e instanceof AuthenticationRequiredError) return NextResponse.json({error:"security.authentication_required"},{status:401});
