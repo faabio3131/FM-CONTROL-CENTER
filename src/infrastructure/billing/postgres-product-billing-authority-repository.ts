@@ -439,7 +439,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         inArray(billingSubscriptions.status, product.slug === FMCC_IRON_PRODUCT_SLUG
           ? ["pending", "active", "past_due", "suspended"]
           : ["pending", "active", "past_due"]),
-      )).limit(2);
+      )).for("update").limit(2);
       if (liveRows.length) {
         const live = liveRows[0];
         // Reopen exactly the original pending checkout after a reload or lost
@@ -453,7 +453,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
           eq(billingInvoices.productId, input.productId),
           eq(billingInvoices.customerId, binding.customerId),
           eq(billingInvoices.subscriptionId, live.id),
-        )).limit(2);
+        )).for("update").limit(2);
         const existing = pending[0];
         if (pending.length !== 1 || existing.status !== "pending" ||
             existing.gatewayAccountId !== route.gatewayAccountId ||

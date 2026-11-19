@@ -94,3 +94,15 @@ it("enforces a finite retry ceiling before selecting a durable credit outbox row
   expect(sql.some(statement => statement.includes("attempts>=12") && statement.includes("status='blocked'") &&
     statement.includes("lease_until<now()"))).toBe(true);
 });
+
+
+it("reports an exhausted expired lease as blocked instead of silent idle", async () => {
+  const query = vi.fn(async (statement: string) => {
+    if (statement.includes("attempts>=12")) return {rows: [], rowCount: 1};
+    throw new Error("must report blocked before claiming another job");
+  });
+  const request = vi.fn() as unknown as typeof fetch;
+  const worker = new IronAiCreditOutboxWorker({query} as never, env, request);
+  expect(await worker.processOne()).toBe("blocked");
+  expect(request).not.toHaveBeenCalled();
+});

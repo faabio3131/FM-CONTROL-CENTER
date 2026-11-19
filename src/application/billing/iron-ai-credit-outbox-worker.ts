@@ -24,13 +24,17 @@ export class IronAiCreditOutboxWorker {
     return { base: url.toString().replace(/\/$/, ""), token };
   }
 
-  private async claim(): Promise<Job | null> {
-    await this.pool.query(`
+  private async blockExpiredFinalAttempts(): Promise<boolean> {
+    const blocked = await this.pool.query(`
       UPDATE fmcc_iron_ai_credit_outbox SET status='blocked',
         lease_until=NULL,claim_token=NULL,last_error_code='iron.credits_delivery_attempts_exhausted',
         updated_at=now()
       WHERE attempts>=12 AND status='processing' AND lease_until<now()
     `);
+    return (blocked.rowCount ?? 0) > 0;
+  }
+
+  private async claim(): Promise<Job | null> {
     const result = await this.pool.query(`
       UPDATE fmcc_iron_ai_credit_outbox SET
         status='processing', claim_token=$1, lease_until=now()+interval '90 seconds',
@@ -105,6 +109,7 @@ export class IronAiCreditOutboxWorker {
   async processOne(): Promise<CreditDeliveryResult> {
     // Missing/malformed S2S config is an operator blocker, never a reason to consume or dead-letter an invoice.
     this.config();
+    if (await this.blockExpiredFinalAttempts()) return "blocked";
     const job = await this.claim();
     if (!job) return "idle";
     try {
