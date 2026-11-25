@@ -19,7 +19,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "iron.commerce_input_invalid" }, { status: 400 });
 
   try {
-    const result = await new IronCommerceProvisioning().current({ gymId, expectedSubscriptionId });
+    const targetPlanCode = url.searchParams.get("targetPlanCode") ?? undefined;
+    const result = await new IronCommerceProvisioning().current({ gymId, expectedSubscriptionId, targetPlanCode });
     return NextResponse.json(result, { headers: { "cache-control": "private, no-store" } });
   } catch {
     // Do not reveal tenant existence or control-plane/provider state.

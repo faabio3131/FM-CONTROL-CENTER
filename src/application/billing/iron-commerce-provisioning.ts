@@ -1,3 +1,4 @@
+import { quoteIronPlanChange } from "@/application/billing/iron-plan-change-quote";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { CaktoIronProductBilling } from "@/application/billing/cakto-iron-product-billing";
 import { CaktoPaymentProvider } from "@/infrastructure/subscription/cakto-payment-provider";
@@ -117,7 +118,7 @@ export class IronCommerceProvisioning {
    * before looking up any FMCC customer binding. Never infer paid/active
    * status from a checkout redirect or provider payment record.
    */
-  async current(input: Pick<IronCommerceRequest, "gymId" | "expectedSubscriptionId">) {
+  async current(input: Pick<IronCommerceRequest, "gymId" | "expectedSubscriptionId"> & { targetPlanCode?: string }) {
     if (!UUID.test(input.gymId) || !UUID.test(input.expectedSubscriptionId))
       throw new Error("iron.commerce_input_invalid");
     const conf = this.config();
@@ -140,11 +141,24 @@ export class IronCommerceProvisioning {
         // Canonical local history remains readable when the read-only provider is offline.
       }
     }
+    let changeQuote: ReturnType<typeof quoteIronPlanChange> | undefined;
+    if (input.targetPlanCode !== undefined) {
+      const anchor = data.scheduleAnchor;
+      if (!CODE.test(input.targetPlanCode) || data.subscription?.status !== "active" ||
+          !anchor || anchor.planCode !== data.subscription.planCode || !data.subscription.interval)
+        throw new Error("iron.plan_change_unavailable");
+      const matches = (await this.offers()).filter(p => p.planCode === input.targetPlanCode);
+      if (matches.length !== 1) throw new Error("iron.plan_change_unavailable");
+      changeQuote = quoteIronPlanChange({
+        planCode: anchor.planCode, amountMinor: anchor.amountMinor, interval: data.subscription.interval,
+      }, matches[0]);
+    }
     return {
       authority: "FM_COMMAND" as const,
       productCode: "IRON_FIT_CORE" as const,
       gymId: input.gymId,
       source: "FM_COMMAND_CANONICAL" as const,
+      ...(changeQuote ? { changeQuote } : {}),
       checkedAt: new Date().toISOString(),
       subscription: data.subscription ? { ...data.subscription,
         nextPaymentAt: schedule?.nextPaymentAt ?? null,
