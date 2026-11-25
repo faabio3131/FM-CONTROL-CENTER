@@ -151,7 +151,7 @@ export class IronCommerceProvisioning {
       if (matches.length !== 1) throw new Error("iron.plan_change_unavailable");
       changeQuote = quoteIronPlanChange({
         planCode: anchor.planCode, amountMinor: anchor.amountMinor, interval: data.subscription.interval,
-      }, matches[0]);
+      }, matches[0], schedule);
     }
     return {
       authority: "FM_COMMAND" as const,
