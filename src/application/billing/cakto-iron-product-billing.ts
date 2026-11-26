@@ -49,7 +49,8 @@ export class CaktoIronProductBilling {
         eq(billingProductPlans.productId, billingInvoices.productId),
         eq(billingProductPlans.planCode, billingSubscriptions.planCode)))
       .where(and(eq(billingInvoices.tenantId, this.tenantId),
-        eq(billingInvoices.productId, this.productId), eq(billingInvoices.id, invoiceId)))
+        eq(billingInvoices.productId, this.productId), eq(billingInvoices.id, invoiceId),
+        sql`NOT EXISTS (SELECT 1 FROM fmcc_iron_plan_change_request r WHERE r.id = ${billingInvoices.id})`))
       .limit(1);
     const r = rows[0];
     if (!r || r.gateway.provider !== "cakto" || r.gateway.environment !== "production" ||

@@ -1,10 +1,11 @@
+import { differenceInvoice } from "@/infrastructure/billing/iron-plan-change-invoice";
 import type { Pool } from "pg";
 import { advanceIronPlanChange, type IronPlanChangePorts, type PlanChange } from "./iron-plan-change";
 
 // All effects use the persistent change id. Losing the process after one effect
 // allows another worker to reconcile it with the same provider idempotency key.
 export async function processDueIronPlanChange(db: Pool, scope: {tenantId:string;productId:string},
-  ports: IronPlanChangePorts, now: Date = new Date()) {
+  ports: Omit<IronPlanChangePorts,"differenceInvoice"> & Partial<Pick<IronPlanChangePorts,"differenceInvoice">>, now: Date = new Date()) {
   const args = [scope.tenantId,scope.productId,now];
   const claim = await db.query(`
     WITH candidate AS (
@@ -22,7 +23,15 @@ export async function processDueIronPlanChange(db: Pool, scope: {tenantId:string
     targetSubscriptionId:row.target_subscription_id,quote:row.quote };
   let status: string;
   try {
-    status = await advanceIronPlanChange(change, ports, now);
+    status = await advanceIronPlanChange(change, {
+      bindChange: c => ports.bindChange(c),
+      readAuthorization: c => ports.readAuthorization(c),
+      readPayment: i => ports.readPayment(i),
+      applyLicense: (c,id) => ports.applyLicense(c,id),
+      replaceRenewal: (c,auth,allow) => ports.replaceRenewal(c,auth,allow),
+      readTargetRenewal: c => ports.readTargetRenewal(c),
+      differenceInvoice: ports.differenceInvoice?.bind(ports) ?? ((c, allowCreate) => differenceInvoice(db, scope, c, allowCreate)),
+    }, now);
     if (status === "awaiting_authorization" && row.renewal_at <= now) status = "expired";
   } catch {
     await db.query(`UPDATE fmcc_iron_plan_change_request SET lease_token=NULL,lease_until=NULL,
