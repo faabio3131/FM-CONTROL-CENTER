@@ -34,6 +34,12 @@ it.skipIf(!["localhost","127.0.0.1"].includes(url.hostname) || url.pathname !== 
       expect(a.status).toBe("awaiting_authorization");
       expect(b.requestId).toBe(a.requestId);
       const req = (await pool.query("SELECT * FROM fmcc_iron_plan_change_request WHERE id=$1",[a.requestId])).rows[0];
+      const customer=(await pool.query("INSERT INTO fmcc_billing_customer(tenant_id,external_customer_id) VALUES($1,$2) RETURNING id",[tenant,randomUUID()])).rows[0].id;
+      await pool.query("INSERT INTO fmcc_billing_customer_binding(tenant_id,product_id,customer_id,external_tenant_id) VALUES($1,$2,$3,$4)",[tenant,product,customer,body.gymId]);
+      const gateway=(await pool.query("INSERT INTO fmcc_billing_gateway_account(tenant_id,provider,environment,label,secret_ref,status) VALUES($1,'cakto','sandbox','QA','env://QA','enabled') RETURNING id",[tenant])).rows[0].id;
+      const sub=(await pool.query("INSERT INTO fmcc_billing_subscription(tenant_id,product_id,customer_id,plan_code,status) VALUES($1,$2,$3,'START','active') RETURNING id",[tenant,product,customer])).rows[0].id;
+      await pool.query("INSERT INTO fmcc_billing_invoice(id,tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status) VALUES($1,$2,$3,$4,$5,$6,15000,'paid')",[req.id,tenant,product,customer,sub,gateway]);
+      await pool.query("INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES($1,$2,$3,'fixture-payment','received')",[tenant,req.id,gateway]);
       const clock = new Date(req.created_at.getTime()+1000);
       const applied = new Set<string>();
       const ports: IronPlanChangePorts = {
@@ -54,6 +60,13 @@ it.skipIf(!["localhost","127.0.0.1"].includes(url.hostname) || url.pathname !== 
       expect(concurrent.sort()).toEqual(["idle","renewal_scheduled"]);
       expect(await processDueIronPlanChange(pool,scope,ports,req.renewal_at)).toBe("completed");
       expect(await processDueIronPlanChange(pool,scope,ports,req.renewal_at)).toBe("idle");
+      // Replay the same settled change in the disposable tenant after losing an acknowledgement.
+      await pool.query("UPDATE fmcc_iron_plan_change_request SET status='awaiting_renewal',next_attempt_at=renewal_at WHERE id=$1",[req.id]);
+      expect(await processDueIronPlanChange(pool,scope,ports,req.renewal_at)).toBe("completed");
+      const canonical = await pool.query(`SELECT s.plan_code,i.amount_minor,i.period_end=s.paid_through AS same_period,p.external_payment_id
+        FROM fmcc_billing_subscription s JOIN fmcc_billing_invoice i ON i.subscription_id=s.id
+        JOIN fmcc_billing_provider_payment p ON p.invoice_id=i.id WHERE s.id=$1 AND i.period_end IS NOT NULL`,[sub]);
+      expect(canonical.rows).toEqual([{plan_code:"GROWTH",amount_minor:"29700",same_period:true,external_payment_id:"fixture-renewal"}]);
       expect(applied.size).toBe(1);
       expect((await pool.query("SELECT id FROM fmcc_iron_plan_change_request WHERE gym_id=$1",[body.gymId])).rowCount).toBe(1);
     } finally {stub.mockRestore();vi.unstubAllEnvs();}
