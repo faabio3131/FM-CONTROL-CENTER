@@ -23,6 +23,11 @@ export async function register(): Promise<void> {
     await bootstrapIronCommercialRuntime();
   }
 
+  if (process.env.FMCC_IRON_PLAN_CHANGE_MODE === "sandbox") {
+    const { startIronPlanChangeSandbox } = await import("@/application/billing/iron-plan-change-runtime");
+    startIronPlanChangeSandbox();
+  }
+
   if (kordenaRuntimeBootstrapEnabled()) {
     const { bootstrapKordenaCommercialRuntime } = await import(
       "@/application/integration/kordena-runtime-bootstrap"
