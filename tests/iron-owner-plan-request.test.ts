@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, it, vi } from "vitest";
+import { processDueIronPlanChange } from "@/application/billing/iron-plan-change-worker";
+import type { IronPlanChangePorts } from "@/application/billing/iron-plan-change";
 import { POST } from "@/app/api/internal/iron/commerce/plan-change/route";
 import { IronCommerceProvisioning } from "@/application/billing/iron-commerce-provisioning";
 import { quoteIronPlanChange } from "@/application/billing/iron-plan-change-quote";
@@ -31,6 +33,28 @@ it.skipIf(!["localhost","127.0.0.1"].includes(url.hostname) || url.pathname !== 
       const a=await accepted[0].json(), b=await accepted[1].json();
       expect(a.status).toBe("awaiting_authorization");
       expect(b.requestId).toBe(a.requestId);
+      const req = (await pool.query("SELECT * FROM fmcc_iron_plan_change_request WHERE id=$1",[a.requestId])).rows[0];
+      const clock = new Date(req.created_at.getTime()+1000);
+      const applied = new Set<string>();
+      const ports: IronPlanChangePorts = {
+        bindChange: async c => { expect(c.changeId).toBe(a.requestId); },
+        readAuthorization: async c => ({gymId:c.gymId,targetSubscriptionId:c.targetSubscriptionId,
+          reference:"fixture-consent",amountMinor:29700,currency:"BRL",interval:"monthly",
+          firstChargeAt:req.renewal_at.toISOString(),acceptedAt:clock.toISOString()}),
+        differenceInvoice: async c => ({id:"fixture-invoice",gymId:c.gymId,changeId:c.changeId,amountMinor:15000,currency:"BRL"}),
+        readPayment: async i => ({id:"fixture-payment",gymId:i.gymId,invoiceId:i.id,amountMinor:i.amountMinor,
+          currency:i.currency,status:"paid",paidAt:clock.toISOString()}),
+        applyLicense: async c => { applied.add(c.changeId); },
+        replaceRenewal: async () => {},
+        readTargetRenewal: async c => ({gymId:c.gymId,subscriptionId:c.targetSubscriptionId,paymentId:"fixture-renewal",
+          amountMinor:29700,currency:"BRL",periodStart:req.renewal_at.toISOString(),paidAt:req.renewal_at.toISOString()}),
+      };
+      const scope = {tenantId:tenant,productId:product};
+      const concurrent = await Promise.all([processDueIronPlanChange(pool,scope,ports,clock),processDueIronPlanChange(pool,scope,ports,clock)]);
+      expect(concurrent.sort()).toEqual(["idle","renewal_scheduled"]);
+      expect(await processDueIronPlanChange(pool,scope,ports,req.renewal_at)).toBe("completed");
+      expect(await processDueIronPlanChange(pool,scope,ports,req.renewal_at)).toBe("idle");
+      expect(applied.size).toBe(1);
       expect((await pool.query("SELECT id FROM fmcc_iron_plan_change_request WHERE gym_id=$1",[body.gymId])).rowCount).toBe(1);
     } finally {stub.mockRestore();vi.unstubAllEnvs();}
 });

@@ -14,3 +14,13 @@ CREATE TABLE fmcc_iron_plan_change_request (
   UNIQUE (tenant_id, product_id, gym_id, source_subscription_id, renewal_at),
   FOREIGN KEY (tenant_id,product_id) REFERENCES fmcc_product_definition(tenant_id,id)
 );
+--> statement-breakpoint
+ALTER TABLE fmcc_iron_plan_change_request
+  ADD COLUMN target_subscription_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  ADD COLUMN lease_token uuid,
+  ADD COLUMN lease_until timestamptz,
+  ADD COLUMN next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN last_error text;
+--> statement-breakpoint
+CREATE INDEX fmcc_iron_plan_change_due ON fmcc_iron_plan_change_request (tenant_id,product_id,next_attempt_at)
+  WHERE status NOT IN ('completed','expired');
