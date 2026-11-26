@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const product = process.env.FMCC_IRON_PRODUCT_ID;
     const hash = createHash("sha256").update(JSON.stringify([tenant, product, gymId, expectedSubscriptionId,
       quote.currentPlanCode, targetPlanCode, quote.amountDueNowMinor, quote.effectiveOn, quote.currency,
-      terms.interval, terms.amountMinor, terms.firstChargeAt])).digest("hex");
+      terms.interval, terms.amountMinor, terms.firstChargeAt, quote.binding])).digest("hex");
     const review = { gymId, targetPlanCode, amountDueNowMinor: quote.amountDueNowMinor,
       renewalMinor: terms.amountMinor, interval: terms.interval, effectiveOn: quote.effectiveOn,
       renewalAt: terms.firstChargeAt, termsHash: hash };
@@ -46,5 +46,8 @@ export async function POST(request: Request) {
         terms.firstChargeAt, hash, quote]);
     if (!saved.rowCount) return error(409);
     return NextResponse.json({ ...review, requestId: saved.rows[0].id, status: saved.rows[0].status }, { headers });
-  } catch { return error(503); }
+  } catch (cause) {
+    if ((cause as {constraint?:string})?.constraint === "fmcc_iron_plan_change_one_active_per_gym") return error(409);
+    return error(503);
+  }
 }

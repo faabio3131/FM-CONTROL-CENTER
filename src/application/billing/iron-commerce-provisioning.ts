@@ -83,7 +83,7 @@ export class IronCommerceProvisioning {
     } finally { clearTimeout(timer); }
   }
 
-  async offers(): Promise<Array<{planCode: string; name: string; interval: "monthly" | "yearly"; amountMinor: number; currency: "BRL"}>> {
+  async offers(): Promise<Array<{ironPlanCode:string; ironPlanVersion:number; planCode: string; name: string; interval: "monthly" | "yearly"; amountMinor: number; currency: "BRL"}>> {
     const conf = this.config();
     const route = await this.provider.getRoute(conf.tenantId, conf.productId);
     if (!route || route.status !== "enabled" || route.provider !== "cakto" ||
@@ -110,6 +110,7 @@ export class IronCommerceProvisioning {
         published.has(binding.ironPlanCode + ":" + binding.ironPlanVersion) &&
         provider.hasExactlyOneOffer(p.amountMinor, p.interval === "monthly" ? "month" : "year", p.planCode);
     }).map(p => ({ planCode:p.planCode, name:p.name, interval:p.interval,
+        ironPlanCode:mapped.get(p.planCode)!.ironPlanCode, ironPlanVersion:mapped.get(p.planCode)!.ironPlanVersion,
         amountMinor:p.amountMinor, currency: "BRL" as const }));
   }
 
@@ -151,7 +152,7 @@ export class IronCommerceProvisioning {
       if (matches.length !== 1) throw new Error("iron.plan_change_unavailable");
       changeQuote = quoteIronPlanChange({
         planCode: anchor.planCode, amountMinor: anchor.amountMinor, interval: data.subscription.interval,
-      }, matches[0], schedule);
+      }, matches[0], schedule, {ironPlanCode:matches[0].ironPlanCode,ironPlanVersion:matches[0].ironPlanVersion,sourceInvoiceId:anchor.invoiceId});
     }
     return {
       authority: "FM_COMMAND" as const,

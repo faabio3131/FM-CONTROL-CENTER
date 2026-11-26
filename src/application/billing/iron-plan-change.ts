@@ -54,6 +54,7 @@ export async function advanceIronPlanChange(change: PlanChange, ports: IronPlanC
       Date.parse(auth.firstChargeAt) !== due || !Number.isFinite(accepted) || accepted > time ||
       accepted >= due) throw new Error('iron.change_authorization_mismatch');
 
+  let differencePaymentId: string | undefined;
   if (quote.effectiveOn === 'DIFFERENCE_PAYMENT_CONFIRMED') {
     // On/after the boundary, the adapter may reopen the original invoice but
     // must reject creation of an expired quote or collection after its deadline.
@@ -63,21 +64,22 @@ export async function advanceIronPlanChange(change: PlanChange, ports: IronPlanC
         invoice.amountMinor !== quote.amountDueNowMinor || invoice.currency !== quote.currency)
       throw new Error('iron.change_invoice_mismatch');
     const payment = await ports.readPayment(invoice);
-    if (!payment || payment.status !== 'paid') return time >= due ? 'expired' : 'awaiting_difference';
+    if (!payment || payment.status !== 'paid') return time >= due ? 'awaiting_late_settlement' : 'awaiting_difference';
     const paid = Date.parse(payment.paidAt ?? '');
     if (!payment.id || payment.gymId !== change.gymId || payment.invoiceId !== invoice.id ||
         payment.amountMinor !== invoice.amountMinor || payment.currency !== invoice.currency ||
         !Number.isFinite(paid) || paid < accepted || paid > time || paid >= due)
       throw new Error('iron.change_payment_mismatch');
-    await ports.applyLicense(change, payment.id);
+    differencePaymentId = payment.id;
   }
 
   await ports.replaceRenewal(change, auth, time < due);
+  if (differencePaymentId) await ports.applyLicense(change, differencePaymentId);
   if (time < due) return 'renewal_scheduled';
   const renewal = await ports.readTargetRenewal(change);
   if (!renewal) return 'awaiting_renewal';
   const paid = Date.parse(renewal.paidAt);
-  if (!renewal.paymentId || renewal.gymId !== change.gymId ||
+  if (!renewal.paymentId || renewal.paymentId === differencePaymentId || renewal.gymId !== change.gymId ||
       renewal.subscriptionId !== change.targetSubscriptionId || renewal.currency !== quote.currency ||
       renewal.amountMinor !== terms.amountMinor || Date.parse(renewal.periodStart) !== due ||
       !Number.isFinite(paid) || paid < due || paid > time) throw new Error('iron.change_renewal_mismatch');

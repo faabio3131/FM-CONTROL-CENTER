@@ -4,7 +4,7 @@ import type { Invoice, PlanChange } from "@/application/billing/iron-plan-change
 // Reserve a differential invoice on the existing Command customer and ledger.
 // The request UUID uniquely identifies this obligation across retries.
 export async function differenceInvoice(db: Pool, scope: {tenantId:string;productId:string},
-  change: PlanChange, allowCreate: boolean): Promise<Invoice | null> {
+  change: PlanChange, allowCreate: boolean, now: Date): Promise<Invoice | null> {
   const args = [scope.tenantId,scope.productId,change.gymId,change.changeId];
   const tx = await db.connect();
   try {
@@ -30,15 +30,15 @@ export async function differenceInvoice(db: Pool, scope: {tenantId:string;produc
         JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id AND p.invoice_id=i.id AND p.gateway_account_id=g.id
         WHERE s.tenant_id=$1 AND s.product_id=$2 AND b.external_tenant_id=$3 AND s.plan_code=$4 AND s.status='active'
           AND i.amount_minor=$5 AND i.currency='BRL' AND i.status='paid' AND p.status='received'
-          AND g.provider='cakto' AND g.status='enabled'
+          AND g.provider='cakto' AND g.environment='production' AND g.status='enabled' AND i.id=$6
           AND NOT EXISTS (SELECT 1 FROM fmcc_iron_plan_change_request prior WHERE prior.id=i.id)
-        LIMIT 2`,[...args.slice(0,3),q.currentPlanCode,q.targetRecurrence.amountMinor-q.amountDueNowMinor]);
+        LIMIT 2`,[...args.slice(0,3),q.currentPlanCode,q.targetRecurrence.amountMinor-q.amountDueNowMinor,q.binding?.sourceInvoiceId]);
       if (bound.rowCount !== 1) throw Error("iron.change_origin_ambiguous");
       const origin=bound.rows[0];
       await tx.query(`INSERT INTO fmcc_billing_invoice
         (tenant_id,product_id,customer_id,subscription_id,gateway_account_id,id,currency,amount_minor,status)
-        SELECT $1,$2,$3,$4,$5,$6,'BRL',$7,'pending' WHERE clock_timestamp() < $8::timestamptz`,
-        [scope.tenantId,scope.productId,origin.customer_id,origin.id,origin.gateway_account_id,change.changeId,q.amountDueNowMinor,request.renewal_at]);
+        SELECT $1,$2,$3,$4,$5,$6,'BRL',$7,'pending' WHERE $9::timestamptz < $8::timestamptz`,
+        [scope.tenantId,scope.productId,origin.customer_id,origin.id,origin.gateway_account_id,change.changeId,q.amountDueNowMinor,request.renewal_at,now]);
       row=await read();
     }
     if (row && (Number(row.amount_minor)!==request.quote.amountDueNowMinor || row.currency!=='BRL'))

@@ -6,7 +6,7 @@ export type ConfirmedRenewal = NonNullable<Awaited<ReturnType<IronPlanChangePort
 
 // The worker owns the request lease and commits these writes with its status.
 export async function postPlanChange(tx: PoolClient, scope: {tenantId:string;productId:string},
-  change: PlanChange, renewal: ConfirmedRenewal | null) {
+  change: PlanChange, renewal: ConfirmedRenewal | null, differencePaymentId: string | null) {
   const { quote } = change;
   const upgrade = quote.effectiveOn === "DIFFERENCE_PAYMENT_CONFIRMED";
   if (!upgrade && !renewal) return;
@@ -25,7 +25,7 @@ export async function postPlanChange(tx: PoolClient, scope: {tenantId:string;pro
     JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id AND p.invoice_id=i.id AND p.gateway_account_id=g.id
     WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.customer_id=$3 AND i.subscription_id=$4
       AND i.currency='BRL' AND i.status='paid' AND p.status='received' AND g.provider='cakto' AND g.status='enabled'
-      AND ($5::uuid IS NULL OR i.id=$5)`,[...args,upgrade ? change.changeId : null]);
+      AND g.environment='production' AND i.id=$5 AND ($6::text IS NULL OR (p.external_payment_id=$6 AND i.amount_minor=$7))`,[...args,upgrade ? change.changeId : quote.binding?.sourceInvoiceId, differencePaymentId,quote.amountDueNowMinor]);
   if (gateways.rowCount !== 1) throw Error("iron.change_gateway_ambiguous");
 
   let periodEnd: Date | null = null;
@@ -37,21 +37,21 @@ export async function postPlanChange(tx: PoolClient, scope: {tenantId:string;pro
     const gateway = gateways.rows[0].id;
     // Subscription lock serializes all retries for this cycle. Conflicting settlements
     // or a provider payment already used elsewhere cause the whole transaction to roll back.
-    const invoices = await tx.query(`SELECT i.amount_minor,i.currency,i.status,i.gateway_account_id,
+    const invoices = await tx.query(`SELECT i.period_end,i.amount_minor,i.currency,i.status,i.gateway_account_id,
       p.external_payment_id,p.status AS payment_status FROM fmcc_billing_invoice i
       LEFT JOIN fmcc_billing_provider_payment p ON p.tenant_id=i.tenant_id AND p.invoice_id=i.id AND p.gateway_account_id=i.gateway_account_id
-      WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.customer_id=$3 AND i.subscription_id=$4 AND i.period_end=$5`,
-      [...args,periodEnd]);
+      WHERE i.tenant_id=$1 AND i.product_id=$2 AND i.customer_id=$3 AND i.subscription_id=$4 AND (i.period_end=$5 OR (p.external_payment_id=$6 AND i.gateway_account_id=$7))`,
+      [...args,periodEnd,renewal.paymentId,gateway]);
     if (invoices.rowCount) {
       const invoice = invoices.rows[0];
-      if (invoices.rowCount !== 1 || invoice.external_payment_id !== renewal.paymentId ||
+      if (invoices.rowCount !== 1 || invoice.period_end?.getTime() !== periodEnd.getTime() || invoice.external_payment_id !== renewal.paymentId ||
           invoice.gateway_account_id !== gateway || Number(invoice.amount_minor) !== renewal.amountMinor ||
           invoice.currency !== renewal.currency || invoice.status !== "paid" || invoice.payment_status !== "received")
         throw Error("iron.change_settlement_conflict");
     } else {
       const invoice = await tx.query(`INSERT INTO fmcc_billing_invoice
-        (tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,period_end,status)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,'paid') RETURNING id`,[...args,gateway,renewal.amountMinor,periodEnd]);
+        (tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,period_end,status,currency)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,'paid',$8) RETURNING id`,[...args,gateway,renewal.amountMinor,periodEnd,renewal.currency]);
       await tx.query(`INSERT INTO fmcc_billing_provider_payment
         (tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES ($1,$2,$3,$4,'received')`,
         [scope.tenantId,invoice.rows[0].id,gateway,renewal.paymentId]);

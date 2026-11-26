@@ -1,4 +1,3 @@
-import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
 import { pool } from "@/infrastructure/db/client";
 import { processDueIronPlanChange } from "./iron-plan-change-worker";
 import type { Authorization, IronPlanChangePorts, Payment } from "./iron-plan-change";
@@ -20,7 +19,6 @@ export function startIronPlanChangeSandbox() {
       database.pathname !== "/fmcc_cross_ci" || !tenantId || !productId ||
       !token || token.length < 32 || !providerToken || providerToken.length < 32 || token === providerToken)
     throw Error("iron.change_sandbox_configuration");
-  const catalog = new PostgresProductBillingAuthorityRepository();
   const abort = new AbortController();
   const call = async <T>(path: string, body: unknown): Promise<T> => {
     const result = await fetch("http://127.0.0.1:18462/" + path, {method:"POST", redirect:"error",
@@ -38,10 +36,9 @@ export function startIronPlanChangeSandbox() {
       await call("replace", {change,authorization,allowSwitch});
     },
     readTargetRenewal: change => call<Renewal>("renewal",change),
-    applyLicense: async change => {
-      const mappings = await catalog.listIronCommerceMappings(tenantId, productId);
-      const mapping = mappings.find(m => m.commercialPlanCode === change.quote.targetPlanCode);
-      if (!mapping) throw Error("iron.sandbox_plan_unbound");
+    applyLicense: async (change,paymentId) => {
+      const mapping = change.quote.binding;
+      if (!mapping) throw Error("iron.change_binding_missing");
       const response = await fetch("http://127.0.0.1:3333/api/v1/control-plane/fmcc/subscription/commands",{
         method:"POST", redirect:"error", signal:AbortSignal.any([abort.signal,AbortSignal.timeout(8000)]),
         headers:{authorization:"Bearer "+token,"content-type":"application/json","idempotency-key":"iron-change-"+change.changeId,
@@ -49,7 +46,7 @@ export function startIronPlanChangeSandbox() {
         body:JSON.stringify({action:"subscription.plan.transition",gymId:change.gymId,
           expectedSubscriptionId:change.sourceSubscriptionId,commercialStatus:"active",planCode:mapping.ironPlanCode,
           planVersion:mapping.ironPlanVersion,transitionKind:change.quote.effectiveOn==="NEXT_RENEWAL"?"DOWNGRADE":"UPGRADE",
-          reason:"Sandbox payment reconciled for change "+change.changeId})});
+          reason:"Change "+change.changeId+" payment "+paymentId})});
       if (!response.ok) throw Error("iron.sandbox_license_failed");
     },
   };

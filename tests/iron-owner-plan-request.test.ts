@@ -34,9 +34,12 @@ it.skipIf(!["localhost","127.0.0.1"].includes(url.hostname) || url.pathname !== 
       expect(a.status).toBe("awaiting_authorization");
       expect(b.requestId).toBe(a.requestId);
       const req = (await pool.query("SELECT * FROM fmcc_iron_plan_change_request WHERE id=$1",[a.requestId])).rows[0];
+      const differentSource = {expectedSubscriptionId:randomUUID()};
+      const secondPreview = await (await send(differentSource)).json();
+      expect((await send({...differentSource,termsHash:secondPreview.termsHash})).status).toBe(409);
       const customer=(await pool.query("INSERT INTO fmcc_billing_customer(tenant_id,external_customer_id) VALUES($1,$2) RETURNING id",[tenant,randomUUID()])).rows[0].id;
       await pool.query("INSERT INTO fmcc_billing_customer_binding(tenant_id,product_id,customer_id,external_tenant_id) VALUES($1,$2,$3,$4)",[tenant,product,customer,body.gymId]);
-      const gateway=(await pool.query("INSERT INTO fmcc_billing_gateway_account(tenant_id,provider,environment,label,secret_ref,status) VALUES($1,'cakto','sandbox','QA','env://QA','enabled') RETURNING id",[tenant])).rows[0].id;
+      const gateway=(await pool.query("INSERT INTO fmcc_billing_gateway_account(tenant_id,provider,environment,label,secret_ref,status) VALUES($1,'cakto','production','QA','env://QA','enabled') RETURNING id",[tenant])).rows[0].id;
       const sub=(await pool.query("INSERT INTO fmcc_billing_subscription(tenant_id,product_id,customer_id,plan_code,status) VALUES($1,$2,$3,'START','active') RETURNING id",[tenant,product,customer])).rows[0].id;
       await pool.query("INSERT INTO fmcc_billing_invoice(id,tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status) VALUES($1,$2,$3,$4,$5,$6,15000,'paid')",[req.id,tenant,product,customer,sub,gateway]);
       await pool.query("INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES($1,$2,$3,'fixture-payment','received')",[tenant,req.id,gateway]);

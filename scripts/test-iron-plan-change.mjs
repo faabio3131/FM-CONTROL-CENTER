@@ -90,10 +90,10 @@ test('Growth → Start only changes the license on the paid renewal', async t =>
   assert.equal(s.p.rows('SELECT plan FROM licenses')[0].plan,'START');
 });
 
-test('unpaid change expires; the original plan renews exactly once', async t => {
+test('unpaid difference remains visible for late confirmation; the original plan renews exactly once', async t => {
   const s=scenario(t); s.p.authorize(s.c); await s.step();
   s.p.clock(due);
-  assert.equal(await s.step(),'expired');
+  assert.equal(await s.step(),'awaiting_late_settlement');
   assert.throws(()=>s.p.settle(s.c,'paid'),/expired/);
   assert.equal(s.p.rows('SELECT * FROM licenses').length,0);
   const [r]=s.p.rows('SELECT data FROM renewals');
@@ -130,11 +130,21 @@ test('a delayed switch after Start already renewed requires reconciliation', asy
   s.restart(); s.p.clock(due);
   await assert.rejects(s.step(),/requires reconciliation/);
   assert.deepEqual(s.p.rows('SELECT subscription FROM renewals').map(r=>r.subscription),[s.c.sourceSubscriptionId]);
-  assert.equal(s.p.rows('SELECT * FROM licenses').length,1);
+  assert.equal(s.p.rows('SELECT * FROM licenses').length,0);
 });
 
 test('replayed instructions cannot change the price or subscription on an existing operation', async t => {
   const s=scenario(t); await s.step();
   await assert.rejects(advanceIronPlanChange({...s.c,targetSubscriptionId:'different'},s.p,new Date(mid)),/conflict/);
   await assert.rejects(advanceIronPlanChange({...s.c,quote:{...s.c.quote,amountDueNowMinor:100}},s.p,new Date(mid)),/conflict/);
+});
+
+test('restart after a successful switch and failed license delivery converges across the due date', async t => {
+  const s=scenario(t); s.p.authorize(s.c); await s.step(); s.p.settle(s.c,'paid');
+  s.p.applyLicense=()=>{ throw Error('license offline'); };
+  await assert.rejects(s.step(),/license offline/);
+  s.restart(); s.p.clock(due);
+  assert.equal(await s.step(),'completed');
+  assert.equal(s.p.rows('SELECT * FROM licenses').length,1);
+  assert.deepEqual(s.p.rows('SELECT subscription FROM renewals').map(r=>r.subscription),[s.c.targetSubscriptionId]);
 });
