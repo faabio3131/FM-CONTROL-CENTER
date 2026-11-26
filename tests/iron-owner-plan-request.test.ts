@@ -70,6 +70,22 @@ it.skipIf(!["localhost","127.0.0.1"].includes(url.hostname) || url.pathname !== 
         FROM fmcc_billing_subscription s JOIN fmcc_billing_invoice i ON i.subscription_id=s.id
         JOIN fmcc_billing_provider_payment p ON p.invoice_id=i.id WHERE s.id=$1 AND i.period_end IS NOT NULL`,[sub]);
       expect(canonical.rows).toEqual([{plan_code:"GROWTH",amount_minor:"29700",same_period:true,external_payment_id:"fixture-renewal"}]);
+      // An expired claim may be taken by another worker before the first one commits.
+      const replay = () => pool.query("UPDATE fmcc_iron_plan_change_request SET status='awaiting_renewal',next_attempt_at=renewal_at WHERE id=$1",[req.id]);
+      await replay();
+      const leased = {...ports,readTargetRenewal: async (change: Parameters<typeof ports.readTargetRenewal>[0]) => {
+        await pool.query("UPDATE fmcc_iron_plan_change_request SET lease_token=gen_random_uuid(),lease_until=renewal_at WHERE id=$1",[req.id]);
+        return ports.readTargetRenewal(change);
+      }};
+      expect(await processDueIronPlanChange(pool,scope,leased,req.renewal_at)).toBe("lease_lost");
+      // A matching payment reference with an incompatible period must quarantine the request before a new remote effect.
+      await pool.query("UPDATE fmcc_billing_invoice SET period_end=NULL WHERE subscription_id=$1 AND period_end IS NOT NULL",[sub]);
+      const mustNotDeliver=vi.fn();
+      expect(await processDueIronPlanChange(pool,scope,{...ports,applyLicense:mustNotDeliver},req.renewal_at)).toBe("reconciliation_required");
+      expect(mustNotDeliver).not.toHaveBeenCalled();
+      expect((await pool.query("SELECT status,last_error FROM fmcc_iron_plan_change_request WHERE id=$1",[req.id])).rows)
+        .toEqual([{status:"reconciliation_required",last_error:"iron.change_settlement_conflict"}]);
+      expect(await processDueIronPlanChange(pool,scope,ports,new Date(req.renewal_at.getTime()+86400000))).toBe("idle");
       expect(applied.size).toBe(1);
       expect((await pool.query("SELECT id FROM fmcc_iron_plan_change_request WHERE gym_id=$1",[body.gymId])).rowCount).toBe(1);
     } finally {stub.mockRestore();vi.unstubAllEnvs();}

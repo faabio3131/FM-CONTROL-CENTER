@@ -148,3 +148,25 @@ test('restart after a successful switch and failed license delivery converges ac
   assert.equal(s.p.rows('SELECT * FROM licenses').length,1);
   assert.deepEqual(s.p.rows('SELECT subscription FROM renewals').map(r=>r.subscription),[s.c.targetSubscriptionId]);
 });
+
+test('a payment confirmed before the deadline but observed afterwards is retained for reconciliation', async t => {
+  const s=scenario(t); s.p.authorize(s.c); await s.step();
+  s.p.time=new Date(Date.parse(due)-2000).toISOString(); s.p.settle(s.c,'paid');
+  const read=s.p.readPayment.bind(s.p);
+  s.p.readPayment=()=>null;
+  s.p.clock(new Date(Date.parse(due)+1000).toISOString());
+  assert.equal(await s.step(),'awaiting_late_settlement');
+  s.p.readPayment=read;
+  s.p.time=new Date(Date.parse(due)+3000).toISOString();
+  await assert.rejects(s.step(),/requires reconciliation/);
+  assert.equal(s.p.rows('SELECT * FROM licenses').length,0);
+});
+
+test('the same payment cannot settle both the difference and the recurring invoice', async t => {
+  const s=scenario(t); s.p.authorize(s.c); await s.step(); s.p.settle(s.c,'paid'); await s.step();
+  s.p.clock(due);
+  const renewal=s.p.readTargetRenewal(s.c);
+  const payment=s.p.readPayment(s.p.differenceInvoice(s.c,false));
+  s.p.readTargetRenewal=()=>({...renewal,paymentId:payment.id});
+  await assert.rejects(s.step(),/renewal_mismatch/);
+});
