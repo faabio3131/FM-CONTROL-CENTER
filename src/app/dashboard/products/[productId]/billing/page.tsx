@@ -15,6 +15,8 @@ import { PostgresSourceRepository } from "@/infrastructure/integration/postgres-
 import { PostgresProductRepository } from "@/infrastructure/products/postgres-product-repository";
 import { KordenaBillingControlService } from "@/application/integration/kordena-billing-control-service";
 import { BillingControlPanel } from "./billing-control-panel";
+import { IronCaktoRouteForm } from "./iron-cakto-route-form";
+import { readIronCaktoRoute, type IronCaktoRouteState } from "@/infrastructure/billing/postgres-iron-cakto-route";
 import { IronPayerEnrollmentPanel } from "./iron-payer-enrollment-panel";
 import { IronCommercialPlansPanel } from "./iron-commercial-plans-panel";
 import { IronEntitlementsGovernancePanel } from "./iron-entitlements-governance-panel";
@@ -116,6 +118,12 @@ export default async function ProductBillingPage({
     }
   }
 
+  let ironCaktoRoute: IronCaktoRouteState | "unavailable" = "unavailable";
+  if (isIron) {
+    try { ironCaktoRoute = await readIronCaktoRoute(context.tenantId, product.id); }
+    catch { /* unknown route state is never shown as missing */ }
+  }
+
   let publishedIronPlans: readonly IronPublishedPlanVersion[] = [];
   let publishedIronPlansAvailable = false;
   if (isIron && ironSources.length === 1) {
@@ -180,6 +188,9 @@ export default async function ProductBillingPage({
           <span>Ativação somente após teste de conexão válido</span>
         </article>
       </section>
+
+      {isIron ? <IronCaktoRouteForm productId={product.id} state={ironCaktoRoute}
+        canWrite={roleHasPermission(context.role,"billing:write") && (context.role==="owner"||context.role==="admin")} /> : null}
 
       {isIron ? (
         ironPlansAvailable ? (
