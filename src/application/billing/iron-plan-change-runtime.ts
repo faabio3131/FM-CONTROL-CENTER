@@ -25,6 +25,11 @@ export function startIronPlanChangeSandbox() {
       signal:AbortSignal.any([abort.signal,AbortSignal.timeout(8000)]),
       headers:{"content-type":"application/json",authorization:"Bearer "+providerToken},
       body:JSON.stringify({tenantId,productId,body})});
+    if (path === "replace" && result.status === 409) {
+      const failure = await result.json().catch(() => null);
+      if (failure?.code === "iron.change_renewal_reconciliation_required")
+        throw Error("iron.change_renewal_reconciliation_required");
+    }
     if (!result.ok) throw Error("iron.sandbox_provider_unavailable");
     return await result.json() as T;
   };

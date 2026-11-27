@@ -9,6 +9,7 @@ export async function postPlanChange(tx: PoolClient, scope: {tenantId:string;pro
   change: PlanChange, renewal: ConfirmedRenewal | null, differencePaymentId: string | null) {
   const { quote } = change;
   const upgrade = quote.effectiveOn === "DIFFERENCE_PAYMENT_CONFIRMED";
+  if (upgrade && !differencePaymentId) throw Error("iron.change_payment_mismatch");
   if (!upgrade && !renewal) return;
   const subscriptions = await tx.query(`SELECT s.id,s.customer_id,s.plan_code,s.paid_through
     FROM fmcc_billing_subscription s JOIN fmcc_billing_customer_binding b

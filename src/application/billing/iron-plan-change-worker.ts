@@ -62,13 +62,16 @@ export async function processDueIronPlanChange(db: Pool, scope: {tenantId:string
     } finally { tx.release(); }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "";
-    const code = /^iron\.change_[a-z_]{1,48}$/.test(message) ? message : "iron.change_dependency_failed";
+    const duplicatePayment = cause instanceof Error && "code" in cause && cause.code === "23505" &&
+      "constraint" in cause && cause.constraint === "fmcc_billing_provider_external_uq";
+    const code = duplicatePayment ? "iron.change_settlement_conflict" : /^iron\.change_[a-z_]{1,48}$/.test(message) ? message : "iron.change_dependency_failed";
     const terminal = code !== "iron.change_dependency_failed" || row.retry_count >= 5;
     const delayMinutes = Math.min(60, 2 ** row.retry_count);
     const retried = await db.query(`UPDATE fmcc_iron_plan_change_request SET lease_token=NULL,lease_until=NULL,
       last_error=$4,retry_count=retry_count+1,status=CASE WHEN $5 THEN 'reconciliation_required' ELSE status END,
       next_attempt_at=$3::timestamptz + $6::integer * interval '1 minute'
       WHERE id=$1 AND lease_token=$2`,[row.id,row.lease_token,now,code,terminal,delayMinutes]);
-    return retried.rowCount ? "reconciliation_required" : "lease_lost";
+    if (!retried.rowCount) return "lease_lost";
+    return terminal ? "reconciliation_required" : "retry_scheduled";
   }
 }

@@ -5,6 +5,7 @@ import type { IronPlanChangePorts } from "@/application/billing/iron-plan-change
 import { POST } from "@/app/api/internal/iron/commerce/plan-change/route";
 import { IronCommerceProvisioning } from "@/application/billing/iron-commerce-provisioning";
 import { quoteIronPlanChange } from "@/application/billing/iron-plan-change-quote";
+import { postPlanChange } from "@/infrastructure/billing/iron-plan-change-ledger";
 import { pool } from "@/infrastructure/db/client";
 
 const url = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/unused");
@@ -86,6 +87,43 @@ it.skipIf(!["localhost","127.0.0.1"].includes(url.hostname) || url.pathname !== 
       expect((await pool.query("SELECT status,last_error FROM fmcc_iron_plan_change_request WHERE id=$1",[req.id])).rows)
         .toEqual([{status:"reconciliation_required",last_error:"iron.change_settlement_conflict"}]);
       expect(await processDueIronPlanChange(pool,scope,ports,new Date(req.renewal_at.getTime()+86400000))).toBe("idle");
+      // Two historical Cakto gateways on one contract: use the accepted source invoice.
+      const tx=await pool.connect();
+      try {
+        await tx.query("BEGIN");
+        const rotated=(await tx.query("INSERT INTO fmcc_billing_gateway_account(tenant_id,provider,environment,label,secret_ref,status) VALUES($1,'cakto','production','rotated','env://QA2','enabled') RETURNING id",[tenant])).rows[0].id;
+        const source=(await tx.query("INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status) VALUES($1,$2,$3,$4,$5,29700,'paid') RETURNING id",[tenant,product,customer,sub,rotated])).rows[0].id;
+        await tx.query("INSERT INTO fmcc_billing_provider_payment(tenant_id,invoice_id,gateway_account_id,external_payment_id,status) VALUES($1,$2,$3,'rotated-origin','received')",[tenant,source,rotated]);
+        const downQuote=quoteIronPlanChange({planCode:"GROWTH",amountMinor:29700,interval:"monthly"},
+          {planCode:"START",amountMinor:14700,interval:"monthly"},{nextPaymentAt:req.renewal_at.toISOString(),observedAt:clock.toISOString()},
+          {ironPlanCode:"IRON_START",ironPlanVersion:1,sourceInvoiceId:source});
+        await postPlanChange(tx,scope,{changeId:randomUUID(),gymId:body.gymId,sourceSubscriptionId:req.source_subscription_id,
+          targetSubscriptionId:req.target_subscription_id,quote:downQuote},{gymId:body.gymId,subscriptionId:req.target_subscription_id,
+          paymentId:"rotation-renewal",amountMinor:14700,currency:"BRL",periodStart:req.renewal_at.toISOString(),paidAt:req.renewal_at.toISOString()},null);
+        expect((await tx.query("SELECT gateway_account_id FROM fmcc_billing_provider_payment WHERE tenant_id=$1 AND external_payment_id='rotation-renewal'",[tenant])).rows).toEqual([{gateway_account_id:rotated}]);
+      } finally {await tx.query("ROLLBACK");tx.release();}
+      // A gateway from the wrong environment cannot post a paid upgrade.
+      await pool.query("UPDATE fmcc_billing_gateway_account SET environment='sandbox' WHERE id=$1",[gateway]);
+      await replay();
+      expect(await processDueIronPlanChange(pool,scope,{...ports,applyLicense:mustNotDeliver},req.renewal_at)).toBe("reconciliation_required");
+      expect((await pool.query("SELECT last_error FROM fmcc_iron_plan_change_request WHERE id=$1",[req.id])).rows[0].last_error).toBe("iron.change_gateway_ambiguous");
+      expect(mustNotDeliver).not.toHaveBeenCalled();
+      // Start a fresh transient failure sequence and verify each persisted deadline.
+      await pool.query("UPDATE fmcc_iron_plan_change_request SET status='awaiting_renewal',next_attempt_at=renewal_at,retry_count=0 WHERE id=$1",[req.id]);
+      const unavailable = {...ports,readAuthorization:async()=>{throw Error("provider offline");}};
+      let attemptAt = req.renewal_at;
+      for (let attempt=1;attempt<=6;attempt++) {
+        const terminal=attempt===6;
+        expect(await processDueIronPlanChange(pool,scope,unavailable,attemptAt)).toBe(terminal?"reconciliation_required":"retry_scheduled");
+        const retry=(await pool.query("SELECT status,retry_count,last_error,next_attempt_at FROM fmcc_iron_plan_change_request WHERE id=$1",[req.id])).rows[0];
+        expect(retry.status).toBe(terminal?"reconciliation_required":"awaiting_renewal");
+        expect(retry.last_error).toBe("iron.change_dependency_failed");
+        expect(retry.retry_count).toBe(attempt);
+        expect(retry.next_attempt_at.getTime()-attemptAt.getTime()).toBe(60000*2**(attempt-1));
+        expect(await processDueIronPlanChange(pool,scope,unavailable,attemptAt)).toBe("idle");
+        attemptAt=retry.next_attempt_at;
+      }
+      expect(await processDueIronPlanChange(pool,scope,unavailable,attemptAt)).toBe("idle");
       expect(applied.size).toBe(1);
       expect((await pool.query("SELECT id FROM fmcc_iron_plan_change_request WHERE gym_id=$1",[body.gymId])).rowCount).toBe(1);
     } finally {stub.mockRestore();vi.unstubAllEnvs();}
