@@ -109,11 +109,11 @@ jobs:
         env:
           FMCC_CAKTO_DB_CERTIFICATION: "1"
           BETTER_AUTH_SECRET: "ci-ephemeral-iron-cakto-auth-secret-20261109"
-        run: npx vitest run tests/cakto-iron-product-billing.integration.test.ts
+        run: npx vitest run tests/cakto-iron-product-billing.integration.test.ts tests/iron-upgrade-at-renewal.integration.test.ts
       - name: Certify Cakto provider, commerce and S2S worker
         env:
           BETTER_AUTH_SECRET: "ci-ephemeral-iron-cakto-auth-secret-20261109"
-        run: npx vitest run tests/cakto-payment-provider.test.ts tests/cakto-financial-readback.test.ts tests/iron-commerce-provisioning.test.ts tests/iron-entitlement-outbox-worker.test.ts
+        run: npx vitest run tests/cakto-payment-provider.test.ts tests/cakto-financial-readback.test.ts tests/iron-commerce-provisioning.test.ts tests/iron-entitlement-outbox-worker.test.ts tests/iron-upgrade-at-renewal.unit.test.ts
       - name: IRON signed one-time packs, refund, replay and S2S delivery
         run: npx vitest run tests/iron-ai-credit-billing.integration.test.ts tests/iron-ai-credit-checkout.unit.test.ts tests/iron-ai-credit-outbox.unit.test.ts
       - name: IRON credit concurrent purchase and signed settlement on PostgreSQL 18

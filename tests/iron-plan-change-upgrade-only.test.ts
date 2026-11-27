@@ -7,6 +7,7 @@ import { quoteIronPlanChange } from "@/application/billing/iron-plan-change-quot
 it("refuses a downgrade before quoting or persisting it", async () => {
   const token = randomUUID() + randomUUID();
   vi.stubEnv("FMCC_IRON_COMMERCE_S2S_TOKEN", token);
+    vi.stubEnv("FMCC_IRON_DIFFERENCE_CHANGE_SANDBOX", "true");
   const renewal = {nextPaymentAt:new Date(Date.now()+86400000).toISOString(),observedAt:new Date().toISOString()};
   const down = quoteIronPlanChange({planCode:"GROWTH",amountMinor:29700,interval:"monthly"},
     {planCode:"START",amountMinor:14700,interval:"monthly"}, renewal);

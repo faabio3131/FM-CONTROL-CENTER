@@ -17,6 +17,7 @@ it.skipIf(!["localhost","127.0.0.1"].includes(url.hostname) || url.pathname !== 
     vi.stubEnv("FMCC_IRON_BILLING_TENANT_ID", tenant);
     vi.stubEnv("FMCC_IRON_PRODUCT_ID", product);
     vi.stubEnv("FMCC_IRON_COMMERCE_S2S_TOKEN", token);
+    vi.stubEnv("FMCC_IRON_DIFFERENCE_CHANGE_SANDBOX", "true");
     const body = {gymId:randomUUID(),expectedSubscriptionId:randomUUID(),actorId:randomUUID(),targetPlanCode:"GROWTH"};
     const quote = quoteIronPlanChange({planCode:"START",amountMinor:14700,interval:"monthly"},
       {planCode:"GROWTH",amountMinor:29700,interval:"monthly"},

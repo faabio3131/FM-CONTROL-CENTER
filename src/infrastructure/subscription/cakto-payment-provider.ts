@@ -9,7 +9,7 @@ type OAuthToken = { value: string; refreshAt: number };
 // credential/purpose boundaries. No token/credential is persisted or logged.
 const oauthCaches = new WeakMap<typeof fetch, Map<string, OAuthToken>>();
 const oauthPending = new WeakMap<typeof fetch, Map<string, Promise<OAuthToken>>>();
-function oauthKey(purpose: "read" | "receipt", clientId: string, clientSecret: string) {
+function oauthKey(purpose: "read" | "receipt" | "manage", clientId: string, clientSecret: string) {
   return createHash("sha256").update(JSON.stringify([purpose, clientId, clientSecret])).digest("hex");
 }
 async function getOAuthToken(transport: typeof fetch, key: string,
@@ -210,6 +210,91 @@ export class CaktoPaymentProvider implements PaymentProvider {
     } catch {
       // Never propagate provider response, credentials or buyer PII to logs/UI.
       throw new Error("cakto.schedule_unavailable");
+    } finally { clearTimeout(timer); }
+  }
+
+  /**
+   * Stop the provider recurrence of a superseded IRON plan (upgrade at renewal).
+   * The Cakto subscription is reached only through the original signed order of
+   * this exact Command invoice and offer; it is never searched by buyer data.
+   * Uses a dedicated credential with the documented "write subscriptions" scope.
+   */
+  async cancelRecurringByAnchor(input: {
+    invoiceId: string; paymentId: string; planCode: string; amountMinor: number;
+    interval: "month" | "year";
+  }, transport: typeof fetch = fetch): Promise<"cancelled" | "already_cancelled"> {
+    const clientId = this.env.FMCC_CAKTO_MANAGE_CLIENT_ID;
+    const clientSecret = this.env.FMCC_CAKTO_MANAGE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) throw new Error("cakto.manage_not_configured");
+    if (!REF.test(input.invoiceId) || !REF.test(input.paymentId)) throw new Error("cakto.cancel_binding_invalid");
+    const offers = this.offers.filter(x => x.planCode === input.planCode &&
+      x.amountMinor === input.amountMinor && x.interval === input.interval);
+    if (offers.length !== 1) throw new Error("cakto.cancel_binding_invalid");
+    const offer = offers[0];
+    const key = oauthKey("manage", clientId, clientSecret);
+    let token: string | undefined;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12_000);
+    const call = async (path: string, init: RequestInit) => {
+      const response = await transport("https://api.cakto.com.br/public_api/" + path, {
+        ...init, redirect: "error", cache: "no-store", signal: controller.signal,
+      });
+      if (response.status === 401) invalidateOAuthToken(transport, key, token);
+      let body: Record<string, unknown> = {};
+      if (response.body) {
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let bytes = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          bytes += value.byteLength;
+          if (bytes > 262144) { await reader.cancel().catch(() => undefined); throw new Error("cakto.cancel_unavailable"); }
+          chunks.push(value);
+        }
+        try {
+          const parsed: unknown = JSON.parse(new TextDecoder().decode(Buffer.concat(chunks)) || "{}");
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) body = parsed as Record<string, unknown>;
+        } catch { /* status code decides below */ }
+      }
+      return { status: response.status, body };
+    };
+    const read = async (path: string, headers: Record<string, string>) => {
+      const result = await call(path, { method: "GET", headers });
+      if (result.status !== 200) throw new Error("cakto.cancel_unavailable");
+      return result.body;
+    };
+    try {
+      token = await getOAuthToken(transport, key, async () => {
+        const result = await call("token/", { method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret }) });
+        if (result.status !== 200) throw new Error("cakto.cancel_unavailable");
+        return result.body;
+      });
+      const headers = { authorization: "Bearer " + token };
+      const order = await read("orders/" + input.paymentId + "/", headers);
+      const product = order.product as { id?: unknown } | null;
+      if (order.id !== input.paymentId || order.sck !== input.invoiceId || order.type !== "subscription" ||
+          order.offer_type !== "main" || product?.id !== offer.productId ||
+          typeof order.subscription !== "string" || !REF.test(order.subscription))
+        throw new Error("cakto.cancel_binding_invalid");
+      const path = "subscriptions/" + order.subscription + "/";
+      const current = await read(path, headers);
+      if (current.id !== order.subscription || current.parent_order !== input.paymentId ||
+          current.product !== offer.productId || current.offer !== offer.offerId)
+        throw new Error("cakto.cancel_binding_invalid");
+      if (current.status === "canceled") return "already_cancelled";
+      const result = await call(path + "cancel/", { method: "POST", headers });
+      // Never trust the acknowledgement alone: the provider state must read back as canceled.
+      if (result.status !== 200 && result.status !== 400) throw new Error("cakto.cancel_unavailable");
+      const after = await read(path, headers);
+      if (after.id !== order.subscription || after.status !== "canceled") throw new Error("cakto.cancel_not_confirmed");
+      return "cancelled";
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      throw new Error(/^cakto\.(manage_not_configured|cancel_binding_invalid|cancel_not_confirmed)$/.test(code)
+        ? code : "cakto.cancel_unavailable");
     } finally { clearTimeout(timer); }
   }
 

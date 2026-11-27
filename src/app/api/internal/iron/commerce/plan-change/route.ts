@@ -20,6 +20,12 @@ export async function POST(request: Request) {
   if (![gymId, expectedSubscriptionId, actorId].every(x => typeof x === "string" && uuid.test(x)) ||
       typeof targetPlanCode !== "string" || !/^[A-Z][A-Z0-9_]{1,63}$/.test(targetPlanCode) ||
       (termsHash !== undefined && (typeof termsHash !== "string" || !/^[0-9a-f]{64}$/.test(termsHash)))) return error(400);
+  // Commercial rule (FM, 27/11/2026, revised): an upgrade is bought for the next
+  // cycle through the regular Cakto checkout of the higher plan, inside the
+  // window before renewal. The difference-payment flow below has no live Cakto
+  // adapter; it runs only in the disposable sandbox and never persists otherwise.
+  if (process.env.FMCC_IRON_DIFFERENCE_CHANGE_SANDBOX !== "true")
+    return NextResponse.json({ error: "iron.change_at_renewal_checkout" }, { status: 409, headers });
   try {
     const result = await new IronCommerceProvisioning().current({ gymId, expectedSubscriptionId, targetPlanCode });
     const quote = result.changeQuote;

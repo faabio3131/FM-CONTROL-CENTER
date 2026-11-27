@@ -126,7 +126,15 @@ export class CaktoIronProductBilling {
       const isRefund = event.type === "payment_refunded";
       const isLate = event.type === "payment_overdue";
       const isCancel = event.type === "subscription_cancelled";
-      if (isPayment && subscription.status === "cancelled") return "ignored" as const;
+      if (isPayment && subscription.status === "cancelled") {
+        // A superseded plan must not charge again. If Cakto still did, keep the
+        // license untouched and surface it for a manual refund review.
+        if (subscription.providerCancelStatus)
+          await tx.update(billingSubscriptions).set({ providerCancelStatus: "review",
+            providerCancelError: "cakto.charged_after_upgrade" })
+            .where(and(eq(billingSubscriptions.tenantId, this.tenantId), eq(billingSubscriptions.id, subscription.id)));
+        return "ignored" as const;
+      }
       if(isPayment){
         const priorReversal=await tx.select({id:billingGatewayEvents.id}).from(billingGatewayEvents).where(and(
           eq(billingGatewayEvents.tenantId,this.tenantId),eq(billingGatewayEvents.gatewayAccountId,binding.gateway.id),
@@ -152,8 +160,21 @@ export class CaktoIronProductBilling {
       if (!receipt) return "duplicate" as const;
 
       if (isPayment) {
-        const base = subscription.paidThrough && subscription.paidThrough > event.occurredAt
+        let base = subscription.paidThrough && subscription.paidThrough > event.occurredAt
           ? subscription.paidThrough : event.occurredAt;
+        // Upgrade at renewal: the higher plan's first paid cycle starts when the
+        // replaced plan's paid period ends, so the gym never pays twice for a day.
+        let superseded: typeof subscription | undefined;
+        if (sourceEvent === "purchase_approved" && subscription.supersedesSubscriptionId) {
+          [superseded] = await tx.select().from(billingSubscriptions).where(and(
+            eq(billingSubscriptions.tenantId, this.tenantId),
+            eq(billingSubscriptions.productId, this.productId),
+            eq(billingSubscriptions.customerId, subscription.customerId),
+            eq(billingSubscriptions.id, subscription.supersedesSubscriptionId),
+          )).for("update").limit(1);
+          if (!superseded) throw new Error("cakto.superseded_subscription_missing");
+          if (superseded.paidThrough && superseded.paidThrough > base) base = superseded.paidThrough;
+        }
         const periodEnd = advanceIronPaidCycle(base, binding.plan.interval as "monthly" | "yearly");
         const invoiceId = sourceEvent === "purchase_approved" ? anchor.id :
           (await tx.insert(billingInvoices).values({
@@ -174,6 +195,13 @@ export class CaktoIronProductBilling {
         }
         await tx.update(billingSubscriptions).set({ status: "active", paidThrough: periodEnd })
           .where(and(eq(billingSubscriptions.tenantId, this.tenantId), eq(billingSubscriptions.id, subscription.id)));
+        if (superseded && ["active", "past_due", "suspended"].includes(superseded.status)) {
+          // No LICENSE_CANCEL: the license moves to the new plan through the
+          // paid invoice below. Only the provider recurrence is stopped, by a worker.
+          await tx.update(billingSubscriptions).set({ status: "cancelled", providerCancelStatus: "pending",
+            providerCancelNextAt: new Date() })
+            .where(and(eq(billingSubscriptions.tenantId, this.tenantId), eq(billingSubscriptions.id, superseded.id)));
+        }
         await tx.insert(billingIronEntitlementOutbox).values({
           tenantId: this.tenantId, productId: this.productId, invoiceId,
           subscriptionId: subscription.id, eventType: "LICENSE_ACTIVATE",
