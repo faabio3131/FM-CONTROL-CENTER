@@ -4,6 +4,7 @@ import { caktoReadbackFixture, ciCaktoReadEnv } from "./fixtures/cakto-readback-
 import { pool } from "@/infrastructure/db/client";
 import { CaktoIronProductBilling } from "@/application/billing/cakto-iron-product-billing";
 import { IronSupersededCancelWorker } from "@/application/billing/iron-superseded-cancel-worker";
+import { IronEntitlementOutboxWorker } from "@/application/billing/iron-entitlement-outbox-worker";
 import { PostgresProductBillingAuthorityRepository } from "@/infrastructure/billing/postgres-product-billing-authority-repository";
 
 const enabled = process.env.FMCC_CAKTO_DB_CERTIFICATION === "1" && process.env.DATABASE_URL?.includes("fmcc_billing_ci");
@@ -110,6 +111,26 @@ describe("IRON upgrade at renewal (disposable PostgreSQL)", () => {
     const jobs = (await pool.query("SELECT subscription_id,event_type FROM fmcc_billing_iron_entitlement_outbox WHERE tenant_id=$1", [tenant])).rows;
     expect(jobs).toEqual([{ subscription_id: first.subscriptionId, event_type: "LICENSE_ACTIVATE" }]);
     expect((await repo.readIronCommerceCustomer(tenant, productId, gym)).subscription?.planCode).toBe("IRON_GROWTH_M_2026");
+
+    // The license moves from IRON_START to IRON_GROWTH v1 and gets the new paid period.
+    const startSub = randomUUID(), growthSub = randomUUID();
+    const sent: Array<Record<string, unknown>> = [];
+    const iron = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith("/snapshot")) return new Response(JSON.stringify({ subscriptions: [
+        { tenant_id: gym, plan_code: "IRON_START", external_id: startSub, status: "ACTIVE" }] }));
+      if (u.endsWith("/plan-versions")) return new Response(JSON.stringify({ plans: [
+        { plan_code: "IRON_START", version: 1 }, { plan_code: "IRON_GROWTH", version: 1 }] }));
+      const body = JSON.parse(String(init?.body)); sent.push(body);
+      return new Response(JSON.stringify({ result: { subscription: { id: growthSub } } }));
+    }) as typeof fetch;
+    const delivery = new IronEntitlementOutboxWorker(pool, { FMCC_IRON_BILLING_TENANT_ID: tenant, FMCC_IRON_PRODUCT_ID: productId,
+      FMCC_IRON_CONTROL_PLANE_URL: "https://api.ironfitcore.com.br/api/v1/control-plane/fmcc",
+      FMCC_IRON_CONTROL_PLANE_TOKEN: "ci-only-" + "t".repeat(40) }, iron);
+    expect(await delivery.processOne()).toBe("delivered");
+    expect(sent[0]).toMatchObject({ action: "subscription.plan.transition", expectedSubscriptionId: startSub, planCode: "IRON_GROWTH", planVersion: 1 });
+    expect(sent[1]).toMatchObject({ action: "subscription.status.sync", expectedSubscriptionId: growthSub,
+      entitlementStatus: "ACTIVE", paidThrough: growth.paid_through.toISOString() });
 
     // Provider recurrence of the replaced plan is stopped exactly once, through its own signed order.
     const calls: unknown[] = [];
