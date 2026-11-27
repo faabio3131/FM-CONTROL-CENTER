@@ -24,6 +24,10 @@ export async function POST(request: Request) {
     const result = await new IronCommerceProvisioning().current({ gymId, expectedSubscriptionId, targetPlanCode });
     const quote = result.changeQuote;
     if (!quote) return error(409);
+    // Commercial rule (FM, 27/11/2026): only upgrades are offered; a downgrade
+    // is refused before any quote is shown or persisted.
+    if (quote.effectiveOn !== "DIFFERENCE_PAYMENT_CONFIRMED")
+      return NextResponse.json({ error: "iron.change_downgrade_not_offered" }, { status: 409, headers });
     const terms = quote.targetRecurrence;
     const tenant = process.env.FMCC_IRON_BILLING_TENANT_ID;
     const product = process.env.FMCC_IRON_PRODUCT_ID;
