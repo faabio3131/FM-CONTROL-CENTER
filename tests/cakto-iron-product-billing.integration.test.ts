@@ -28,6 +28,10 @@ async function prepare() {
   const accountId = gateway.rows[0].id;
   await pool.query("INSERT INTO fmcc_billing_customer_binding(tenant_id,product_id,customer_id,external_tenant_id) VALUES($1,$2,$3,$4)", [tenant, productId, customerId, gym]);
   await pool.query("INSERT INTO fmcc_billing_product_plan(tenant_id,product_id,plan_code,name,interval,amount_minor,status) VALUES($1,$2,'IRON_PRO','Iron PRO','monthly',26900,'active')", [tenant, productId]);
+  // Published offer → immutable IRON plan/version mapping (here the codes coincide).
+  await pool.query("INSERT INTO fmcc_source_definition(tenant_id,product_id,name,source_type,authoritative_domain,sync_mode,config) VALUES($1,$2,'IRON FIT CORE Commercial','iron-commercial-v1','commercial','pull',$3::jsonb)",
+    [tenant, productId, JSON.stringify({ ironCommercialPlanMappings: { schemaVersion: "iron.commercial-plan-mappings.v1", mappings: [
+      { revision: 1, commercialPlanCode: "IRON_PRO", ironPlanCode: "IRON_PRO", ironPlanVersion: 1, effectiveFrom: "2026-11-27T00:00:00.000Z" }] } })]);
   const sub = await pool.query("INSERT INTO fmcc_billing_subscription(tenant_id,product_id,customer_id,plan_code,status) VALUES($1,$2,$3,'IRON_PRO','pending') RETURNING id", [tenant, productId, customerId]);
   const inv = await pool.query("INSERT INTO fmcc_billing_invoice(tenant_id,product_id,customer_id,subscription_id,gateway_account_id,amount_minor,status) VALUES($1,$2,$3,$4,$5,26900,'pending') RETURNING id", [tenant, productId, customerId, sub.rows[0].id, accountId]);
   invoiceId = inv.rows[0].id;
@@ -59,6 +63,7 @@ afterAll(async () => {
   await pool.query("DELETE FROM fmcc_billing_customer_binding WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_gateway_account WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_billing_customer WHERE tenant_id=$1", [tenant]);
+  await pool.query("DELETE FROM fmcc_source_definition WHERE tenant_id=$1", [tenant]);
   await pool.query("DELETE FROM fmcc_product_definition WHERE tenant_id=$1", [tenant]);
 });
 
