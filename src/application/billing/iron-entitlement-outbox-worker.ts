@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
+import { readIronPlanMappings } from "@/domain/billing/iron-versioned-plan-mapping";
 
 export type IronLicenseEvent = "LICENSE_ACTIVATE" | "LICENSE_SUSPEND" | "LICENSE_CANCEL";
 export type IronLicenseSyncCommand = {
@@ -153,42 +154,77 @@ export class IronEntitlementOutboxWorker {
     } finally { clearTimeout(timer); }
   }
 
+  /**
+   * The Command ledger stores the commercial plan code (IRON_START_M_2026);
+   * IRON knows only its canonical plan (IRON_START v1). Translate through the
+   * immutable, tenant/product-scoped mapping recorded when the offer was published.
+   */
+  private async ironPlan(job: Pending, commercialPlanCode: string) {
+    const sources = await this.pool.query(`
+      SELECT config FROM fmcc_source_definition
+      WHERE tenant_id=$1 AND product_id=$2 AND source_type='iron-commercial-v1'
+        AND name='IRON FIT CORE Commercial' AND authoritative_domain='commercial'
+      LIMIT 2`, [job.tenant_id, job.product_id]);
+    if (sources.rows?.length !== 1) throw new Error("iron.delivery_plan_mapping_missing");
+    let mappings;
+    try { mappings = readIronPlanMappings(sources.rows[0].config ?? {}); }
+    catch { throw new Error("iron.delivery_plan_mapping_missing"); }
+    const found = mappings.filter(m => m.commercialPlanCode === commercialPlanCode);
+    if (found.length !== 1) throw new Error("iron.delivery_plan_mapping_missing");
+    return { code: found[0].ironPlanCode, version: found[0].ironPlanVersion };
+  }
+
+  private async command(cfg: { base: string; token: string }, key: string, body: unknown) {
+    return await (await this.remote(cfg.base + "/subscription/commands", cfg.token, {
+      method: "POST", headers: { "content-type": "application/json", "idempotency-key": key },
+      body: JSON.stringify(body),
+    })).json() as { result?: { subscription?: { id?: unknown }; subscriptionId?: unknown } };
+  }
+
   private async deliver(job: Pending) {
     const cfg = this.config();
     const b = await this.binding(job);
     if (!UUID.test(b.gym_id)) throw new Error("iron.delivery_invalid_gym");
+    const plan = await this.ironPlan(job, b.plan_code);
     const snap = await (await this.remote(cfg.base + "/snapshot", cfg.token)).json() as unknown;
     let ironSubId: string;
     try {
-      ironSubId = selectIronSubscription(snap, b.gym_id, b.plan_code);
+      ironSubId = selectIronSubscription(snap, b.gym_id, plan.code);
     } catch {
       if (job.event_type !== "LICENSE_ACTIVATE") throw new Error("iron.subscription_not_unique_or_missing");
       const records = (snap as { subscriptions?: unknown })?.subscriptions;
       if (!Array.isArray(records)) throw new Error("iron.snapshot_invalid");
-      const active = records.filter((v: unknown) => {
+      // The gym's single live IRON subscription: a running trial (ACTIVE) or a
+      // trial that already expired (SUSPENDED). Cancelled history never counts.
+      const live = records.filter((v: unknown) => {
         if (!v || typeof v !== "object" || Array.isArray(v)) return false;
         const item = v as Record<string, unknown>;
-        return item.tenant_id === b.gym_id && item.status === "ACTIVE" && UUID.test(String(item.external_id ?? ""));
-      }) as Array<{external_id: string; plan_code: string}>;
-      if (active.length !== 1 || active[0].plan_code === b.plan_code)
+        return item.tenant_id === b.gym_id && ["ACTIVE", "SUSPENDED"].includes(String(item.status)) &&
+          UUID.test(String(item.external_id ?? ""));
+      }) as Array<{external_id: string; plan_code: string; status: string}>;
+      if (live.length !== 1 || live[0].plan_code === plan.code)
         throw new Error("iron.subscription_not_unique_or_missing");
       const catalog = await (await this.remote(cfg.base + "/plan-versions", cfg.token)).json() as {
         plans?: Array<{ plan_code: string; version: number }>;
       };
-      const targets = Array.isArray(catalog?.plans) ? catalog.plans.filter((p) =>
-        p.plan_code === b.plan_code && Number.isSafeInteger(p.version) && p.version > 0) : [];
-      if (targets.length !== 1) throw new Error("iron.plan_version_not_unique");
-      const transition = {
+      const published = Array.isArray(catalog?.plans) ? catalog.plans.filter((p) =>
+        p.plan_code === plan.code && p.version === plan.version) : [];
+      if (published.length !== 1) throw new Error("iron.plan_version_not_unique");
+      if (live[0].status === "SUSPENDED") {
+        // IRON transitions only an ACTIVE subscription; reopen it for this verified paid invoice first.
+        await this.command(cfg, "fmcc-cakto-reopen-" + job.id, {
+          action: "subscription.status.sync", gymId: b.gym_id, expectedSubscriptionId: live[0].external_id,
+          commercialStatus: "active", entitlementStatus: "ACTIVE",
+          reason: "FM Command verified paid plan invoice " + job.invoice_id,
+        });
+      }
+      const change = await this.command(cfg, "fmcc-cakto-plan-" + job.id, {
         action: "subscription.plan.transition", gymId: b.gym_id,
-        expectedSubscriptionId: active[0].external_id,
-        planCode: b.plan_code, planVersion: targets[0].version, transitionKind: "PLAN_CHANGE",
+        expectedSubscriptionId: live[0].external_id,
+        planCode: plan.code, planVersion: plan.version, transitionKind: "PLAN_CHANGE",
         commercialStatus: "active",
         reason: "FM Command verified paid plan invoice " + job.invoice_id,
-      };
-      const change = await (await this.remote(cfg.base + "/subscription/commands", cfg.token, {
-        method: "POST", headers: { "content-type": "application/json", "idempotency-key": "fmcc-cakto-plan-" + job.id },
-        body: JSON.stringify(transition),
-      })).json() as { result?: { subscription?: { id?: unknown } } };
+      });
       const created = change?.result?.subscription?.id;
       if (!UUID.test(String(created ?? ""))) throw new Error("iron.plan_transition_unconfirmed");
       ironSubId = created as string;
@@ -196,10 +232,7 @@ export class IronEntitlementOutboxWorker {
     const command = ironLicenseCommand(job.event_type, b.gym_id, ironSubId, job.invoice_id);
     if (job.event_type === "LICENSE_ACTIVATE") command.paidThrough = b.paid_through!.toISOString();
     // Outbox ID is a persistent delivery idempotency key: never issue a new command for retries.
-    await this.remote(cfg.base + "/subscription/commands", cfg.token, {
-      method: "POST", headers: { "content-type": "application/json", "idempotency-key": "fmcc-cakto-license-" + job.id },
-      body: JSON.stringify(command),
-    });
+    await this.command(cfg, "fmcc-cakto-license-" + job.id, command);
   }
 
   async processOne(): Promise<WorkerResult> {
@@ -218,7 +251,7 @@ export class IronEntitlementOutboxWorker {
       return (res.rowCount ?? 0) === 1 ? "delivered" : "retry";
     } catch (e) {
       const code = e instanceof Error ? e.message : "iron.delivery_unknown_error";
-      const permanent = /^iron\.(delivery_(host_invalid|config_missing|binding_missing|invoice_not_paid|invoice_state_invalid|invalid_gym)|subscription_not_unique_or_missing|plan_version_not_unique|plan_transition_unconfirmed|snapshot_invalid|command_.*)/.test(code)
+      const permanent = /^iron\.(delivery_(host_invalid|config_missing|binding_missing|invoice_not_paid|invoice_state_invalid|invalid_gym|plan_mapping_missing)|subscription_not_unique_or_missing|plan_version_not_unique|plan_transition_unconfirmed|snapshot_invalid|command_.*)/.test(code)
         || /^iron\.s2s_http_40[0134]$/.test(code);
       const blocked = permanent || job.attempts >= 12;
       const backoffSeconds = Math.min(1800, 10 * 2 ** Math.min(job.attempts, 8));
