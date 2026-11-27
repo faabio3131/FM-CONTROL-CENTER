@@ -183,6 +183,13 @@
       "when": 1795737600000,
       "tag": "0025_iron_change_reconciliation",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795824000000,
+      "tag": "0026_iron_upgrade_at_renewal",
+      "breakpoints": true
     }
   ]
 }

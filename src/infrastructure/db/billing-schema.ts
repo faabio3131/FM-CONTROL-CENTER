@@ -88,6 +88,13 @@ export const billingSubscriptions = pgTable("fmcc_billing_subscription", {
   planCode: text("plan_code").notNull(),
   status: text("status").notNull().default("pending"),
   paidThrough: timestamp("paid_through", { withTimezone: true }),
+  /** IRON upgrade at renewal: the paid subscription this pending one replaces. */
+  supersedesSubscriptionId: uuid("supersedes_subscription_id"),
+  /** Provider-side recurring cancellation of a superseded subscription. */
+  providerCancelStatus: text("provider_cancel_status"),
+  providerCancelAttempts: integer("provider_cancel_attempts").notNull().default(0),
+  providerCancelError: text("provider_cancel_error"),
+  providerCancelNextAt: timestamp("provider_cancel_next_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   uniqueIndex("fmcc_billing_subscription_scope_uq").on(t.tenantId, t.id, t.productId, t.customerId),

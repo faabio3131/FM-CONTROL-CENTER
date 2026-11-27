@@ -1,4 +1,5 @@
 import { FMCC_IRON_PRODUCT_SLUG } from "@/domain/billing/iron-product-identity";
+import { ironUpgradeAtRenewal } from "@/domain/billing/iron-upgrade-at-renewal";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -72,7 +73,9 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
       eq(billingCustomerBindings.tenantId, tenantId),
       eq(billingCustomerBindings.productId, productId),
       eq(billingCustomerBindings.externalTenantId, gymId),
-    )).orderBy(desc(billingSubscriptions.createdAt), desc(billingSubscriptions.id)).limit(1);
+      // A prepared-but-unpaid upgrade never replaces the plan the gym is paying for.
+    )).orderBy(sql`CASE WHEN ${billingSubscriptions.status} = 'pending' AND ${billingSubscriptions.supersedesSubscriptionId} IS NOT NULL THEN 1 ELSE 0 END`,
+      desc(billingSubscriptions.createdAt), desc(billingSubscriptions.id)).limit(1);
     if (!subscription) return { subscription: null, invoices: [], historyTruncated: false, scheduleAnchor: null, caktoManagementAvailable: false };
 
     const invoices = await db.select({
@@ -538,7 +541,9 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         binding = { customerId: customer.id };
       }
 
-      const liveRows = await tx.select({ id: billingSubscriptions.id, status: billingSubscriptions.status, planCode: billingSubscriptions.planCode }).from(billingSubscriptions).where(and(
+      const liveRows = await tx.select({ id: billingSubscriptions.id, status: billingSubscriptions.status,
+        planCode: billingSubscriptions.planCode, paidThrough: billingSubscriptions.paidThrough,
+        supersedes: billingSubscriptions.supersedesSubscriptionId }).from(billingSubscriptions).where(and(
         eq(billingSubscriptions.tenantId, input.tenantId),
         eq(billingSubscriptions.productId, input.productId),
         eq(billingSubscriptions.customerId, binding.customerId),
@@ -547,15 +552,11 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         inArray(billingSubscriptions.status, product.slug === FMCC_IRON_PRODUCT_SLUG
           ? ["pending", "active", "past_due", "suspended"]
           : ["pending", "active", "past_due"]),
-      )).for("update").limit(2);
-      if (liveRows.length) {
-        const live = liveRows[0];
-        // Reopen exactly the original pending checkout after a reload or lost
-        // idempotency key. Never create a second subscription or reprice an invoice.
-        if (product.slug !== FMCC_IRON_PRODUCT_SLUG || liveRows.length !== 1 ||
-            live.status !== "pending" || live.planCode !== plan.planCode ||
-            route.provider !== "cakto" || route.environment !== "production")
-          throw new Error("billing.subscription_exists");
+      )).for("update").limit(3);
+
+      // Reopen exactly the original pending checkout after a reload or lost
+      // idempotency key. Never create a second subscription or reprice an invoice.
+      const reopen = async (live: { id: string; planCode: string }) => {
         const pending = await tx.select().from(billingInvoices).where(and(
           eq(billingInvoices.tenantId, input.tenantId),
           eq(billingInvoices.productId, input.productId),
@@ -577,10 +578,45 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
           productId: input.productId, externalTenantId: input.externalTenantId,
           customerId: binding.customerId, subscriptionId: live.id,
           invoiceId: existing.id, planCode: live.planCode, amountMinor: existing.amountMinor,
-          currency: "BRL", gatewayAccountId: route.gatewayAccountId,
+          currency: "BRL" as const, gatewayAccountId: route.gatewayAccountId,
           gatewayProvider: route.provider, gatewayEnvironment: asEnvironment(route.environment),
           invoiceStatus: existing.status, idempotentReplay: true,
         };
+      };
+
+      let supersedes: string | null = null;
+      const ironCakto = product.slug === FMCC_IRON_PRODUCT_SLUG &&
+        route.provider === "cakto" && route.environment === "production";
+      if (liveRows.length && ironCakto) {
+        // Upgrade at renewal: one paid active subscription, at most one pending
+        // upgrade already prepared for it, inside the window before renewal.
+        const active = liveRows.filter(r => r.status === "active");
+        const upgrades = liveRows.filter(r => r.status === "pending" && r.supersedes);
+        if (active.length === 1 && liveRows.length === 1 + upgrades.length && upgrades.length <= 1 &&
+            upgrades.every(u => u.supersedes === active[0].id) && active[0].planCode !== plan.planCode) {
+          const [currentPlan] = await tx.select().from(billingProductPlans).where(and(
+            eq(billingProductPlans.tenantId, input.tenantId),
+            eq(billingProductPlans.productId, input.productId),
+            eq(billingProductPlans.planCode, active[0].planCode),
+          )).limit(1);
+          const check = currentPlan ? ironUpgradeAtRenewal(
+            { amountMinor: currentPlan.amountMinor, interval: currentPlan.interval, paidThrough: active[0].paidThrough },
+            { amountMinor: plan.amountMinor, interval: plan.interval }, new Date()) : null;
+          if (!check?.allowed) throw new Error(check?.reason === "window_not_open"
+            ? "billing.iron_upgrade_window_not_open" : "billing.iron_upgrade_not_allowed");
+          if (upgrades.length === 1) {
+            if (upgrades[0].planCode !== plan.planCode) throw new Error("billing.iron_upgrade_already_prepared");
+            return await reopen(upgrades[0]);
+          }
+          supersedes = active[0].id;
+        }
+      }
+      if (liveRows.length && !supersedes) {
+        const live = liveRows[0];
+        if (!ironCakto || liveRows.length !== 1 || live.status !== "pending" || live.supersedes ||
+            live.planCode !== plan.planCode)
+          throw new Error("billing.subscription_exists");
+        return await reopen(live);
       }
 
       const [subscription] = await tx.insert(billingSubscriptions).values({
@@ -589,6 +625,7 @@ export class PostgresProductBillingAuthorityRepository implements ProductBilling
         customerId: binding.customerId,
         planCode: plan.planCode,
         status: "pending",
+        supersedesSubscriptionId: supersedes,
       }).returning({ id: billingSubscriptions.id });
 
       const [invoice] = await tx.insert(billingInvoices).values({
