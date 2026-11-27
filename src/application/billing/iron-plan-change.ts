@@ -16,7 +16,7 @@ export type Authorization = {
 export type Invoice = { id: string; gymId: string; changeId: string; amountMinor: number; currency: string };
 export type Payment = {
   id: string; gymId: string; invoiceId: string; amountMinor: number; currency: string;
-  status: 'pending' | 'failed' | 'paid'; paidAt: string | null;
+  status: 'pending' | 'failed' | 'paid' | 'expired_unpaid'; paidAt: string | null;
 };
 export interface IronPlanChangePorts {
   // Implementations serialize competing changes for the same gym/source/cycle.
@@ -64,6 +64,13 @@ export async function advanceIronPlanChange(change: PlanChange, ports: IronPlanC
         invoice.amountMinor !== quote.amountDueNowMinor || invoice.currency !== quote.currency)
       throw new Error('iron.change_invoice_mismatch');
     const payment = await ports.readPayment(invoice);
+    // Only the provider can attest definitive closure without settlement.
+    if (payment?.status === 'expired_unpaid') {
+      if (!payment.id || payment.invoiceId !== invoice.id || payment.gymId !== invoice.gymId ||
+          payment.amountMinor !== invoice.amountMinor || payment.currency !== invoice.currency ||
+          payment.paidAt !== null || time < due) throw new Error('iron.change_payment_mismatch');
+      return time - due >= 86400000 ? 'expired' : 'awaiting_late_settlement';
+    }
     if (!payment || payment.status !== 'paid') return time >= due ? 'awaiting_late_settlement' : 'awaiting_difference';
     const paid = Date.parse(payment.paidAt ?? '');
     if (!payment.id || payment.gymId !== change.gymId || payment.invoiceId !== invoice.id ||

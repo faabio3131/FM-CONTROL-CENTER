@@ -73,10 +73,23 @@ export class Sandbox {
     const row = this.get('SELECT data FROM payments WHERE invoice=?', inv.id);
     return row ? JSON.parse(row.data) : null;
   }
+  confirmUnpaidExpiry(inv) {
+    this.tx(() => {
+      const row = this.get('SELECT terms FROM changes WHERE id=?',inv.changeId);
+      const change = JSON.parse(row.terms);
+      const issued = JSON.parse(this.get('SELECT data FROM invoices WHERE id=? AND change_id=?',inv.id,inv.changeId).data);
+      if (issued.gymId !== change.gymId || Date.parse(this.time) < Date.parse(change.quote.targetRecurrence.firstChargeAt) ||
+          this.readPayment(issued)?.status === 'paid') throw Error('cannot confirm unpaid expiry');
+      this.run('INSERT INTO payments VALUES(?,?) ON CONFLICT(invoice) DO UPDATE SET data=excluded.data',
+        issued.id,JSON.stringify({id:'expiry-'+issued.id,invoiceId:issued.id,gymId:issued.gymId,status:'expired_unpaid',
+          amountMinor:issued.amountMinor,currency:issued.currency,paidAt:null}));
+    });
+  }
   settle(c, status) {
     const inv = this.differenceInvoice(c, false);
     const previous = this.readPayment(inv);
     if (previous?.status === 'paid') return;
+    if (previous?.status === 'expired_unpaid') throw Error('expired invoice');
     if (Date.parse(this.time) >= Date.parse(c.quote.targetRecurrence.firstChargeAt)) throw Error('expired invoice');
     this.run('INSERT INTO payments VALUES(?,?) ON CONFLICT(invoice) DO UPDATE SET data=excluded.data',
       inv.id,JSON.stringify({ id: randomUUID(), invoiceId: inv.id, gymId: c.gymId, status,
