@@ -297,3 +297,67 @@ test("fontes: cadastro governado do Kordena permanece fail-closed sem runtime ex
     ),
   ).toBeVisible();
 });
+
+
+test("operações F14: os cartões abrem diagnóstico real e fecham sem perder a navegação", async ({ page }) => {
+  await signUpAndCreateOrganization(page, "operations-cards");
+  await page.goto("/dashboard/operations");
+  await expect(page.getByRole("heading", { name: "Saúde operacional governada" })).toBeVisible();
+  await expect(page.getByText("Nenhum serviço monitorado.", { exact: true })).toBeVisible();
+
+  for (const label of [
+    "Serviços monitorados",
+    "Operacionais",
+    "Degradados",
+    "Indisponíveis / desconhecidos",
+  ]) {
+    await page.getByRole("link", { name: `Detalhar ${label}` }).click();
+    const panel = page.locator("#operations-detail");
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("heading", { name: label, exact: true })).toBeVisible();
+    await expect(panel.getByText("Nenhum serviço monitorado nesta condição.")).toBeVisible();
+    await panel.getByRole("link", { name: "Fechar detalhes de operações" }).click();
+    await expect(page.locator("#operations-detail")).toHaveCount(0);
+  }
+
+  for (const label of ["Incidentes", "Falhas de integrações", "Consumo de infraestrutura"]) {
+    await page.getByRole("link", { name: `Detalhar ${label}` }).click();
+    const panel = page.locator("#operations-detail");
+    await expect(panel.getByRole("heading", { name: label, exact: true })).toBeVisible();
+    await expect(panel.getByText(/Identificador canônico:/)).toBeVisible();
+    await expect(panel.getByText(/Fonte:/)).toBeVisible();
+    await panel.getByRole("link", { name: "Fechar detalhes de operações" }).click();
+    await expect(panel).toHaveCount(0);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("link", { name: "Detalhar Incidentes" }).click();
+  await expect(page.locator("#operations-detail")).toBeVisible();
+  const hasOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  );
+  expect(hasOverflow).toBe(false);
+});
+
+
+test("menu principal do Command abre todas as rotas autorizadas sem tela vazia", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signUpAndCreateOrganization(page, "sidebar-navigation");
+  const entries = await page.locator(".command-sidebar nav a").evaluateAll((anchors) =>
+    anchors.map(anchor => ({
+      href: anchor.getAttribute("href") ?? "",
+      label: anchor.textContent?.trim() ?? "",
+    })),
+  );
+  expect(entries.length).toBeGreaterThanOrEqual(14);
+  for (const [index, { href, label }] of entries.entries()) {
+    expect(href, `Link vazio no menu ${label}`).toBeTruthy();
+    await page.locator(".command-sidebar nav a").nth(index).click();
+    const expected = new URL(href, "http://127.0.0.1").pathname;
+    await expect.poll(() => new URL(page.url()).pathname, { message: `Navegação ${label}` })
+      .toBe(expected);
+    await expect(page.locator("main").first(), `Conteúdo ausente em ${label}`).toBeVisible();
+    await expect(page.locator("main h1").first(), `Título ausente em ${label}`).toBeVisible();
+    await expect(page.getByText("Application error", { exact: false })).toHaveCount(0);
+  }
+});
